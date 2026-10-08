@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-
 import '../screens/admin/admin_dashboard.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
-import '../screens/auth/role_selection_screen.dart';
+import '../screens/auth/email_verification_screen.dart';
 import '../screens/customer_support/chat_list_screen.dart';
 import '../screens/customer_support/support_home_screen.dart';
 import '../screens/customer_support/ticket_screen.dart';
@@ -24,7 +23,9 @@ import '../screens/receptionist/receptionist_home_screen.dart';
 class AppRoutes {
   static const String login = '/login';
   static const String register = '/register';
+  static const String hospitalRegister = '/hospital-register';
   static const String roleSelection = '/role-selection';
+  static const String emailVerification = '/email-verification'; // ✅ Route mới
 
   static const String patientHome = '/patient-home';
   static const String bookAppointment = '/book-appointment';
@@ -50,25 +51,33 @@ class AppRoutes {
   static const String adminDashboard = '/admin-dashboard';
 
   static Map<String, WidgetBuilder> get routes => {
-        login: (_) => const LoginScreen(),
-        register: (_) => const RegisterScreen(),
-        roleSelection: (_) => const RoleSelectionScreen(),
-        patientHome: (_) => const PatientHomeScreen(),
-        bookAppointment: (_) => const BookAppointmentScreen(),
-        myAppointments: (_) => const MyAppointmentsScreen(),
-        medicalHistory: (_) => const MedicalHistoryScreen(),
-        receptionistHome: (_) => const ReceptionistHomeScreen(),
-        checkIn: (_) => const CheckInScreen(),
-        appointmentList: (_) => const AppointmentListScreen(),
-        assistantHome: (_) => const AssistantHomeScreen(),
-        patientQueue: (_) => const PatientQueueScreen(),
-        updateRecord: (_) => const UpdateRecordScreen(),
-        supportHome: (_) => const SupportHomeScreen(),
-        chatList: (_) => const ChatListScreen(),
-        ticket: (_) => const TicketScreen(),
-        hospitalDashboard: (_) => const HospitalDashboard(),
-        staffManagement: (_) => const StaffManagementScreen(),
-        statistics: (_) => const StatisticsScreen(),
-        adminDashboard: (_) => const AdminDashboard(),
-      };
+    login: (_) => const LoginScreen(),
+    register: (_) => const RegisterScreen(),
+
+    // ✅ Cấu hình route nhận arguments (email)
+    emailVerification: (context) {
+      final email =
+          ModalRoute.of(context)?.settings.arguments as String? ??
+          'Email không xác định';
+      return EmailVerificationScreen(email: email);
+    },
+
+    patientHome: (_) => const PatientHomeScreen(),
+    bookAppointment: (_) => const BookAppointmentScreen(),
+    myAppointments: (_) => const MyAppointmentsScreen(),
+    medicalHistory: (_) => const MedicalHistoryScreen(),
+    receptionistHome: (_) => const ReceptionistHomeScreen(),
+    checkIn: (_) => const CheckInScreen(),
+    appointmentList: (_) => const AppointmentListScreen(),
+    assistantHome: (_) => const AssistantHomeScreen(),
+    patientQueue: (_) => const PatientQueueScreen(),
+    updateRecord: (_) => const UpdateRecordScreen(),
+    supportHome: (_) => const SupportHomeScreen(),
+    chatList: (_) => const ChatListScreen(),
+    ticket: (_) => const TicketScreen(),
+    hospitalDashboard: (_) => const HospitalDashboard(),
+    staffManagement: (_) => const StaffManagementScreen(),
+    statistics: (_) => const StatisticsScreen(),
+    adminDashboard: (_) => const AdminDashboard(),
+  };
 }
