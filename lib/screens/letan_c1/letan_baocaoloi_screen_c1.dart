@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/letan_c1/letan_design_system_c1.dart';
+import 'letan_baocao_thanhcong_screen_c1.dart';
 
 class LetanBaocaoloiScreenC1 extends StatefulWidget {
   final String tenKhoa;
@@ -39,33 +40,45 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
 
   void _guiBaoCao() {
     AppDesignSystemC1.hapticSuccess();
-    AppDesignSystemC1.showCustomSnackBar(
+    Navigator.pushReplacement(
       context,
-      message: 'Đã gửi báo cáo lỗi đến kỹ thuật thành công!',
-      isSuccess: true,
-      icon: Icons.check_circle_rounded,
+      MaterialPageRoute(
+        builder: (_) => LetanBaocaoThanhcongScreenC1(
+          maBaoCao: '#ERR-0926',
+          loaiLoi: _loaiLoiDuocChon,
+          mucDoUuTien: _mucDoUuTien,
+          thoiGianGui: '08:45, 09/10/2026',
+          moTa: _moTaController.text.trim(),
+          coDinhKemAnh: _coDinhKemAnh,
+        ),
+      ),
     );
-    Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppDesignSystemC1.laCheDoToi;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? AppDesignSystemC1.darkBackground : Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1C1C1E), size: 20),
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+            size: 20,
+          ),
           onPressed: () {
             AppDesignSystemC1.hapticLight();
             Navigator.pop(context);
           },
         ),
-        title: const Text(
+        title: Text(
           'Báo cáo lỗi',
           style: TextStyle(
-            color: Color(0xFF1C1C1E),
+            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
             fontSize: 18,
             fontWeight: FontWeight.w700,
             fontFamily: 'Inter',
@@ -83,27 +96,27 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFEF2F2),
+                  color: isDark ? const Color(0xFF7F1D1D).withValues(alpha: 0.35) : const Color(0xFFFEF2F2),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFFECACA)),
+                  border: Border.all(color: isDark ? const Color(0xFFB91C1C) : const Color(0xFFFECACA)),
                 ),
-                child: const Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '⚠ Mô tả lỗi hệ thống hoặc thao tác sai',
                       style: TextStyle(
-                        color: Color(0xFFFF3B30),
+                        color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFFF3B30),
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         fontFamily: 'Inter',
                       ),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text(
                       'Báo cáo sẽ được gửi đến bộ phận kỹ thuật',
                       style: TextStyle(
-                        color: Color(0xFF8E8E93),
+                        color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
                         fontFamily: 'Inter',
@@ -115,10 +128,10 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
               const SizedBox(height: 24),
 
               // 2. Loại lỗi
-              const Text(
+              Text(
                 'Loại lỗi',
                 style: TextStyle(
-                  color: Color(0xFF3A3A3C),
+                  color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF3A3A3C),
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   fontFamily: 'Inter',
@@ -128,21 +141,23 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF2F2F7),
+                  color: isDark ? AppDesignSystemC1.darkSurface : const Color(0xFFF2F2F7),
                   borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : Colors.transparent),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: _loaiLoiDuocChon,
                     isExpanded: true,
-                    icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF8E8E93)),
+                    dropdownColor: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+                    icon: Icon(Icons.keyboard_arrow_down, color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93)),
                     items: _danhSachLoaiLoi.map((item) {
                       return DropdownMenuItem<String>(
                         value: item,
                         child: Text(
                           item,
-                          style: const TextStyle(
-                            color: Color(0xFF1C1C1E),
+                          style: TextStyle(
+                            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
                             fontSize: 15,
                             fontFamily: 'Inter',
                           ),
@@ -162,10 +177,10 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
               const SizedBox(height: 24),
 
               // 3. Mô tả chi tiết
-              const Text(
+              Text(
                 'Mô tả chi tiết',
                 style: TextStyle(
-                  color: Color(0xFF3A3A3C),
+                  color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF3A3A3C),
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   fontFamily: 'Inter',
@@ -174,32 +189,36 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
               const SizedBox(height: 8),
               Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF2F2F7),
+                  color: isDark ? AppDesignSystemC1.darkSurface : const Color(0xFFF2F2F7),
                   borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : Colors.transparent),
                 ),
                 child: TextField(
                   controller: _moTaController,
                   maxLines: 4,
-                  style: const TextStyle(
-                    color: Color(0xFF1C1C1E),
+                  style: TextStyle(
+                    color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
                     fontSize: 14,
                     fontFamily: 'Inter',
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Nhập chi tiết lỗi sự cố bạn gặp phải...',
-                    hintStyle: TextStyle(color: Color(0xFFAEAEB2), fontSize: 14),
+                    hintStyle: TextStyle(
+                      color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFFAEAEB2),
+                      fontSize: 14,
+                    ),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.all(14),
+                    contentPadding: const EdgeInsets.all(14),
                   ),
                 ),
               ),
               const SizedBox(height: 24),
 
               // 4. Mức độ ưu tiên
-              const Text(
+              Text(
                 'Mức độ ưu tiên',
                 style: TextStyle(
-                  color: Color(0xFF3A3A3C),
+                  color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF3A3A3C),
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   fontFamily: 'Inter',
@@ -208,20 +227,20 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  _buildMucDoItem('Cao', const Color(0xFFFF3B30)),
+                  _buildMucDoItem('Cao', const Color(0xFFFF3B30), isDark),
                   const SizedBox(width: 10),
-                  _buildMucDoItem('Trung bình', const Color(0xFFFF9500)),
+                  _buildMucDoItem('Trung bình', const Color(0xFFFF9500), isDark),
                   const SizedBox(width: 10),
-                  _buildMucDoItem('Thấp', const Color(0xFF34C759)),
+                  _buildMucDoItem('Thấp', const Color(0xFF34C759), isDark),
                 ],
               ),
               const SizedBox(height: 24),
 
               // 5. Đính kèm ảnh (nếu có)
-              const Text(
+              Text(
                 'Đính kèm ảnh (nếu có)',
                 style: TextStyle(
-                  color: Color(0xFF3A3A3C),
+                  color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF3A3A3C),
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   fontFamily: 'Inter',
@@ -242,19 +261,23 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
                     width: 72,
                     height: 72,
                     decoration: BoxDecoration(
-                      color: _coDinhKemAnh ? const Color(0xFFE0F2FE) : const Color(0xFFF2F2F7),
+                      color: _coDinhKemAnh
+                          ? (isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE))
+                          : (isDark ? AppDesignSystemC1.darkSurface : const Color(0xFFF2F2F7)),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: _coDinhKemAnh ? const Color(0xFF0284C7) : const Color(0xFFE5E5EA),
+                        color: _coDinhKemAnh
+                            ? const Color(0xFF0284C7)
+                            : (isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA)),
                       ),
                     ),
                     alignment: Alignment.center,
                     child: _coDinhKemAnh
                         ? const Icon(Icons.check, color: Color(0xFF0284C7), size: 28)
-                        : const Text(
+                        : Text(
                             '+',
                             style: TextStyle(
-                              color: Color(0xFFC7C7CC),
+                              color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFFC7C7CC),
                               fontSize: 28,
                               fontWeight: FontWeight.w400,
                               fontFamily: 'Inter',
@@ -302,13 +325,13 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
                   AppDesignSystemC1.hapticLight();
                   Navigator.pop(context);
                 },
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Text(
                     'Hủy',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Color(0xFF8E8E93),
+                      color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
                       fontSize: 15,
                       fontWeight: FontWeight.w400,
                       fontFamily: 'Inter',
@@ -324,7 +347,7 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
     );
   }
 
-  Widget _buildMucDoItem(String label, Color activeColor) {
+  Widget _buildMucDoItem(String label, Color activeColor, bool isDark) {
     final bool isSelected = _mucDoUuTien == label;
 
     return Expanded(
@@ -340,14 +363,23 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: isSelected ? activeColor : const Color(0xFFF2F2F7),
+            color: isSelected
+                ? activeColor
+                : (isDark ? AppDesignSystemC1.darkSurface : const Color(0xFFF2F2F7)),
             borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected
+                  ? activeColor
+                  : (isDark ? AppDesignSystemC1.darkBorder : Colors.transparent),
+            ),
           ),
           alignment: Alignment.center,
           child: Text(
             label,
             style: TextStyle(
-              color: isSelected ? Colors.white : const Color(0xFF3A3A3C),
+              color: isSelected
+                  ? Colors.white
+                  : (isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF3A3A3C)),
               fontSize: 14,
               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
               fontFamily: 'Inter',

@@ -28,3 +28,23 @@ class ThongKeLeTanC1 {
     required this.daKham,
   });
 }
+
+class ThongBaoLeTanC1 {
+  final String id;
+  final String tieuDe;
+  final String noiDungNgan;
+  final String noiDungChiTiet;
+  final String thoiGian;
+  final String loai; // 'khan_cap', 'lich_hen', 'he_thong', 'nhan_su'
+  final bool daDoc;
+
+  const ThongBaoLeTanC1({
+    required this.id,
+    required this.tieuDe,
+    required this.noiDungNgan,
+    required this.noiDungChiTiet,
+    required this.thoiGian,
+    required this.loai,
+    this.daDoc = false,
+  });
+}

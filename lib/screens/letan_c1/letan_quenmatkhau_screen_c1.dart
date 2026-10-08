@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../models/letan_c1/letan_design_system_c1.dart';
+
 class LetanQuenmatkhauScreenC1 extends StatefulWidget {
   final String emailMacDinh;
 
@@ -47,19 +49,25 @@ class _LetanQuenmatkhauScreenC1State extends State<LetanQuenmatkhauScreenC1> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppDesignSystemC1.laCheDoToi;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF2F2F7),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1C1C1E), size: 20),
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Quên Mật Khẩu',
           style: TextStyle(
-            color: Color(0xFF1C1C1E),
+            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
             fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
@@ -80,7 +88,7 @@ class _LetanQuenmatkhauScreenC1State extends State<LetanQuenmatkhauScreenC1> {
                     width: 72,
                     height: 72,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF5E6),
+                      color: isDark ? const Color(0xFF451A03) : const Color(0xFFFFF5E6),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Icon(
@@ -92,21 +100,21 @@ class _LetanQuenmatkhauScreenC1State extends State<LetanQuenmatkhauScreenC1> {
                 ),
                 const SizedBox(height: 18),
 
-                const Text(
+                Text(
                   'Khôi Phục Mật Khẩu',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Color(0xFF1C1C1E),
+                    color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   'Nhập địa chỉ Gmail tài khoản của bạn. Hệ thống Firebase sẽ gửi liên kết xác thực đặt lại mật khẩu mới.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Color(0xFF8E8E93),
+                    color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
                     fontSize: 13,
                     height: 1.4,
                   ),
@@ -117,17 +125,17 @@ class _LetanQuenmatkhauScreenC1State extends State<LetanQuenmatkhauScreenC1> {
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE5E5EA)),
+                    border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Địa chỉ Gmail tài khoản',
                         style: TextStyle(
-                          color: Color(0xFF1C1C1E),
+                          color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
                           fontSize: 13.5,
                           fontWeight: FontWeight.w600,
                         ),
@@ -136,6 +144,9 @@ class _LetanQuenmatkhauScreenC1State extends State<LetanQuenmatkhauScreenC1> {
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
+                        style: TextStyle(
+                          color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+                        ),
                         validator: (val) {
                           if (val == null || val.trim().isEmpty) {
                             return 'Vui lòng nhập Gmail';
@@ -147,14 +158,25 @@ class _LetanQuenmatkhauScreenC1State extends State<LetanQuenmatkhauScreenC1> {
                         },
                         decoration: InputDecoration(
                           hintText: 'vidu@gmail.com',
-                          hintStyle: const TextStyle(color: Color(0xFF8E8E93), fontSize: 13),
-                          prefixIcon: const Icon(Icons.alternate_email, color: Color(0xFF8E8E93), size: 20),
+                          hintStyle: TextStyle(
+                            color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
+                            fontSize: 13,
+                          ),
+                          prefixIcon: Icon(Icons.alternate_email, color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93), size: 20),
                           filled: true,
-                          fillColor: const Color(0xFFF2F2F7),
+                          fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF2F2F7),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
+                            borderSide: isDark ? const BorderSide(color: AppDesignSystemC1.darkBorder) : BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: isDark ? const BorderSide(color: AppDesignSystemC1.darkBorder) : BorderSide.none,
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFFF9500), width: 1.5),
                           ),
                         ),
                       ),
@@ -168,9 +190,9 @@ class _LetanQuenmatkhauScreenC1State extends State<LetanQuenmatkhauScreenC1> {
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE8F8EF),
+                      color: isDark ? const Color(0xFF064E3B).withValues(alpha: 0.4) : const Color(0xFFE8F8EF),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFA7F3D0)),
+                      border: Border.all(color: isDark ? const Color(0xFF059669) : const Color(0xFFA7F3D0)),
                     ),
                     child: Row(
                       children: [
@@ -179,8 +201,8 @@ class _LetanQuenmatkhauScreenC1State extends State<LetanQuenmatkhauScreenC1> {
                         Expanded(
                           child: Text(
                             'Đã gửi thư xác thực đến ${_emailController.text.trim()}! Vui lòng kiểm tra hộp thư đến hoặc mục Spam.',
-                            style: const TextStyle(
-                              color: Color(0xFF065F46),
+                            style: TextStyle(
+                              color: isDark ? const Color(0xFFA7F3D0) : const Color(0xFF065F46),
                               fontSize: 12.5,
                               fontWeight: FontWeight.w500,
                             ),
@@ -213,9 +235,9 @@ class _LetanQuenmatkhauScreenC1State extends State<LetanQuenmatkhauScreenC1> {
                 OutlinedButton(
                   onPressed: () => Navigator.pop(context),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF8E8E93),
+                    foregroundColor: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
                     minimumSize: const Size(double.infinity, 52),
-                    side: const BorderSide(color: Color(0xFFE5E5EA)),
+                    side: BorderSide(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                   child: const Text(

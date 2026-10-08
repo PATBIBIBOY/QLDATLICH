@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/letan_c1/letan_design_system_c1.dart';
 import 'letan_quenmatkhau_screen_c1.dart';
 
 class LetanDoimatkhauScreenC1 extends StatefulWidget {
@@ -46,19 +47,25 @@ class _LetanDoimatkhauScreenC1State extends State<LetanDoimatkhauScreenC1> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppDesignSystemC1.laCheDoToi;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF2F2F7),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1C1C1E), size: 20),
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Đổi Mật Khẩu',
           style: TextStyle(
-            color: Color(0xFF1C1C1E),
+            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
             fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
@@ -77,9 +84,9 @@ class _LetanDoimatkhauScreenC1State extends State<LetanDoimatkhauScreenC1> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE5E5EA)),
+                    border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA)),
                   ),
                   child: Row(
                     children: [
@@ -87,7 +94,7 @@ class _LetanDoimatkhauScreenC1State extends State<LetanDoimatkhauScreenC1> {
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFF5E6),
+                          color: isDark ? const Color(0xFF451A03) : const Color(0xFFFFF5E6),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(Icons.lock_outline, color: Color(0xFFFF9500), size: 24),
@@ -97,15 +104,18 @@ class _LetanDoimatkhauScreenC1State extends State<LetanDoimatkhauScreenC1> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'Tài khoản đăng nhập',
-                              style: TextStyle(color: Color(0xFF8E8E93), fontSize: 12),
+                              style: TextStyle(
+                                color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
+                                fontSize: 12,
+                              ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               widget.email,
-                              style: const TextStyle(
-                                color: Color(0xFF1C1C1E),
+                              style: TextStyle(
+                                color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
                                 fontSize: 14.5,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -122,9 +132,9 @@ class _LetanDoimatkhauScreenC1State extends State<LetanDoimatkhauScreenC1> {
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE5E5EA)),
+                    border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA)),
                   ),
                   child: Column(
                     children: [
@@ -139,6 +149,7 @@ class _LetanDoimatkhauScreenC1State extends State<LetanDoimatkhauScreenC1> {
                           }
                           return null;
                         },
+                        isDark: isDark,
                       ),
                       Align(
                         alignment: Alignment.centerRight,
@@ -173,6 +184,7 @@ class _LetanDoimatkhauScreenC1State extends State<LetanDoimatkhauScreenC1> {
                           }
                           return null;
                         },
+                        isDark: isDark,
                       ),
                       const SizedBox(height: 16),
                       _buildTextField(
@@ -186,6 +198,7 @@ class _LetanDoimatkhauScreenC1State extends State<LetanDoimatkhauScreenC1> {
                           }
                           return null;
                         },
+                        isDark: isDark,
                       ),
                     ],
                   ),
@@ -213,9 +226,9 @@ class _LetanDoimatkhauScreenC1State extends State<LetanDoimatkhauScreenC1> {
                 OutlinedButton(
                   onPressed: () => Navigator.pop(context),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF8E8E93),
+                    foregroundColor: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
                     minimumSize: const Size(double.infinity, 52),
-                    side: const BorderSide(color: Color(0xFFE5E5EA)),
+                    side: BorderSide(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                   child: const Text(
@@ -237,14 +250,15 @@ class _LetanDoimatkhauScreenC1State extends State<LetanDoimatkhauScreenC1> {
     required bool obscureText,
     required VoidCallback onToggleVisibility,
     required String? Function(String?) validator,
+    required bool isDark,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: Color(0xFF1C1C1E),
+          style: TextStyle(
+            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
             fontSize: 13.5,
             fontWeight: FontWeight.w600,
           ),
@@ -254,23 +268,37 @@ class _LetanDoimatkhauScreenC1State extends State<LetanDoimatkhauScreenC1> {
           controller: controller,
           obscureText: obscureText,
           validator: validator,
+          style: TextStyle(
+            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+          ),
           decoration: InputDecoration(
             hintText: 'Nhập $label...',
-            hintStyle: const TextStyle(color: Color(0xFF8E8E93), fontSize: 13),
+            hintStyle: TextStyle(
+              color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
+              fontSize: 13,
+            ),
             suffixIcon: IconButton(
               icon: Icon(
                 obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                color: const Color(0xFF8E8E93),
+                color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
                 size: 20,
               ),
               onPressed: onToggleVisibility,
             ),
             filled: true,
-            fillColor: const Color(0xFFF2F2F7),
+            fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF2F2F7),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
+              borderSide: isDark ? const BorderSide(color: AppDesignSystemC1.darkBorder) : BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: isDark ? const BorderSide(color: AppDesignSystemC1.darkBorder) : BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFFF9500), width: 1.5),
             ),
           ),
         ),

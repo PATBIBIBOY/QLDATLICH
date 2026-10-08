@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../models/letan_c1/letan_qr_model_c1.dart';
 
 class LetanKetquaQrScreenC1 extends StatelessWidget {
@@ -14,19 +15,25 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppDesignSystemC1.laCheDoToi;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF334155), size: 20),
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF334155),
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Kết Quả Quét QR',
           style: TextStyle(
-            color: Color(0xFF0F172A),
+            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
             fontSize: 17,
             fontWeight: FontWeight.w700,
           ),
@@ -34,7 +41,7 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: Color(0xFF334155)),
+            icon: Icon(Icons.refresh, color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF334155)),
             onPressed: () {
               if (onQuetTiep != null) {
                 Navigator.pop(context);
@@ -64,6 +71,8 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
 
   // TRƯỜNG HỢP 1: XÁC THỰC THÀNH CÔNG (THEO ĐÚNG MOCKUP)
   Widget _buildGiaoDienThanhCong(BuildContext context) {
+    final isDark = AppDesignSystemC1.laCheDoToi;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -71,9 +80,9 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: const Color(0xFFECFDF5),
+            color: isDark ? const Color(0xFF064E3B).withValues(alpha: 0.4) : const Color(0xFFECFDF5),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFA7F3D0)),
+            border: Border.all(color: isDark ? const Color(0xFF059669) : const Color(0xFFA7F3D0)),
           ),
           child: Row(
             children: [
@@ -93,8 +102,8 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
                   children: [
                     Text(
                       ketQua.thongBao,
-                      style: const TextStyle(
-                        color: Color(0xFF065F46),
+                      style: TextStyle(
+                        color: isDark ? const Color(0xFFA7F3D0) : const Color(0xFF065F46),
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
@@ -102,8 +111,8 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       ketQua.chiTietLoi,
-                      style: const TextStyle(
-                        color: Color(0xFF047857),
+                      style: TextStyle(
+                        color: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF047857),
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
                       ),
@@ -173,16 +182,16 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
         ),
         const SizedBox(height: 18),
 
-        // Thẻ trắng: Thông tin bệnh nhân chi tiết
+        // Thẻ thông tin bệnh nhân chi tiết
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFEDF2F7)),
+            border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFEDF2F7)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
                 blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
@@ -195,10 +204,10 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'Thông tin bệnh nhân',
                     style: TextStyle(
-                      color: Color(0xFF0F172A),
+                      color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
@@ -206,13 +215,13 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE0F2FE),
+                      color: isDark ? const Color(0xFF0369A1).withValues(alpha: 0.3) : const Color(0xFFE0F2FE),
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
                       ketQua.bhyt ?? 'BHYT',
-                      style: const TextStyle(
-                        color: Color(0xFF0369A1),
+                      style: TextStyle(
+                        color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0369A1),
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -224,13 +233,13 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
 
               // Các dòng thông tin chi tiết
               _buildRowInfo('Họ và tên:', ketQua.hoTen ?? '', isBold: true, isUpper: true),
-              _buildRowInfo('Mã bệnh nhân:', ketQua.maBenhNhan ?? '', colorValue: const Color(0xFF0284C7), isBold: true),
+              _buildRowInfo('Mã bệnh nhân:', ketQua.maBenhNhan ?? '', colorValue: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7), isBold: true),
               _buildRowInfo('Năm sinh / Giới tính:', ketQua.namSinhGioiTinh ?? '', isBold: true),
               _buildRowInfo('CCCD:', ketQua.cccd ?? '', isBold: true),
 
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Divider(color: Color(0xFFE2E8F0), height: 1),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Divider(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0), height: 1),
               ),
 
               _buildRowInfo('Khoa khám:', ketQua.khoaKham ?? '', isBold: true),
@@ -245,6 +254,8 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
 
   // TRƯỜNG HỢP 2: ĐÃ XÁC THỰC HOẶC MÃ QR KHÔNG HỢP LỆ
   Widget _buildGiaoDienThatBai(BuildContext context) {
+    final isDark = AppDesignSystemC1.laCheDoToi;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -252,9 +263,9 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFFFEF2F2),
+            color: isDark ? const Color(0xFF7F1D1D).withValues(alpha: 0.35) : const Color(0xFFFEF2F2),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFFECACA)),
+            border: Border.all(color: isDark ? const Color(0xFFB91C1C) : const Color(0xFFFECACA)),
           ),
           child: Row(
             children: [
@@ -274,8 +285,8 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
                   children: [
                     Text(
                       ketQua.thongBao,
-                      style: const TextStyle(
-                        color: Color(0xFF991B1B),
+                      style: TextStyle(
+                        color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFF991B1B),
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
@@ -283,8 +294,8 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       ketQua.chiTietLoi,
-                      style: const TextStyle(
-                        color: Color(0xFFB91C1C),
+                      style: TextStyle(
+                        color: isDark ? const Color(0xFFF87171) : const Color(0xFFB91C1C),
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
                       ),
@@ -302,17 +313,17 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFEDF2F7)),
+              border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFEDF2F7)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Thông tin ghi nhận trước đó:',
                   style: TextStyle(
-                    color: Color(0xFF0F172A),
+                    color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
@@ -328,19 +339,19 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFEDF2F7)),
+              border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFEDF2F7)),
             ),
-            child: const Column(
+            child: Column(
               children: [
-                Icon(Icons.qr_code_2, size: 64, color: Color(0xFF94A3B8)),
-                SizedBox(height: 12),
+                Icon(Icons.qr_code_2, size: 64, color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF94A3B8)),
+                const SizedBox(height: 12),
                 Text(
                   'Vui lòng yêu cầu bệnh nhân mở lại mã QR trên ứng dụng hoặc chuyển sang tìm kiếm bằng CCCD / SĐT.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Color(0xFF64748B),
+                    color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
                     fontSize: 13,
                     height: 1.4,
                   ),
@@ -354,6 +365,8 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
   }
 
   Widget _buildRowInfo(String label, String value, {bool isBold = false, bool isUpper = false, Color? colorValue}) {
+    final isDark = AppDesignSystemC1.laCheDoToi;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -361,8 +374,8 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(
-              color: Color(0xFF64748B),
+            style: TextStyle(
+              color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
               fontSize: 13.5,
               fontWeight: FontWeight.w400,
             ),
@@ -370,7 +383,7 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
           Text(
             isUpper ? value.toUpperCase() : value,
             style: TextStyle(
-              color: colorValue ?? const Color(0xFF0F172A),
+              color: colorValue ?? (isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A)),
               fontSize: 13.5,
               fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
             ),
@@ -382,11 +395,13 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
 
   // 2 Nút bấm cuối màn hình: Quét Tiếp Mã Khác & Trở Về Trang Chủ
   Widget _buildBottomButtons(BuildContext context) {
+    final isDark = AppDesignSystemC1.laCheDoToi;
+
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFEDF2F7))),
+      decoration: BoxDecoration(
+        color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+        border: Border(top: BorderSide(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFEDF2F7))),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -441,19 +456,23 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
             child: Container(
               height: 52,
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+                color: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0)),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.home_outlined, color: Color(0xFF334155), size: 20),
-                  SizedBox(width: 10),
+                  Icon(
+                    Icons.home_outlined,
+                    color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF334155),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
                   Text(
                     'Trở Về Trang Chủ',
                     style: TextStyle(
-                      color: Color(0xFF334155),
+                      color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF334155),
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),

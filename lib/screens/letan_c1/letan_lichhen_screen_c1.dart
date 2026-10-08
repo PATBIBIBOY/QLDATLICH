@@ -72,6 +72,7 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppDesignSystemC1.laCheDoToi;
     final danhSach = _danhSachLoc;
 
     final content = Column(
@@ -79,13 +80,13 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
         // Thanh tiêu đề khi ở dạng Tab
         if (widget.laTab)
           Container(
-            color: Colors.white,
+            color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 14),
             alignment: Alignment.center,
-            child: const Text(
+            child: Text(
               'Lịch hẹn hôm nay',
               style: TextStyle(
-                color: Color(0xFF1C1C1E),
+                color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
               ),
@@ -93,10 +94,11 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
           ),
         // Thanh tìm kiếm trực tiếp theo Tên hoặc SĐT
             Container(
-              color: Colors.white,
+              color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: TextField(
                 controller: _timKiemController,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
                 onChanged: (val) {
                   setState(() {
                     _tuKhoa = val.trim();
@@ -118,7 +120,7 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
                         )
                       : null,
                   filled: true,
-                  fillColor: const Color(0xFFF2F2F7),
+                  fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF2F2F7),
                   contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -134,10 +136,10 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     DuLieuMauLichHenC1.ngayHienTai,
                     style: TextStyle(
-                      color: Color(0xFF8E8E93),
+                      color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
                       fontSize: 14,
                       fontWeight: FontWeight.w400,
                     ),
@@ -159,7 +161,7 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0).withValues(alpha: 0.6),
                   borderRadius: AppDesignSystemC1.borderRadMedium,
                 ),
                 child: Row(
@@ -178,12 +180,14 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
                           duration: const Duration(milliseconds: 200),
                           padding: const EdgeInsets.symmetric(vertical: 8),
                           decoration: BoxDecoration(
-                            color: isSelected ? Colors.white : Colors.transparent,
+                            color: isSelected
+                                ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+                                : Colors.transparent,
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: isSelected
                                 ? [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.04),
+                                      color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
                                       blurRadius: 4,
                                       offset: const Offset(0, 2),
                                     ),
@@ -194,7 +198,9 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
                           child: Text(
                             tab,
                             style: TextStyle(
-                              color: isSelected ? AppDesignSystemC1.primary : AppDesignSystemC1.textSecondary,
+                              color: isSelected
+                                  ? (isDark ? Colors.white : AppDesignSystemC1.primary)
+                                  : (isDark ? AppDesignSystemC1.darkTextSecondary : AppDesignSystemC1.textSecondary),
                               fontSize: 13,
                               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                             ),
@@ -248,18 +254,22 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF2F2F7),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1C1C1E), size: 20),
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Lịch hẹn hôm nay',
           style: TextStyle(
-            color: Color(0xFF1C1C1E),
+            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
             fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
@@ -271,6 +281,7 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
   }
 
   Widget _buildItemLichHen(LichHenItemC1 item) {
+    final isDark = AppDesignSystemC1.laCheDoToi;
     Color badgeBg;
     Color badgeText;
     Color avatarBg;
@@ -293,18 +304,23 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
       avatarText = const Color(0xFFEF4444);
     } else {
       // Chưa đến
-      badgeBg = const Color(0xFFF2F2F7);
-      badgeText = const Color(0xFF8E8E93);
-      avatarBg = const Color(0xFFF2F2F7);
-      avatarText = const Color(0xFF8E8E93);
+      badgeBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF2F2F7);
+      badgeText = isDark ? const Color(0xFF94A3B8) : const Color(0xFF8E8E93);
+      avatarBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF2F2F7);
+      avatarText = isDark ? const Color(0xFF94A3B8) : const Color(0xFF8E8E93);
     }
+
+    final cardBg = isDark ? AppDesignSystemC1.darkSurface : Colors.white;
+    final borderCol = isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA);
+    final textCol = isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E);
+    final subTextCol = isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93);
 
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E5EA)),
+        border: Border.all(color: borderCol),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -336,8 +352,8 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
               children: [
                 Text(
                   item.ten,
-                  style: const TextStyle(
-                    color: Color(0xFF1C1C1E),
+                  style: TextStyle(
+                    color: textCol,
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
@@ -360,8 +376,8 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
                 const SizedBox(height: 3),
                 Text(
                   item.khoa,
-                  style: const TextStyle(
-                    color: Color(0xFF8E8E93),
+                  style: TextStyle(
+                    color: subTextCol,
                     fontSize: 12,
                     fontWeight: FontWeight.w400,
                   ),
@@ -369,8 +385,8 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
                 const SizedBox(height: 2),
                 Text(
                   item.gioKham,
-                  style: const TextStyle(
-                    color: Color(0xFF8E8E93),
+                  style: TextStyle(
+                    color: subTextCol,
                     fontSize: 12,
                     fontWeight: FontWeight.w400,
                   ),

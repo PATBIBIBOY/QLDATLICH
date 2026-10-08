@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
 
 class LetanCapnhatProfileScreenC1 extends StatefulWidget {
@@ -46,9 +47,11 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
   }
 
   void _moModalChonKhoa() {
+    final isDark = AppDesignSystemC1.laCheDoToi;
+
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -66,20 +69,20 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE2E8F0),
+                      color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.local_hospital_rounded, color: Color(0xFFFF9500), size: 22),
-                    SizedBox(width: 10),
+                    const Icon(Icons.local_hospital_rounded, color: Color(0xFFFF9500), size: 22),
+                    const SizedBox(width: 10),
                     Text(
                       'Chọn Khoa Tiếp Nhận',
                       style: TextStyle(
-                        color: Color(0xFF1C1C1E),
+                        color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
                       ),
@@ -87,9 +90,12 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
                   ],
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'Chọn khoa phòng mà bạn đang phụ trách đón tiếp bệnh nhân',
-                  style: TextStyle(color: Color(0xFF8E8E93), fontSize: 12.5),
+                Text(
+                  'Chọn khoa chuyên môn bạn đang trực ca tiếp nhận',
+                  style: TextStyle(
+                    color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
+                    fontSize: 13,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 ConstrainedBox(
@@ -192,19 +198,25 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppDesignSystemC1.laCheDoToi;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF2F2F7),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1C1C1E), size: 20),
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context), // Hủy bỏ
         ),
-        title: const Text(
+        title: Text(
           'Chỉnh Sửa Thông Tin',
           style: TextStyle(
-            color: Color(0xFF1C1C1E),
+            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
             fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
@@ -223,14 +235,15 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE5E5EA)),
+                    border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA)),
                   ),
                   child: _buildRowThongTinCoDinh(
                     icon: Icons.alternate_email,
                     label: 'Gmail đăng nhập (Cố định bảo mật)',
                     val: widget.thongTinHienTai.email,
+                    isDark: isDark,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -239,9 +252,9 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE5E5EA)),
+                    border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA)),
                   ),
                   child: Column(
                     children: [
@@ -250,6 +263,7 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
                         controller: _hoTenController,
                         icon: Icons.person_outline,
                         validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng nhập họ và tên' : null,
+                        isDark: isDark,
                       ),
                       const SizedBox(height: 16),
                       _buildTextField(
@@ -257,6 +271,7 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
                         controller: _chucVuController,
                         icon: Icons.workspace_premium_outlined,
                         validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng nhập chức vụ' : null,
+                        isDark: isDark,
                       ),
                       const SizedBox(height: 16),
                       _buildTextField(
@@ -264,16 +279,17 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
                         controller: _maNhanVienController,
                         icon: Icons.badge_outlined,
                         validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng nhập mã nhân viên' : null,
+                        isDark: isDark,
                       ),
                       const SizedBox(height: 16),
                       // Selector chọn Khoa có sẵn của bệnh viện dạng BottomSheet hiện đại
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Thuộc khoa tiếp nhận',
                             style: TextStyle(
-                              color: Color(0xFF1C1C1E),
+                              color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
                               fontSize: 13.5,
                               fontWeight: FontWeight.w600,
                             ),
@@ -285,12 +301,12 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
+                                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(color: const Color(0xFFFF9500).withValues(alpha: 0.35), width: 1.2),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.02),
+                                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
                                     blurRadius: 6,
                                     offset: const Offset(0, 2),
                                   ),
@@ -302,7 +318,7 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
                                     width: 38,
                                     height: 38,
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFFFF5E6),
+                                      color: isDark ? const Color(0xFF451A03) : const Color(0xFFFFF5E6),
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: const Icon(Icons.local_hospital_rounded, color: Color(0xFFFF9500), size: 20),
@@ -312,15 +328,18 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        const Text(
+                                        Text(
                                           'Khoa đang công tác',
-                                          style: TextStyle(color: Color(0xFF8E8E93), fontSize: 11),
+                                          style: TextStyle(
+                                            color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
+                                            fontSize: 11,
+                                          ),
                                         ),
                                         const SizedBox(height: 1),
                                         Text(
                                           _khoaDuocChon,
-                                          style: const TextStyle(
-                                            color: Color(0xFF1C1C1E),
+                                          style: TextStyle(
+                                            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
                                             fontSize: 14.5,
                                             fontWeight: FontWeight.w700,
                                           ),
@@ -331,7 +350,7 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFE8F4FD),
+                                      color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE8F4FD),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: const Row(
@@ -381,9 +400,9 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
                 OutlinedButton(
                   onPressed: () => Navigator.pop(context),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF8E8E93),
+                    foregroundColor: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
                     minimumSize: const Size(double.infinity, 52),
-                    side: const BorderSide(color: Color(0xFFE5E5EA)),
+                    side: BorderSide(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                   child: const Text(
@@ -403,21 +422,28 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
     required IconData icon,
     required String label,
     required String val,
+    required bool isDark,
   }) {
     return Row(
       children: [
-        Icon(icon, color: const Color(0xFF8E8E93), size: 20),
+        Icon(icon, color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93), size: 20),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 11.5)),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
+                  fontSize: 11.5,
+                ),
+              ),
               const SizedBox(height: 2),
               Text(
                 val,
-                style: const TextStyle(
-                  color: Color(0xFF1C1C1E),
+                style: TextStyle(
+                  color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -435,14 +461,15 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
     required IconData icon,
     TextInputType keyboardType = TextInputType.text,
     required String? Function(String?) validator,
+    required bool isDark,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: Color(0xFF1C1C1E),
+          style: TextStyle(
+            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
             fontSize: 13.5,
             fontWeight: FontWeight.w600,
           ),
@@ -452,14 +479,25 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
           controller: controller,
           keyboardType: keyboardType,
           validator: validator,
+          style: TextStyle(
+            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+          ),
           decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: const Color(0xFF8E8E93), size: 20),
+            prefixIcon: Icon(icon, color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93), size: 20),
             filled: true,
-            fillColor: const Color(0xFFF2F2F7),
+            fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF2F2F7),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
+              borderSide: isDark ? const BorderSide(color: AppDesignSystemC1.darkBorder) : BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: isDark ? const BorderSide(color: AppDesignSystemC1.darkBorder) : BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFFF9500), width: 1.5),
             ),
           ),
         ),

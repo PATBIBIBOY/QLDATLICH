@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/letan_c1/letan_design_system_c1.dart';
 import 'letan_lichhen_screen_c1.dart';
 
 class LetanTimkiemScreenC1 extends StatefulWidget {
@@ -35,19 +36,25 @@ class _LetanTimkiemScreenC1State extends State<LetanTimkiemScreenC1> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppDesignSystemC1.laCheDoToi;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? AppDesignSystemC1.darkBackground : Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1C1C1E), size: 20),
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Tìm Bệnh Nhân',
           style: TextStyle(
-            color: Color(0xFF1C1C1E),
+            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
             fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
@@ -60,19 +67,19 @@ class _LetanTimkiemScreenC1State extends State<LetanTimkiemScreenC1> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
+              Text(
                 'Nhập Tên hoặc Số Điện Thoại',
                 style: TextStyle(
-                  color: Color(0xFF1C1C1E),
+                  color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 6),
-              const Text(
+              Text(
                 'Hệ thống sẽ tra cứu hồ sơ và chuyển thẳng đến danh sách lịch hẹn của bệnh nhân.',
                 style: TextStyle(
-                  color: Color(0xFF8E8E93),
+                  color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
                   fontSize: 13,
                 ),
               ),
@@ -82,18 +89,32 @@ class _LetanTimkiemScreenC1State extends State<LetanTimkiemScreenC1> {
               TextField(
                 controller: _controller,
                 autofocus: true,
+                style: TextStyle(
+                  color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+                ),
                 textInputAction: TextInputAction.search,
                 onSubmitted: _thucHienTimKiem,
                 decoration: InputDecoration(
                   hintText: 'Ví dụ: 0901234567 hoặc Nguyễn Văn An...',
-                  hintStyle: const TextStyle(color: Color(0xFF8E8E93), fontSize: 14),
-                  prefixIcon: const Icon(Icons.search, color: Color(0xFF007AFF)),
+                  hintStyle: TextStyle(
+                    color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
+                    fontSize: 14,
+                  ),
+                  prefixIcon: const Icon(Icons.search, color: AppDesignSystemC1.primary),
                   filled: true,
-                  fillColor: const Color(0xFFF2F2F7),
+                  fillColor: isDark ? AppDesignSystemC1.darkSurface : const Color(0xFFF2F2F7),
                   contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
+                    borderSide: isDark ? const BorderSide(color: AppDesignSystemC1.darkBorder) : BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: isDark ? const BorderSide(color: AppDesignSystemC1.darkBorder) : BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: AppDesignSystemC1.primary, width: 1.5),
                   ),
                 ),
               ),
@@ -108,7 +129,7 @@ class _LetanTimkiemScreenC1State extends State<LetanTimkiemScreenC1> {
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF007AFF),
+                  backgroundColor: AppDesignSystemC1.primary,
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 52),
                   shape: RoundedRectangleBorder(
@@ -119,10 +140,10 @@ class _LetanTimkiemScreenC1State extends State<LetanTimkiemScreenC1> {
               const SizedBox(height: 24),
 
               // Gợi ý nhanh
-              const Text(
+              Text(
                 'GỢI Ý TÌM NHANH:',
                 style: TextStyle(
-                  color: Color(0xFF8E8E93),
+                  color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.5,
@@ -133,10 +154,10 @@ class _LetanTimkiemScreenC1State extends State<LetanTimkiemScreenC1> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _buildChipGoiY('0901234567 (An)'),
-                  _buildChipGoiY('0912345678 (Hoa)'),
-                  _buildChipGoiY('Nguyễn Văn An'),
-                  _buildChipGoiY('Lê Minh'),
+                  _buildChipGoiY('0901234567 (An)', isDark),
+                  _buildChipGoiY('0912345678 (Hoa)', isDark),
+                  _buildChipGoiY('Nguyễn Văn An', isDark),
+                  _buildChipGoiY('Lê Minh', isDark),
                 ],
               ),
             ],
@@ -146,12 +167,18 @@ class _LetanTimkiemScreenC1State extends State<LetanTimkiemScreenC1> {
     );
   }
 
-  Widget _buildChipGoiY(String text) {
+  Widget _buildChipGoiY(String text, bool isDark) {
     final tuKhoa = text.split(' ')[0];
     return ActionChip(
-      label: Text(text, style: const TextStyle(fontSize: 12.5)),
-      backgroundColor: const Color(0xFFF2F2F7),
-      side: BorderSide.none,
+      label: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12.5,
+          color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+        ),
+      ),
+      backgroundColor: isDark ? AppDesignSystemC1.darkSurface : const Color(0xFFF2F2F7),
+      side: isDark ? const BorderSide(color: AppDesignSystemC1.darkBorder) : BorderSide.none,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       onPressed: () {
         _controller.text = tuKhoa;

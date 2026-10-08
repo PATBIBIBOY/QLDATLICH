@@ -9,13 +9,39 @@ class AppDesignSystemC1 {
   static const Color primaryLight = Color(0xFFE0F2FE); // Sky Blue 100
   static const Color primaryContainer = Color(0xFFBAE6FD);
 
-  // MÀU NỀN & MÀU PHỤ TRỢ (TRẮNG & XÁM DỊU MẮT)
+  // MÀU NỀN & MÀU PHỤ TRỢ (CHẾ ĐỘ SÁNG)
   static const Color background = Color(0xFFF8FAFC); // Slate 50
   static const Color surface = Colors.white;
   static const Color border = Color(0xFFE2E8F0); // Slate 200
   static const Color textPrimary = Color(0xFF0F172A); // Slate 900
   static const Color textSecondary = Color(0xFF64748B); // Slate 500
   static const Color textTertiary = Color(0xFF94A3B8); // Slate 400
+
+  // MÀU PHỤ TRỢ (CHẾ ĐỘ TỐI - DARK MODE CHUẨN OLED / SLATE SANG TRỌNG)
+  static const Color darkBackground = Color(0xFF0F172A); // Slate 900 đen tuyền hiện đại
+  static const Color darkSurface = Color(0xFF1E293B); // Slate 800 thẻ card nổi bật
+  static const Color darkCardSub = Color(0xFF334155); // Slate 700 ô con bên trong card
+  static const Color darkBorder = Color(0xFF334155); // Slate 700 viền mềm mại
+  static const Color darkTextPrimary = Color(0xFFF8FAFC); // Slate 50 chữ trắng sáng
+  static const Color darkTextSecondary = Color(0xFF94A3B8); // Slate 400 chữ phụ dịu mắt
+
+  // QUẢN LÝ CHẾ ĐỘ SÁNG / TỐI (LIGHT / DARK THEME NOTIFIER)
+  static final ValueNotifier<bool> isDarkMode = ValueNotifier<bool>(false);
+  static bool get laCheDoToi => isDarkMode.value;
+
+  static void batTatCheDoSangToi() {
+    isDarkMode.value = !isDarkMode.value;
+    hapticLight();
+  }
+
+  // GETTERS TRẢ VỀ MÀU LINH HOẠT THEO CHẾ ĐỘ SÁNG / TỐI
+  static Color get mauNen => isDarkMode.value ? darkBackground : background;
+  static Color get mauThe => isDarkMode.value ? darkSurface : surface;
+  static Color get mauThePhu => isDarkMode.value ? darkCardSub : const Color(0xFFF1F5F9);
+  static Color get mauVien => isDarkMode.value ? darkBorder : border;
+  static Color get mauChuChinh => isDarkMode.value ? darkTextPrimary : textPrimary;
+  static Color get mauChuPhu => isDarkMode.value ? darkTextSecondary : textSecondary;
+  static Color get mauHeaderAppBar => isDarkMode.value ? darkSurface : Colors.white;
 
   // 2. MÀU TRẠNG THÁI CHUẨN Y TẾ ĐỒNG NHẤT
   static const Color success = Color(0xFF10B981); // Emerald 500

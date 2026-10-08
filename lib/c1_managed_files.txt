@@ -41,5 +41,13 @@
 - lib/screens/letan_c1/letan_quenmatkhau_screen_c1.dart
 - lib/BaoCaoLoi.dart
 - lib/screens/letan_c1/letan_baocaoloi_screen_c1.dart
+- lib/screens/letan_c1/letan_baocao_thanhcong_screen_c1.dart
 - lib/screens/letan_c1/letan_trangchu_screen_c1.dart
+- lib/models/letan_c1/cskh_model_c1.dart
+- lib/mock/mock_c1/dulieu_mau_cskh_c1.dart
+- lib/screens/letan_c1/cskh_duyetdon_khoa_screen_c1.dart
+- lib/screens/letan_c1/cskh_danhsach_don_khoa_screen_c1.dart
+- lib/screens/letan_c1/cskh_danhsach_tinnhan_screen_c1.dart
+- lib/screens/letan_c1/cskh_chat_chitiet_screen_c1.dart
+- lib/screens/letan_c1/cskh_profile_tab_c1.dart
 - lib/chay_thu_c1.dart
