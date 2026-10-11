@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../config/constants.dart';
 import '../../config/app_routes.dart';
-import '../../models/user_model.dart';
+import '../../models/hospital_model.dart';
+import '../../models/patient_model.dart';
 import '../../providers/auth_provider.dart';
 import 'otp_screen.dart';
 
@@ -19,23 +19,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
   static const _grey = Color(0xFF64748B);
 
   final _formKey = GlobalKey<FormState>();
-  
+
   // Controllers cho Bệnh nhân
   final _patientNameCtrl = TextEditingController();
   final _patientIdCtrl = TextEditingController();
   final _patientPassCtrl = TextEditingController();
   final _patientConfirmCtrl = TextEditingController();
-  
+
   // Controllers cho Bệnh viện
   final _hospitalNameCtrl = TextEditingController();
   final _hospitalEmailCtrl = TextEditingController();
-  final _hospitalPhoneCtrl = TextEditingController();
+  final _hospitalAddressCtrl = TextEditingController();
   final _hospitalPassCtrl = TextEditingController();
   final _hospitalConfirmCtrl = TextEditingController();
-  
-  final _roles = ['Bệnh nhân', 'Bệnh viện'];
+
+  // ✅ Danh sách vai trò sẽ được load và LỌC từ Firebase
+  List<Map<String, dynamic>> _roles = [];
   int _roleIndex = 0;
-  
+  bool _isLoadingRoles = true;
+
   bool _obscure = true;
   bool _obscureConfirm = true;
   bool _agreed = true;
@@ -43,24 +45,45 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void initState() {
     super.initState();
+    _loadRoles();
+  }
+
+  // ✅ Hàm load danh sách vai trò từ Firebase và CHỈ GIỮ LẠI 2 ROLE
+  Future<void> _loadRoles() async {
     final auth = context.read<AuthProvider>();
-    if (auth.selectedRole != null) {
+    await auth.loadRoles();
+
+    if (mounted) {
       setState(() {
-        _roleIndex = auth.selectedRole == Role.hospital ? 1 : 0;
+        // 🛡️ LỌC: Chỉ giữ lại 'benh_nhan' và 'benh_vien'
+        _roles = auth.roles.where((role) {
+          final maVaiTro = role['ma_vai_tro'] as String?;
+          return maVaiTro == 'benh_nhan' || maVaiTro == 'benh_vien';
+        }).toList();
+
+        _isLoadingRoles = false;
+
+        // Nếu đã có selectedRole từ màn hình trước, tìm index tương ứng
+        if (auth.selectedRole != null && _roles.isNotEmpty) {
+          _roleIndex = _roles.indexWhere(
+            (role) => role['ma_vai_tro'] == auth.selectedRole,
+          );
+          if (_roleIndex == -1)
+            _roleIndex = 0; // Fallback về 0 nếu không tìm thấy
+        }
       });
     }
   }
 
   @override
   void dispose() {
-    // Dispose tất cả controllers
     _patientNameCtrl.dispose();
     _patientIdCtrl.dispose();
     _patientPassCtrl.dispose();
     _patientConfirmCtrl.dispose();
     _hospitalNameCtrl.dispose();
     _hospitalEmailCtrl.dispose();
-    _hospitalPhoneCtrl.dispose();
+    _hospitalAddressCtrl.dispose();
     _hospitalPassCtrl.dispose();
     _hospitalConfirmCtrl.dispose();
     super.dispose();
@@ -73,58 +96,76 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _obscureConfirm = true;
     });
     final auth = context.read<AuthProvider>();
-    auth.setSelectedRole(index == 1 ? Role.hospital : Role.patient);
+    auth.setSelectedRole(_roles[index]['ma_vai_tro']);
   }
 
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_agreed) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng đồng ý với Điều khoản & chính sách')),
+        const SnackBar(
+          content: Text('Vui lòng đồng ý với Điều khoản & chính sách'),
+        ),
       );
       return;
     }
 
     final auth = context.read<AuthProvider>();
-    UserModel user;
+    final currentRole = _roles[_roleIndex];
+    final maVaiTro = currentRole['ma_vai_tro'];
+
+    PatientModel? patient;
+    HospitalModel? hospital;
     String emailOrPhone = '';
     String password = '';
 
-    if (_roleIndex == 0) {
-      // --- Đăng ký Bệnh nhân ---
+    if (maVaiTro == 'benh_nhan') {
       final id = _patientIdCtrl.text.trim();
       emailOrPhone = id;
       password = _patientPassCtrl.text;
-      
-      user = UserModel(
-        uid: '', 
+
+      patient = PatientModel(
+        uid: '',
         hoTen: _patientNameCtrl.text.trim(),
         email: id.contains('@') ? id : null,
         soDienThoai: !id.contains('@') ? id : null,
-        role: 'Bệnh nhân',
+        role: maVaiTro,
       );
-    } else {
-      // --- Đăng ký Bệnh viện ---
+    } else if (maVaiTro == 'benh_vien') {
       emailOrPhone = _hospitalEmailCtrl.text.trim();
       password = _hospitalPassCtrl.text;
-      
-      user = UserModel(
-        uid: '', 
-        hoTen: _hospitalNameCtrl.text.trim(),
+
+      hospital = HospitalModel(
+        tenBenhVien: _hospitalNameCtrl.text.trim(),
+        diaChi: _hospitalAddressCtrl.text.trim(),
         email: _hospitalEmailCtrl.text.trim(),
-        soDienThoai: _hospitalPhoneCtrl.text.trim().isEmpty ? null : _hospitalPhoneCtrl.text.trim(),
-        role: 'Bệnh viện',
+        role: maVaiTro,
       );
+    } else {
+      // Fallback an toàn (về lý thuyết sẽ không bao giờ rơi vào đây vì đã lọc ở trên)
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vai trò này chưa hỗ trợ đăng ký trực tiếp trên app.'),
+        ),
+      );
+      return;
     }
 
     if (emailOrPhone.contains('@')) {
-      // --- Nhánh EMAIL + mật khẩu ---
       try {
-        await auth.registerWithEmail(
-          email: emailOrPhone,
-          password: password,
-          user: user,
-        );
+        if (hospital != null) {
+          await auth.registerHospitalWithEmail(
+            email: emailOrPhone,
+            password: password,
+            hospital: hospital,
+          );
+        } else {
+          await auth.registerWithEmail(
+            email: emailOrPhone,
+            password: password,
+            user: patient!,
+          );
+        }
         if (!mounted) return;
 
         Navigator.pushReplacementNamed(
@@ -132,7 +173,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           AppRoutes.emailVerification,
           arguments: emailOrPhone,
         );
-
       } catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -140,7 +180,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         );
       }
     } else {
-      // --- Nhánh SỐ ĐIỆN THOẠI + OTP (chỉ cho Bệnh nhân) ---
+      if (patient == null) return;
       await auth.sendOtp(
         phone: emailOrPhone,
         onCodeSent: () {
@@ -152,16 +192,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 phone: emailOrPhone,
                 onVerify: (code) async {
                   try {
-                    await auth.verifyOtpAndRegister(smsCode: code, user: user);
+                    await auth.verifyOtpAndRegister(
+                      smsCode: code,
+                      user: patient!,
+                    );
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Đăng ký thành công!')),
                     );
-                    Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (route) => false);
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      AppRoutes.login,
+                      (route) => false,
+                    );
                   } catch (e) {
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+                      SnackBar(
+                        content: Text(
+                          e.toString().replaceAll('Exception: ', ''),
+                        ),
+                      ),
                     );
                   }
                 },
@@ -170,7 +221,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   onCodeSent: () {},
                   onError: (msg) {
                     if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(msg)));
                   },
                 ),
               ),
@@ -179,7 +232,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         },
         onError: (msg) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(msg)));
         },
       );
     }
@@ -190,29 +245,42 @@ class _RegisterScreenState extends State<RegisterScreen> {
     borderSide: BorderSide(color: c),
   );
 
-  InputDecoration _decoration(IconData icon, String hint, {Widget? suffix}) => InputDecoration(
-    hintText: hint,
-    prefixIcon: Icon(icon, color: _grey),
-    suffixIcon: suffix,
-    filled: true,
-    fillColor: Colors.white,
-    contentPadding: const EdgeInsets.symmetric(vertical: 18),
-    border: _border(const Color(0xFFE2E8F0)),
-    enabledBorder: _border(const Color(0xFFE2E8F0)),
-    focusedBorder: _border(_primary),
-    errorBorder: _border(_danger),
-    focusedErrorBorder: _border(_danger),
-  );
+  InputDecoration _decoration(IconData icon, String hint, {Widget? suffix}) =>
+      InputDecoration(
+        hintText: hint,
+        prefixIcon: Icon(icon, color: _grey),
+        suffixIcon: suffix,
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(vertical: 18),
+        border: _border(const Color(0xFFE2E8F0)),
+        enabledBorder: _border(const Color(0xFFE2E8F0)),
+        focusedBorder: _border(_primary),
+        errorBorder: _border(_danger),
+        focusedErrorBorder: _border(_danger),
+      );
 
   Widget _label(String text, {bool required = false, String? note}) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
     child: Text.rich(
       TextSpan(
         text: text,
-        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Color(0xFF0F172A)),
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 15,
+          color: Color(0xFF0F172A),
+        ),
         children: [
-          if (required) const TextSpan(text: '  *', style: TextStyle(color: _danger)),
-          if (note != null) TextSpan(text: ' $note', style: const TextStyle(fontWeight: FontWeight.w400, color: _grey)),
+          if (required)
+            const TextSpan(
+              text: '  *',
+              style: TextStyle(color: _danger),
+            ),
+          if (note != null)
+            TextSpan(
+              text: ' $note',
+              style: const TextStyle(fontWeight: FontWeight.w400, color: _grey),
+            ),
         ],
       ),
     ),
@@ -220,8 +288,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final roleLabel = _roles[_roleIndex];
     final isLoading = context.watch<AuthProvider>().isLoading;
+
+    if (_isLoadingRoles) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(color: _primary),
+              const SizedBox(height: 16),
+              Text(
+                'Đang tải thông tin...',
+                style: TextStyle(color: _grey, fontSize: 15),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final roleLabel = _roles.isNotEmpty
+        ? _roles[_roleIndex]['ten_vai_tro'] ?? 'Vai trò'
+        : 'Vai trò';
+    final maVaiTro = _roles.isNotEmpty ? _roles[_roleIndex]['ma_vai_tro'] : '';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -238,25 +329,45 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: Column(
                     children: [
                       Container(
-                        width: 72, height: 72,
-                        decoration: BoxDecoration(color: _primary, borderRadius: BorderRadius.circular(20)),
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          color: _primary,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
                         child: Icon(
-                          _roleIndex == 0 ? Icons.local_hospital : Icons.local_hospital,
-                          color: Colors.white, size: 44,
+                          maVaiTro == 'benh_nhan'
+                              ? Icons.person
+                              : Icons.local_hospital,
+                          color: Colors.white,
+                          size: 44,
                         ),
                       ),
                       const SizedBox(height: 10),
-                      const Text('MEDICONNECT', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _primary)),
-                      Text('Đăng ký tài khoản $roleLabel', style: const TextStyle(fontSize: 15, color: _grey)),
+                      const Text(
+                        'MEDICONNECT',
+                        style: TextStyle(
+                          fontSize: 30,
+                          fontWeight: FontWeight.w800,
+                          color: _primary,
+                        ),
+                      ),
+                      Text(
+                        'Đăng ký tài khoản $roleLabel',
+                        style: const TextStyle(fontSize: 15, color: _grey),
+                      ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 20),
 
-                // Tabs vai trò
+                // ✅ Tabs vai trò - Giờ đây chỉ render đúng 2 tab đã được lọc
                 Container(
                   padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(color: const Color(0xFFF1F3F6), borderRadius: BorderRadius.circular(16)),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F3F6),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: Row(
                     children: List.generate(_roles.length, (i) {
                       final active = i == _roleIndex;
@@ -271,7 +382,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               color: active ? _primary : Colors.transparent,
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Text(_roles[i], style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: active ? Colors.white : _grey)),
+                            child: Text(
+                              _roles[i]['ten_vai_tro'] ?? 'Vai trò',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                                color: active ? Colors.white : _grey,
+                              ),
+                            ),
                           ),
                         ),
                       );
@@ -279,15 +397,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                
+
                 // ✅ CÁC Ô NHẬP LIỆU THAY ĐỔI THEO TAB
-                if (_roleIndex == 0) ...[
-                  // === FORM BỆNH NHÂN ===
+                if (maVaiTro == 'benh_nhan') ...[
                   _label('Họ và Tên', required: true),
                   TextFormField(
                     controller: _patientNameCtrl,
-                    decoration: _decoration(Icons.person_outline, 'Nguyễn Văn An'),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Vui lòng nhập họ và tên' : null,
+                    decoration: _decoration(
+                      Icons.person_outline,
+                      'Nguyễn Văn An',
+                    ),
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Vui lòng nhập họ và tên'
+                        : null,
                   ),
                   const SizedBox(height: 16),
 
@@ -295,14 +417,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   TextFormField(
                     controller: _patientIdCtrl,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: _decoration(Icons.mail_outline, 'an.nguyen@gmail.com / 0912 345 678'),
+                    decoration: _decoration(
+                      Icons.mail_outline,
+                      'an.nguyen@gmail.com / 0912 345 678',
+                    ),
                     validator: (v) {
                       final value = (v ?? '').trim();
-                      if (value.isEmpty) return 'Vui lòng nhập email hoặc số điện thoại';
+                      if (value.isEmpty)
+                        return 'Vui lòng nhập email hoặc số điện thoại';
                       if (value.contains('@')) {
-                        return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value) ? null : 'Email không hợp lệ';
+                        return RegExp(
+                              r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                            ).hasMatch(value)
+                            ? null
+                            : 'Email không hợp lệ';
                       }
-                      return RegExp(r'^(0|\+84)[3|5|7|8|9][0-9]{8}$').hasMatch(value.replaceAll(' ', '')) ? null : 'Số điện thoại không hợp lệ';
+                      return RegExp(
+                            r'^(0|\+84)[3|5|7|8|9][0-9]{8}$',
+                          ).hasMatch(value.replaceAll(' ', ''))
+                          ? null
+                          : 'Số điện thoại không hợp lệ';
                     },
                   ),
                   const SizedBox(height: 16),
@@ -312,10 +446,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _patientPassCtrl,
                     obscureText: _obscure,
                     decoration: _decoration(
-                      Icons.lock_outline, 'Nhập mật khẩu',
-                      suffix: IconButton(icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, color: _grey), onPressed: () => setState(() => _obscure = !_obscure)),
+                      Icons.lock_outline,
+                      'Nhập mật khẩu',
+                      suffix: IconButton(
+                        icon: Icon(
+                          _obscure ? Icons.visibility_off : Icons.visibility,
+                          color: _grey,
+                        ),
+                        onPressed: () => setState(() => _obscure = !_obscure),
+                      ),
                     ),
-                    validator: (v) => (v == null || v.length < 6) ? 'Mật khẩu tối thiểu 6 ký tự' : null,
+                    validator: (v) => (v == null || v.length < 6)
+                        ? 'Mật khẩu tối thiểu 6 ký tự'
+                        : null,
                   ),
                   const SizedBox(height: 16),
 
@@ -324,18 +467,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _patientConfirmCtrl,
                     obscureText: _obscureConfirm,
                     decoration: _decoration(
-                      Icons.lock_outline, 'Nhập lại mật khẩu',
-                      suffix: IconButton(icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility, color: _grey), onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm)),
+                      Icons.lock_outline,
+                      'Nhập lại mật khẩu',
+                      suffix: IconButton(
+                        icon: Icon(
+                          _obscureConfirm
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: _grey,
+                        ),
+                        onPressed: () =>
+                            setState(() => _obscureConfirm = !_obscureConfirm),
+                      ),
                     ),
-                    validator: (v) => (v == null || v != _patientPassCtrl.text) ? 'Mật khẩu nhập lại không khớp' : null,
+                    validator: (v) => (v == null || v != _patientPassCtrl.text)
+                        ? 'Mật khẩu nhập lại không khớp'
+                        : null,
                   ),
-                ] else ...[
-                  // === FORM BỆNH VIỆN ===
+                ] else if (maVaiTro == 'benh_vien') ...[
                   _label('Tên bệnh viện / Cơ sở y tế', required: true),
                   TextFormField(
                     controller: _hospitalNameCtrl,
-                    decoration: _decoration(Icons.business_outlined, 'Bệnh viện Đa Khoa An Bình'),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Vui lòng nhập tên bệnh viện' : null,
+                    decoration: _decoration(
+                      Icons.business_outlined,
+                      'Bệnh viện Đa Khoa An Bình',
+                    ),
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Vui lòng nhập tên bệnh viện'
+                        : null,
                   ),
                   const SizedBox(height: 16),
 
@@ -343,25 +502,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   TextFormField(
                     controller: _hospitalEmailCtrl,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: _decoration(Icons.mail_outline, 'admin@benhvien.vn'),
+                    decoration: _decoration(
+                      Icons.mail_outline,
+                      'admin@benhvien.vn',
+                    ),
                     validator: (v) {
                       final value = (v ?? '').trim();
                       if (value.isEmpty) return 'Vui lòng nhập email';
-                      return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value) ? null : 'Email không hợp lệ';
+                      return RegExp(
+                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                          ).hasMatch(value)
+                          ? null
+                          : 'Email không hợp lệ';
                     },
                   ),
                   const SizedBox(height: 16),
 
-                  _label('Số điện thoại liên hệ', note: '(Không bắt buộc)'),
+                  _label('Địa chỉ bệnh viện', required: true),
                   TextFormField(
-                    controller: _hospitalPhoneCtrl,
-                    keyboardType: TextInputType.phone,
-                    decoration: _decoration(Icons.phone_outlined, '028 3899 9999'),
-                    validator: (v) {
-                      final value = (v ?? '').trim();
-                      if (value.isEmpty) return null;
-                      return RegExp(r'^(0|\+84)[3|5|7|8|9][0-9]{8}$').hasMatch(value.replaceAll(' ', '')) ? null : 'Số điện thoại không hợp lệ';
-                    },
+                    controller: _hospitalAddressCtrl,
+                    decoration: _decoration(
+                      Icons.location_on_outlined,
+                      'Số nhà, đường, phường/xã, tỉnh/thành phố',
+                    ),
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Vui lòng nhập địa chỉ bệnh viện'
+                        : null,
                   ),
                   const SizedBox(height: 16),
 
@@ -370,10 +536,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _hospitalPassCtrl,
                     obscureText: _obscure,
                     decoration: _decoration(
-                      Icons.lock_outline, 'Nhập mật khẩu',
-                      suffix: IconButton(icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, color: _grey), onPressed: () => setState(() => _obscure = !_obscure)),
+                      Icons.lock_outline,
+                      'Nhập mật khẩu',
+                      suffix: IconButton(
+                        icon: Icon(
+                          _obscure ? Icons.visibility_off : Icons.visibility,
+                          color: _grey,
+                        ),
+                        onPressed: () => setState(() => _obscure = !_obscure),
+                      ),
                     ),
-                    validator: (v) => (v == null || v.length < 6) ? 'Mật khẩu tối thiểu 6 ký tự' : null,
+                    validator: (v) => (v == null || v.length < 6)
+                        ? 'Mật khẩu tối thiểu 6 ký tự'
+                        : null,
                   ),
                   const SizedBox(height: 16),
 
@@ -382,12 +557,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _hospitalConfirmCtrl,
                     obscureText: _obscureConfirm,
                     decoration: _decoration(
-                      Icons.lock_outline, 'Nhập lại mật khẩu',
-                      suffix: IconButton(icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility, color: _grey), onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm)),
+                      Icons.lock_outline,
+                      'Nhập lại mật khẩu',
+                      suffix: IconButton(
+                        icon: Icon(
+                          _obscureConfirm
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: _grey,
+                        ),
+                        onPressed: () =>
+                            setState(() => _obscureConfirm = !_obscureConfirm),
+                      ),
                     ),
                     validator: (v) {
-                      if (v == null || v.isEmpty) return 'Vui lòng nhập lại mật khẩu';
-                      return (v != _hospitalPassCtrl.text) ? 'Mật khẩu nhập lại không khớp' : null;
+                      if (v == null || v.isEmpty)
+                        return 'Vui lòng nhập lại mật khẩu';
+                      return (v != _hospitalPassCtrl.text)
+                          ? 'Mật khẩu nhập lại không khớp'
+                          : null;
                     },
                   ),
                 ],
@@ -396,14 +584,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 // Điều khoản
                 Row(
                   children: [
-                    Checkbox(value: _agreed, activeColor: _primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)), onChanged: (v) => setState(() => _agreed = v ?? false)),
+                    Checkbox(
+                      value: _agreed,
+                      activeColor: _primary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      onChanged: (v) => setState(() => _agreed = v ?? false),
+                    ),
                     Expanded(
                       child: Text.rich(
                         TextSpan(
-                          text: 'Đồng ý với ', style: TextStyle(color: _grey, fontSize: 14),
+                          text: 'Đồng ý với ',
+                          style: TextStyle(color: _grey, fontSize: 14),
                           children: [
-                            TextSpan(text: 'Điều khoản & chính sách', style: TextStyle(color: _primary, fontWeight: FontWeight.w700)),
-                            TextSpan(text: _roleIndex == 0 ? ' người dùng.' : ' cơ sở y tế.'),
+                            TextSpan(
+                              text: 'Điều khoản & chính sách',
+                              style: TextStyle(
+                                color: _primary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            TextSpan(
+                              text: maVaiTro == 'benh_nhan'
+                                  ? ' người dùng.'
+                                  : ' cơ sở y tế.',
+                            ),
                           ],
                         ),
                       ),
@@ -414,19 +620,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                 // Nút đăng ký
                 SizedBox(
-                  width: double.infinity, height: 56,
+                  width: double.infinity,
+                  height: 56,
                   child: ElevatedButton(
                     onPressed: isLoading ? null : _register,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _primary, foregroundColor: Colors.white, elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                      backgroundColor: _primary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
                     ),
                     child: isLoading
-                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
                         : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text('Đăng Ký Tài Khoản $roleLabel', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                              Text(
+                                'Đăng Ký Tài Khoản $roleLabel',
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                               const SizedBox(width: 8),
                               const Icon(Icons.arrow_forward, size: 22),
                             ],
@@ -434,14 +658,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                
+
                 Center(
                   child: GestureDetector(
                     onTap: () => Navigator.pop(context),
                     child: const Text.rich(
                       TextSpan(
-                        text: 'Đã có tài khoản? ', style: TextStyle(color: _grey, fontSize: 15),
-                        children: [TextSpan(text: 'Đăng nhập ngay', style: TextStyle(color: _primary, fontWeight: FontWeight.w700))],
+                        text: 'Đã có tài khoản? ',
+                        style: TextStyle(color: _grey, fontSize: 15),
+                        children: [
+                          TextSpan(
+                            text: 'Đăng nhập ngay',
+                            style: TextStyle(
+                              color: _primary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
