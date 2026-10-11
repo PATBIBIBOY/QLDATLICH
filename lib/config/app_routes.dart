@@ -16,10 +16,11 @@ import '../screens/hospital/staff_management_screen.dart';
 import '../screens/patient/book_appointment_screen.dart';
 import '../screens/patient/medical_history_screen.dart';
 import '../screens/patient/my_appointments_screen.dart';
-import '../screens/patient/patient_home_screen.dart';
+import '../screens/patient/home_screen.dart';
 import '../screens/receptionist/appointment_list_screen.dart';
 import '../screens/receptionist/check_in_screen.dart';
 import '../screens/receptionist/receptionist_home_screen.dart';
+import '../screens/patient/patient_main_screen.dart';
 
 class AppRoutes {
   static const String login = '/login';
@@ -30,6 +31,7 @@ class AppRoutes {
   static const String forgotPassword = '/forgot-password';
 
   static const String patientHome = '/patient-home';
+  static const String patientMain = '/patient-main'; 
   static const String bookAppointment = '/book-appointment';
   static const String myAppointments = '/my-appointments';
   static const String medicalHistory = '/medical-history';
@@ -68,7 +70,8 @@ class AppRoutes {
       return ForgotPasswordScreen(initialEmail: email);
     },
 
-    patientHome: (_) => const PatientHomeScreen(),
+    patientHome: (_) => const HomeScreen(),
+    patientMain: (_) => const PatientMainScreen(),
     bookAppointment: (_) => const BookAppointmentScreen(),
     myAppointments: (_) => const MyAppointmentsScreen(),
     medicalHistory: (_) => const MedicalHistoryScreen(),

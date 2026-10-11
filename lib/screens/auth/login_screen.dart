@@ -64,12 +64,12 @@ class _LoginScreenState extends State<LoginScreen> {
       if (selectedRoleCode == 'admin' && auth.admin != null) {
         route = AppRoutes.adminDashboard;
       } else if (auth.user != null) {
-        route = AppRoutes.patientHome;
+        route = AppRoutes.patientMain; // Chuyển sang màn hình chính của bệnh nhân
       } else if (auth.hospital != null) {
         route = AppRoutes.hospitalDashboard;
       } else {
         // Fallback nếu có lỗi logic
-        route = AppRoutes.patientHome; 
+        route = AppRoutes.patientMain; 
       }
 
       Navigator.pushNamedAndRemoveUntil(context, route, (route) => false);
