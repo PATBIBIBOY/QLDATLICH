@@ -8,11 +8,15 @@ import 'config/firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'screens/auth/login_screen.dart';
 
+import 'database_seeder.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await DatabaseSeeder.seedAllData();
 
   runApp(const QLDatLichApp());
 }
@@ -29,7 +33,8 @@ class QLDatLichApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         home: const LoginScreen(),
-        routes: AppRoutes.routes,
+        // ✅ SỬA LỖI: Bỏ đoạn import bị dính vào đây
+        routes: AppRoutes.routes, 
       ),
     );
   }
