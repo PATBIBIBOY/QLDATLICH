@@ -19,9 +19,11 @@ abstract final class _Ui {
   static const Color textPrimary = Color(0xFF191C26);
   static const Color textSecondary = Color(0xFF8B90A0);
   static const Color textFaint = Color(0xFFAAB0BE);
+  static const Color blue = Color(0xFF0A84FF);
   static const Color green = Color(0xFF35C95B);
   static const Color amber = Color(0xFFFFC400);
   static const Color red = Color(0xFFFF534B);
+  static const Color chipIdle = Color(0xFFF3F5FA);
   static const Color chipIdleText = Color(0xFF7C8293);
 
   /// Bóng mềm cho các thẻ trắng.
@@ -156,36 +158,36 @@ class VisitRecord {
 
   /// Đổ bản ghi sang map để ghi xuống CSDL.
   Map<String, Object?> toMap() => <String, Object?>{
-    'id': id,
-    'ma_phien_kham': sessionId,
-    'ma_phong_kham': roomId,
-    'ma_nhan_vien': staffId,
-    'ma_benh_nhan': patientId,
-    'so_thu_tu': number,
-    'trang_thai': status.dbValue,
-    'da_xac_nhan_kham': examConfirmed ? 1 : 0,
-    'thoi_gian_goi': calledAt?.toIso8601String(),
-    'thoi_gian_xin_doi': deferredAt?.toIso8601String(),
-    'thoi_gian_xac_nhan': confirmedAt?.toIso8601String(),
-  };
+        'id': id,
+        'ma_phien_kham': sessionId,
+        'ma_phong_kham': roomId,
+        'ma_nhan_vien': staffId,
+        'ma_benh_nhan': patientId,
+        'so_thu_tu': number,
+        'trang_thai': status.dbValue,
+        'da_xac_nhan_kham': examConfirmed ? 1 : 0,
+        'thoi_gian_goi': calledAt?.toIso8601String(),
+        'thoi_gian_xin_doi': deferredAt?.toIso8601String(),
+        'thoi_gian_xac_nhan': confirmedAt?.toIso8601String(),
+      };
 
   /// Đọc một bản ghi từ hàng CSDL.
   factory VisitRecord.fromMap(Map<String, Object?> map) => VisitRecord(
-    id: (map['id'] as num?)?.toInt() ?? 0,
-    number: (map['so_thu_tu'] as num).toInt(),
-    sessionId: '${map['ma_phien_kham'] ?? ''}',
-    roomId: map['ma_phong_kham'] as String?,
-    staffId: map['ma_nhan_vien'] as String?,
-    patientId: map['ma_benh_nhan'] as String?,
-    status: VisitStatus.values.firstWhere(
-      (status) => status.dbValue == map['trang_thai'],
-      orElse: () => VisitStatus.waiting,
-    ),
-    examConfirmed: (map['da_xac_nhan_kham'] as num? ?? 0) != 0,
-    calledAt: DateTime.tryParse('${map['thoi_gian_goi'] ?? ''}'),
-    deferredAt: DateTime.tryParse('${map['thoi_gian_xin_doi'] ?? ''}'),
-    confirmedAt: DateTime.tryParse('${map['thoi_gian_xac_nhan'] ?? ''}'),
-  );
+        id: (map['id'] as num?)?.toInt() ?? 0,
+        number: (map['so_thu_tu'] as num).toInt(),
+        sessionId: '${map['ma_phien_kham'] ?? ''}',
+        roomId: map['ma_phong_kham'] as String?,
+        staffId: map['ma_nhan_vien'] as String?,
+        patientId: map['ma_benh_nhan'] as String?,
+        status: VisitStatus.values.firstWhere(
+          (status) => status.dbValue == map['trang_thai'],
+          orElse: () => VisitStatus.waiting,
+        ),
+        examConfirmed: (map['da_xac_nhan_kham'] as num? ?? 0) != 0,
+        calledAt: DateTime.tryParse('${map['thoi_gian_goi'] ?? ''}'),
+        deferredAt: DateTime.tryParse('${map['thoi_gian_xin_doi'] ?? ''}'),
+        confirmedAt: DateTime.tryParse('${map['thoi_gian_xac_nhan'] ?? ''}'),
+      );
 }
 
 /// Hành động ghi vào nhật ký sự kiện – giá trị cột `hanh_dong`.
@@ -247,26 +249,26 @@ class VisitEvent {
 
   /// Đổ bản ghi sang map để ghi xuống CSDL.
   Map<String, Object?> toMap() => <String, Object?>{
-    'id': id,
-    'luot_kham_id': visitId,
-    'so_thu_tu': number,
-    'hanh_dong': action.dbValue,
-    'vi_tri': position,
-    'thoi_gian': at.toIso8601String(),
-  };
+        'id': id,
+        'luot_kham_id': visitId,
+        'so_thu_tu': number,
+        'hanh_dong': action.dbValue,
+        'vi_tri': position,
+        'thoi_gian': at.toIso8601String(),
+      };
 
   /// Đọc một bản ghi từ hàng CSDL.
   factory VisitEvent.fromMap(Map<String, Object?> map) => VisitEvent(
-    id: (map['id'] as num?)?.toInt() ?? 0,
-    visitId: (map['luot_kham_id'] as num?)?.toInt() ?? 0,
-    number: (map['so_thu_tu'] as num?)?.toInt() ?? 0,
-    action: VisitAction.values.firstWhere(
-      (action) => action.dbValue == map['hanh_dong'],
-      orElse: () => VisitAction.created,
-    ),
-    at: DateTime.tryParse('${map['thoi_gian'] ?? ''}') ?? DateTime.now(),
-    position: (map['vi_tri'] as num?)?.toInt(),
-  );
+        id: (map['id'] as num?)?.toInt() ?? 0,
+        visitId: (map['luot_kham_id'] as num?)?.toInt() ?? 0,
+        number: (map['so_thu_tu'] as num?)?.toInt() ?? 0,
+        action: VisitAction.values.firstWhere(
+          (action) => action.dbValue == map['hanh_dong'],
+          orElse: () => VisitAction.created,
+        ),
+        at: DateTime.tryParse('${map['thoi_gian'] ?? ''}') ?? DateTime.now(),
+        position: (map['vi_tri'] as num?)?.toInt(),
+      );
 }
 
 class QueueScreen extends StatefulWidget {
@@ -359,20 +361,13 @@ class _QueueScreenState extends State<QueueScreen> {
   void notify(String text) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            text,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: _Ui.textPrimary,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          margin: const EdgeInsets.fromLTRB(18, 0, 18, 16),
-        ),
-      );
+      ..showSnackBar(SnackBar(
+        content: Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: _Ui.textPrimary,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        margin: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+      ));
   }
 
   /// Bù số mới (+1) vào cuối hàng đợi để dải số luôn đầy.
@@ -435,10 +430,7 @@ class _QueueScreenState extends State<QueueScreen> {
   /// Đánh dấu số đang chờ trong hàng đợi. Nếu là lượt mới hoàn toàn thì ghi
   /// thêm sự kiện "tạo mới" vào nhật ký.
   void _markWaiting(int number) {
-    final isNew = !visitDb.any(
-      (record) =>
-          record.number == number && record.sessionId == widget.sessionId,
-    );
+    final isNew = !visitDb.any((record) => record.number == number && record.sessionId == widget.sessionId);
     final record = _recordFor(number)
       ..status = VisitStatus.waiting
       ..examConfirmed = false;
@@ -508,14 +500,11 @@ class _QueueScreenState extends State<QueueScreen> {
         _markExamConfirmed(finished);
       }
       current = next;
-      next = waiting.removeAt(
-        0,
-      ); // hàng đợi không bao giờ rỗng nhờ _refillQueue()
+      next = waiting.removeAt(0); // hàng đợi không bao giờ rỗng nhờ _refillQueue()
       _refillQueue();
       _markInProgress(current); // bệnh nhân mới được gọi vào phòng khám
       if (selected != null && !waiting.contains(selected)) selected = null;
-      message =
-          'Đã xác nhận bệnh nhân số $finished khám xong.\n'
+      message = 'Đã xác nhận bệnh nhân số $finished khám xong.\n'
           'Đã gọi bệnh nhân số $current – vui lòng chờ bệnh nhân vào phòng khám.';
     });
   }
@@ -544,9 +533,9 @@ class _QueueScreenState extends State<QueueScreen> {
       if (selected != null && !waiting.contains(selected)) selected = null;
       message = isNext
           ? 'Bệnh nhân số $number xin đợi.\nSố $number đã được lưu lại; số $next được gọi tiếp theo.\n'
-                'Khi bệnh nhân quay lại, bấm “+ Chèn” để đưa số $number trở lại hàng chờ.'
+              'Khi bệnh nhân quay lại, bấm “+ Chèn” để đưa số $number trở lại hàng chờ.'
           : 'Bệnh nhân số $number xin đợi.\nSố $number đã được lưu lại.\n'
-                'Khi bệnh nhân quay lại, bấm “+ Chèn” để đưa số $number trở lại hàng chờ.';
+              'Khi bệnh nhân quay lại, bấm “+ Chèn” để đưa số $number trở lại hàng chờ.';
     });
   }
 
@@ -566,18 +555,14 @@ class _QueueScreenState extends State<QueueScreen> {
       passed.removeWhere((entry) => entry.number == picked && !entry.deferred);
       current = picked;
       next = previousCurrent;
-      waiting.insert(
-        0,
-        previousNext,
-      ); // số kế tiếp cũ chưa gọi -> về đầu hàng chờ
+      waiting.insert(0, previousNext); // số kế tiếp cũ chưa gọi -> về đầu hàng chờ
       // Cập nhật bảng lượt khám: số gọi lại đang khám, số kế tiếp cũ về hàng chờ.
       _markInProgress(picked);
       _markWaiting(previousNext);
       _logEvent(picked, VisitAction.recalled);
       _logEvent(previousNext, VisitAction.reinserted, position: 0);
       if (selected != null && !waiting.contains(selected)) selected = null;
-      message =
-          'Đã gọi lại bệnh nhân số $picked – số $picked đang khám.\n'
+      message = 'Đã gọi lại bệnh nhân số $picked – số $picked đang khám.\n'
           'Số $previousCurrent trở thành số tiếp theo; số $previousNext quay lại đầu hàng chờ.';
     });
     notify('Mời bệnh nhân số $picked đến phòng khám 3.');
@@ -597,102 +582,76 @@ class _QueueScreenState extends State<QueueScreen> {
       ),
       builder: (sheetContext) => SafeArea(
         child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(sheetContext).size.height * 0.66,
-          ),
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetContext).size.height * 0.66),
           child: SingleChildScrollView(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 46,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE3E6EF),
-                        borderRadius: BorderRadius.circular(3),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Center(
+                  child: Container(
+                    width: 46,
+                    height: 5,
+                    decoration: BoxDecoration(color: const Color(0xFFE3E6EF), borderRadius: BorderRadius.circular(3)),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text('Đợi / Gọi lại số', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _Ui.textPrimary)),
+                const SizedBox(height: 4),
+                const Text(
+                  'Chọn số cần xử lý – thao tác áp dụng ngay cho số được chọn.',
+                  style: TextStyle(fontSize: 12.5, color: _Ui.textSecondary),
+                ),
+                const SizedBox(height: 20),
+                _SectionHeader(
+                  title: 'ĐANG CHỜ · CHỌN ĐỂ CHO QUA LƯỢT',
+                  count: holdable.length,
+                  accent: _Ui.red,
+                  accentSoft: const Color(0x1FFF534B),
+                ),
+                const SizedBox(height: 6),
+                const Text('Bấm một số để bệnh nhân đó xin đợi. Số có viền vàng là số kế tiếp.', style: TextStyle(fontSize: 11.5, color: _Ui.textFaint)),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    for (final n in holdable)
+                      _SheetWaitChip(
+                        number: n,
+                        isNext: n == next,
+                        onTap: () => Navigator.of(sheetContext).pop<QueueAction>((number: n, hold: true)),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  const Text(
-                    'Đợi / Gọi lại số',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: _Ui.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Chọn số cần xử lý – thao tác áp dụng ngay cho số được chọn.',
-                    style: TextStyle(fontSize: 12.5, color: _Ui.textSecondary),
-                  ),
-                  const SizedBox(height: 20),
-                  _SectionHeader(
-                    title: 'ĐANG CHỜ · CHỌN ĐỂ CHO QUA LƯỢT',
-                    count: holdable.length,
-                    accent: _Ui.red,
-                    accentSoft: const Color(0x1FFF534B),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Bấm một số để bệnh nhân đó xin đợi. Số có viền vàng là số kế tiếp.',
-                    style: TextStyle(fontSize: 11.5, color: _Ui.textFaint),
-                  ),
-                  const SizedBox(height: 12),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                _SectionHeader(
+                  title: 'ĐÃ KHÁM · CHỌN ĐỂ GỌI LẠI',
+                  count: recallable.length,
+                  accent: _Ui.green,
+                  accentSoft: const Color(0x1F2AC653),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Bấm một số để gọi lại: số đó vào “số hiện tại”, số đang khám lùi về “số tiếp theo”.',
+                  style: TextStyle(fontSize: 11.5, color: _Ui.textFaint),
+                ),
+                const SizedBox(height: 12),
+                if (recallable.isEmpty)
+                  const _EmptyHint(icon: Icons.inbox_rounded, text: 'Chưa có bệnh nhân nào đã khám')
+                else
                   Wrap(
                     spacing: 10,
                     runSpacing: 10,
                     children: [
-                      for (final n in holdable)
-                        _SheetWaitChip(
+                      // Số mới khám xong hiện trước.
+                      for (final n in recallable.reversed)
+                        _RecallChip(
                           number: n,
-                          isNext: n == next,
-                          onTap: () => Navigator.of(
-                            sheetContext,
-                          ).pop<QueueAction>((number: n, hold: true)),
+                          onTap: () => Navigator.of(sheetContext).pop<QueueAction>((number: n, hold: false)),
                         ),
                     ],
                   ),
-                  const SizedBox(height: 22),
-                  _SectionHeader(
-                    title: 'ĐÃ KHÁM · CHỌN ĐỂ GỌI LẠI',
-                    count: recallable.length,
-                    accent: _Ui.green,
-                    accentSoft: const Color(0x1F2AC653),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Bấm một số để gọi lại: số đó vào “số hiện tại”, số đang khám lùi về “số tiếp theo”.',
-                    style: TextStyle(fontSize: 11.5, color: _Ui.textFaint),
-                  ),
-                  const SizedBox(height: 12),
-                  if (recallable.isEmpty)
-                    const _EmptyHint(
-                      icon: Icons.inbox_rounded,
-                      text: 'Chưa có bệnh nhân nào đã khám',
-                    )
-                  else
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        // Số mới khám xong hiện trước.
-                        for (final n in recallable.reversed)
-                          _RecallChip(
-                            number: n,
-                            onTap: () => Navigator.of(
-                              sheetContext,
-                            ).pop<QueueAction>((number: n, hold: false)),
-                          ),
-                      ],
-                    ),
-                ],
-              ),
+              ]),
             ),
           ),
         ),
@@ -726,9 +685,7 @@ class _QueueScreenState extends State<QueueScreen> {
     if (!mounted || result == null) return;
     setState(() {
       // Bệnh nhân đã quay lại: bỏ khỏi danh sách xin đợi và đưa về hàng chờ.
-      passed.removeWhere(
-        (entry) => entry.deferred && entry.number == result.number,
-      );
+      passed.removeWhere((entry) => entry.deferred && entry.number == result.number);
       var index = result.targetIndex;
       if (index < 0) index = 0;
       if (index > waiting.length) index = waiting.length;
@@ -737,8 +694,7 @@ class _QueueScreenState extends State<QueueScreen> {
       _markWaiting(result.number); // số quay lại hàng chờ
       _logEvent(result.number, VisitAction.reinserted, position: index);
       selected = result.number;
-      message =
-          'Đã đưa số ${result.number} trở lại hàng chờ tại vị trí thứ ${index + 1}.';
+      message = 'Đã đưa số ${result.number} trở lại hàng chờ tại vị trí thứ ${index + 1}.';
     });
   }
 
@@ -747,290 +703,179 @@ class _QueueScreenState extends State<QueueScreen> {
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [_Ui.bgTop, _Ui.bgBottom],
-          ),
+          gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [_Ui.bgTop, _Ui.bgBottom]),
         ),
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 620),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxWidth < 430;
-                  final gap = compact ? 10.0 : 14.0;
-                  return SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(
-                      compact ? 16 : 22,
-                      12,
-                      compact ? 16 : 22,
-                      30,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Giờ và ngày cố định để khớp ảnh mẫu.
-                        const Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
+              child: LayoutBuilder(builder: (context, constraints) {
+                final compact = constraints.maxWidth < 430;
+                final gap = compact ? 10.0 : 14.0;
+                return SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(compact ? 16 : 22, 20, compact ? 16 : 22, 30),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(children: [
+                        _RoundIconButton(
+                          icon: Icons.chevron_left_rounded,
+                          tooltip: 'Quay lại',
+                          onPressed: () async {
+                            if (Navigator.of(context).canPop()) {
+                              Navigator.of(context).pop();
+                            } else {
+                              notify('Bạn đang ở màn hình chính.');
+                            }
+                          },
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text(
-                              '08:42',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
-                                color: _Ui.textPrimary,
-                              ),
+                              'Khoa Tim - Bệnh viện Bạch Mai',
+                              style: TextStyle(fontSize: compact ? 16.5 : 19, fontWeight: FontWeight.w800, color: _Ui.textPrimary, letterSpacing: -0.2),
                             ),
-                            Text(
-                              'Thứ Sáu, 18/09/2026',
-                              style: TextStyle(
-                                fontSize: 13.5,
-                                color: _Ui.textSecondary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
+                            const SizedBox(height: 3),
+                            const Row(children: [
+                              _PulseDot(),
+                              SizedBox(width: 6),
+                              Text('Phòng khám 3 · BS. Vũ Nam Tuấn', style: TextStyle(fontSize: 11.5, color: _Ui.textSecondary, fontWeight: FontWeight.w500)),
+                            ]),
+                          ]),
                         ),
-                        const SizedBox(height: 18),
-                        Row(
-                          children: [
-                            _RoundIconButton(
-                              icon: Icons.chevron_left_rounded,
-                              tooltip: 'Quay lại',
-                              onPressed: () async {
-                                if (Navigator.of(context).canPop()) {
-                                  Navigator.of(context).pop();
-                                } else {
-                                  notify('Bạn đang ở màn hình chính.');
-                                }
-                              },
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Khoa Tim - Bệnh viện Bạch Mai',
-                                    style: TextStyle(
-                                      fontSize: compact ? 16.5 : 19,
-                                      fontWeight: FontWeight.w800,
-                                      color: _Ui.textPrimary,
-                                      letterSpacing: -0.2,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 3),
-                                  const Row(
-                                    children: [
-                                      _PulseDot(),
-                                      SizedBox(width: 6),
-                                      Text(
-                                        'Phòng khám 3 · BS. Vũ Nam Tuấn',
-                                        style: TextStyle(
-                                          fontSize: 11.5,
-                                          color: _Ui.textSecondary,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _NumberCard(
-                                label: 'SỐ HIỆN TẠI',
-                                value: '$current',
-                                gradient: _Ui.greenCard,
-                                foreground: Colors.white,
-                                glow: const Color(0x4D1FA24C),
-                                icon: Icons.person_rounded,
-                                compact: compact,
-                              ),
-                            ),
-                            SizedBox(width: gap),
-                            Expanded(
-                              child: _NumberCard(
-                                label: 'SỐ TIẾP THEO',
-                                value: '$next',
-                                gradient: _Ui.amberCard,
-                                foreground: const Color(0xFF3A2A00),
-                                glow: const Color(0x4DFF9A00),
-                                icon: Icons.hourglass_bottom_rounded,
-                                compact: compact,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        _SoftCard(
-                          padding: EdgeInsets.all(compact ? 16 : 20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _SectionHeader(
-                                title: 'SỐ ĐANG ĐỢI',
-                                count: waiting.length,
-                                accent: _Ui.red,
-                                accentSoft: const Color(0x1FFF534B),
-                              ),
-                              const SizedBox(height: 14),
-                              if (waiting.isEmpty)
-                                const _EmptyHint(
-                                  icon: Icons.people_outline_rounded,
-                                  text: 'Chưa có bệnh nhân đang đợi',
-                                )
-                              else
-                                SizedBox(
-                                  height: compact ? 52 : 58,
-                                  child: ListView.separated(
-                                    scrollDirection: Axis.horizontal,
-                                    padding: EdgeInsets.zero,
-                                    itemCount: waiting.length,
-                                    separatorBuilder: (_, _) =>
-                                        SizedBox(width: compact ? 9 : 13),
-                                    itemBuilder: (context, index) {
-                                      final number = waiting[index];
-                                      return _WaitingChip(
-                                        number: number,
-                                        selected: selected == number,
-                                        compact: compact,
-                                        onTap: () =>
-                                            setState(() => selected = number),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              const SizedBox(height: 18),
-                              const Divider(
-                                height: 1,
-                                thickness: 1,
-                                color: _Ui.divider,
-                              ),
-                              const SizedBox(height: 16),
-                              _SectionHeader(
-                                title: 'SỐ ĐÃ CHO QUA',
-                                count: deferredNumbers.length,
-                                accent: _Ui.amber,
-                                accentSoft: const Color(0x24FFB300),
-                              ),
-                              const SizedBox(height: 6),
-                              const Text(
-                                'Bấm vào số để chèn lại vào hàng chờ.',
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  color: _Ui.textFaint,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              if (deferredNumbers.isEmpty)
-                                const _EmptyHint(
-                                  icon: Icons.pause_circle_outline_rounded,
-                                  text: 'Chưa có số nào bị cho qua',
-                                )
-                              else
-                                SizedBox(
-                                  height: 42,
-                                  child: ListView.separated(
-                                    scrollDirection: Axis.horizontal,
-                                    padding: EdgeInsets.zero,
-                                    itemCount: deferredNumbers.length,
-                                    separatorBuilder: (_, _) =>
-                                        const SizedBox(width: 9),
-                                    itemBuilder: (context, index) {
-                                      final number = deferredNumbers[index];
-                                      return _DeferredChip(
-                                        number: number,
-                                        onTap: () => openInsertScreen(
-                                          initialNumber: number,
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                            ],
+                      ]),
+                      const SizedBox(height: 20),
+                      Row(children: [
+                        Expanded(
+                          child: _NumberCard(
+                            label: 'SỐ HIỆN TẠI',
+                            value: '$current',
+                            gradient: _Ui.greenCard,
+                            foreground: Colors.white,
+                            glow: const Color(0x4D1FA24C),
+                            icon: Icons.person_rounded,
+                            compact: compact,
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        // Hai nút chính: "+ Chèn" và "Đợi / Gọi lại" (đã gộp), cùng
-                        // nút "Tiếp theo" (đã gộp với "Xác nhận khám").
-                        Row(
-                          children: [
-                            Expanded(
-                              flex: 3,
-                              child: _ActionButton(
-                                label: '+ Chèn',
-                                icon: Icons.add_rounded,
-                                iconLeading: true,
-                                onPressed: openInsertScreen,
-                              ),
-                            ),
-                            SizedBox(width: gap),
-                            Expanded(
-                              flex: 4,
-                              child: _ActionButton(
-                                label: 'Đợi / Gọi lại',
-                                icon: Icons.swap_horiz_rounded,
-                                onPressed: openHoldOrRecallSheet,
-                              ),
-                            ),
-                            SizedBox(width: gap),
-                            Expanded(
-                              flex: 4,
-                              child: _ActionButton(
-                                label: 'Tiếp theo',
-                                icon: Icons.arrow_forward_rounded,
-                                primary: true,
-                                onPressed: callNext,
-                              ),
-                            ),
-                          ],
+                        SizedBox(width: gap),
+                        Expanded(
+                          child: _NumberCard(
+                            label: 'SỐ TIẾP THEO',
+                            value: '$next',
+                            gradient: _Ui.amberCard,
+                            foreground: const Color(0xFF3A2A00),
+                            glow: const Color(0x4DFF9A00),
+                            icon: Icons.hourglass_bottom_rounded,
+                            compact: compact,
+                          ),
                         ),
-                        SizedBox(height: gap),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _ActionButton(
-                                label: paused
-                                    ? 'Tiếp tục khám'
-                                    : 'Tạm dừng khám',
-                                icon: paused
-                                    ? Icons.play_circle_fill_rounded
-                                    : Icons.pause_circle_filled_rounded,
-                                iconLeading: true,
-                                color: paused ? _Ui.green : Colors.white,
-                                onPressed: () => setState(() {
-                                  paused = !paused;
-                                  message = paused
-                                      ? 'Bác sĩ đã nhấn nút “Tạm dừng khám”.\nViệc gọi số tiếp theo tạm thời bị dừng.\n'
-                                            'Vui lòng chờ đến khi bác sĩ tiếp tục khám.'
-                                      : null;
-                                }),
+                      ]),
+                      const SizedBox(height: 20),
+                      _SoftCard(
+                        padding: EdgeInsets.all(compact ? 16 : 20),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          _SectionHeader(
+                            title: 'SỐ ĐANG ĐỢI',
+                            count: waiting.length,
+                            accent: _Ui.red,
+                            accentSoft: const Color(0x1FFF534B),
+                          ),
+                          const SizedBox(height: 14),
+                          if (waiting.isEmpty)
+                            const _EmptyHint(icon: Icons.people_outline_rounded, text: 'Chưa có bệnh nhân đang đợi')
+                          else
+                            SizedBox(
+                              height: compact ? 52 : 58,
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                padding: EdgeInsets.zero,
+                                itemCount: waiting.length,
+                                separatorBuilder: (_, _) => SizedBox(width: compact ? 9 : 13),
+                                itemBuilder: (context, index) {
+                                  final number = waiting[index];
+                                  return _WaitingChip(
+                                    number: number,
+                                    selected: selected == number,
+                                    compact: compact,
+                                    onTap: () => setState(() => selected = number),
+                                  );
+                                },
                               ),
                             ),
-                          ],
+                          const SizedBox(height: 18),
+                          const Divider(height: 1, thickness: 1, color: _Ui.divider),
+                          const SizedBox(height: 16),
+                          _SectionHeader(
+                            title: 'SỐ ĐÃ CHO QUA',
+                            count: deferredNumbers.length,
+                            accent: _Ui.amber,
+                            accentSoft: const Color(0x24FFB300),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text('Bấm vào số để chèn lại vào hàng chờ.', style: TextStyle(fontSize: 11.5, color: _Ui.textFaint)),
+                          const SizedBox(height: 12),
+                          if (deferredNumbers.isEmpty)
+                            const _EmptyHint(icon: Icons.pause_circle_outline_rounded, text: 'Chưa có số nào bị cho qua')
+                          else
+                            SizedBox(
+                              height: 42,
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                padding: EdgeInsets.zero,
+                                itemCount: deferredNumbers.length,
+                                separatorBuilder: (_, _) => const SizedBox(width: 9),
+                                itemBuilder: (context, index) {
+                                  final number = deferredNumbers[index];
+                                  return _DeferredChip(
+                                    number: number,
+                                    onTap: () => openInsertScreen(initialNumber: number),
+                                  );
+                                },
+                              ),
+                            ),
+                        ]),
+                      ),
+                      const SizedBox(height: 20),
+                      // Hai nút chính: "+ Chèn" và "Đợi / Gọi lại" (đã gộp), cùng
+                      // nút "Tiếp theo" (đã gộp với "Xác nhận khám").
+                      Row(children: [
+                        Expanded(flex: 3, child: _ActionButton(label: '+ Chèn', icon: Icons.add_rounded, iconLeading: true, onPressed: openInsertScreen)),
+                        SizedBox(width: gap),
+                        Expanded(flex: 4, child: _ActionButton(label: 'Đợi / Gọi lại', icon: Icons.swap_horiz_rounded, onPressed: openHoldOrRecallSheet)),
+                        SizedBox(width: gap),
+                        Expanded(flex: 4, child: _ActionButton(label: 'Tiếp theo', icon: Icons.arrow_forward_rounded, primary: true, onPressed: callNext)),
+                      ]),
+                      SizedBox(height: gap),
+                      Row(children: [
+                        Expanded(
+                          child: _ActionButton(
+                            label: paused ? 'Tiếp tục khám' : 'Tạm dừng khám',
+                            icon: paused ? Icons.play_circle_fill_rounded : Icons.pause_circle_filled_rounded,
+                            iconLeading: true,
+                            color: paused ? _Ui.green : Colors.white,
+                            onPressed: () => setState(() {
+                              paused = !paused;
+                              message = paused
+                                  ? 'Bác sĩ đã nhấn nút “Tạm dừng khám”.\nViệc gọi số tiếp theo tạm thời bị dừng.\n'
+                                      'Vui lòng chờ đến khi bác sĩ tiếp tục khám.'
+                                  : null;
+                            }),
+                          ),
                         ),
-                        const SizedBox(height: 16),
-                        _StatusBanner(
-                          paused: paused,
-                          message:
-                              message ??
-                              (paused
-                                  ? 'Bác sĩ đã nhấn nút “Tạm dừng khám”.\nViệc gọi số tiếp theo tạm thời bị dừng.\nVui lòng chờ đến khi bác sĩ tiếp tục khám.'
-                                  : 'Bệnh nhân số $current đang khám.\nNhấn “Tiếp theo” để xác nhận khám xong và gọi số $next.'),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+                      ]),
+                      const SizedBox(height: 16),
+                      _StatusBanner(
+                        paused: paused,
+                        message: message ??
+                            (paused
+                                ? 'Bác sĩ đã nhấn nút “Tạm dừng khám”.\nViệc gọi số tiếp theo tạm thời bị dừng.\nVui lòng chờ đến khi bác sĩ tiếp tục khám.'
+                                : 'Bệnh nhân số $current đang khám.\nNhấn “Tiếp theo” để xác nhận khám xong và gọi số $next.'),
+                      ),
+                    ],
+                  ),
+                );
+              }),
             ),
           ),
         ),
@@ -1123,19 +968,11 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
   ({String text, int? number, int? index}) _preview(int number) {
     final raw = _controllerFor(number).text.trim();
     if (raw.isEmpty) {
-      return (
-        text: 'Nhập vị trí chèn cho số $number.',
-        number: null,
-        index: null,
-      );
+      return (text: 'Nhập vị trí chèn cho số $number.', number: null, index: null);
     }
     final value = int.tryParse(raw);
     if (value == null || value < 1) {
-      return (
-        text: 'Vị trí phải là số nguyên lớn hơn 0.',
-        number: null,
-        index: null,
-      );
+      return (text: 'Vị trí phải là số nguyên lớn hơn 0.', number: null, index: null);
     }
     final refIndex = widget.waiting.indexOf(value);
     if (refIndex != -1) {
@@ -1149,8 +986,7 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
     if (index < 0) index = 0;
     if (index > widget.waiting.length) index = widget.waiting.length;
     return (
-      text:
-          'Số $number sẽ được chèn vào vị trí thứ ${index + 1} trong hàng chờ.',
+      text: 'Số $number sẽ được chèn vào vị trí thứ ${index + 1} trong hàng chờ.',
       number: number,
       index: index,
     );
@@ -1167,207 +1003,114 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
       setState(() => submitError = preview.text);
       return;
     }
-    Navigator.of(
-      context,
-    ).pop<InsertResult>((number: preview.number!, targetIndex: preview.index!));
+    Navigator.of(context).pop<InsertResult>(
+      (number: preview.number!, targetIndex: preview.index!),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final number = selected;
     final preview = number == null ? null : _preview(number);
-    final caption =
-        submitError ??
-        preview?.text ??
-        'Chọn số cần chèn, rồi nhập vị trí muốn chèn.';
+    final caption = submitError ?? preview?.text ?? 'Chọn số cần chèn, rồi nhập vị trí muốn chèn.';
     final isError = submitError != null;
 
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [_Ui.bgTop, _Ui.bgBottom],
-          ),
+          gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [_Ui.bgTop, _Ui.bgBottom]),
         ),
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 620),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxWidth < 430;
-                  final gap = compact ? 10.0 : 14.0;
-                  return SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(
-                      compact ? 16 : 22,
-                      12,
-                      compact ? 16 : 22,
-                      30,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Giờ và ngày cố định để khớp ảnh mẫu.
-                        const Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              '08:42',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
-                                color: _Ui.textPrimary,
-                              ),
-                            ),
-                            Text(
-                              'Thứ Sáu, 18/09/2026',
-                              style: TextStyle(
-                                fontSize: 13.5,
-                                color: _Ui.textSecondary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
+              child: LayoutBuilder(builder: (context, constraints) {
+                final compact = constraints.maxWidth < 430;
+                final gap = compact ? 10.0 : 14.0;
+                return SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(compact ? 16 : 22, 20, compact ? 16 : 22, 30),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(children: [
+                        _RoundIconButton(
+                          icon: Icons.chevron_left_rounded,
+                          tooltip: 'Quay lại',
+                          onPressed: () => Navigator.of(context).maybePop(),
                         ),
-                        const SizedBox(height: 14),
-                        Row(
-                          children: [
-                            _RoundIconButton(
-                              icon: Icons.chevron_left_rounded,
-                              tooltip: 'Quay lại',
-                              onPressed: () => Navigator.of(context).maybePop(),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Khoa - Số hàng chờ',
-                                style: TextStyle(
-                                  fontSize: compact ? 16.5 : 19,
-                                  fontWeight: FontWeight.w800,
-                                  color: _Ui.textPrimary,
-                                  letterSpacing: -0.2,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: compact ? 14 : 18),
-                        const Text(
-                          'Chọn số cần chèn, rồi nhập vị trí vào ô bên cạnh',
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            color: Color(0xFF6F7583),
-                            fontWeight: FontWeight.w500,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Khoa - Số hàng chờ',
+                            style: TextStyle(fontSize: compact ? 16.5 : 19, fontWeight: FontWeight.w800, color: _Ui.textPrimary, letterSpacing: -0.2),
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Danh sách gồm những số đã bấm “Đợi” ở màn hình chính.',
-                          style: TextStyle(fontSize: 12, color: _Ui.textFaint),
-                        ),
-                        const SizedBox(height: 16),
-                        _SoftCard(
-                          padding: EdgeInsets.all(compact ? 16 : 20),
-                          child: widget.deferredNumbers.isEmpty
-                              ? const _EmptyHint(
-                                  icon: Icons.pause_circle_outline_rounded,
-                                  text: 'Chưa có bệnh nhân nào bấm “Đợi”.',
-                                )
-                              : Column(
-                                  children: widget.deferredNumbers
-                                      .map(
-                                        (n) => Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 12,
-                                          ),
+                      ]),
+                      SizedBox(height: compact ? 14 : 18),
+                      const Text(
+                        'Chọn số cần chèn, rồi nhập vị trí vào ô bên cạnh',
+                        style: TextStyle(fontSize: 13.5, color: Color(0xFF6F7583), fontWeight: FontWeight.w500),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Danh sách gồm những số đã bấm “Đợi” ở màn hình chính.',
+                        style: TextStyle(fontSize: 12, color: _Ui.textFaint),
+                      ),
+                      const SizedBox(height: 16),
+                      _SoftCard(
+                        padding: EdgeInsets.all(compact ? 16 : 20),
+                        child: widget.deferredNumbers.isEmpty
+                            ? const _EmptyHint(icon: Icons.pause_circle_outline_rounded, text: 'Chưa có bệnh nhân nào bấm “Đợi”.')
+                            : Column(
+                                children: widget.deferredNumbers
+                                    .map((n) => Padding(
+                                          padding: const EdgeInsets.only(bottom: 12),
                                           child: _buildRow(n, compact),
-                                        ),
-                                      )
-                                      .toList(),
-                                ),
+                                        ))
+                                    .toList(),
+                              ),
+                      ),
+                      SizedBox(height: compact ? 18 : 22),
+                      Row(children: [
+                        Expanded(flex: 3, child: _ActionButton(label: 'Chèn', icon: Icons.playlist_add_check_rounded, iconLeading: true, primary: true, onPressed: submit)),
+                        SizedBox(width: gap),
+                        Expanded(flex: 2, child: _ActionButton(label: 'Hủy', icon: Icons.close_rounded, iconLeading: true, onPressed: () => Navigator.of(context).maybePop())),
+                      ]),
+                      const SizedBox(height: 16),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isError ? const Color(0xFFFFF1F0) : Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: isError ? const Color(0xFFFFD6D2) : _Ui.cardBorder),
+                          boxShadow: _Ui.quietShadow,
                         ),
-                        SizedBox(height: compact ? 18 : 22),
-                        Row(
-                          children: [
-                            Expanded(
-                              flex: 3,
-                              child: _ActionButton(
-                                label: 'Chèn',
-                                icon: Icons.playlist_add_check_rounded,
-                                iconLeading: true,
-                                primary: true,
-                                onPressed: submit,
+                        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          Icon(
+                            isError ? Icons.error_outline_rounded : Icons.info_outline_rounded,
+                            size: 16,
+                            color: isError ? const Color(0xFFE5483F) : _Ui.textFaint,
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              caption,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                height: 1.4,
+                                fontWeight: FontWeight.w500,
+                                color: isError ? const Color(0xFFD64545) : _Ui.textSecondary,
                               ),
                             ),
-                            SizedBox(width: gap),
-                            Expanded(
-                              flex: 2,
-                              child: _ActionButton(
-                                label: 'Hủy',
-                                icon: Icons.close_rounded,
-                                iconLeading: true,
-                                onPressed: () =>
-                                    Navigator.of(context).maybePop(),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
                           ),
-                          decoration: BoxDecoration(
-                            color: isError
-                                ? const Color(0xFFFFF1F0)
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: isError
-                                  ? const Color(0xFFFFD6D2)
-                                  : _Ui.cardBorder,
-                            ),
-                            boxShadow: _Ui.quietShadow,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                isError
-                                    ? Icons.error_outline_rounded
-                                    : Icons.info_outline_rounded,
-                                size: 16,
-                                color: isError
-                                    ? const Color(0xFFE5483F)
-                                    : _Ui.textFaint,
-                              ),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  caption,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 12.5,
-                                    height: 1.4,
-                                    fontWeight: FontWeight.w500,
-                                    color: isError
-                                        ? const Color(0xFFD64545)
-                                        : _Ui.textSecondary,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+                        ]),
+                      ),
+                    ],
+                  ),
+                );
+              }),
             ),
           ),
         ),
@@ -1391,109 +1134,75 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
             width: 1.4,
           ),
         ),
-        child: Row(
-          children: [
-            // Badge số: viền vàng + bóng khi được chọn.
-            AnimatedScale(
-              scale: isSelected ? 1.05 : 1,
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutBack,
+        child: Row(children: [
+          // Badge số: viền vàng + bóng khi được chọn.
+          AnimatedScale(
+            scale: isSelected ? 1.05 : 1,
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutBack,
+            child: Container(
+              width: 47,
+              height: 47,
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(
+                  color: isSelected ? const Color(0xFFFFCF00) : Colors.transparent,
+                  width: 3.5,
+                ),
+                boxShadow: isSelected ? const [BoxShadow(color: Color(0x33EE2F26), blurRadius: 12, offset: Offset(0, 6))] : null,
+              ),
               child: Container(
-                width: 47,
-                height: 47,
-                padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(15),
-                  border: Border.all(
-                    color: isSelected
-                        ? const Color(0xFFFFCF00)
-                        : Colors.transparent,
-                    width: 3.5,
-                  ),
-                  boxShadow: isSelected
-                      ? const [
-                          BoxShadow(
-                            color: Color(0x33EE2F26),
-                            blurRadius: 12,
-                            offset: Offset(0, 6),
-                          ),
-                        ]
-                      : null,
+                  gradient: _Ui.redChip,
+                  borderRadius: BorderRadius.circular(11),
                 ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: _Ui.redChip,
-                    borderRadius: BorderRadius.circular(11),
+                alignment: Alignment.center,
+                child: Text('$number', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: IgnorePointer(
+              ignoring: !isSelected,
+              child: TextField(
+                controller: _controllerFor(number),
+                focusNode: _focusNodeFor(number),
+                enabled: isSelected,
+                keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => submit(),
+                onChanged: (_) => setState(() => submitError = null),
+                style: TextStyle(fontSize: 16, fontWeight: compact ? FontWeight.w600 : FontWeight.w700, color: _Ui.textPrimary),
+                decoration: InputDecoration(
+                  hintText: 'Vị trí chèn',
+                  hintStyle: const TextStyle(color: Color(0xFFB6BCC9), fontWeight: FontWeight.w400),
+                  isDense: true,
+                  filled: true,
+                  fillColor: isSelected ? Colors.white : const Color(0xFFF6F8FC),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE3E7F0)),
                   ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '$number',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                    ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE3E7F0)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF2A3242), width: 1.6),
+                  ),
+                  disabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE9ECF4)),
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: IgnorePointer(
-                ignoring: !isSelected,
-                child: TextField(
-                  controller: _controllerFor(number),
-                  focusNode: _focusNodeFor(number),
-                  enabled: isSelected,
-                  keyboardType: TextInputType.number,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => submit(),
-                  onChanged: (_) => setState(() => submitError = null),
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: compact ? FontWeight.w600 : FontWeight.w700,
-                    color: _Ui.textPrimary,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Vị trí chèn',
-                    hintStyle: const TextStyle(
-                      color: Color(0xFFB6BCC9),
-                      fontWeight: FontWeight.w400,
-                    ),
-                    isDense: true,
-                    filled: true,
-                    fillColor: isSelected
-                        ? Colors.white
-                        : const Color(0xFFF6F8FC),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 13,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFFE3E7F0)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFFE3E7F0)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: Color(0xFF2A3242),
-                        width: 1.6,
-                      ),
-                    ),
-                    disabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFFE9ECF4)),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ]),
       ),
     );
   }
@@ -1508,15 +1217,15 @@ class _SoftCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: padding,
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(24),
-      border: Border.all(color: _Ui.cardBorder),
-      boxShadow: _Ui.cardShadow,
-    ),
-    child: child,
-  );
+        padding: padding,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: _Ui.cardBorder),
+          boxShadow: _Ui.cardShadow,
+        ),
+        child: child,
+      );
 }
 
 /// Tiêu đề mục nhỏ: chấm màu + tiêu đề + nhãn số lượng.
@@ -1534,48 +1243,28 @@ class _SectionHeader extends StatelessWidget {
   final Color accentSoft;
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Container(
-        width: 4,
-        height: 14,
-        decoration: BoxDecoration(
-          color: accent,
-          borderRadius: BorderRadius.circular(2),
-        ),
-      ),
-      const SizedBox(width: 8),
-      Flexible(
-        child: Text(
-          title,
-          style: const TextStyle(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.5,
-            color: _Ui.textSecondary,
-          ),
-        ),
-      ),
-      if (count != null) ...[
-        const SizedBox(width: 8),
+  Widget build(BuildContext context) => Row(children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(
-            color: accentSoft,
-            borderRadius: BorderRadius.circular(20),
-          ),
+          width: 4,
+          height: 14,
+          decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(2)),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
           child: Text(
-            '$count',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              color: accent,
-            ),
+            title,
+            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, letterSpacing: 0.5, color: _Ui.textSecondary),
           ),
         ),
-      ],
-    ],
-  );
+        if (count != null) ...[
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(color: accentSoft, borderRadius: BorderRadius.circular(20)),
+            child: Text('$count', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: accent)),
+          ),
+        ],
+      ]);
 }
 
 /// Chấm xanh nhấp nháy nhẹ báo phòng khám đang hoạt động.
@@ -1586,8 +1275,7 @@ class _PulseDot extends StatefulWidget {
   State<_PulseDot> createState() => _PulseDotState();
 }
 
-class _PulseDotState extends State<_PulseDot>
-    with SingleTickerProviderStateMixin {
+class _PulseDotState extends State<_PulseDot> with SingleTickerProviderStateMixin {
   late final AnimationController controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1400),
@@ -1601,25 +1289,18 @@ class _PulseDotState extends State<_PulseDot>
 
   @override
   Widget build(BuildContext context) => FadeTransition(
-    opacity: Tween<double>(
-      begin: 0.35,
-      end: 1,
-    ).animate(CurvedAnimation(parent: controller, curve: Curves.easeInOut)),
-    child: Container(
-      width: 8,
-      height: 8,
-      decoration: const BoxDecoration(color: _Ui.green, shape: BoxShape.circle),
-    ),
-  );
+        opacity: Tween<double>(begin: 0.35, end: 1).animate(CurvedAnimation(parent: controller, curve: Curves.easeInOut)),
+        child: Container(
+          width: 8,
+          height: 8,
+          decoration: const BoxDecoration(color: _Ui.green, shape: BoxShape.circle),
+        ),
+      );
 }
 
 /// Nút icon tròn (nút quay lại) có bóng mềm.
 class _RoundIconButton extends StatelessWidget {
-  const _RoundIconButton({
-    required this.icon,
-    required this.onPressed,
-    this.tooltip,
-  });
+  const _RoundIconButton({required this.icon, required this.onPressed, this.tooltip});
 
   final IconData icon;
   final VoidCallback onPressed;
@@ -1627,28 +1308,28 @@ class _RoundIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    width: 42,
-    height: 42,
-    child: Material(
-      color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      clipBehavior: Clip.antiAlias,
-      elevation: 0,
-      child: InkWell(
-        onTap: onPressed,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _Ui.cardBorder),
-          ),
-          child: Tooltip(
-            message: tooltip ?? '',
-            child: Icon(icon, color: _Ui.textPrimary, size: 28),
+        width: 42,
+        height: 42,
+        child: Material(
+          color: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          clipBehavior: Clip.antiAlias,
+          elevation: 0,
+          child: InkWell(
+            onTap: onPressed,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _Ui.cardBorder),
+              ),
+              child: Tooltip(
+                message: tooltip ?? '',
+                child: Icon(icon, color: _Ui.textPrimary, size: 28),
+              ),
+            ),
           ),
         ),
-      ),
-    ),
-  );
+      );
 }
 
 /// Thẻ số lớn (SỐ HIỆN TẠI / SỐ TIẾP THEO): gradient, vòng trang trí và
@@ -1674,97 +1355,70 @@ class _NumberCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final labelColor = foreground == Colors.white
-        ? const Color(0xE6FFFFFF)
-        : const Color(0xB31F1400);
+    final labelColor = foreground == Colors.white ? const Color(0xE6FFFFFF) : const Color(0xB31F1400);
     return Container(
       height: compact ? 146 : 162,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         gradient: gradient,
         borderRadius: BorderRadius.circular(26),
-        boxShadow: [
-          BoxShadow(color: glow, blurRadius: 26, offset: const Offset(0, 14)),
-        ],
+        boxShadow: [BoxShadow(color: glow, blurRadius: 26, offset: const Offset(0, 14))],
       ),
-      child: Stack(
-        children: [
-          const Positioned(
-            right: -30,
-            top: -38,
-            child: _DecoCircle(size: 118, color: Color(0x2EFFFFFF)),
-          ),
-          const Positioned(
-            right: 44,
-            bottom: -52,
-            child: _DecoCircle(size: 94, color: Color(0x1FFFFFFF)),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 26,
-                      height: 26,
-                      decoration: const BoxDecoration(
-                        color: Color(0x33FFFFFF),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(icon, size: 15, color: labelColor),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: compact ? 11 : 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.6,
-                          color: labelColor,
-                        ),
-                      ),
-                    ),
-                  ],
+      child: Stack(children: [
+        const Positioned(right: -30, top: -38, child: _DecoCircle(size: 118, color: Color(0x2EFFFFFF))),
+        const Positioned(right: 44, bottom: -52, child: _DecoCircle(size: 94, color: Color(0x1FFFFFFF))),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(children: [
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: const BoxDecoration(color: Color(0x33FFFFFF), shape: BoxShape.circle),
+                  child: Icon(icon, size: 15, color: labelColor),
                 ),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 320),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  layoutBuilder: (currentChild, previousChildren) => Stack(
-                    alignment: Alignment.centerLeft,
-                    children: [...previousChildren, ?currentChild],
-                  ),
-                  transitionBuilder: (child, animation) => FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.4),
-                        end: Offset.zero,
-                      ).animate(animation),
-                      child: child,
-                    ),
-                  ),
+                const SizedBox(width: 8),
+                Expanded(
                   child: Text(
-                    value,
-                    key: ValueKey<String>('number-$value'),
-                    style: TextStyle(
-                      fontSize: compact ? 58 : 72,
-                      height: 1.05,
-                      fontWeight: FontWeight.w800,
-                      color: foreground,
-                      letterSpacing: -1.5,
-                    ),
+                    label,
+                    style: TextStyle(fontSize: compact ? 11 : 12, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: labelColor),
                   ),
                 ),
-              ],
-            ),
+              ]),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 320),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                layoutBuilder: (currentChild, previousChildren) => Stack(
+                  alignment: Alignment.centerLeft,
+                  children: [...previousChildren, ?currentChild],
+                ),
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(begin: const Offset(0, 0.4), end: Offset.zero).animate(animation),
+                    child: child,
+                  ),
+                ),
+                child: Text(
+                  value,
+                  key: ValueKey<String>('number-$value'),
+                  style: TextStyle(
+                    fontSize: compact ? 58 : 72,
+                    height: 1.05,
+                    fontWeight: FontWeight.w800,
+                    color: foreground,
+                    letterSpacing: -1.5,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ]),
     );
   }
 }
@@ -1778,20 +1432,15 @@ class _DecoCircle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    width: size,
-    height: size,
-    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-  );
+        width: size,
+        height: size,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      );
 }
 
 /// Ô số đang chờ trong dải "SỐ ĐANG ĐỢI".
 class _WaitingChip extends StatelessWidget {
-  const _WaitingChip({
-    required this.number,
-    required this.selected,
-    required this.compact,
-    required this.onTap,
-  });
+  const _WaitingChip({required this.number, required this.selected, required this.compact, required this.onTap});
 
   final int number;
   final bool selected;
@@ -1800,70 +1449,54 @@ class _WaitingChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
-    selected: selected,
-    button: true,
-    label: 'Bệnh nhân số $number',
-    child: AnimatedScale(
-      scale: selected ? 1.06 : 1,
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutBack,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        width: compact ? 54 : 76,
-        height: compact ? 52 : 58,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(17),
-          border: Border.all(
-            color: selected ? const Color(0xFFFFD400) : Colors.transparent,
-            width: 3.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: selected
-                  ? const Color(0x59FFB300)
-                  : const Color(0x33EE2F26),
-              blurRadius: selected ? 20 : 13,
-              offset: const Offset(0, 7),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(13),
-          clipBehavior: Clip.antiAlias,
-          child: Ink(
+        selected: selected,
+        button: true,
+        label: 'Bệnh nhân số $number',
+        child: AnimatedScale(
+          scale: selected ? 1.06 : 1,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutBack,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            width: compact ? 54 : 76,
+            height: compact ? 52 : 58,
             decoration: BoxDecoration(
-              gradient: _Ui.redChip,
-              borderRadius: BorderRadius.circular(13),
+              borderRadius: BorderRadius.circular(17),
+              border: Border.all(
+                color: selected ? const Color(0xFFFFD400) : Colors.transparent,
+                width: 3.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: selected ? const Color(0x59FFB300) : const Color(0x33EE2F26),
+                  blurRadius: selected ? 20 : 13,
+                  offset: const Offset(0, 7),
+                ),
+              ],
             ),
-            child: InkWell(
-              onTap: onTap,
-              child: Center(
-                child: Text(
-                  '$number',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 23,
-                    fontWeight: FontWeight.w800,
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(13),
+              clipBehavior: Clip.antiAlias,
+              child: Ink(
+                decoration: BoxDecoration(gradient: _Ui.redChip, borderRadius: BorderRadius.circular(13)),
+                child: InkWell(
+                  onTap: onTap,
+                  child: Center(
+                    child: Text('$number', style: const TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w800)),
                   ),
                 ),
               ),
             ),
           ),
         ),
-      ),
-    ),
-  );
+      );
 }
 
 /// Ô số trong bảng "Đợi / Gọi lại" (mục ĐANG CHỜ): bấm để cho số đó xin đợi.
 /// Số kế tiếp có viền vàng để phân biệt.
 class _SheetWaitChip extends StatelessWidget {
-  const _SheetWaitChip({
-    required this.number,
-    required this.isNext,
-    required this.onTap,
-  });
+  const _SheetWaitChip({required this.number, required this.isNext, required this.onTap});
 
   final int number;
   final bool isNext;
@@ -1871,51 +1504,41 @@ class _SheetWaitChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: isNext ? 'Cho số kế tiếp $number xin đợi' : 'Cho số $number xin đợi',
-    child: Container(
-      width: 74,
-      height: 58,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(
-          color: isNext ? const Color(0xFFFFD400) : Colors.transparent,
-          width: 3.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isNext ? const Color(0x59FFB300) : const Color(0x2EEE2F26),
-            blurRadius: isNext ? 18 : 11,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(13),
-        clipBehavior: Clip.antiAlias,
-        child: Ink(
+        button: true,
+        label: isNext ? 'Cho số kế tiếp $number xin đợi' : 'Cho số $number xin đợi',
+        child: Container(
+          width: 74,
+          height: 58,
           decoration: BoxDecoration(
-            gradient: _Ui.redChip,
-            borderRadius: BorderRadius.circular(13),
+            borderRadius: BorderRadius.circular(17),
+            border: Border.all(
+              color: isNext ? const Color(0xFFFFD400) : Colors.transparent,
+              width: 3.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isNext ? const Color(0x59FFB300) : const Color(0x2EEE2F26),
+                blurRadius: isNext ? 18 : 11,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
-          child: InkWell(
-            onTap: onTap,
-            child: Center(
-              child: Text(
-                '$number',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(13),
+            clipBehavior: Clip.antiAlias,
+            child: Ink(
+              decoration: BoxDecoration(gradient: _Ui.redChip, borderRadius: BorderRadius.circular(13)),
+              child: InkWell(
+                onTap: onTap,
+                child: Center(
+                  child: Text('$number', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
                 ),
               ),
             ),
           ),
         ),
-      ),
-    ),
-  );
+      );
 }
 
 /// Ô số trong bảng "Đợi / Gọi lại" (mục ĐÃ KHÁM): bấm để gọi lại bệnh nhân.
@@ -1927,52 +1550,35 @@ class _RecallChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: 'Gọi lại bệnh nhân số $number',
-    child: Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF4F6FB),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE9ECF4)),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: onTap,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 22,
-                height: 22,
-                decoration: const BoxDecoration(
-                  color: Color(0x1F2AC653),
-                  shape: BoxShape.circle,
+        button: true,
+        label: 'Gọi lại bệnh nhân số $number',
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF4F6FB),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE9ECF4)),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: onTap,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: const BoxDecoration(color: Color(0x1F2AC653), shape: BoxShape.circle),
+                  child: const Icon(Icons.check_rounded, size: 14, color: Color(0xFF25A94C)),
                 ),
-                child: const Icon(
-                  Icons.check_rounded,
-                  size: 14,
-                  color: Color(0xFF25A94C),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '$number',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: _Ui.textPrimary,
-                ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                Text('$number', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _Ui.textPrimary)),
+              ]),
+            ),
           ),
         ),
-      ),
-    ),
-  );
+      );
 }
 
 /// Ô số trong hàng "SỐ ĐÃ CHO QUA": bấm để mở màn hình chèn lại số đó.
@@ -1984,52 +1590,35 @@ class _DeferredChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: 'Số $number đã bị cho qua, bấm để chèn lại',
-    child: Container(
-      height: 42,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF4F6FB),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE9ECF4)),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: onTap,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 22,
-                height: 22,
-                decoration: const BoxDecoration(
-                  color: Color(0x24FFB300),
-                  shape: BoxShape.circle,
+        button: true,
+        label: 'Số $number đã bị cho qua, bấm để chèn lại',
+        child: Container(
+          height: 42,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF4F6FB),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE9ECF4)),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: onTap,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: const BoxDecoration(color: Color(0x24FFB300), shape: BoxShape.circle),
+                  child: const Icon(Icons.pause_rounded, size: 13, color: Color(0xFFD98E00)),
                 ),
-                child: const Icon(
-                  Icons.pause_rounded,
-                  size: 13,
-                  color: Color(0xFFD98E00),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '$number',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: _Ui.chipIdleText,
-                ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                Text('$number', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _Ui.chipIdleText)),
+              ]),
+            ),
           ),
         ),
-      ),
-    ),
-  );
+      );
 }
 
 /// Thẻ thông báo từ bác sĩ: xanh khi đang khám, kem + icon cam khi tạm dừng.
@@ -2041,59 +1630,47 @@ class _StatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedContainer(
-    duration: const Duration(milliseconds: 260),
-    curve: Curves.easeOut,
-    padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-    decoration: BoxDecoration(
-      color: paused ? const Color(0xFFFFF8E8) : const Color(0xFFEAF9F0),
-      borderRadius: BorderRadius.circular(24),
-      border: Border.all(
-        color: paused ? const Color(0xFFFFE6BC) : const Color(0xFFCFF0DC),
-      ),
-      boxShadow: [
-        BoxShadow(
-          color: paused ? const Color(0x1FF5A623) : const Color(0x1F2AC653),
-          blurRadius: 20,
-          offset: const Offset(0, 10),
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+        decoration: BoxDecoration(
+          color: paused ? const Color(0xFFFFF8E8) : const Color(0xFFEAF9F0),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: paused ? const Color(0xFFFFE6BC) : const Color(0xFFCFF0DC)),
+          boxShadow: [
+            BoxShadow(
+              color: paused ? const Color(0x1FF5A623) : const Color(0x1F2AC653),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
         ),
-      ],
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(3.5),
-          decoration: BoxDecoration(
-            color: paused ? const Color(0x2EF5A623) : const Color(0x2E2AC653),
-            shape: BoxShape.circle,
-          ),
-          child: Container(
-            width: 32,
-            height: 32,
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            padding: const EdgeInsets.all(3.5),
             decoration: BoxDecoration(
-              color: paused ? const Color(0xFFF5A623) : const Color(0xFF2AC653),
+              color: paused ? const Color(0x2EF5A623) : const Color(0x2E2AC653),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              paused ? Icons.pause_rounded : Icons.check_rounded,
-              color: Colors.white,
-              size: 22,
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: paused ? const Color(0xFFF5A623) : const Color(0xFF2AC653),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(paused ? Icons.pause_rounded : Icons.check_rounded, color: Colors.white, size: 22),
             ),
           ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(
                 paused ? 'Thông báo tạm dừng khám' : 'Thông báo từ Bác sĩ',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
-                  color: paused
-                      ? const Color(0xFF6B4A00)
-                      : const Color(0xFF14532C),
+                  color: paused ? const Color(0xFF6B4A00) : const Color(0xFF14532C),
                 ),
               ),
               const SizedBox(height: 6),
@@ -2102,43 +1679,33 @@ class _StatusBanner extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12.2,
                   height: 1.55,
-                  color: paused
-                      ? const Color(0xFF8A6A2F)
-                      : const Color(0xFF38624A),
+                  color: paused ? const Color(0xFF8A6A2F) : const Color(0xFF38624A),
                 ),
               ),
               const SizedBox(height: 10),
-              Row(
-                children: [
-                  Container(
-                    width: 4,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: paused
-                          ? const Color(0xFFC9A96A)
-                          : const Color(0xFF7FAE92),
-                      shape: BoxShape.circle,
-                    ),
+              Row(children: [
+                Container(
+                  width: 4,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: paused ? const Color(0xFFC9A96A) : const Color(0xFF7FAE92),
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Phòng khám 3 · BS. Vũ Nam Tuấn · 08:42',
-                    style: TextStyle(
-                      fontSize: 10.3,
-                      fontWeight: FontWeight.w500,
-                      color: paused
-                          ? const Color(0xFFB08F4E)
-                          : const Color(0xFF8AA79A),
-                    ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Phòng khám 3 · BS. Vũ Nam Tuấn · 08:42',
+                  style: TextStyle(
+                    fontSize: 10.3,
+                    fontWeight: FontWeight.w500,
+                    color: paused ? const Color(0xFFB08F4E) : const Color(0xFF8AA79A),
                   ),
-                ],
-              ),
-            ],
+                ),
+              ]),
+            ]),
           ),
-        ),
-      ],
-    ),
-  );
+        ]),
+      );
 }
 
 /// Dòng gợi ý khi danh sách trống.
@@ -2149,22 +1716,13 @@ class _EmptyHint extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Icon(icon, size: 16, color: _Ui.textFaint),
-      const SizedBox(width: 8),
-      Flexible(
-        child: Text(
-          text,
-          style: const TextStyle(
-            fontSize: 12.5,
-            color: _Ui.textFaint,
-            fontWeight: FontWeight.w500,
-          ),
+  Widget build(BuildContext context) => Row(children: [
+        Icon(icon, size: 16, color: _Ui.textFaint),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(text, style: const TextStyle(fontSize: 12.5, color: _Ui.textFaint, fontWeight: FontWeight.w500)),
         ),
-      ),
-    ],
-  );
+      ]);
 }
 
 /// Nút hành động: biến thể chính (xanh dương), phụ (trắng) và nút xanh lá.
@@ -2195,22 +1753,15 @@ class _ActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isGreen = !primary && color != Colors.white;
     final filled = primary || isGreen;
-    final gradient = primary
-        ? _Ui.blueButton
-        : (isGreen ? _Ui.greenButton : null);
+    final gradient = primary ? _Ui.blueButton : (isGreen ? _Ui.greenButton : null);
     final foreground = filled ? Colors.white : _Ui.textPrimary;
     final iconColor = filled ? Colors.white : const Color(0xFF6B7285);
     final leading = icon != null && (!primary || iconLeading);
-    final shadow = primary
-        ? _Ui.blueShadow
-        : (isGreen ? _Ui.greenShadow : _Ui.quietShadow);
+    final shadow = primary ? _Ui.blueShadow : (isGreen ? _Ui.greenShadow : _Ui.quietShadow);
 
     return Container(
       height: 54,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(17),
-        boxShadow: shadow,
-      ),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(17), boxShadow: shadow),
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(17),
@@ -2220,9 +1771,7 @@ class _ActionButton extends StatelessWidget {
             gradient: gradient,
             color: gradient == null ? Colors.white : null,
             borderRadius: BorderRadius.circular(17),
-            border: filled
-                ? null
-                : Border.all(color: const Color(0xFFE7EAF3), width: 1.4),
+            border: filled ? null : Border.all(color: const Color(0xFFE7EAF3), width: 1.4),
           ),
           child: InkWell(
             onTap: onPressed,
@@ -2231,28 +1780,11 @@ class _ActionButton extends StatelessWidget {
               child: Center(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (leading) ...[
-                        Icon(icon, size: 19, color: iconColor),
-                        const SizedBox(width: 6),
-                      ],
-                      Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.w800,
-                          color: foreground,
-                          letterSpacing: -0.1,
-                        ),
-                      ),
-                      if (icon != null && !leading) ...[
-                        const SizedBox(width: 6),
-                        Icon(icon, size: 19, color: iconColor),
-                      ],
-                    ],
-                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    if (leading) ...[Icon(icon, size: 19, color: iconColor), const SizedBox(width: 6)],
+                    Text(label, style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: foreground, letterSpacing: -0.1)),
+                    if (icon != null && !leading) ...[const SizedBox(width: 6), Icon(icon, size: 19, color: iconColor)],
+                  ]),
                 ),
               ),
             ),
