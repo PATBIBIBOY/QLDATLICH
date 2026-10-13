@@ -6,6 +6,7 @@ import 'letan_capnhat_profile_screen_c1.dart';
 import 'letan_doimatkhau_screen_c1.dart';
 import 'letan_quenmatkhau_screen_c1.dart';
 import 'cskh_duyetdon_khoa_screen_c1.dart';
+import 'letan_thietlap_thongtin_screen_c1.dart';
 
 class LetanProfileTabC1 extends StatefulWidget {
   final VoidCallback? onDangXuat;
@@ -562,6 +563,92 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
                   const Icon(
                     Icons.arrow_forward_ios_rounded,
                     color: Color(0xFF0284C7),
+                    size: 16,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          InkWell(
+            onTap: () {
+              AppDesignSystemC1.hapticLight();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const LetanThietlapThongtinScreenC1(),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0C2444) : const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF3B82F6).withValues(alpha: isDark ? 0.6 : 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.how_to_reg_rounded,
+                      color: Color(0xFF2563EB),
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Thiết lập thông tin lần đầu',
+                              style: TextStyle(
+                                color: textCol,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDBEAFE),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'Mã NV',
+                                style: TextStyle(
+                                  color: Color(0xFF1D4ED8),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Kích hoạt bằng mã cấp sẵn & tạo Gmail đăng nhập',
+                          style: TextStyle(color: subTextCol, fontSize: 11.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: Color(0xFF2563EB),
                     size: 16,
                   ),
                 ],
