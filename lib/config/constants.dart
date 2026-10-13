@@ -12,6 +12,7 @@ class AppConstants {
   static const String appointmentsCollection = 'appointments';
   static const String medicalRecordsCollection = 'medical_records';
   static const String doctorsCollection = 'doctors';
+  static const String departmentsCollection = 'departments';
   static const String hospitalsCollection = 'hospitals';
   static const String chatsCollection = 'chats';
 

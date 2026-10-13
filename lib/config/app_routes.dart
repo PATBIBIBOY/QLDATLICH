@@ -1,4 +1,6 @@
+// ignore: uri_does_not_exist
 import 'package:flutter/material.dart';
+import 'package:qldatlich/services/khoa_service.dart';
 
 import '../screens/admin/admin_dashboard.dart';
 import '../screens/auth/login_screen.dart';
@@ -10,7 +12,10 @@ import '../screens/customer_support/ticket_screen.dart';
 import '../screens/doctor_assistant/assistant_home_screen.dart';
 import '../screens/doctor_assistant/patient_queue_screen.dart';
 import '../screens/doctor_assistant/update_record_screen.dart';
+import '../screens/hospital/homeHospital_Screem.dart';
+import '../screens/hospital/CapTK_Scream.dart';
 import '../screens/hospital/hospital_dashboard.dart';
+import '../screens/hospital/addKhoaHospital_Screen.dart';
 import '../screens/hospital/statistics_screen.dart';
 import '../screens/hospital/staff_management_screen.dart';
 import '../screens/patient/book_appointment_screen.dart';
@@ -43,6 +48,8 @@ class AppRoutes {
   static const String chatList = '/chat-list';
   static const String ticket = '/ticket';
 
+  static const String hospitalHome = '/hospital-home';
+  static const String addClinic = '/add-clinic';
   static const String hospitalDashboard = '/hospital-dashboard';
   static const String staffManagement = '/staff-management';
   static const String statistics = '/statistics';
@@ -50,25 +57,27 @@ class AppRoutes {
   static const String adminDashboard = '/admin-dashboard';
 
   static Map<String, WidgetBuilder> get routes => {
-        login: (_) => const LoginScreen(),
-        register: (_) => const RegisterScreen(),
-        roleSelection: (_) => const RoleSelectionScreen(),
-        patientHome: (_) => const PatientHomeScreen(),
-        bookAppointment: (_) => const BookAppointmentScreen(),
-        myAppointments: (_) => const MyAppointmentsScreen(),
-        medicalHistory: (_) => const MedicalHistoryScreen(),
-        receptionistHome: (_) => const ReceptionistHomeScreen(),
-        checkIn: (_) => const CheckInScreen(),
-        appointmentList: (_) => const AppointmentListScreen(),
-        assistantHome: (_) => const AssistantHomeScreen(),
-        patientQueue: (_) => const PatientQueueScreen(),
-        updateRecord: (_) => const UpdateRecordScreen(),
-        supportHome: (_) => const SupportHomeScreen(),
-        chatList: (_) => const ChatListScreen(),
-        ticket: (_) => const TicketScreen(),
-        hospitalDashboard: (_) => const HospitalDashboard(),
-        staffManagement: (_) => const StaffManagementScreen(),
-        statistics: (_) => const StatisticsScreen(),
-        adminDashboard: (_) => const AdminDashboard(),
-      };
+    login: (_) => const LoginScreen(),
+    register: (_) => const RegisterScreen(),
+    roleSelection: (_) => const RoleSelectionScreen(),
+    patientHome: (_) => const PatientHomeScreen(),
+    bookAppointment: (_) => const BookAppointmentScreen(),
+    myAppointments: (_) => const MyAppointmentsScreen(),
+    medicalHistory: (_) => const MedicalHistoryScreen(),
+    receptionistHome: (_) => const ReceptionistHomeScreen(),
+    checkIn: (_) => const CheckInScreen(),
+    appointmentList: (_) => const AppointmentListScreen(),
+    assistantHome: (_) => const AssistantHomeScreen(),
+    patientQueue: (_) => const PatientQueueScreen(),
+    updateRecord: (_) => const UpdateRecordScreen(),
+    supportHome: (_) => const SupportHomeScreen(),
+    chatList: (_) => const ChatListScreen(),
+    ticket: (_) => const TicketScreen(),
+    hospitalHome: (_) => const HomeHospitalScreen(),
+    addClinic: (_) => const ThemKhoaScreen(benhVienId: 'dFmZHBjFNUT1eRzJjXp5'),
+    hospitalDashboard: (_) => const HospitalDashboard(),
+    staffManagement: (_) => const CapTaiKhoanNhanVienScreen(),
+    statistics: (_) => const StatisticsScreen(),
+    adminDashboard: (_) => const AdminDashboard(),
+  };
 }
