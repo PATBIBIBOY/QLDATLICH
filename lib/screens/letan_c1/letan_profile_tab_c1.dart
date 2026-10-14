@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
+import '../../services/letan_c1/letan_firebase_service_c1.dart';
 import 'letan_capnhat_profile_screen_c1.dart';
 import 'letan_doimatkhau_screen_c1.dart';
 import 'letan_quenmatkhau_screen_c1.dart';
@@ -22,6 +23,21 @@ class LetanProfileTabC1 extends StatefulWidget {
 
 class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
   ThongTinLeTanC1 _thongTin = DuLieuProfileMauC1.thongTinHienTai;
+
+  @override
+  void initState() {
+    super.initState();
+    // Tự động đồng bộ khoa hiển thị từ Firestore /Khoa/dFmZHBjFNUT1eRzJjXp5/danh_sach
+    FirebaseServiceC1.layDanhSachTenKhoa().then((danhSachFirebase) {
+      if (mounted && danhSachFirebase.isNotEmpty) {
+        setState(() {
+          final tenKhoaMoi = danhSachFirebase.first;
+          _thongTin = _thongTin.copyWith(khoa: tenKhoaMoi);
+          DuLieuProfileMauC1.thongTinHienTai = _thongTin;
+        });
+      }
+    });
+  }
 
   // Điều hướng sang trang chỉnh sửa thông tin và reload lại khi có kết quả mới
   Future<void> _moTrangChinhSua() async {

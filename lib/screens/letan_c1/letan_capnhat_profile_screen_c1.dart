@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
+import '../../services/letan_c1/letan_firebase_service_c1.dart';
 
 class LetanCapnhatProfileScreenC1 extends StatefulWidget {
   final ThongTinLeTanC1 thongTinHienTai;
@@ -29,13 +30,22 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
     _hoTenController = TextEditingController(text: widget.thongTinHienTai.hoTen);
     _chucVuController = TextEditingController(text: widget.thongTinHienTai.chucVu);
     _maNhanVienController = TextEditingController(text: widget.thongTinHienTai.maNhanVien);
-    
-    // Đảm bảo khoa hiện tại nằm trong danh sách chọn có sẵn
-    if (DuLieuProfileMauC1.danhSachKhoaCoSan.contains(widget.thongTinHienTai.khoa)) {
-      _khoaDuocChon = widget.thongTinHienTai.khoa;
-    } else {
-      _khoaDuocChon = DuLieuProfileMauC1.danhSachKhoaCoSan.first;
-    }
+    _khoaDuocChon = widget.thongTinHienTai.khoa;
+
+    // Tự động tải khoa thật từ Firebase Firestore /Khoa/dFmZHBjFNUT1eRzJjXp5/danh_sach
+    FirebaseServiceC1.layDanhSachTenKhoa().then((danhSachFirebase) {
+      if (mounted && danhSachFirebase.isNotEmpty) {
+        setState(() {
+          // Nếu khoa hiện tại vẫn là mock 'Khoa Tim Mạch' hoặc chưa khớp Firebase thì lấy ngay khoa thật đầu tiên trên Firebase (ví dụ: 'KHOA TIM')
+          final bool coTrongFirebase = danhSachFirebase.any(
+            (k) => k.trim().toLowerCase() == _khoaDuocChon.trim().toLowerCase(),
+          );
+          if (!coTrongFirebase) {
+            _khoaDuocChon = danhSachFirebase.first;
+          }
+        });
+      }
+    });
   }
 
   @override
@@ -102,66 +112,81 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
                   constraints: BoxConstraints(
                     maxHeight: MediaQuery.of(context).size.height * 0.5,
                   ),
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: DuLieuProfileMauC1.danhSachKhoaCoSan.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final khoa = DuLieuProfileMauC1.danhSachKhoaCoSan[index];
-                      final bool isSelected = khoa == _khoaDuocChon;
+                  child: StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: FirebaseServiceC1.streamDanhSachKhoa(),
+                    builder: (context, snapshot) {
+                      List<String> danhSachKhoa;
+                      if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                        danhSachKhoa = snapshot.data!
+                            .map((e) => (e['tenKhoa'] ?? '').toString())
+                            .where((t) => t.isNotEmpty)
+                            .toList();
+                      } else {
+                        danhSachKhoa = DuLieuProfileMauC1.danhSachKhoaCoSan;
+                      }
 
-                      return InkWell(
-                        onTap: () {
-                          setState(() {
-                            _khoaDuocChon = khoa;
-                          });
-                          Navigator.pop(ctx);
-                        },
-                        borderRadius: BorderRadius.circular(14),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: isSelected ? const Color(0xFFFFF5E6) : const Color(0xFFF8FAFC),
+                      return ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: danhSachKhoa.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final khoa = danhSachKhoa[index];
+                          final bool isSelected = khoa.trim().toLowerCase() == _khoaDuocChon.trim().toLowerCase();
+
+                          return InkWell(
+                            onTap: () {
+                              setState(() {
+                                _khoaDuocChon = khoa;
+                              });
+                              Navigator.pop(ctx);
+                            },
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: isSelected ? const Color(0xFFFF9500) : const Color(0xFFE2E8F0),
-                              width: isSelected ? 1.5 : 1,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: isSelected ? const Color(0xFFFF9500) : Colors.white,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Icon(
-                                  Icons.medical_services_outlined,
-                                  size: 18,
-                                  color: isSelected ? Colors.white : const Color(0xFF64748B),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: isSelected ? const Color(0xFFFFF5E6) : const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: isSelected ? const Color(0xFFFF9500) : const Color(0xFFE2E8F0),
+                                  width: isSelected ? 1.5 : 1,
                                 ),
                               ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Text(
-                                  khoa,
-                                  style: TextStyle(
-                                    color: isSelected ? const Color(0xFFFF9500) : const Color(0xFF1C1C1E),
-                                    fontSize: 14.5,
-                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 34,
+                                    height: 34,
+                                    decoration: BoxDecoration(
+                                      color: isSelected ? const Color(0xFFFF9500) : Colors.white,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Icon(
+                                      Icons.medical_services_outlined,
+                                      size: 18,
+                                      color: isSelected ? Colors.white : const Color(0xFF64748B),
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Text(
+                                      khoa,
+                                      style: TextStyle(
+                                        color: isSelected ? const Color(0xFFFF9500) : const Color(0xFF1C1C1E),
+                                        fontSize: 14.5,
+                                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  if (isSelected)
+                                    const Icon(Icons.check_circle_rounded, color: Color(0xFFFF9500), size: 22)
+                                  else
+                                    const Icon(Icons.radio_button_unchecked, color: Color(0xFFCBD5E1), size: 22),
+                                ],
                               ),
-                              if (isSelected)
-                                const Icon(Icons.check_circle_rounded, color: Color(0xFFFF9500), size: 22)
-                              else
-                                const Icon(Icons.radio_button_unchecked, color: Color(0xFFCBD5E1), size: 22),
-                            ],
-                          ),
-                        ),
+                            ),
+                          );
+                        },
                       );
                     },
                   ),

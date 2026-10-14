@@ -51,5 +51,6 @@
 - lib/screens/letan_c1/cskh_danhsach_tinnhan_screen_c1.dart
 - lib/screens/letan_c1/cskh_chat_chitiet_screen_c1.dart
 - lib/screens/letan_c1/cskh_profile_tab_c1.dart
+- lib/services/letan_c1/letan_firebase_service_c1.dart
 - lib/chay_thu_c1.dart
 - lib/ghi_chu_c1.md

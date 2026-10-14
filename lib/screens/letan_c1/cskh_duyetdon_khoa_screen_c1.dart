@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../mock/mock_c1/dulieu_mau_cskh_c1.dart';
 import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../models/letan_c1/letan_model_c1.dart';
+import '../../services/letan_c1/letan_firebase_service_c1.dart';
 import 'cskh_danhsach_don_khoa_screen_c1.dart';
 import 'cskh_danhsach_tinnhan_screen_c1.dart';
 import 'cskh_profile_tab_c1.dart';
@@ -437,10 +438,52 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          // Danh sách chuyên khoa (Lấy Realtime từ Firebase Firestore)
+          StreamBuilder<List<Map<String, dynamic>>>(
+            stream: FirebaseServiceC1.streamDanhSachKhoa(),
+            builder: (context, snapshot) {
+              // Nếu đang tải hoặc chưa có dữ liệu từ Firebase -> Dùng danh sách mẫu để không bao giờ bị trắng màn hình
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return Column(
+                  children: _danhSachKhoa.map((khoa) => _buildCardKhoa(khoa, isDark)).toList(),
+                );
+              }
 
-          // Danh sách 5 chuyên khoa
-          ..._danhSachKhoa.map((khoa) => _buildCardKhoa(khoa, isDark)),
+              // Khi Firebase trả về danh sách khoa thật (như KHOA TIM phòng 110 trong database của bạn)
+              final docs = snapshot.data!;
+              return Column(
+                children: docs.map((item) {
+                  final tenKhoa = item['tenKhoa'] ?? 'Khoa Khám';
+                  final moTaPhong = item['moTaPhong'] ?? 'Phòng ${item['phongDau']}';
+                  final bool laKhoaDangMo = item['trangThai'] == 'dang_mo';
+
+                  // Tự động gán Icon phù hợp theo tên khoa
+                  IconData iconKhoa = Icons.local_hospital_outlined;
+                  final lower = tenKhoa.toString().toLowerCase();
+                  if (lower.contains('tim')) {
+                    iconKhoa = Icons.favorite_border_rounded;
+                  } else if (lower.contains('nhi')) {
+                    iconKhoa = Icons.child_care_rounded;
+                  } else if (lower.contains('răng') || lower.contains('rang')) {
+                    iconKhoa = Icons.sentiment_satisfied_alt_rounded;
+                  } else if (lower.contains('mắt') || lower.contains('mat')) {
+                    iconKhoa = Icons.remove_red_eye_outlined;
+                  }
+
+                  final khoaItem = KhoaKhamModelC1(
+                    tenKhoa: tenKhoa,
+                    moTaPhong: moTaPhong,
+                    soLuongDon: '25 Đơn',
+                    icon: iconKhoa,
+                    laKhoaDangChon: lower.contains('tim'),
+                    laDayDon: !laKhoaDangMo,
+                  );
+
+                  return _buildCardKhoa(khoaItem, isDark);
+                }).toList(),
+              );
+            },
+          ),
           const SizedBox(height: 10),
 
           // Nút Báo cáo lỗi hệ thống

@@ -1,9 +1,20 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
+import 'config/firebase_options.dart';
 import 'models/letan_c1/letan_design_system_c1.dart';
 import 'screens/letan_c1/letan_trangchu_screen_c1.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    // ignore: avoid_print
+    print('Firebase da duoc khoi tao truoc do hoac loi: $e');
+  }
   runApp(const KiemThuAppC1());
 }
 

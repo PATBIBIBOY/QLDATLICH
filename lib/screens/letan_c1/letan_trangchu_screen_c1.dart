@@ -4,6 +4,7 @@ import '../../mock/mock_c1/dulieu_mau_letan_c1.dart';
 import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../models/letan_c1/letan_model_c1.dart';
 import '../../models/letan_c1/letan_qr_model_c1.dart';
+import '../../services/letan_c1/letan_firebase_service_c1.dart';
 import 'letan_baocaoloi_screen_c1.dart';
 import 'letan_ketqua_qr_screen_c1.dart';
 import 'letan_lichhen_screen_c1.dart';
@@ -25,11 +26,216 @@ class LeTanHomeScreenC1 extends StatefulWidget {
 
 class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
   int _currentIndex = 0; // 0: Trang chu, 1: Quet QR, 2: Lich hen, 3: Profile
+  late String _tenKhoaHienTai;
+
+  @override
+  void initState() {
+    super.initState();
+    _tenKhoaHienTai = widget.tenKhoa;
+  }
 
   void _moManHinhQuetQr() {
     setState(() {
       _currentIndex = 1; // Chuyển thẳng sang Tab Quét QR giữ nguyên 4 nút dưới đáy
     });
+  }
+
+  // Mở popup chọn Khoa nạp trực tiếp từ /Khoa/dFmZHBjFNUT1eRzJjXp5/danh_sach
+  void _moModalChonKhoaFirebase() {
+    AppDesignSystemC1.hapticLight();
+    final isDark = AppDesignSystemC1.laCheDoToi;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.local_hospital_rounded, color: Color(0xFF1E88E5), size: 22),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Chọn Khoa Tiếp Nhận',
+                          style: TextStyle(
+                            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE0F2FE),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Firebase Live',
+                        style: TextStyle(color: Color(0xFF0284C7), fontSize: 11, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Dữ liệu tải từ /Khoa/.../danh_sach',
+                  style: TextStyle(
+                    color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
+                    fontSize: 12.5,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.45,
+                  ),
+                  child: StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: FirebaseServiceC1.streamDanhSachKhoa(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const CircularProgressIndicator(strokeWidth: 2),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Đang tải danh sách khoa từ Firebase...',
+                                  style: TextStyle(
+                                    color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      final danhSachKhoa = snapshot.data!;
+                      return ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: danhSachKhoa.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final item = danhSachKhoa[index];
+                          final tenKhoa = item['tenKhoa'] ?? 'Khoa Khám';
+                          final moTa = item['moTaPhong'] ?? '';
+                          final isSelected = tenKhoa.trim().toLowerCase() == _tenKhoaHienTai.trim().toLowerCase();
+
+                          return InkWell(
+                            onTap: () {
+                              setState(() {
+                                _tenKhoaHienTai = tenKhoa;
+                              });
+                              Navigator.pop(ctx);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Đã chuyển bàn làm việc sang: $tenKhoa'),
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(14),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? (isDark ? const Color(0xFF0C2444) : const Color(0xFFEFF6FF))
+                                    : (isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF8FAFC)),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: isSelected ? const Color(0xFF1E88E5) : (isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0)),
+                                  width: isSelected ? 1.5 : 1,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: isSelected ? const Color(0xFF1E88E5) : (isDark ? AppDesignSystemC1.darkSurface : Colors.white),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Icon(
+                                      Icons.favorite_border_rounded,
+                                      size: 18,
+                                      color: isSelected ? Colors.white : const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          tenKhoa,
+                                          style: TextStyle(
+                                            color: isSelected
+                                                ? const Color(0xFF1E88E5)
+                                                : (isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E)),
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          moTa,
+                                          style: TextStyle(
+                                            color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isSelected)
+                                    const Icon(Icons.check_circle_rounded, color: Color(0xFF1E88E5), size: 22)
+                                  else
+                                    const Icon(Icons.radio_button_unchecked, color: Color(0xFFCBD5E1), size: 22),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -95,27 +301,43 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Xin chào, Lễ tân ${widget.tenKhoa}',
-                style: TextStyle(
-                  color: subTextCol,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                ),
+          child: InkWell(
+            onTap: _moModalChonKhoaFirebase,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          'Xin chào, Lễ tân $_tenKhoaHienTai',
+                          style: TextStyle(
+                            color: subTextCol,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: subTextCol),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Trang chủ Lễ tân',
+                    style: TextStyle(
+                      color: textCol,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Trang chủ Lễ tân',
-                style: TextStyle(
-                  color: textCol,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
         Row(
