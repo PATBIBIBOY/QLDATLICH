@@ -101,6 +101,7 @@ class KhoaService {
       'soCaMoiNgay': soCaMoiNgay,
       'gioiHanBenhNhan': gioiHanBenhNhan, // dùng cho thẻ ở Trang chủ
       'phongDau': phongKham.first, // tên phòng đầu tiên, dùng cho thẻ
+      'khungGio': ds.map((e) => e.toMap()).toList(), // dùng cho màn chi tiết
       'ngayLamViec': ([...ngayLamViec]..sort()),
       'lichLamViec': lich,
       'trangThai': 'dang_mo',
@@ -118,6 +119,7 @@ class KhoaService {
         'khungGio': ds.map((e) => e.toMap()).toList(),
         'thoiGianKham': thoiGianKham,
         'soBenhNhanToiDa': gioiHanBenhNhan,
+        'trangThai': 'san_sang', // san_sang | dang_kham | tam_dong
         'nhanVienId': null, // gán bác sĩ phụ trách sau ở màn Nhân viên
       });
     }

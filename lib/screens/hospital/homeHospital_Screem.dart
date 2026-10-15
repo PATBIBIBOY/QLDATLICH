@@ -1,10 +1,39 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:qldatlich/services/benhVien_service.dart';
 
 import '../../config/app_routes.dart';
+import '../../config/app_session.dart';
 import 'listKhoaDieuTri.dart';
 
-class HomeHospitalScreen extends StatelessWidget {
+/// 1240 -> "1,240"
+String _soCoDauPhay(int n) =>
+    n.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
+
+/// "Bệnh Viện Đa Khoa TW" -> "BV"
+String _chuVietTat(String ten) {
+  final tu = ten.split(' ').where((e) => e.isNotEmpty).toList();
+  if (tu.isEmpty) return 'BV';
+  return tu.take(2).map((e) => e[0].toUpperCase()).join();
+}
+
+class HomeHospitalScreen extends StatefulWidget {
   const HomeHospitalScreen({super.key});
+
+  @override
+  State<HomeHospitalScreen> createState() => _HomeHospitalScreenState();
+}
+
+class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
+  // Chỉ tải tên bệnh viện một lần khi mở màn hình
+  late final Future<String> _tenBenhVien = BenhVienService.layTen(
+    AppSession.benhVienId,
+  );
+
+  void _moTatCaKhoa() => Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => const TatCaKhoaScreen()),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -20,97 +49,125 @@ class HomeHospitalScreen extends StatelessWidget {
             child: Column(
               children: [
                 const SizedBox(height: 10),
+
+                // ===== Header: tên bệnh viện theo ID =====
                 Container(
                   width: double.infinity,
                   margin: const EdgeInsets.symmetric(horizontal: 18),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF1C7CC8),
-                          shape: BoxShape.circle,
-                        ),
-                        alignment: Alignment.center,
-                        child: const Text(
-                          'BV',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
+                  child: FutureBuilder<String>(
+                    future: _tenBenhVien,
+                    builder: (context, snap) {
+                      final dangTai =
+                          snap.connectionState != ConnectionState.done;
+                      final ten = snap.data ?? '';
+                      final hienThi = dangTai
+                          ? 'Đang tải...'
+                          : (ten.isEmpty ? 'Bệnh viện' : ten);
+                      return Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF1C7CC8),
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              dangTai ? 'BV' : _chuVietTat(hienThi),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'BAN QUẢN LÝ',
-                              style: TextStyle(
-                                color: Color(0xFF6B7280),
-                                fontSize: 10,
-                                letterSpacing: 0.5,
-                                fontWeight: FontWeight.w700,
-                              ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'BAN QUẢN LÝ',
+                                  style: TextStyle(
+                                    color: Color(0xFF6B7280),
+                                    fontSize: 10,
+                                    letterSpacing: 0.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                Text(
+                                  hienThi,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Color(0xFF1F2937),
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
                             ),
-                            Text(
-                              'Bệnh Viện Đa Khoa TW',
-                              style: TextStyle(
-                                color: Color(0xFF1F2937),
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                              ),
+                          ),
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8EEF7),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE8EEF7),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.notifications_none_rounded,
-                          color: Color(0xFF1F2937),
-                          size: 20,
-                        ),
-                      ),
-                    ],
+                            child: const Icon(
+                              Icons.notifications_none_rounded,
+                              color: Color(0xFF1F2937),
+                              size: 20,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(height: 16),
+
+                // ===== 2 thẻ thống kê =====
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 18),
                   child: Row(
                     children: [
-                      Expanded(
-                        child: _StatCard(
-                          label: 'Tổng số khoa khám',
-                          value: '18',
-                          subText: '+2 khoa mới tháng này',
-                          primaryColor: const Color(0xFF1E96D8),
-                          secondaryColor: const Color(0xFF1C88D9),
-                        ),
-                      ),
+                      // Tổng số khoa + khoa mới tháng này (đếm từ Firestore)
+                      const Expanded(child: TongSoKhoaCard()),
                       const SizedBox(width: 12),
+                      // Bệnh nhân hôm nay (đọc từ ThongKe/{id}/danh_sach/{ngày})
                       Expanded(
-                        child: _StatCard(
-                          label: 'Bệnh nhân hôm nay',
-                          value: '1,240',
-                          subText: 'Đăng khám: 320 lượt',
-                          primaryColor: const Color(0xFF1D89D1),
-                          secondaryColor: const Color(0xFF1E79C2),
-                        ),
+                        child:
+                            StreamBuilder<
+                              DocumentSnapshot<Map<String, dynamic>>
+                            >(
+                              stream: BenhVienService.thongKeHomNay(
+                                AppSession.benhVienId,
+                              ),
+                              builder: (context, snap) {
+                                final d = snap.data?.data();
+                                final tong = ((d?['tongBenhNhan'] ?? 0) as num)
+                                    .toInt();
+                                final dang = ((d?['dangKham'] ?? 0) as num)
+                                    .toInt();
+                                return _StatCard(
+                                  label: 'Bệnh nhân hôm nay',
+                                  value: _soCoDauPhay(tong),
+                                  subText: 'Đang khám: $dang lượt',
+                                  primaryColor: const Color(0xFF1D89D1),
+                                  secondaryColor: const Color(0xFF1E79C2),
+                                );
+                              },
+                            ),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 14),
+
+                // ===== Nút thêm khoa =====
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 18),
                   child: SizedBox(
@@ -146,7 +203,11 @@ class HomeHospitalScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
+
+                // ===== Danh sách khoa (có "Xem tất cả") =====
                 const Expanded(child: ListKhoaDieuTri()),
+
+                // ===== Thanh điều hướng dưới =====
                 Container(
                   color: Colors.white,
                   padding: const EdgeInsets.symmetric(
@@ -155,8 +216,8 @@ class HomeHospitalScreen extends StatelessWidget {
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: const [
-                      _BottomNavItem(
+                    children: [
+                      const _BottomNavItem(
                         icon: Icons.home_rounded,
                         label: 'Trang chủ',
                         active: true,
@@ -165,13 +226,14 @@ class HomeHospitalScreen extends StatelessWidget {
                         icon: Icons.calendar_today_rounded,
                         label: 'Khoa khám',
                         active: false,
+                        onTap: _moTatCaKhoa,
                       ),
-                      _BottomNavItem(
+                      const _BottomNavItem(
                         icon: Icons.people_alt_rounded,
                         label: 'Nhân viên',
                         active: false,
                       ),
-                      _BottomNavItem(
+                      const _BottomNavItem(
                         icon: Icons.settings_rounded,
                         label: 'Cài đặt',
                         active: false,
@@ -259,32 +321,38 @@ class _BottomNavItem extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.active,
+    this.onTap,
   });
 
   final IconData icon;
   final String label;
   final bool active;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          icon,
-          color: active ? const Color(0xFF1D7BFF) : const Color(0xFF7A8196),
-          size: 22,
+    final mau = active ? const Color(0xFF1D7BFF) : const Color(0xFF7A8196);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: mau, size: 22),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: mau,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            color: active ? const Color(0xFF1D7BFF) : const Color(0xFF7A8196),
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

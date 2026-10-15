@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../config/app_session.dart';
+import 'chiTietKhoa_screem.dart';
 
 Stream<QuerySnapshot<Map<String, dynamic>>> _khoaStream() => FirebaseFirestore
     .instance
@@ -108,12 +109,20 @@ class ListKhoaDieuTri extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  Text(
-                    'Xem tất cả (${docs.length})',
-                    style: const TextStyle(
-                      color: Color(0xFF3B82F6),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                  InkWell(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const TatCaKhoaScreen(),
+                      ),
+                    ),
+                    child: Text(
+                      'Xem tất cả (${docs.length})',
+                      style: const TextStyle(
+                        color: Color(0xFF3B82F6),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -132,7 +141,10 @@ class ListKhoaDieuTri extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 18),
                       itemCount: docs.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (_, i) => _ClinicCard(data: docs[i].data()),
+                      itemBuilder: (ctx, i) => KhoaCard(
+                        data: docs[i].data(),
+                        onTap: () => _moChiTiet(ctx, docs[i]),
+                      ),
                     ),
             ),
           ],
@@ -140,6 +152,19 @@ class ListKhoaDieuTri extends StatelessWidget {
       },
     );
   }
+}
+
+// Bấm vào thẻ khoa -> mở màn chi tiết (thông tin khoa + trạng thái phòng khám)
+void _moChiTiet(
+  BuildContext context,
+  QueryDocumentSnapshot<Map<String, dynamic>> doc,
+) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => ChiTietKhoaScreen(khoaId: doc.id, data: doc.data()),
+    ),
+  );
 }
 
 // trangThai -> (nhãn, màu nền, màu chữ)
@@ -158,12 +183,19 @@ class ListKhoaDieuTri extends StatelessWidget {
   }
 }
 
-class _ClinicCard extends StatelessWidget {
-  const _ClinicCard({required this.data});
+class KhoaCard extends StatelessWidget {
+  const KhoaCard({super.key, required this.data, this.onTap});
   final Map<String, dynamic> data;
+  final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    behavior: HitTestBehavior.opaque,
+    child: _noiDung(context),
+  );
+
+  Widget _noiDung(BuildContext context) {
     final (nhan, nen, chu) = _trangThai(data['trangThai'] as String?);
     final soPhong = data['soPhong'] ?? 0;
     final phongDau = (data['phongDau'] ?? '') as String;
@@ -289,6 +321,158 @@ class _ClinicCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ===================== MÀN HÌNH "XEM TẤT CẢ" =====================
+class TatCaKhoaScreen extends StatefulWidget {
+  /// laTab = true: hiển thị như tab "Khoa khám" (có thanh điều hướng dưới).
+  /// laTab = false: trang "Xem tất cả" thông thường (có nút quay lại).
+  final bool laTab;
+  const TatCaKhoaScreen({super.key, this.laTab = false});
+
+  @override
+  State<TatCaKhoaScreen> createState() => _TatCaKhoaScreenState();
+}
+
+class _TatCaKhoaScreenState extends State<TatCaKhoaScreen> {
+  String _tuKhoa = '';
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FB),
+      appBar: AppBar(
+        automaticallyImplyLeading: !widget.laTab,
+        title: Text(
+          widget.laTab ? 'Khoa khám' : 'Tất cả khoa khám',
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        centerTitle: true,
+        backgroundColor: const Color(0xFFF5F7FB),
+        elevation: 0,
+      ),
+      bottomNavigationBar: widget.laTab ? const _ThanhDieuHuong() : null,
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 4, 18, 12),
+            child: TextField(
+              onChanged: (v) =>
+                  setState(() => _tuKhoa = v.trim().toLowerCase()),
+              decoration: InputDecoration(
+                hintText: 'Tìm khoa khám...',
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _khoaStream(),
+              builder: (context, snap) {
+                if (snap.hasError) {
+                  return Center(child: Text('Lỗi tải dữ liệu: ${snap.error}'));
+                }
+                if (!snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final docs = snap.data!.docs.where((d) {
+                  final ten = (d.data()['tenKhoa'] ?? '').toString();
+                  return ten.toLowerCase().contains(_tuKhoa);
+                }).toList();
+
+                if (docs.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'Không có khoa nào phù hợp',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  );
+                }
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+                  itemCount: docs.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (ctx, i) => KhoaCard(
+                    data: docs[i].data(),
+                    onTap: () => _moChiTiet(ctx, docs[i]),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ===================== THANH ĐIỀU HƯỚNG CỦA TAB "KHOA KHÁM" =====================
+class _ThanhDieuHuong extends StatelessWidget {
+  const _ThanhDieuHuong();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget muc(
+      IconData icon,
+      String nhan, {
+      bool active = false,
+      VoidCallback? onTap,
+    }) {
+      final mau = active ? const Color(0xFF1D7BFF) : const Color(0xFF7A8196);
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: mau, size: 22),
+              const SizedBox(height: 4),
+              Text(
+                nhan,
+                style: TextStyle(
+                  color: mau,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      color: Colors.white,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              // Trang chủ nằm ngay bên dưới trong stack, nên chỉ cần quay lại
+              muc(
+                Icons.home_rounded,
+                'Trang chủ',
+                onTap: () => Navigator.of(context).pop(),
+              ),
+              muc(Icons.calendar_today_rounded, 'Khoa khám', active: true),
+              muc(Icons.people_alt_rounded, 'Nhân viên'),
+              muc(Icons.settings_rounded, 'Cài đặt'),
+            ],
+          ),
+        ),
       ),
     );
   }

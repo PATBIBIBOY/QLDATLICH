@@ -1,19 +1,22 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:qldatlich/screens/hospital/CapTK_Scream.dart';
 
 import 'config/app_routes.dart';
 import 'config/app_theme.dart';
 import 'config/firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'screens/auth/login_screen.dart';
-import 'screens/hospital/homeHospital_Screem.dart';
-import 'screens/hospital/CapTK_Scream.dart';
+
+import 'database_seeder.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  await DatabaseSeeder.seedAllData();
 
   runApp(const QLDatLichApp());
 }
@@ -29,8 +32,9 @@ class QLDatLichApp extends StatelessWidget {
         title: 'QLDATLICH',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
-        home: const HomeHospitalScreen(),
-        routes: AppRoutes.routes,
+        home: const LoginScreen(),
+        // ✅ SỬA LỖI: Bỏ đoạn import bị dính vào đây
+        routes: AppRoutes.routes, 
       ),
     );
   }

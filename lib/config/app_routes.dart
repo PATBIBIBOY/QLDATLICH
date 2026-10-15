@@ -1,21 +1,16 @@
-// ignore: uri_does_not_exist
 import 'package:flutter/material.dart';
-import 'package:qldatlich/services/khoa_service.dart';
-
 import '../screens/admin/admin_dashboard.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
-import '../screens/auth/role_selection_screen.dart';
+import '../screens/auth/email_verification_screen.dart';
+import '../screens/auth/forgot_password_screen.dart';
 import '../screens/customer_support/chat_list_screen.dart';
 import '../screens/customer_support/support_home_screen.dart';
 import '../screens/customer_support/ticket_screen.dart';
 import '../screens/doctor_assistant/assistant_home_screen.dart';
 import '../screens/doctor_assistant/patient_queue_screen.dart';
 import '../screens/doctor_assistant/update_record_screen.dart';
-import '../screens/hospital/homeHospital_Screem.dart';
-import '../screens/hospital/CapTK_Scream.dart';
 import '../screens/hospital/hospital_dashboard.dart';
-import '../screens/hospital/addKhoaHospital_Screen.dart';
 import '../screens/hospital/statistics_screen.dart';
 import '../screens/hospital/staff_management_screen.dart';
 import '../screens/patient/book_appointment_screen.dart';
@@ -29,7 +24,10 @@ import '../screens/receptionist/receptionist_home_screen.dart';
 class AppRoutes {
   static const String login = '/login';
   static const String register = '/register';
+  static const String hospitalRegister = '/hospital-register';
   static const String roleSelection = '/role-selection';
+  static const String emailVerification = '/email-verification'; // ✅ Route mới
+  static const String forgotPassword = '/forgot-password';
 
   static const String patientHome = '/patient-home';
   static const String bookAppointment = '/book-appointment';
@@ -48,8 +46,6 @@ class AppRoutes {
   static const String chatList = '/chat-list';
   static const String ticket = '/ticket';
 
-  static const String hospitalHome = '/hospital-home';
-  static const String addClinic = '/add-clinic';
   static const String hospitalDashboard = '/hospital-dashboard';
   static const String staffManagement = '/staff-management';
   static const String statistics = '/statistics';
@@ -59,7 +55,19 @@ class AppRoutes {
   static Map<String, WidgetBuilder> get routes => {
     login: (_) => const LoginScreen(),
     register: (_) => const RegisterScreen(),
-    roleSelection: (_) => const RoleSelectionScreen(),
+
+    // ✅ Cấu hình route nhận arguments (email)
+    emailVerification: (context) {
+      final email =
+          ModalRoute.of(context)?.settings.arguments as String? ??
+          'Email không xác định';
+      return EmailVerificationScreen(email: email);
+    },
+    forgotPassword: (context) {
+      final email = ModalRoute.of(context)?.settings.arguments as String?;
+      return ForgotPasswordScreen(initialEmail: email);
+    },
+
     patientHome: (_) => const PatientHomeScreen(),
     bookAppointment: (_) => const BookAppointmentScreen(),
     myAppointments: (_) => const MyAppointmentsScreen(),
@@ -73,10 +81,8 @@ class AppRoutes {
     supportHome: (_) => const SupportHomeScreen(),
     chatList: (_) => const ChatListScreen(),
     ticket: (_) => const TicketScreen(),
-    hospitalHome: (_) => const HomeHospitalScreen(),
-    addClinic: (_) => const ThemKhoaScreen(benhVienId: 'dFmZHBjFNUT1eRzJjXp5'),
     hospitalDashboard: (_) => const HospitalDashboard(),
-    staffManagement: (_) => const CapTaiKhoanNhanVienScreen(),
+    staffManagement: (_) => const StaffManagementScreen(),
     statistics: (_) => const StatisticsScreen(),
     adminDashboard: (_) => const AdminDashboard(),
   };
