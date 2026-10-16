@@ -8,6 +8,8 @@ import '../../config/app_session.dart';
 import '../../config/constants.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/benhVien_service.dart';
+import 'guiDonThanhCong_Screen.dart';
+import 'guiYeuCauHopTac_Screen.dart';
 import 'listKhoaDieuTri.dart';
 
 /// 1240 -> "1,240"
@@ -40,6 +42,7 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
         AppSession.benhVienId;
   }
 
+  // ignore: unused_element
   void _moModalGuiDon({
     required BuildContext context,
     required String hospitalUid,
@@ -588,12 +591,33 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
             width: double.infinity,
             height: 52,
             child: ElevatedButton.icon(
-              onPressed: () => _moModalGuiDon(
-                context: context,
-                hospitalUid: hospitalUid,
-                tenBenhVien: tenBenhVien,
-                currentData: data,
-              ),
+              onPressed: () {
+                if (daGuiDon) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => GuiDonThanhCongScreen(
+                        maHoSo: (data?['ma_ho_so'] ?? '#HS-BV-202688').toString(),
+                        tenBenhVien: tenBenhVien,
+                        loaiHinh: (data?['loai_hinh'] ?? 'Bệnh viện Tư lập').toString(),
+                        coBhyt: data?['co_bhyt'] ?? true,
+                        hospitalUid: hospitalUid,
+                        extraData: data,
+                      ),
+                    ),
+                  );
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => GuiYeuCauHopTacScreen(
+                        initialTenBenhVien: tenBenhVien,
+                        initialDiaChi: data?['dia_chi']?.toString(),
+                      ),
+                    ),
+                  );
+                }
+              },
               icon: Icon(
                 daGuiDon
                     ? Icons.hourglass_top_rounded

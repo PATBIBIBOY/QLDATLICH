@@ -12,10 +12,8 @@ import 'database_seeder.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await DatabaseSeeder.seedAllData();
 
   runApp(const QLDatLichApp());
@@ -34,7 +32,7 @@ class QLDatLichApp extends StatelessWidget {
         theme: AppTheme.lightTheme,
         home: const LoginScreen(),
         // ✅ SỬA LỖI: Bỏ đoạn import bị dính vào đây
-        routes: AppRoutes.routes, 
+        routes: AppRoutes.routes,
       ),
     );
   }

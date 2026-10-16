@@ -13,6 +13,8 @@ import '../screens/doctor_assistant/patient_queue_screen.dart';
 import '../screens/doctor_assistant/update_record_screen.dart';
 import '../screens/hospital/homeHospital_Screem.dart';
 import '../screens/hospital/addKhoaHospital_Screen.dart';
+import '../screens/hospital/guiYeuCauHopTac_Screen.dart';
+import '../screens/hospital/guiDonThanhCong_Screen.dart';
 import '../screens/hospital/statistics_screen.dart';
 import '../screens/hospital/staff_management_screen.dart';
 import '../screens/patient/book_appointment_screen.dart';
@@ -49,6 +51,8 @@ class AppRoutes {
   static const String ticket = '/ticket';
 
   static const String hospitalDashboard = '/hospital-dashboard';
+  static const String hospitalRequestCollaboration = '/hospital-request-collaboration';
+  static const String hospitalRequestSuccess = '/hospital-request-success';
   static const String addClinic = '/add-clinic';
   static const String staffManagement = '/staff-management';
   static const String statistics = '/statistics';
@@ -85,6 +89,17 @@ class AppRoutes {
     chatList: (_) => const ChatListScreen(),
     ticket: (_) => const TicketScreen(),
     hospitalDashboard: (_) => const HomeHospitalScreen(),
+    hospitalRequestCollaboration: (_) => const GuiYeuCauHopTacScreen(),
+    hospitalRequestSuccess: (context) {
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      return GuiDonThanhCongScreen(
+        maHoSo: args?['maHoSo'] ?? '#HS-BV-202688',
+        tenBenhVien: args?['tenBenhVien'] ?? 'Bệnh viện Đa Khoa An Bình',
+        loaiHinh: args?['loaiHinh'] ?? 'Bệnh viện Tư lập',
+        coBhyt: args?['coBhyt'] ?? true,
+        extraData: args?['extraData'],
+      );
+    },
     addClinic: (_) => ThemKhoaScreen(benhVienId: AppSession.benhVienId),
     staffManagement: (_) => const StaffManagementScreen(),
     statistics: (_) => const StatisticsScreen(),

@@ -16,12 +16,16 @@
 | **5** | `lib/config/app_session.dart` | Sửa đổi | Bỏ `const` của `benhVienId` để hệ thống gán động theo UID của từng tài khoản Bệnh viện đăng nhập. | Đang ở local |
 | **6** | `lib/providers/auth_provider.dart` | Sửa đổi | Hỗ trợ `preferredRole` trong `fetchCurrentUser` và `login` để ưu tiên load hồ sơ bệnh viện và gán `AppSession.benhVienId`. | Đang ở local |
 | **7** | `lib/screens/hospital/homeHospital_Screem.dart` | Sửa đổi | Tích hợp Firebase Firestore realtime: Render giao diện Bệnh viện mới tạo chưa duyệt theo mẫu ảnh; tự động đồng bộ khi Admin duyệt; hỗ trợ gửi đơn xác nhận hợp tác lên `BenhVien` & `YeuCauHopTac`. | Đang ở local |
-| **8** | `lib/screens/auth/login_screen.dart` | Sửa đổi | Kết nối luồng đăng nhập vai trò Bệnh viện: Kiểm tra tài khoản trong Firestore `BenhVien/{uid}`, thiết lập `AppSession.benhVienId`, chuyển thẳng sang `HomeHospitalScreen`. | Đang ở local |
+| **8** | `lib/screens/auth/login_screen.dart` | Sửa đổi | Kết nối luồng đăng nhập vai trò Bệnh viện: Kiểm tra tài khoản trong Firestore `BenhVien/{uid}`, thiết lập `AppSession.benhVienId`, chuyển thẳng sang `HomeHospitalScreen`. | Đã commit & push (`29f406a`) |
+| **9** | `lib/screens/hospital/guiYeuCauHopTac_Screen.dart` | Tạo mới | Màn hình Gửi Yêu Cầu Hợp Tác chuẩn theo ảnh thiết kế: Điền Tên BV, Mã cơ sở BYT, MST, Địa chỉ, Loại hình, BHYT, đính kèm giấy phép; lưu Firestore `BenhVien` & `YeuCauHopTac`. | Đang ở local |
+| **10** | `lib/screens/hospital/guiDonThanhCong_Screen.dart` | Tạo mới | Màn hình Đã Gửi Đơn Thành Công chuẩn theo ảnh thiết kế: Biểu tượng đồng hồ chờ duyệt, Thẻ hồ sơ hợp tác với mã `#HS-BV-202688`, nút Quay về trang chủ và Xem chi tiết đơn. | Đang ở local |
 
 > **Thông tin Commit đã đẩy lên nhánh `benhvien`:**
 > * `b4b964d` - *có đn/dk*
 > * `7e2bea2` - *cap nhat nôi dung dk/dn,*
 > * `fc35a09` - *fix: loai bo unused imports va bo sung mounted check*
+> * `170b9ca` - *feat(hospital): xoa main_hospital, lien ket login vao homeHospital, tich hop firestore dynamic benhVienId*
+> * `29f406a` - *fix(auth): tu dong dong bo tai khoan benh vien moi va dieu huong truc tiep ve HomeHospitalScreen*
 
 ---
 
