@@ -20,17 +20,39 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
   final _formKey = GlobalKey<FormState>();
 
   late TextEditingController _hoTenController;
-  late TextEditingController _chucVuController;
   late TextEditingController _maNhanVienController;
+  late TextEditingController _emailMoiController;
+  late TextEditingController _matKhauXacNhanController;
   late String _khoaDuocChon;
+
+  // 3 Role nhân viên cố định theo cơ sở dữ liệu
+  static const List<Map<String, dynamic>> danhSach3Roles = [
+    {'role': 'le_tan', 'vai_tro_id': 5, 'ten': 'Lễ tân tiếp đón'},
+    {'role': 'cham_soc_khach_hang', 'vai_tro_id': 6, 'ten': 'Chăm sóc khách hàng'},
+    {'role': 'ho_tro_bac_si', 'vai_tro_id': 4, 'ten': 'Hỗ trợ bác sĩ'},
+  ];
+
+  late String _roleDuocChon;
+  late String _tenChucVuDuocChon;
+  bool _anMatKhauXacNhan = true;
+  bool _dangXuLy = false;
 
   @override
   void initState() {
     super.initState();
     _hoTenController = TextEditingController(text: widget.thongTinHienTai.hoTen);
-    _chucVuController = TextEditingController(text: widget.thongTinHienTai.chucVu);
     _maNhanVienController = TextEditingController(text: widget.thongTinHienTai.maNhanVien);
+    _emailMoiController = TextEditingController(text: widget.thongTinHienTai.email);
+    _matKhauXacNhanController = TextEditingController();
     _khoaDuocChon = widget.thongTinHienTai.khoa;
+
+    // Tìm role tương ứng hoặc mặc định là le_tan
+    final roleHienTai = danhSach3Roles.firstWhere(
+      (r) => widget.thongTinHienTai.chucVu.toLowerCase().contains(r['ten'].toString().toLowerCase()),
+      orElse: () => danhSach3Roles[0],
+    );
+    _roleDuocChon = roleHienTai['role'];
+    _tenChucVuDuocChon = roleHienTai['ten'];
 
     // Tự động tải khoa thật từ Firebase Firestore /Khoa/dFmZHBjFNUT1eRzJjXp5/danh_sach
     FirebaseServiceC1.layDanhSachTenKhoa().then((danhSachFirebase) {
@@ -51,8 +73,9 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
   @override
   void dispose() {
     _hoTenController.dispose();
-    _chucVuController.dispose();
     _maNhanVienController.dispose();
+    _emailMoiController.dispose();
+    _matKhauXacNhanController.dispose();
     super.dispose();
   }
 
@@ -200,24 +223,81 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
     );
   }
 
-  void _luuThayDoi() {
-    if (_formKey.currentState!.validate()) {
-      final thongTinMoi = widget.thongTinHienTai.copyWith(
-        hoTen: _hoTenController.text.trim(),
-        chucVu: _chucVuController.text.trim(),
-        maNhanVien: _maNhanVienController.text.trim(),
+  Future<void> _luuThayDoi() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final emailMoi = _emailMoiController.text.trim();
+    final bool coDoiEmail = emailMoi.toLowerCase() != widget.thongTinHienTai.email.trim().toLowerCase();
+    final passXacNhan = _matKhauXacNhanController.text.trim();
+
+    if (coDoiEmail && passXacNhan.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng nhập mật khẩu xác nhận để đổi Gmail!'),
+          backgroundColor: Color(0xFFEF4444),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _dangXuLy = true);
+    final maNv = _maNhanVienController.text.trim();
+    final hoTenMoi = _hoTenController.text.trim();
+
+    try {
+      // 1. Nếu có đổi Gmail -> Xác nhận mật khẩu và đổi Gmail trên Firestore
+      if (coDoiEmail) {
+        await FirebaseServiceC1.doiEmailNhanVien(
+          maNhanVien: maNv,
+          emailMoi: emailMoi,
+          matKhauXacNhan: passXacNhan,
+        );
+      }
+
+      // 2. Cập nhật thông tin Họ tên, Chức vụ (1 trong 3 role), Khoa trên Firestore
+      final roleObj = danhSach3Roles.firstWhere((r) => r['role'] == _roleDuocChon);
+      await FirebaseServiceC1.capNhatThongTinNhanVien(
+        maNhanVien: maNv,
+        hoTen: hoTenMoi,
+        chucVu: _tenChucVuDuocChon,
+        role: _roleDuocChon,
+        vaiTroId: roleObj['vai_tro_id'] as int,
         khoa: _khoaDuocChon,
       );
 
+      final thongTinMoi = widget.thongTinHienTai.copyWith(
+        hoTen: hoTenMoi,
+        chucVu: _tenChucVuDuocChon,
+        maNhanVien: maNv,
+        khoa: _khoaDuocChon,
+        email: emailMoi,
+      );
+
+      // Cập nhật bộ nhớ cục bộ
+      DuLieuProfileMauC1.thongTinHienTai = thongTinMoi;
+
+      if (!mounted) return;
+      setState(() => _dangXuLy = false);
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Cập nhật thông tin thành công!'),
+          content: Text('✓ Cập nhật thông tin thành công trên Firebase!'),
           backgroundColor: Color(0xFF34C759),
         ),
       );
 
       // Trả về thông tin mới cho trang Profile reload lại
       Navigator.pop(context, thongTinMoi);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _dangXuLy = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: const Color(0xFFEF4444),
+        ),
+      );
     }
   }
 
@@ -256,22 +336,6 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Khối thông tin cố định Gmail
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA)),
-                  ),
-                  child: _buildRowThongTinCoDinh(
-                    icon: Icons.alternate_email,
-                    label: 'Gmail đăng nhập (Cố định bảo mật)',
-                    val: widget.thongTinHienTai.email,
-                    isDark: isDark,
-                  ),
-                ),
-                const SizedBox(height: 20),
 
                 // Form chỉnh sửa thông tin
                 Container(
@@ -282,32 +346,126 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
                     border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA)),
                   ),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // 1. Mã nhân viên cố định (Read-only)
+                      _buildRowThongTinCoDinh(
+                        icon: Icons.badge_outlined,
+                        label: 'Mã nhân viên (Cố định bởi Bệnh viện)',
+                        val: widget.thongTinHienTai.maNhanVien,
+                        isDark: isDark,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // 2. Họ và tên
                       _buildTextField(
-                        label: 'Họ và tên lễ tân',
+                        label: 'Họ và tên nhân viên',
                         controller: _hoTenController,
                         icon: Icons.person_outline,
                         validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng nhập họ và tên' : null,
                         isDark: isDark,
                       ),
                       const SizedBox(height: 16),
-                      _buildTextField(
-                        label: 'Chức vụ hiển thị',
-                        controller: _chucVuController,
-                        icon: Icons.workspace_premium_outlined,
-                        validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng nhập chức vụ' : null,
-                        isDark: isDark,
+
+                      // 3. Chọn Chức vụ trong 3 role nhân viên (Dropdown Selector)
+                      Text(
+                        'Chức vụ / Vai trò nhân viên (*)',
+                        style: TextStyle(
+                          color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFFF9500).withValues(alpha: 0.35)),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            isExpanded: true,
+                            value: _roleDuocChon,
+                            dropdownColor: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+                            items: danhSach3Roles.map((r) {
+                              return DropdownMenuItem<String>(
+                                value: r['role'] as String,
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.workspace_premium_outlined, color: Color(0xFFFF9500), size: 20),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      r['ten'] as String,
+                                      style: TextStyle(
+                                        color: isDark ? Colors.white : const Color(0xFF1C1C1E),
+                                        fontSize: 14.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                final selected = danhSach3Roles.firstWhere((r) => r['role'] == val);
+                                setState(() {
+                                  _roleDuocChon = val;
+                                  _tenChucVuDuocChon = selected['ten'] as String;
+                                });
+                              }
+                            },
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 16),
+
+                      // 4. Cho phép Đổi Gmail
                       _buildTextField(
-                        label: 'Mã nhân viên',
-                        controller: _maNhanVienController,
-                        icon: Icons.badge_outlined,
-                        validator: (val) => val == null || val.trim().isEmpty ? 'Vui lòng nhập mã nhân viên' : null,
+                        label: 'Địa chỉ Gmail đăng nhập (*)',
+                        controller: _emailMoiController,
+                        icon: Icons.email_outlined,
+                        validator: (val) {
+                          if (val == null || val.trim().isEmpty) return 'Vui lòng nhập Gmail';
+                          if (!val.contains('@')) return 'Email không hợp lệ';
+                          return null;
+                        },
                         isDark: isDark,
                       ),
+                      const SizedBox(height: 12),
+
+                      // Ô nhập Mật khẩu xác nhận khi đổi Gmail
+                      TextFormField(
+                        controller: _matKhauXacNhanController,
+                        obscureText: _anMatKhauXacNhan,
+                        decoration: InputDecoration(
+                          labelText: 'Mật khẩu xác nhận (chỉ cần khi đổi Gmail)',
+                          labelStyle: TextStyle(
+                            fontSize: 12.5,
+                            color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                          ),
+                          prefixIcon: const Icon(Icons.lock_outline, size: 18),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _anMatKhauXacNhan ? Icons.visibility_off : Icons.visibility,
+                              size: 18,
+                            ),
+                            onPressed: () => setState(() => _anMatKhauXacNhan = !_anMatKhauXacNhan),
+                          ),
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 16),
-                      // Selector chọn Khoa có sẵn của bệnh viện dạng BottomSheet hiện đại
+
+                      // 5. Selector chọn Khoa có sẵn của bệnh viện dạng BottomSheet hiện đại
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -406,7 +564,7 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
 
                 // Nút Lưu thay đổi
                 ElevatedButton(
-                  onPressed: _luuThayDoi,
+                  onPressed: _dangXuLy ? null : _luuThayDoi,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFF9500),
                     foregroundColor: Colors.white,
@@ -414,10 +572,16 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    'Lưu Thay Đổi',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                  ),
+                  child: _dangXuLy
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text(
+                          'Lưu Thay Đổi',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                        ),
                 ),
                 const SizedBox(height: 12),
 

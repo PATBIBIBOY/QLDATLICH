@@ -5,6 +5,8 @@ class ThongTinLeTanC1 {
   final String khoa;
   final String email;
   final String avatarUrl;
+  final String benhVienId;
+  final String tenBenhVien;
 
   const ThongTinLeTanC1({
     required this.hoTen,
@@ -13,6 +15,8 @@ class ThongTinLeTanC1 {
     required this.khoa,
     required this.email,
     this.avatarUrl = '',
+    this.benhVienId = 'BV01',
+    this.tenBenhVien = 'Bệnh viện Đa khoa Quốc tế',
   });
 
   ThongTinLeTanC1 copyWith({
@@ -22,6 +26,8 @@ class ThongTinLeTanC1 {
     String? khoa,
     String? email,
     String? avatarUrl,
+    String? benhVienId,
+    String? tenBenhVien,
   }) {
     return ThongTinLeTanC1(
       hoTen: hoTen ?? this.hoTen,
@@ -30,6 +36,8 @@ class ThongTinLeTanC1 {
       khoa: khoa ?? this.khoa,
       email: email ?? this.email,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      benhVienId: benhVienId ?? this.benhVienId,
+      tenBenhVien: tenBenhVien ?? this.tenBenhVien,
     );
   }
 }
@@ -49,8 +57,8 @@ class DuLieuProfileMauC1 {
   static ThongTinLeTanC1 thongTinHienTai = const ThongTinLeTanC1(
     hoTen: 'Đinh Hoàng Cước',
     chucVu: 'NHÂN VIÊN LỄ TÂN TIẾP ĐÓN',
-    maNhanVien: 'LT-TIMMACH-01',
+    maNhanVien: 'LT_TM_01',
     khoa: 'Khoa Tim Mạch',
-    email: 'dinhhoangcuoc@gmail.com',
+    email: 'cuoc@gmail.com',
   );
 }

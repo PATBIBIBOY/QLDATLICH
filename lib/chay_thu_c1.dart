@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'config/firebase_options.dart';
 import 'models/letan_c1/letan_design_system_c1.dart';
-import 'screens/letan_c1/letan_trangchu_screen_c1.dart';
+import 'screens/letan_c1/letan_dangnhap_screen_c1.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -102,7 +102,7 @@ class KiemThuAppC1 extends StatelessWidget {
               },
             ),
           ),
-          home: const LeTanHomeScreenC1(),
+          home: const LetanDangnhapScreenC1(),
         );
       },
     );

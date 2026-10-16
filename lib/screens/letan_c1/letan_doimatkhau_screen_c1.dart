@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../models/letan_c1/letan_design_system_c1.dart';
+import '../../models/letan_c1/letan_profile_model_c1.dart';
+import '../../services/letan_c1/letan_firebase_service_c1.dart';
 import 'letan_quenmatkhau_screen_c1.dart';
 
 class LetanDoimatkhauScreenC1 extends StatefulWidget {
@@ -24,6 +26,7 @@ class _LetanDoimatkhauScreenC1State extends State<LetanDoimatkhauScreenC1> {
   bool _anMatKhauCu = true;
   bool _anMatKhauMoi = true;
   bool _anXacNhan = true;
+  bool _dangXuLy = false;
 
   @override
   void dispose() {
@@ -33,15 +36,41 @@ class _LetanDoimatkhauScreenC1State extends State<LetanDoimatkhauScreenC1> {
     super.dispose();
   }
 
-  void _luuMatKhau() {
-    if (_formKey.currentState!.validate()) {
+  Future<void> _luuMatKhau() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _dangXuLy = true);
+    final maNv = DuLieuProfileMauC1.thongTinHienTai.maNhanVien;
+    final passCu = _matKhauHienTaiController.text.trim();
+    final passMoi = _matKhauMoiController.text.trim();
+
+    try {
+      await FirebaseServiceC1.doiMatKhauNhanVien(
+        maNhanVien: maNv,
+        matKhauHienTai: passCu,
+        matKhauMoi: passMoi,
+      );
+
+      if (!mounted) return;
+      setState(() => _dangXuLy = false);
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Đổi mật khẩu thành công!'),
+          content: Text('✓ Đổi mật khẩu thành công trên Firebase!'),
           backgroundColor: Color(0xFF34C759),
         ),
       );
       Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _dangXuLy = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: const Color(0xFFEF4444),
+        ),
+      );
     }
   }
 
@@ -207,7 +236,7 @@ class _LetanDoimatkhauScreenC1State extends State<LetanDoimatkhauScreenC1> {
 
                 // Nút Xác nhận thay đổi
                 ElevatedButton(
-                  onPressed: _luuMatKhau,
+                  onPressed: _dangXuLy ? null : _luuMatKhau,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFF9500),
                     foregroundColor: Colors.white,
@@ -215,10 +244,16 @@ class _LetanDoimatkhauScreenC1State extends State<LetanDoimatkhauScreenC1> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    'Xác Nhận Thay Đổi',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                  ),
+                  child: _dangXuLy
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text(
+                          'Xác Nhận Thay Đổi',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                        ),
                 ),
                 const SizedBox(height: 12),
 

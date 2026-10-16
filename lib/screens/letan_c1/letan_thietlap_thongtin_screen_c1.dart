@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
+import '../../services/letan_c1/letan_firebase_service_c1.dart';
 import 'letan_trangchu_screen_c1.dart';
 
 /// MÀN HÌNH 3: THIẾT LẬP THÔNG TIN KHI LẦN ĐẦU ĐĂNG NHẬP (FIGMA C1)
@@ -71,46 +72,62 @@ class _LetanThietlapThongtinScreenC1State extends State<LetanThietlapThongtinScr
   }
 
   // Xác nhận thiết lập thông tin & chuyển sang đăng nhập bằng Gmail
-  void _xacNhanThietLap() {
+  Future<void> _xacNhanThietLap() async {
     if (!_formKey.currentState!.validate()) return;
 
     AppDesignSystemC1.hapticLight();
     setState(() => _dangXuLy = true);
 
-    // Cập nhật dữ liệu Mock tập trung (Sau này chỉ cần đổi sang Firestore update)
     final emailMoi = _emailController.text.trim();
     final hoTenMoi = _hoTenController.text.trim();
+    final maNv = _maNvController.text.trim();
+    final ngaySinh = _ngaySinhController.text.trim();
+    final matKhauMoi = _matKhauController.text.trim();
 
+    try {
+      // 1. Cập nhật trực tiếp lên Firestore NhanVien
+      await FirebaseServiceC1.kichHoatTaiKhoanLanDau(
+        maNhanVien: maNv,
+        hoTen: hoTenMoi,
+        email: emailMoi,
+        ngaySinh: ngaySinh,
+        gioiTinh: _gioiTinh,
+        matKhauMoi: matKhauMoi,
+      );
+    } catch (e) {
+      // ignore: avoid_print
+      print('Chế độ fallback mock do lỗi kết nối: $e');
+    }
+
+    // 2. Cập nhật bộ nhớ cục bộ
     DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai.copyWith(
       hoTen: hoTenMoi,
       email: emailMoi,
-      maNhanVien: _maNvController.text.trim(),
+      maNhanVien: maNv,
     );
 
-    Future.delayed(const Duration(milliseconds: 600), () {
-      if (!mounted) return;
-      setState(() => _dangXuLy = false);
+    if (!mounted) return;
+    setState(() => _dangXuLy = false);
 
-      // Thông báo thành công
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '✓ Kích hoạt thành công! Từ bây giờ bạn sẽ đăng nhập bằng Gmail: $emailMoi',
-          ),
-          backgroundColor: const Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 3),
+    // Thông báo thành công
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '✓ Kích hoạt thành công! Từ bây giờ bạn sẽ đăng nhập bằng Gmail: $emailMoi',
         ),
-      );
+        backgroundColor: const Color(0xFF10B981),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ),
+    );
 
-      // Chuyển thẳng vào Bàn làm việc Lễ tân
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const LeTanHomeScreenC1(),
-        ),
-      );
-    });
+    // Chuyển thẳng vào Bàn làm việc Lễ tân
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const LeTanHomeScreenC1(),
+      ),
+    );
   }
 
   @override

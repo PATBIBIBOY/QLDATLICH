@@ -6,7 +6,7 @@ import '../../services/letan_c1/letan_firebase_service_c1.dart';
 import 'letan_capnhat_profile_screen_c1.dart';
 import 'letan_doimatkhau_screen_c1.dart';
 import 'letan_quenmatkhau_screen_c1.dart';
-import 'cskh_duyetdon_khoa_screen_c1.dart';
+import 'letan_dangnhap_screen_c1.dart';
 import 'letan_thietlap_thongtin_screen_c1.dart';
 
 class LetanProfileTabC1 extends StatefulWidget {
@@ -27,7 +27,22 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
   @override
   void initState() {
     super.initState();
-    // Tự động đồng bộ khoa hiển thị từ Firestore /Khoa/dFmZHBjFNUT1eRzJjXp5/danh_sach
+    // 1. Tự động đọc dữ liệu nhân viên mới nhất trực tiếp từ Firestore NhanVien
+    FirebaseServiceC1.layThongTinNhanVienTuFirestore(_thongTin.maNhanVien).then((data) {
+      if (mounted && data != null) {
+        setState(() {
+          _thongTin = _thongTin.copyWith(
+            email: (data['email'] ?? _thongTin.email).toString(),
+            hoTen: (data['ho_ten'] ?? _thongTin.hoTen).toString(),
+            chucVu: (data['chuc_vu'] ?? _thongTin.chucVu).toString(),
+            khoa: (data['khoa'] ?? _thongTin.khoa).toString(),
+          );
+          DuLieuProfileMauC1.thongTinHienTai = _thongTin;
+        });
+      }
+    });
+
+    // 2. Tự động đồng bộ khoa hiển thị từ Firestore /Khoa/dFmZHBjFNUT1eRzJjXp5/danh_sach
     FirebaseServiceC1.layDanhSachTenKhoa().then((danhSachFirebase) {
       if (mounted && danhSachFirebase.isNotEmpty) {
         setState(() {
@@ -503,11 +518,10 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
           InkWell(
             onTap: () {
               AppDesignSystemC1.hapticLight();
-              Navigator.push(
+              Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const CskhDuyetdonKhoaScreenC1(),
-                ),
+                MaterialPageRoute(builder: (_) => const LetanDangnhapScreenC1()),
+                (route) => false,
               );
             },
             borderRadius: BorderRadius.circular(12),
@@ -530,7 +544,7 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(
-                      Icons.assignment_turned_in_rounded,
+                      Icons.switch_account_rounded,
                       color: Color(0xFF0284C7),
                       size: 22,
                     ),
@@ -540,37 +554,17 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Text(
-                              'Duyệt đơn theo khoa',
-                              style: TextStyle(
-                                color: textCol,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFEF3C7),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                '82 Chờ',
-                                style: TextStyle(
-                                  color: Color(0xFFB45309),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
+                        Text(
+                          'Đổi vai trò / Đăng nhập lại',
+                          style: TextStyle(
+                            color: textCol,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Duyệt đơn tiếp nhận & CSKH 5 chuyên khoa',
+                          'Về trang đăng nhập để vào vai trò CSKH hoặc tài khoản khác',
                           style: TextStyle(color: subTextCol, fontSize: 11.5),
                         ),
                       ],
@@ -691,10 +685,13 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
                 child: const Text('Hủy'),
               ),
               ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Đã đăng xuất tài khoản!')),
+                onPressed: () async {
+                  final nav = Navigator.of(context);
+                  await FirebaseServiceC1.xoaPhienDangNhap();
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  nav.pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const LetanDangnhapScreenC1()),
+                    (route) => false,
                   );
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF3B30), foregroundColor: Colors.white),
