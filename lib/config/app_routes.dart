@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../config/app_session.dart';
 import '../screens/admin/admin_dashboard.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
@@ -11,6 +12,7 @@ import '../screens/doctor_assistant/assistant_home_screen.dart';
 import '../screens/doctor_assistant/patient_queue_screen.dart';
 import '../screens/doctor_assistant/update_record_screen.dart';
 import '../screens/hospital/hospital_dashboard.dart';
+import '../screens/hospital/addKhoaHospital_Screen.dart';
 import '../screens/hospital/statistics_screen.dart';
 import '../screens/hospital/staff_management_screen.dart';
 import '../screens/patient/book_appointment_screen.dart';
@@ -47,6 +49,7 @@ class AppRoutes {
   static const String ticket = '/ticket';
 
   static const String hospitalDashboard = '/hospital-dashboard';
+  static const String addClinic = '/add-clinic';
   static const String staffManagement = '/staff-management';
   static const String statistics = '/statistics';
 
@@ -82,6 +85,7 @@ class AppRoutes {
     chatList: (_) => const ChatListScreen(),
     ticket: (_) => const TicketScreen(),
     hospitalDashboard: (_) => const HospitalDashboard(),
+    addClinic: (_) => ThemKhoaScreen(benhVienId: AppSession.benhVienId),
     staffManagement: (_) => const StaffManagementScreen(),
     statistics: (_) => const StatisticsScreen(),
     adminDashboard: (_) => const AdminDashboard(),
