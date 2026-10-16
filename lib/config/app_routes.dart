@@ -11,7 +11,7 @@ import '../screens/customer_support/ticket_screen.dart';
 import '../screens/doctor_assistant/assistant_home_screen.dart';
 import '../screens/doctor_assistant/patient_queue_screen.dart';
 import '../screens/doctor_assistant/update_record_screen.dart';
-import '../screens/hospital/hospital_dashboard.dart';
+import '../screens/hospital/homeHospital_Screem.dart';
 import '../screens/hospital/addKhoaHospital_Screen.dart';
 import '../screens/hospital/statistics_screen.dart';
 import '../screens/hospital/staff_management_screen.dart';
@@ -84,7 +84,7 @@ class AppRoutes {
     supportHome: (_) => const SupportHomeScreen(),
     chatList: (_) => const ChatListScreen(),
     ticket: (_) => const TicketScreen(),
-    hospitalDashboard: (_) => const HospitalDashboard(),
+    hospitalDashboard: (_) => const HomeHospitalScreen(),
     addClinic: (_) => ThemKhoaScreen(benhVienId: AppSession.benhVienId),
     staffManagement: (_) => const StaffManagementScreen(),
     statistics: (_) => const StatisticsScreen(),

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuthException;
+import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth, FirebaseAuthException;
 import 'package:provider/provider.dart';
 import '../../config/app_routes.dart';
+import '../../config/app_session.dart';
 import '../../providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -54,22 +55,40 @@ class _LoginScreenState extends State<LoginScreen> {
       if (selectedRoleCode == 'admin') {
         await auth.loginAdmin(email: email, password: password);
       } else {
-        await auth.login(email: email, password: password);
+        await auth.login(
+          email: email,
+          password: password,
+          role: selectedRoleCode,
+        );
       }
 
       if (!mounted) return;
 
-      // ✅ 2. Điều hướng thông minh dựa trên dữ liệu thực tế trong Provider
+      // ✅ 2. Điều hướng thông minh dựa trên dữ liệu thực tế và Role được chọn
       String route;
       if (selectedRoleCode == 'admin' && auth.admin != null) {
         route = AppRoutes.adminDashboard;
+      } else if (selectedRoleCode == 'benh_vien') {
+        if (auth.hospital != null) {
+          AppSession.benhVienId = auth.hospital!.uid ??
+              FirebaseAuth.instance.currentUser?.uid ??
+              '';
+          route = AppRoutes.hospitalDashboard;
+        } else {
+          // Bắt buộc đăng xuất nếu tài khoản không phải bệnh viện
+          await auth.logout();
+          throw Exception('Tài khoản này không thuộc danh sách Bệnh viện.');
+        }
+      } else if (auth.hospital != null) {
+        AppSession.benhVienId = auth.hospital!.uid ??
+            FirebaseAuth.instance.currentUser?.uid ??
+            '';
+        route = AppRoutes.hospitalDashboard;
       } else if (auth.user != null) {
         route = AppRoutes.patientHome;
-      } else if (auth.hospital != null) {
-        route = AppRoutes.hospitalDashboard;
       } else {
         // Fallback nếu có lỗi logic
-        route = AppRoutes.patientHome; 
+        route = AppRoutes.patientHome;
       }
 
       Navigator.pushNamedAndRemoveUntil(context, route, (route) => false);

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../config/app_session.dart';
 import '../models/hospital_model.dart';
 import '../models/patient_model.dart';
 import '../services/auth_service.dart';
@@ -55,12 +56,24 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> fetchCurrentUser() async {
+  Future<void> fetchCurrentUser({String? preferredRole}) async {
     _isLoading = true;
     notifyListeners();
     try {
       final currentUser = _authService.currentUser;
       if (currentUser != null) {
+        if (preferredRole == 'benh_vien') {
+          _hospital = await _authService.getHospitalFromFirestore(
+            currentUser.uid,
+          );
+          if (_hospital != null) {
+            AppSession.benhVienId = _hospital!.uid ?? currentUser.uid;
+            _user = null;
+            _selectedRole = _hospital?.role ?? 'benh_vien';
+            return;
+          }
+        }
+
         final patientModel = await _authService.getPatientFromFirestore(
           currentUser.uid,
         );
@@ -69,6 +82,9 @@ class AuthProvider extends ChangeNotifier {
           _hospital = await _authService.getHospitalFromFirestore(
             currentUser.uid,
           );
+          if (_hospital != null) {
+            AppSession.benhVienId = _hospital!.uid ?? currentUser.uid;
+          }
         }
         _selectedRole = patientModel?.role ?? _hospital?.role;
       }
@@ -110,7 +126,11 @@ class AuthProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> login({required String email, required String password}) async {
+  Future<void> login({
+    required String email,
+    required String password,
+    String? role,
+  }) async {
     _isLoading = true;
     notifyListeners();
     try {
@@ -119,7 +139,7 @@ class AuthProvider extends ChangeNotifier {
         password: password,
       );
       _admin = null;
-      await fetchCurrentUser();
+      await fetchCurrentUser(preferredRole: role);
 
       // ✅ Kiểm tra nếu đăng nhập thành công nhưng chưa xác thực email
       // Lưu ý: User đăng ký bằng SĐT (OTP) sẽ có daXacThucEmail = true, nên không bị chặn ở đây

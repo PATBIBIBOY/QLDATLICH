@@ -1,20 +1,25 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:flutter/material.dart';
-import 'package:qldatlich/services/benhVien_service.dart';
+import 'package:provider/provider.dart';
 
 import '../../config/app_routes.dart';
 import '../../config/app_session.dart';
+import '../../config/constants.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/benhVien_service.dart';
 import 'listKhoaDieuTri.dart';
 
 /// 1240 -> "1,240"
 String _soCoDauPhay(int n) =>
     n.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
 
-/// "Bệnh Viện Đa Khoa TW" -> "BV"
+/// "Bệnh Viện Đa Khoa An Bình" -> "AB"
 String _chuVietTat(String ten) {
   final tu = ten.split(' ').where((e) => e.isNotEmpty).toList();
-  if (tu.isEmpty) return 'BV';
-  return tu.take(2).map((e) => e[0].toUpperCase()).join();
+  if (tu.isEmpty) return 'AB';
+  if (tu.length == 1) return tu[0].substring(0, 1).toUpperCase();
+  return (tu.first[0] + tu.last[0]).toUpperCase();
 }
 
 class HomeHospitalScreen extends StatefulWidget {
@@ -25,329 +30,956 @@ class HomeHospitalScreen extends StatefulWidget {
 }
 
 class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
-  // Chỉ tải tên bệnh viện một lần khi mở màn hình
-  late final Future<String> _tenBenhVien = BenhVienService.layTen(
-    AppSession.benhVienId,
-  );
+  int _currentBottomNavIndex = 0;
+  bool _dangGuiDon = false;
 
-  void _moTatCaKhoa() => Navigator.push(
-    context,
-    MaterialPageRoute(builder: (_) => const TatCaKhoaScreen()),
-  );
+  String _getHospitalUid(BuildContext context) {
+    final auth = context.read<AuthProvider>();
+    return auth.hospital?.uid ??
+        FirebaseAuth.instance.currentUser?.uid ??
+        AppSession.benhVienId;
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF2F5F9),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 430),
-          child: Container(
-            width: double.infinity,
-            height: double.infinity,
-            color: const Color(0xFFF5F7FB),
-            child: Column(
-              children: [
-                const SizedBox(height: 10),
+  void _moModalGuiDon({
+    required BuildContext context,
+    required String hospitalUid,
+    required String tenBenhVien,
+    Map<String, dynamic>? currentData,
+  }) {
+    final giayPhepCtrl = TextEditingController(
+      text: (currentData?['so_giay_phep'] ?? '').toString(),
+    );
+    final sdtCtrl = TextEditingController(
+      text: (currentData?['so_dien_thoai_lh'] ??
+              currentData?['so_dien_thoai'] ??
+              '')
+          .toString(),
+    );
+    String loaiHinh = (currentData?['loai_hinh'] ?? 'Bệnh viện đa khoa tư nhân')
+        .toString();
+    bool coBhyt = currentData?['co_bhyt'] ?? true;
 
-                // ===== Header: tên bệnh viện theo ID =====
-                Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.symmetric(horizontal: 18),
-                  child: FutureBuilder<String>(
-                    future: _tenBenhVien,
-                    builder: (context, snap) {
-                      final dangTai =
-                          snap.connectionState != ConnectionState.done;
-                      final ten = snap.data ?? '';
-                      final hienThi = dangTai
-                          ? 'Đang tải...'
-                          : (ten.isEmpty ? 'Bệnh viện' : ten);
-                      return Row(
-                        children: [
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF1C7CC8),
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              dangTai ? 'BV' : _chuVietTat(hienThi),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'BAN QUẢN LÝ',
-                                  style: TextStyle(
-                                    color: Color(0xFF6B7280),
-                                    fontSize: 10,
-                                    letterSpacing: 0.5,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                Text(
-                                  hienThi,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Color(0xFF1F2937),
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE8EEF7),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.notifications_none_rounded,
-                              color: Color(0xFF1F2937),
-                              size: 20,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Container(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 16,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-
-                // ===== 2 thẻ thống kê =====
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  child: Row(
+                  const SizedBox(height: 18),
+                  Row(
                     children: [
-                      // Tổng số khoa + khoa mới tháng này (đếm từ Firestore)
-                      const Expanded(child: TongSoKhoaCard()),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE0F2FE),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.assignment_outlined,
+                          color: Color(0xFF0284C7),
+                          size: 22,
+                        ),
+                      ),
                       const SizedBox(width: 12),
-                      // Bệnh nhân hôm nay (đọc từ ThongKe/{id}/danh_sach/{ngày})
-                      Expanded(
-                        child:
-                            StreamBuilder<
-                              DocumentSnapshot<Map<String, dynamic>>
-                            >(
-                              stream: BenhVienService.thongKeHomNay(
-                                AppSession.benhVienId,
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Đơn Xác Nhận Hợp Tác',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
                               ),
-                              builder: (context, snap) {
-                                final d = snap.data?.data();
-                                final tong = ((d?['tongBenhNhan'] ?? 0) as num)
-                                    .toInt();
-                                final dang = ((d?['dangKham'] ?? 0) as num)
-                                    .toInt();
-                                return _StatCard(
-                                  label: 'Bệnh nhân hôm nay',
-                                  value: _soCoDauPhay(tong),
-                                  subText: 'Đang khám: $dang lượt',
-                                  primaryColor: const Color(0xFF1D89D1),
-                                  secondaryColor: const Color(0xFF1E79C2),
-                                );
-                              },
                             ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Gửi hồ sơ pháp lý đến Admin hệ thống',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 14),
-
-                // ===== Nút thêm khoa =====
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  child: SizedBox(
+                  const Divider(height: 24),
+                  const Text(
+                    'Số giấy phép hoạt động khám chữa bệnh *',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: giayPhepCtrl,
+                    decoration: InputDecoration(
+                      hintText: 'VD: 123/BYT-GPHĐ',
+                      prefixIcon: const Icon(Icons.verified_outlined, size: 20),
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Số điện thoại đại diện liên hệ *',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: sdtCtrl,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      hintText: 'VD: 0912 345 678',
+                      prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Loại hình cơ sở y tế',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    initialValue: loaiHinh,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Bệnh viện đa khoa tư nhân',
+                        child: Text(
+                          'Bệnh viện đa khoa tư nhân',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Bệnh viện công lập',
+                        child: Text(
+                          'Bệnh viện công lập',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Phòng khám đa khoa quốc tế',
+                        child: Text(
+                          'Phòng khám đa khoa quốc tế',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) setModalState(() => loaiHinh = val);
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Có tiếp nhận khám Bảo hiểm Y tế (BHYT)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    value: coBhyt,
+                    onChanged: (v) => setModalState(() => coBhyt = v),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
                     width: double.infinity,
+                    height: 48,
                     child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pushNamed(context, AppRoutes.addClinic);
-                      },
+                      onPressed: _dangGuiDon
+                          ? null
+                          : () async {
+                              final soGiayPhep = giayPhepCtrl.text.trim();
+                              final sdt = sdtCtrl.text.trim();
+                              if (soGiayPhep.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Vui lòng nhập số giấy phép hoạt động',
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              setModalState(() => _dangGuiDon = true);
+                              try {
+                                final dataToSave = {
+                                  'so_giay_phep': soGiayPhep,
+                                  'so_dien_thoai_lh': sdt,
+                                  'loai_hinh': loaiHinh,
+                                  'co_bhyt': coBhyt,
+                                  'da_gui_don': true,
+                                  'ngay_gui_don': FieldValue.serverTimestamp(),
+                                  'trang_thai_hop_tac_id': TrangThaiId.choDuyet,
+                                };
+
+                                // 1. Lưu trực tiếp vào doc BenhVien/{uid}
+                                await FirebaseFirestore.instance
+                                    .collection('BenhVien')
+                                    .doc(hospitalUid)
+                                    .set(
+                                      dataToSave,
+                                      SetOptions(merge: true),
+                                    );
+
+                                // 2. Lưu vào collection YeuCauHopTac để Admin truy vấn danh sách duyệt
+                                await FirebaseFirestore.instance
+                                    .collection('YeuCauHopTac')
+                                    .doc(hospitalUid)
+                                    .set({
+                                      'benh_vien_id': hospitalUid,
+                                      'ten_benh_vien': tenBenhVien,
+                                      ...dataToSave,
+                                    }, SetOptions(merge: true));
+
+                                if (!ctx.mounted) return;
+                                Navigator.pop(ctx);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Đã lưu hồ sơ lên Firebase và gửi đến Admin thành công!',
+                                    ),
+                                    backgroundColor: Color(0xFF16A34A),
+                                  ),
+                                );
+                              } catch (e) {
+                                setModalState(() => _dangGuiDon = false);
+                                if (!ctx.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Lỗi khi gửi hồ sơ: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1E87D8),
+                        backgroundColor: const Color(0xFF0284C7),
                         foregroundColor: Colors.white,
                         elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.add, size: 22),
-                          SizedBox(width: 8),
-                          Text(
-                            'Thêm Khoa Khám Mới',
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
+                      child: _dangGuiDon
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Xác Nhận Gửi Hồ Sơ Lên Hệ Thống',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
                     ),
                   ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _thongBaoChuaKichHoat(String chucNang) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Chức năng "$chucNang" sẽ được mở sau khi Admin phê duyệt đơn hợp tác.',
+        ),
+        backgroundColor: const Color(0xFFD97706),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hospitalUid = _getHospitalUid(context);
+
+    // Lắng nghe dữ liệu realtime từ Firestore của đúng tài khoản bệnh viện này
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('BenhVien')
+          .doc(hospitalUid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final authProvider = context.watch<AuthProvider>();
+        final data = snapshot.data?.data();
+
+        // Tên bệnh viện động từ Firestore / AuthProvider / fallback
+        final tenBenhVien = data?['ten_benh_vien'] ??
+            data?['tenBenhVien'] ??
+            authProvider.hospital?.tenBenhVien ??
+            'BV Đa Khoa An Bình';
+
+        // Trạng thái hợp tác: 1 = Chờ duyệt, 2 = Đã xác nhận, 7 = Hoạt động
+        final trangThaiId = (data?['trang_thai_hop_tac_id'] ??
+                authProvider.hospital?.trangThaiHopTacId ??
+                TrangThaiId.choDuyet) as int;
+
+        // Bệnh viện đã gửi đơn hay chưa
+        final bool daGuiDon = (data?['da_gui_don'] == true) ||
+            (data?['so_giay_phep'] != null &&
+                data!['so_giay_phep'].toString().isNotEmpty);
+
+        // Đã được Admin phê duyệt hợp tác hay chưa
+        final bool daXacThuc = trangThaiId == TrangThaiId.daXacNhan ||
+            trangThaiId == TrangThaiId.hoatDong;
+
+        return Scaffold(
+          backgroundColor: const Color(0xFFF8FAFC),
+          body: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 430),
+                child: Column(
+                  children: [
+                    // Header chuẩn theo tài khoản đang đăng nhập
+                    _buildHeader(
+                      tenBenhVien: tenBenhVien,
+                      daGuiDon: daGuiDon,
+                      daXacThuc: daXacThuc,
+                    ),
+
+                    // Body: Nếu đã xác thực -> Hiện Dashboard quản lý; Nếu chưa -> Hiện màn hình Chào mừng & Gửi đơn
+                    Expanded(
+                      child: daXacThuc
+                          ? _buildVerifiedDashboard(hospitalUid: hospitalUid)
+                          : _buildUnverifiedBody(
+                              hospitalUid: hospitalUid,
+                              tenBenhVien: tenBenhVien,
+                              daGuiDon: daGuiDon,
+                              data: data,
+                            ),
+                    ),
+
+                    // Thanh điều hướng 4 nút
+                    _buildBottomNav(daXacThuc: daXacThuc),
+                  ],
                 ),
-                const SizedBox(height: 16),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
-                // ===== Danh sách khoa (có "Xem tất cả") =====
-                const Expanded(child: ListKhoaDieuTri()),
+  // ==================== GIAO DIỆN KHI CHƯA GỬI ĐƠN / CHỜ ADMIN DUYỆT ====================
+  Widget _buildUnverifiedBody({
+    required String hospitalUid,
+    required String tenBenhVien,
+    required bool daGuiDon,
+    Map<String, dynamic>? data,
+  }) {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        children: [
+          const SizedBox(height: 36),
 
-                // ===== Thanh điều hướng dưới =====
-                Container(
-                  color: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 10,
-                    horizontal: 14,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      const _BottomNavItem(
-                        icon: Icons.home_rounded,
-                        label: 'Trang chủ',
-                        active: true,
-                      ),
-                      _BottomNavItem(
-                        icon: Icons.calendar_today_rounded,
-                        label: 'Khoa khám',
-                        active: false,
-                        onTap: _moTatCaKhoa,
-                      ),
-                      const _BottomNavItem(
-                        icon: Icons.people_alt_rounded,
-                        label: 'Nhân viên',
-                        active: false,
-                      ),
-                      const _BottomNavItem(
-                        icon: Icons.settings_rounded,
-                        label: 'Cài đặt',
-                        active: false,
-                      ),
-                    ],
+          // Icon tài liệu y tế
+          Container(
+            width: 88,
+            height: 88,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0F9FF),
+              borderRadius: BorderRadius.circular(26),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                  blurRadius: 28,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const Icon(
+                  Icons.description_outlined,
+                  size: 48,
+                  color: Color(0xFF0284C7),
+                ),
+                Positioned(
+                  right: 25,
+                  bottom: 25,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF0F9FF),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.add_rounded,
+                      size: 16,
+                      color: Color(0xFF0284C7),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
+          const SizedBox(height: 22),
 
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.subText,
-    required this.primaryColor,
-    required this.secondaryColor,
-  });
-
-  final String label;
-  final String value;
-  final String subText;
-  final Color primaryColor;
-  final Color secondaryColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [primaryColor, secondaryColor],
-        ),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
+          // Tiêu đề chào mừng
+          const Text(
+            'Chào mừng Bệnh viện mới!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 21,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF0F172A),
+              letterSpacing: -0.3,
             ),
           ),
           const SizedBox(height: 10),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
+
+          // Dòng mô tả
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 10),
+            child: Text(
+              'Trang chủ chưa có dữ liệu. Bệnh viện cần gửi\nđơn xác nhận hợp tác để kích hoạt các tính năng\nquản lý khoa và phân luồng tiếp đón.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13.5,
+                color: Color(0xFF64748B),
+                height: 1.45,
+              ),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            subText,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
+          const SizedBox(height: 28),
+
+          // Card Quy trình 3 bước kích hoạt
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Quy trình 3 bước kích hoạt:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildStepRow(
+                  stepNumber: '1',
+                  title: 'Điền thông tin pháp lý & loại hình cơ sở',
+                  isActive: true,
+                  isDone: daGuiDon,
+                ),
+                const SizedBox(height: 14),
+                _buildStepRow(
+                  stepNumber: '2',
+                  title: 'Admin đối soát giấy phép & phê duyệt',
+                  isActive: daGuiDon,
+                  isDone: false,
+                ),
+                const SizedBox(height: 14),
+                _buildStepRow(
+                  stepNumber: '3',
+                  title: 'Kích hoạt tạo khoa, phân luồng & cấp tài khoản',
+                  isActive: false,
+                  isDone: false,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 26),
+
+          // Nút Gửi đơn xác nhận hợp tác
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: () => _moModalGuiDon(
+                context: context,
+                hospitalUid: hospitalUid,
+                tenBenhVien: tenBenhVien,
+                currentData: data,
+              ),
+              icon: Icon(
+                daGuiDon
+                    ? Icons.hourglass_top_rounded
+                    : Icons.assignment_outlined,
+                size: 20,
+              ),
+              label: Text(
+                daGuiDon
+                    ? 'Đã Gửi Đơn - Chờ Admin Phê Duyệt'
+                    : 'Gửi Đơn Xác Nhận Hợp Tác',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: daGuiDon
+                    ? const Color(0xFFD97706)
+                    : const Color(0xFF0284C7),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  // ==================== GIAO DIỆN KHI ĐÃ ĐƯỢC ADMIN DUYỆT ====================
+  Widget _buildVerifiedDashboard({required String hospitalUid}) {
+    return Column(
+      children: [
+        const SizedBox(height: 14),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          child: Row(
+            children: [
+              const Expanded(child: TongSoKhoaCard()),
+              const SizedBox(width: 12),
+              Expanded(
+                child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: BenhVienService.thongKeHomNay(hospitalUid),
+                  builder: (context, snap) {
+                    final d = snap.data?.data();
+                    final tong = ((d?['tongBenhNhan'] ?? 0) as num).toInt();
+                    final dang = ((d?['dangKham'] ?? 0) as num).toInt();
+                    return Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF1D89D1), Color(0xFF1E79C2)],
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Bệnh nhân hôm nay',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            _soCoDauPhay(tong),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Đang khám: $dang lượt',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pushNamed(context, AppRoutes.addClinic);
+              },
+              icon: const Icon(Icons.add, size: 20),
+              label: const Text(
+                'Thêm Khoa Khám Mới',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1E87D8),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        const Expanded(child: ListKhoaDieuTri()),
+      ],
+    );
+  }
+
+  // Header hiển thị tên Bệnh viện và huy hiệu xác thực
+  Widget _buildHeader({
+    required String tenBenhVien,
+    required bool daGuiDon,
+    required bool daXacThuc,
+  }) {
+    String badgeText = 'Chưa xác thực';
+    Color badgeBg = const Color(0xFFFFFBEB);
+    Color badgeTextColor = const Color(0xFFD97706);
+    Color badgeBorder = const Color(0xFFFDE68A);
+
+    if (daXacThuc) {
+      badgeText = 'Đã hợp tác';
+      badgeBg = const Color(0xFFECFDF5);
+      badgeTextColor = const Color(0xFF059669);
+      badgeBorder = const Color(0xFFA7F3D0);
+    } else if (daGuiDon) {
+      badgeText = 'Đang chờ duyệt';
+      badgeBg = const Color(0xFFFEF3C7);
+      badgeTextColor = const Color(0xFFD97706);
+      badgeBorder = const Color(0xFFFCD34D);
+    }
+
+    return Container(
+      width: double.infinity,
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: const BoxDecoration(
+              color: Color(0xFFE0F2FE),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              _chuVietTat(tenBenhVien),
+              style: const TextStyle(
+                color: Color(0xFF0284C7),
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tenBenhVien,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: badgeBg,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: badgeBorder, width: 0.8),
+                  ),
+                  child: Text(
+                    badgeText,
+                    style: TextStyle(
+                      color: badgeTextColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              icon: const Icon(
+                Icons.notifications_none_rounded,
+                color: Color(0xFF334155),
+                size: 20,
+              ),
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Không có thông báo mới.'),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+              },
             ),
           ),
         ],
       ),
     );
   }
-}
 
-class _BottomNavItem extends StatelessWidget {
-  const _BottomNavItem({
-    required this.icon,
-    required this.label,
-    required this.active,
-    this.onTap,
-  });
+  Widget _buildStepRow({
+    required String stepNumber,
+    required String title,
+    required bool isActive,
+    required bool isDone,
+  }) {
+    Color circleColor = const Color(0xFFE2E8F0);
+    Widget circleChild = Text(
+      stepNumber,
+      style: const TextStyle(
+        color: Color(0xFF64748B),
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+      ),
+    );
 
-  final IconData icon;
-  final String label;
-  final bool active;
-  final VoidCallback? onTap;
+    if (isDone) {
+      circleColor = const Color(0xFF16A34A);
+      circleChild = const Icon(Icons.check, size: 13, color: Colors.white);
+    } else if (isActive) {
+      circleColor = const Color(0xFF0284C7);
+      circleChild = Text(
+        stepNumber,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
+      );
+    }
 
-  @override
-  Widget build(BuildContext context) {
-    final mau = active ? const Color(0xFF1D7BFF) : const Color(0xFF7A8196);
+    return Row(
+      children: [
+        Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            color: circleColor,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: circleChild,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: 13,
+              color: (isActive || isDone)
+                  ? const Color(0xFF0F172A)
+                  : const Color(0xFF475569),
+              fontWeight:
+                  (isActive || isDone) ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBottomNav({required bool daXacThuc}) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildNavItem(
+            index: 0,
+            icon: Icons.home_outlined,
+            activeIcon: Icons.home_rounded,
+            label: 'Trang chủ',
+          ),
+          _buildNavItem(
+            index: 1,
+            icon: Icons.grid_view_rounded,
+            activeIcon: Icons.grid_view_rounded,
+            label: 'Khoa khám',
+            onTapBlocked: daXacThuc
+                ? null
+                : () => _thongBaoChuaKichHoat('Khoa khám'),
+          ),
+          _buildNavItem(
+            index: 2,
+            icon: Icons.person_outline_rounded,
+            activeIcon: Icons.person_rounded,
+            label: 'Nhân sự',
+            onTapBlocked: daXacThuc
+                ? null
+                : () => _thongBaoChuaKichHoat('Nhân sự'),
+          ),
+          _buildNavItem(
+            index: 3,
+            icon: Icons.settings_outlined,
+            activeIcon: Icons.settings_rounded,
+            label: 'Cài đặt',
+            onTapBlocked: daXacThuc
+                ? null
+                : () => _thongBaoChuaKichHoat('Cài đặt'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required int index,
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+    VoidCallback? onTapBlocked,
+  }) {
+    final isSelected = _currentBottomNavIndex == index;
+    final color =
+        isSelected ? const Color(0xFF0284C7) : const Color(0xFF94A3B8);
+
     return InkWell(
-      onTap: onTap,
+      onTap: () {
+        if (onTapBlocked != null) {
+          onTapBlocked();
+          return;
+        }
+        setState(() => _currentBottomNavIndex = index);
+      },
       borderRadius: BorderRadius.circular(10),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: mau, size: 22),
-            const SizedBox(height: 4),
+            Icon(isSelected ? activeIcon : icon, color: color, size: 22),
+            const SizedBox(height: 3),
             Text(
               label,
               style: TextStyle(
-                color: mau,
+                color: color,
                 fontSize: 11,
-                fontWeight: FontWeight.w600,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
           ],
