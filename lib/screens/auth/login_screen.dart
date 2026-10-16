@@ -69,16 +69,10 @@ class _LoginScreenState extends State<LoginScreen> {
       if (selectedRoleCode == 'admin' && auth.admin != null) {
         route = AppRoutes.adminDashboard;
       } else if (selectedRoleCode == 'benh_vien') {
-        if (auth.hospital != null) {
-          AppSession.benhVienId = auth.hospital!.uid ??
-              FirebaseAuth.instance.currentUser?.uid ??
-              '';
-          route = AppRoutes.hospitalDashboard;
-        } else {
-          // Bắt buộc đăng xuất nếu tài khoản không phải bệnh viện
-          await auth.logout();
-          throw Exception('Tài khoản này không thuộc danh sách Bệnh viện.');
-        }
+        AppSession.benhVienId = auth.hospital?.uid ??
+            FirebaseAuth.instance.currentUser?.uid ??
+            '';
+        route = AppRoutes.hospitalDashboard;
       } else if (auth.hospital != null) {
         AppSession.benhVienId = auth.hospital!.uid ??
             FirebaseAuth.instance.currentUser?.uid ??

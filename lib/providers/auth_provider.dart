@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_session.dart';
+import '../config/constants.dart';
 import '../models/hospital_model.dart';
 import '../models/patient_model.dart';
 import '../services/auth_service.dart';
@@ -63,15 +64,39 @@ class AuthProvider extends ChangeNotifier {
       final currentUser = _authService.currentUser;
       if (currentUser != null) {
         if (preferredRole == 'benh_vien') {
-          _hospital = await _authService.getHospitalFromFirestore(
+          var hospital = await _authService.getHospitalFromFirestore(
             currentUser.uid,
           );
-          if (_hospital != null) {
-            AppSession.benhVienId = _hospital!.uid ?? currentUser.uid;
-            _user = null;
-            _selectedRole = _hospital?.role ?? 'benh_vien';
-            return;
+          hospital ??= await _authService.findHospitalByEmail(
+            currentUser.email ?? '',
+          );
+
+          if (hospital == null) {
+            final fallbackName =
+                (currentUser.displayName?.trim().isNotEmpty ?? false)
+                    ? currentUser.displayName!
+                    : (currentUser.email?.split('@').first ?? 'Bệnh Viện Mới');
+            final newHospital = HospitalModel(
+              uid: currentUser.uid,
+              tenBenhVien: fallbackName,
+              email: currentUser.email,
+              role: 'benh_vien',
+              trangThaiHopTacId: TrangThaiId.choDuyet,
+              daXacThucEmail: true,
+            );
+            try {
+              await _authService.saveHospitalToFirestore(newHospital);
+            } catch (e) {
+              print('⚠️ Không thể lưu document BenhVien: $e');
+            }
+            hospital = newHospital;
           }
+
+          _hospital = hospital;
+          _user = null;
+          AppSession.benhVienId = hospital.uid ?? currentUser.uid;
+          _selectedRole = 'benh_vien';
+          return;
         }
 
         final patientModel = await _authService.getPatientFromFirestore(
