@@ -35,6 +35,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
         // ✅ SỬA DÒNG NÀY: Dùng AppAuthProvider.AuthProvider
         final authProvider = context.read<AppAuthProvider.AuthProvider>();
         await authProvider.markEmailAsVerified();
+        if (!mounted) return;
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

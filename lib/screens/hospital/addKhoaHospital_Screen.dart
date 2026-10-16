@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../config/app_routes.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:qldatlich/services/khoa_service.dart';
 
 const _xanh = Color(0xFF1E88E5);
