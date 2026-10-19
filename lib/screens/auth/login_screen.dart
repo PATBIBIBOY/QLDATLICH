@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../letan_c1/cskh_duyetdon_khoa_screen_c1.dart';
 import '../letan_c1/letan_thietlap_thongtin_screen_c1.dart';
 import '../letan_c1/letan_trangchu_screen_c1.dart';
+import '../doctor_assistant/assistant_home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -120,6 +121,9 @@ class _LoginScreenState extends State<LoginScreen> {
           } else if (role == 'customerSupport' || role == 'cskh') {
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const CskhDuyetdonKhoaScreenC1()));
             return;
+          } else if (role == 'doctorAssistant' || role == 'ho_tro_bac_si' || role == 'bac_si') {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AssistantHomeScreen()));
+            return;
           }
         }
       }
@@ -198,6 +202,12 @@ class _LoginScreenState extends State<LoginScreen> {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => const CskhDuyetdonKhoaScreenC1()),
+            );
+            return;
+          } else if (role == 'doctorAssistant' || role == 'ho_tro_bac_si' || role == 'bac_si') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const AssistantHomeScreen()),
             );
             return;
           }

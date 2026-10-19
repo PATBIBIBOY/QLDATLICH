@@ -834,6 +834,26 @@ class FirebaseServiceC1 {
 
     // 2. Cập nhật hồ sơ nhân viên trong Firestore
     final docRef = _firestore.collection('NhanVien').doc(maNhanVien);
+    DocumentSnapshot<Map<String, dynamic>>? existingDoc;
+    try {
+      existingDoc = await docRef.get();
+    } catch (_) {}
+
+    final existingData = existingDoc?.data() ?? {};
+    final existingRole = existingData['role'];
+    final existingKhoa = existingData['khoa'];
+
+    String determinedRole = 'receptionist';
+    if (existingRole != null && existingRole.toString().isNotEmpty) {
+      determinedRole = existingRole.toString();
+    } else if (maNhanVien.toUpperCase().contains('CSKH') || maNhanVien.toUpperCase().contains('SP')) {
+      determinedRole = 'customerSupport';
+    } else if (maNhanVien.toUpperCase().startsWith('BS') || maNhanVien.toUpperCase().contains('BS_')) {
+      determinedRole = 'doctorAssistant';
+    }
+
+    final determinedKhoa = existingKhoa ?? 'KHOA TIM';
+
     await docRef.set({
       'ma_tai_khoan': maNhanVien,
       'ma_nhan_vien': maNhanVien,
@@ -844,6 +864,8 @@ class FirebaseServiceC1 {
       'gioi_tinh': gioiTinh,
       'mat_khau': matKhauMoi.trim(),
       'da_kich_hoat': true,
+      'role': determinedRole,
+      'khoa': determinedKhoa,
       'ngay_kich_hoat': FieldValue.serverTimestamp(),
       'ngay_cap_nhat': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
@@ -857,8 +879,8 @@ class FirebaseServiceC1 {
         'ho_ten': hoTen,
         'email': email.trim(),
         'da_kich_hoat': true,
-        'role': maNhanVien.toUpperCase().contains('CSKH') ? 'customerSupport' : 'receptionist',
-        'khoa': 'KHOA TIM',
+        'role': determinedRole,
+        'khoa': determinedKhoa,
       }, SetOptions(merge: true));
     }
   }
