@@ -39,7 +39,25 @@ class CskhDuyetdonKhoaScreenC1 extends StatefulWidget {
 
 class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
   int _currentBottomNavIndex = 0; // 0: Trang chủ, 1: Duyệt đơn, 2: CSKH, 3: Profile
+  DateTime _ngayChon = DateTime(2026, 10, 25);
 
+  Future<void> _chonNgay() async {
+    AppDesignSystemC1.hapticLight();
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _ngayChon,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+      helpText: 'CHỌN NGÀY THỐNG KÊ',
+      cancelText: 'HỦY',
+      confirmText: 'CHỌN',
+    );
+    if (picked != null && picked != _ngayChon) {
+      setState(() {
+        _ngayChon = picked;
+      });
+    }
+  }
 
   // Danh sách thông báo lấy từ lớp dữ liệu tập trung
   final List<ThongBaoLeTanC1> _thongBaoCskh = DuLieuCskhKhoaC1.danhSachThongBao;
@@ -333,6 +351,16 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
 
   // Nội dung body hiển thị tùy theo tab Bottom Navigation Bar
   Widget _buildBodyContent(bool isDark) {
+    // Tab 1: Duyệt đơn (Hiển thị ngay danh sách đơn cần duyệt toàn viện)
+    if (_currentBottomNavIndex == 1) {
+      return const CskhDanhsachDonKhoaScreenC1(
+        tenKhoa: 'Tất cả các khoa (Tổng)',
+        phongKham: 'Toàn viện',
+        caKham: 'Tất cả các ca',
+        tongDon: 0,
+      );
+    }
+
     // Tab 2: CSKH (Tin nhắn hỗ trợ bệnh nhân)
     if (_currentBottomNavIndex == 2) {
       return const CskhDanhsachTinnhanScreenC1();
@@ -362,6 +390,50 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
           const SizedBox(height: 18),
 
           // Khối thống kê nhanh tình trạng đơn khám
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'THỐNG KÊ LỊCH DUYỆT',
+                style: TextStyle(
+                  color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF475569),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                ),
+              ),
+              InkWell(
+                onTap: _chonNgay,
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: const Color(0xFF0284C7).withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.calendar_today_rounded, size: 13, color: Color(0xFF0284C7)),
+                      const SizedBox(width: 5),
+                      Text(
+                        '${_ngayChon.day.toString().padLeft(2, '0')}/${_ngayChon.month.toString().padLeft(2, '0')}/${_ngayChon.year}',
+                        style: const TextStyle(
+                          color: Color(0xFF0284C7),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           _buildThongKeNhanh(isDark),
           const SizedBox(height: 18),
 
@@ -638,101 +710,126 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
 
   // Banner Gradient tổng số đơn hôm nay
   Widget _buildBannerTongDon() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0284C7), Color(0xFF0369A1)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0284C7).withValues(alpha: 0.28),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
-          ),
-        ],
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              Text(
-                'TỔNG ĐƠN KHÁM HÔM NAY',
-                style: TextStyle(
-                  color: Color(0xFFE0F2FE),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
-                ),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: FirebaseServiceC1.streamDanhSachKhoa(),
+      builder: (context, snapshot) {
+        final soLuongKhoa = snapshot.hasData ? snapshot.data!.length : 2;
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0284C7), Color(0xFF0369A1)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0284C7).withValues(alpha: 0.28),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
               ),
-              SizedBox(height: 3),
-              Text(
-                '82 / 100 Đơn',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 23,
-                  fontWeight: FontWeight.w800,
+            ],
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'TỔNG ĐƠN KHÁM HÔM NAY',
+                    style: TextStyle(
+                      color: Color(0xFFE0F2FE),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Theo thời gian thực',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '$soLuongKhoa Chuyên khoa',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.22),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Text(
-              '5 Chuyên khoa',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  // Khối thống kê hôm nay (Đồng bộ cấu trúc khối thống kê 3 ô của Lễ tân)
+  // Khối thống kê hôm nay (Đọc Realtime từ Firestore Firebase)
   Widget _buildThongKeNhanh(bool isDark) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildItemThongKe(
-            soLuong: '82',
-            nhanDe: 'Đang chờ',
-            mauSo: const Color(0xFFD97706),
-            isDark: isDark,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildItemThongKe(
-            soLuong: '18',
-            nhanDe: 'Đã phê duyệt',
-            mauSo: const Color(0xFF10B981),
-            isDark: isDark,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildItemThongKe(
-            soLuong: '100',
-            nhanDe: 'Chỉ tiêu ngày',
-            mauSo: const Color(0xFF0284C7),
-            isDark: isDark,
-          ),
-        ),
-      ],
+    return StreamBuilder<Map<String, int>>(
+      stream: FirebaseServiceC1.streamThongKeHomNay(
+        ngayChon: _ngayChon,
+      ),
+      builder: (context, snapshot) {
+        final thongKe = snapshot.data ?? {
+          'daTiepNhan': 0,
+          'dangCho': 0,
+          'daKham': 0,
+          'tongSo': 0,
+        };
+
+        final dangCho = thongKe['dangCho'] ?? 0;
+        final daDuyet = thongKe['daTiepNhan'] ?? 0;
+        final tongSo = thongKe['tongSo'] ?? 0;
+
+        return Row(
+          children: [
+            Expanded(
+              child: _buildItemThongKe(
+                soLuong: '$dangCho',
+                nhanDe: 'Đang chờ',
+                mauSo: const Color(0xFFD97706),
+                isDark: isDark,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildItemThongKe(
+                soLuong: '$daDuyet',
+                nhanDe: 'Đã phê duyệt',
+                mauSo: const Color(0xFF10B981),
+                isDark: isDark,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildItemThongKe(
+                soLuong: '$tongSo',
+                nhanDe: 'Tổng đơn hôm nay',
+                mauSo: const Color(0xFF0284C7),
+                isDark: isDark,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

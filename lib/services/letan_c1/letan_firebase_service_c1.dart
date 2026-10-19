@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -166,29 +167,73 @@ class FirebaseServiceC1 {
   // REALTIME QUERIES: LỊCH KHÁM & THỐNG KÊ THEO KHOA HOẶC TỔNG THỂ
   // ==========================================
 
-  /// Chuẩn hóa so sánh tên khoa: Bỏ khoảng trắng dư, viết hoa để so sánh chính xác
+  /// Chuẩn hóa chuỗi tiếng Việt: Bỏ dấu, bỏ ký tự đặc biệt, chuyển thành chữ hoa
+  static String boDauTiengViet(String str) {
+    var result = str.toLowerCase();
+    const vietnameseMap = {
+      'a': ['à', 'á', 'ạ', 'ả', 'ã', 'â', 'ầ', 'ấ', 'ậ', 'ẩ', 'ẫ', 'ă', 'ằ', 'ắ', 'ặ', 'ẳ', 'ẵ'],
+      'e': ['è', 'é', 'ẹ', 'ẻ', 'ẽ', 'ê', 'ề', 'ế', 'ệ', 'ể', 'ễ'],
+      'i': ['ì', 'í', 'ị', 'ỉ', 'ĩ'],
+      'o': ['ò', 'ó', 'ọ', 'ỏ', 'õ', 'ô', 'ồ', 'ố', 'ộ', 'ổ', 'ỗ', 'ơ', 'ờ', 'ớ', 'ợ', 'ở', 'ỡ'],
+      'u': ['ù', 'ú', 'ụ', 'ủ', 'ũ', 'ư', 'ừ', 'ứ', 'ự', 'ử', 'ữ'],
+      'y': ['ỳ', 'ý', 'ỵ', 'ỷ', 'ỹ'],
+      'd': ['đ'],
+    };
+    vietnameseMap.forEach((nonAccent, accents) {
+      for (var accent in accents) {
+        result = result.replaceAll(accent, nonAccent);
+      }
+    });
+    return result.trim().toUpperCase();
+  }
+
+  /// Chuẩn hóa so sánh tên khoa / mã khoa:
+  /// Chấp nhận các biến thể: "Khoa Tim Mạch", "khoa tim", "KHOA TIM", "TIM", "K001"
+  /// "Khoa Mắt", "khoa mat", "KHOA MẮT", "MAT", "K003"
+  /// "Khoa Nhi", "NHI", "K004", v.v.
   static bool laCungKhoa(String? khoaA, String? khoaB) {
     if (khoaA == null || khoaB == null) return false;
-    final a = khoaA.trim().toUpperCase().replaceAll('KHOA ', '');
-    final b = khoaB.trim().toUpperCase().replaceAll('KHOA ', '');
+    if (laCheDoTong(khoaA) || laCheDoTong(khoaB)) return true;
+
+    String clean(String str) {
+      var s = boDauTiengViet(str);
+      s = s.replaceAll('KHOA ', '').replaceAll('CHUYEN KHOA ', '').replaceAll('PHONG KHAM ', '').trim();
+      // Map alias mã khoa
+      if (s == 'K001' || s == 'TIM' || s == 'TIM MACH' || s.contains('TIM')) return 'TIM';
+      if (s == 'K003' || s == 'MAT' || s.contains('MAT')) return 'MAT';
+      if (s == 'K004' || s == 'NHI' || s.contains('NHI')) return 'NHI';
+      if (s == 'K002' || s.contains('NOI')) return 'NOI';
+      if (s.contains('RANG') || s.contains('RHM')) return 'RHM';
+      return s;
+    }
+
+    final a = clean(khoaA);
+    final b = clean(khoaB);
     return a == b || a.contains(b) || b.contains(a);
   }
 
-  /// Kiểm tra xem có đang chọn chế độ 'Tổng' (Tất cả chuyên khoa) hay không
+  /// Kiểm tra xem có đang chọn chế độ 'Tổng' (Tất cả chuyên khoa toàn viện) hay không
   static bool laCheDoTong(String? tenKhoa) {
     if (tenKhoa == null || tenKhoa.trim().isEmpty) return true;
-    final k = tenKhoa.trim().toLowerCase();
-    return k == 'tất cả' || k == 'tất cả các khoa' || k == 'tổng' || k == 'toàn viện' || k == 'all';
+    final k = boDauTiengViet(tenKhoa);
+    return k == 'TAT CA' ||
+        k.contains('TAT CA') ||
+        k.contains('TONG') ||
+        k.contains('TOAN VIEN') ||
+        k == 'ALL';
   }
 
   /// Stream thống kê số liệu theo ngày đã chọn và theo Khoa (hoặc Tổng)
-  /// Đọc từ collectionGroup('lich_hen') chuẩn của Firebase và fallback appointments
+  /// Lắng nghe đồng thời cả collection `appointments` và `collectionGroup('lich_hen')`
   static Stream<Map<String, int>> streamThongKeHomNay({String? tenKhoa, DateTime? ngayChon}) {
     final targetDate = ngayChon ?? DateTime(2026, 10, 25);
     final String targetDateStr = '${targetDate.year.toString().padLeft(4, '0')}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}';
     final String targetDisplay = '${targetDate.day.toString().padLeft(2, '0')}/${targetDate.month.toString().padLeft(2, '0')}/${targetDate.year}';
 
-    return _firestore.collectionGroup('lich_hen').snapshots().map((snapshot) {
+    final controller = StreamController<Map<String, int>>();
+    Map<String, QueryDocumentSnapshot<Map<String, dynamic>>> allDocs = {};
+
+    void recompute() {
       int daTiepNhan = 0;
       int dangCho = 0;
       int daKham = 0;
@@ -196,24 +241,34 @@ class FirebaseServiceC1 {
 
       final isAll = laCheDoTong(tenKhoa);
 
-      for (var doc in snapshot.docs) {
+      for (var doc in allDocs.values) {
         final data = doc.data();
 
-        // 1. Lọc theo ngày
+        // 1. Lọc theo ngày (hỗ trợ cả String, Timestamp, date path segment)
         final String docDate = (data['ngay_hien_thi'] ?? '').toString();
         final docNgayHen = data['ngay_hen'] != null ? data['ngay_hen'].toString() : '';
         final docNgayDat = data['ngay_dat'] != null ? data['ngay_dat'].toString() : '';
+        final docNgayKham = (data['ngay_kham'] ?? '').toString();
         final docPath = doc.reference.path;
 
         bool khopNgay = docPath.contains(targetDateStr) ||
             docDate.contains(targetDisplay) ||
             docDate.contains(targetDateStr) ||
             docNgayHen.contains(targetDateStr) ||
-            docNgayDat.contains(targetDateStr);
+            docNgayDat.contains(targetDateStr) ||
+            docNgayKham.contains(targetDateStr);
+
+        // Hỗ trợ kiểm tra nếu trường ngay_hen là Firestore Timestamp
+        if (!khopNgay && data['ngay_hen'] is Timestamp) {
+          final dt = (data['ngay_hen'] as Timestamp).toDate();
+          if (dt.year == targetDate.year && dt.month == targetDate.month && dt.day == targetDate.day) {
+            khopNgay = true;
+          }
+        }
 
         if (!khopNgay) continue;
 
-        // 2. Lọc theo khoa
+        // 2. Lọc theo khoa (hoặc lấy tất cả khi ở chế độ Tổng)
         final docKhoa = (data['ten_khoa'] ?? data['tenKhoa'] ?? data['khoa'] ?? data['khoa_id'] ?? '').toString();
         if (!isAll && !laCungKhoa(docKhoa, tenKhoa)) {
           continue;
@@ -224,7 +279,7 @@ class FirebaseServiceC1 {
         final rawTrangThaiStr = (data['trang_thai'] ?? data['trangThai'] ?? '').toString().toLowerCase();
 
         // 1: Chờ duyệt, 2: Đã xác nhận / duyệt, 3: Chưa xác nhận, 4: Hủy, 5: Hoàn thành / Đã khám
-        if (rawTrangThaiId == '2' || rawTrangThaiStr.contains('tiep_nhan') || rawTrangThaiStr.contains('xac_nhan')) {
+        if (rawTrangThaiId == '2' || rawTrangThaiStr.contains('tiep_nhan') || rawTrangThaiStr.contains('xac_nhan') || rawTrangThaiStr.contains('duyet')) {
           daTiepNhan++;
         } else if (rawTrangThaiId == '5' || rawTrangThaiStr.contains('kham') || rawTrangThaiStr.contains('hoan_thanh')) {
           daKham++;
@@ -233,16 +288,52 @@ class FirebaseServiceC1 {
         }
       }
 
-      return {
-        'daTiepNhan': daTiepNhan,
-        'dangCho': dangCho,
-        'daKham': daKham,
-        'tongSo': tongSo,
-      };
-    });
+      if (!controller.isClosed) {
+        controller.add({
+          'daTiepNhan': daTiepNhan,
+          'dangCho': dangCho,
+          'daKham': daKham,
+          'tongSo': tongSo,
+        });
+      }
+    }
+
+    StreamSubscription? sub1;
+    StreamSubscription? sub2;
+
+    controller.onListen = () {
+      // Stream 1: Collection 'appointments' (luôn sẵn sàng trên Client Web)
+      sub1 = _firestore.collection('appointments').snapshots().listen((snap) {
+        for (var doc in snap.docs) {
+          allDocs[doc.id] = doc;
+        }
+        recompute();
+      }, onError: (e) {
+        // ignore: avoid_print
+        print('Error reading appointments: $e');
+      });
+
+      // Stream 2: CollectionGroup 'lich_hen'
+      sub2 = _firestore.collectionGroup('lich_hen').snapshots().listen((snap) {
+        for (var doc in snap.docs) {
+          allDocs[doc.id] = doc;
+        }
+        recompute();
+      }, onError: (e) {
+        // ignore: avoid_print
+        print('Error reading collectionGroup lich_hen: $e');
+      });
+    };
+
+    controller.onCancel = () {
+      sub1?.cancel();
+      sub2?.cancel();
+    };
+
+    return controller.stream;
   }
 
-  /// Stream danh sách lịch hẹn từ collectionGroup('lich_hen')
+  /// Stream danh sách lịch hẹn từ collection `appointments` & `collectionGroup('lich_hen')`
   /// Hỗ trợ chọn Ngày cụ thể (ví dụ 25/10/2026), lọc theo Khoa (hoặc Tổng), Tab trạng thái & tìm kiếm
   static Stream<List<Map<String, dynamic>>> streamDanhSachLichHen({
     String? tenKhoa,
@@ -254,30 +345,41 @@ class FirebaseServiceC1 {
     final String targetDateStr = '${targetDate.year.toString().padLeft(4, '0')}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}';
     final String targetDisplay = '${targetDate.day.toString().padLeft(2, '0')}/${targetDate.month.toString().padLeft(2, '0')}/${targetDate.year}';
 
-    return _firestore.collectionGroup('lich_hen').snapshots().map((snapshot) {
+    final controller = StreamController<List<Map<String, dynamic>>>();
+    Map<String, QueryDocumentSnapshot<Map<String, dynamic>>> allDocs = {};
+
+    void recompute() {
       final isAll = laCheDoTong(tenKhoa);
       final List<Map<String, dynamic>> ketQua = [];
-      // ignore: avoid_print
-      print('>>> [streamDanhSachLichHen] Total docs from collectionGroup(lich_hen): ${snapshot.docs.length}, tenKhoa: $tenKhoa, isAll: $isAll, targetDate: $targetDateStr');
 
-      for (var doc in snapshot.docs) {
+      for (var doc in allDocs.values) {
         final data = doc.data();
         final docPath = doc.reference.path;
 
-        // 1. Lọc theo ngày
+        // 1. Lọc theo ngày (hỗ trợ cả String, Timestamp, date path segment)
         final String docDate = (data['ngay_hien_thi'] ?? '').toString();
         final docNgayHen = data['ngay_hen'] != null ? data['ngay_hen'].toString() : '';
         final docNgayDat = data['ngay_dat'] != null ? data['ngay_dat'].toString() : '';
+        final docNgayKham = (data['ngay_kham'] ?? '').toString();
 
         bool khopNgay = docPath.contains(targetDateStr) ||
             docDate.contains(targetDisplay) ||
             docDate.contains(targetDateStr) ||
             docNgayHen.contains(targetDateStr) ||
-            docNgayDat.contains(targetDateStr);
+            docNgayDat.contains(targetDateStr) ||
+            docNgayKham.contains(targetDateStr);
+
+        // Hỗ trợ kiểm tra nếu trường ngày_hen là Firestore Timestamp
+        if (!khopNgay && data['ngay_hen'] is Timestamp) {
+          final dt = (data['ngay_hen'] as Timestamp).toDate();
+          if (dt.year == targetDate.year && dt.month == targetDate.month && dt.day == targetDate.day) {
+            khopNgay = true;
+          }
+        }
 
         if (!khopNgay) continue;
 
-        // 2. Lọc theo Khoa
+        // 2. Lọc theo Khoa (hoặc lấy tất cả khi ở chế độ Tổng)
         final docKhoa = (data['ten_khoa'] ?? data['tenKhoa'] ?? data['khoa'] ?? data['khoa_id'] ?? '').toString();
         if (!isAll && !laCungKhoa(docKhoa, tenKhoa)) {
           continue;
@@ -343,8 +445,44 @@ class FirebaseServiceC1 {
         });
       }
 
-      return ketQua;
-    });
+      // ignore: avoid_print
+      print('>>> [streamDanhSachLichHen] Emitting ${ketQua.length} items, tenKhoa: $tenKhoa, targetDate: $targetDateStr');
+      if (!controller.isClosed) {
+        controller.add(ketQua);
+      }
+    }
+
+    StreamSubscription? sub1;
+    StreamSubscription? sub2;
+
+    controller.onListen = () {
+      sub1 = _firestore.collection('appointments').snapshots().listen((snap) {
+        for (var doc in snap.docs) {
+          allDocs[doc.id] = doc;
+        }
+        recompute();
+      }, onError: (e) {
+        // ignore: avoid_print
+        print('Error reading appointments in streamDanhSachLichHen: $e');
+      });
+
+      sub2 = _firestore.collectionGroup('lich_hen').snapshots().listen((snap) {
+        for (var doc in snap.docs) {
+          allDocs[doc.id] = doc;
+        }
+        recompute();
+      }, onError: (e) {
+        // ignore: avoid_print
+        print('Error reading collectionGroup in streamDanhSachLichHen: $e');
+      });
+    };
+
+    controller.onCancel = () {
+      sub1?.cancel();
+      sub2?.cancel();
+    };
+
+    return controller.stream;
   }
 
   /// Cập nhật trạng thái lịch hẹn trên Firestore (hỗ trợ cả đường dẫn docPath chính xác)

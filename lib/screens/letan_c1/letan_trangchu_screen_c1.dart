@@ -67,18 +67,20 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) {
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                 Center(
                   child: Container(
                     width: 40,
@@ -265,10 +267,11 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
               ],
             ),
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -303,7 +306,9 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
       );
     }
     if (_currentIndex == 3) {
-      return const LetanProfileTabC1();
+      return LetanProfileTabC1(
+        tenKhoaHienTai: _tenKhoaHienTai,
+      );
     }
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

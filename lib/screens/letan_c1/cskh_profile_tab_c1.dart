@@ -3,11 +3,10 @@ import 'package:flutter/material.dart';
 import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
+import '../auth/login_screen.dart';
 import 'letan_capnhat_profile_screen_c1.dart';
-import 'letan_dangnhap_screen_c1.dart';
 import 'letan_doimatkhau_screen_c1.dart';
 import 'letan_quenmatkhau_screen_c1.dart';
-import 'letan_thietlap_thongtin_screen_c1.dart';
 
 /// Màn hình Profile / Hồ sơ chuẩn hóa thống nhất cho Chăm Sóc Khách Hàng (CSKH)
 /// Đồng bộ chung giao diện, tái sử dụng toàn bộ hàm Firestore, Đổi MK, Quên MK, Đổi Gmail
@@ -101,8 +100,6 @@ class _CskhProfileTabC1State extends State<CskhProfileTabC1> {
           _buildCardTaiKhoanBaoMat(),
           const SizedBox(height: 16),
           _buildCardCaiDatGiaoDien(),
-          const SizedBox(height: 16),
-          _buildCardDieuHanhChuyenRole(),
           const SizedBox(height: 20),
           _buildButtonDangXuat(),
         ],
@@ -495,191 +492,7 @@ class _CskhProfileTabC1State extends State<CskhProfileTabC1> {
     );
   }
 
-  // Khối Điều hành & Chuyển vai trò linh hoạt trong cùng 1 App
-  Widget _buildCardDieuHanhChuyenRole() {
-    final isDark = AppDesignSystemC1.laCheDoToi;
-    final cardBg = isDark ? AppDesignSystemC1.darkSurface : Colors.white;
-    final borderCol = isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA);
-    final textCol = isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E);
-    final subTextCol = isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderCol),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Nhiệm vụ & Chuyển ca làm việc',
-            style: TextStyle(
-              color: textCol,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // 1. Chuyển đổi vai trò / Đăng nhập tài khoản khác
-          InkWell(
-            onTap: () {
-              AppDesignSystemC1.hapticLight();
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const LetanDangnhapScreenC1()),
-                (route) => false,
-              );
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF451A03).withValues(alpha: 0.3) : const Color(0xFFFFF7ED),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFFF97316).withValues(alpha: isDark ? 0.6 : 0.4),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF97316).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.switch_account_rounded,
-                      color: Color(0xFFEA580C),
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Đổi vai trò / Đăng nhập lại',
-                          style: TextStyle(
-                            color: textCol,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Về trang đăng nhập để vào vai trò Lễ tân hoặc tài khoản khác',
-                          style: TextStyle(color: subTextCol, fontSize: 11.5),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    color: Color(0xFFEA580C),
-                    size: 16,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          // 2. Thiết lập thông tin nhân sự lần đầu
-          InkWell(
-            onTap: () {
-              AppDesignSystemC1.hapticLight();
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const LetanThietlapThongtinScreenC1(),
-                ),
-              );
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0C2444) : const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFF3B82F6).withValues(alpha: isDark ? 0.6 : 0.3),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.how_to_reg_rounded,
-                      color: Color(0xFF2563EB),
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              'Thiết lập thông tin lần đầu',
-                              style: TextStyle(
-                                color: textCol,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFDBEAFE),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                'Mã NV',
-                                style: TextStyle(
-                                  color: Color(0xFF1D4ED8),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Kích hoạt bằng mã cấp sẵn & tạo Gmail đăng nhập',
-                          style: TextStyle(color: subTextCol, fontSize: 11.5),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    color: Color(0xFF2563EB),
-                    size: 16,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   // Nút Đăng xuất chuẩn hóa thống nhất
   Widget _buildButtonDangXuat() {
@@ -701,7 +514,7 @@ class _CskhProfileTabC1State extends State<CskhProfileTabC1> {
                   await FirebaseServiceC1.xoaPhienDangNhap();
                   if (ctx.mounted) Navigator.pop(ctx);
                   nav.pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const LetanDangnhapScreenC1()),
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
                     (route) => false,
                   );
                 },
