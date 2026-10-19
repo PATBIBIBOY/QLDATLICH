@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuthException;
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_routes.dart';
 import '../../providers/auth_provider.dart';
+import '../letan_c1/cskh_duyetdon_khoa_screen_c1.dart';
+import '../letan_c1/letan_thietlap_thongtin_screen_c1.dart';
+import '../letan_c1/letan_trangchu_screen_c1.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -59,20 +63,80 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      // ✅ 2. Điều hướng thông minh dựa trên dữ liệu thực tế trong Provider
-      String route;
+      // ✅ 2. Điều hướng thông minh & Kiểm tra kích hoạt theo Role
       if (selectedRoleCode == 'admin' && auth.admin != null) {
-        route = AppRoutes.adminDashboard;
-      } else if (auth.user != null) {
-        route = AppRoutes.patientHome;
-      } else if (auth.hospital != null) {
-        route = AppRoutes.hospitalDashboard;
-      } else {
-        // Fallback nếu có lỗi logic
-        route = AppRoutes.patientHome; 
+        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.adminDashboard, (route) => false);
+        return;
+      }
+      
+      if (auth.hospital != null) {
+        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.hospitalDashboard, (route) => false);
+        return;
       }
 
-      Navigator.pushNamedAndRemoveUntil(context, route, (route) => false);
+      // Xử lý tài khoản người dùng / nhân viên
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUid != null) {
+        // Kiểm tra xem có phải tài khoản trong NhanVien hoặc users không
+        final firestore = FirebaseFirestore.instance;
+        DocumentSnapshot<Map<String, dynamic>> userDoc =
+            await firestore.collection('NhanVien').doc(currentUid).get();
+            
+        if (!userDoc.exists) {
+          // Thử tìm theo email nếu doc ID là mã nhân viên
+          final q = await firestore
+              .collection('NhanVien')
+              .where('email', isEqualTo: email)
+              .limit(1)
+              .get();
+          if (q.docs.isNotEmpty) userDoc = q.docs.first;
+        }
+
+        if (!userDoc.exists) {
+          // Thử tìm trong bảng users chung
+          userDoc = await firestore.collection('users').doc(currentUid).get();
+        }
+
+        if (userDoc.exists) {
+          final data = userDoc.data() ?? {};
+          final role = (data['role'] ?? 'patient').toString();
+          final bool daKichHoat = data['da_kich_hoat'] ?? false;
+
+          if (!mounted) return;
+
+          // 1. NẾU CHƯA KÍCH HOẠT -> SANG MÀN HÌNH ĐIỀN THÔNG TIN LẦN ĐẦU (MÀN HÌNH 3)
+          if (!daKichHoat) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => LetanThietlapThongtinScreenC1(
+                  maNhanVienMacDinh: (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? currentUid).toString(),
+                ),
+              ),
+            );
+            return;
+          }
+
+          // 2. NẾU ĐÃ KÍCH HOẠT -> VÀO ĐÚNG ROLE
+          if (role == 'receptionist' || role == 'le_tan') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()),
+            );
+            return;
+          } else if (role == 'customerSupport' || role == 'cskh' || role == 'cham_soc_khach_hang') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const CskhDuyetdonKhoaScreenC1()),
+            );
+            return;
+          }
+        }
+      }
+
+      if (!mounted) return;
+      // Mặc định: Vào giao diện bệnh nhân
+      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.patientHome, (route) => false);
 
     } catch (e) {
       if (!mounted) return;

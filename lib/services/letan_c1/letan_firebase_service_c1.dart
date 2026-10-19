@@ -284,6 +284,30 @@ class FirebaseServiceC1 {
           .get();
 
       if (querySnap.docs.isEmpty) {
+        // TỰ ĐỘNG KHỞI TẠO TÀI KHOẢN MẪU BAN ĐẦU NẾU CHƯA CÓ TRÊN FIRESTORE
+        if (input.toUpperCase() == 'LT_TM_01' || input.toUpperCase() == 'CSKH_01') {
+          if (matKhau != '123456') {
+            throw Exception('Mật khẩu cấp ban đầu không chính xác! (Mặc định: 123456)');
+          }
+          final isCskh = input.toUpperCase().contains('CSKH');
+          final defaultUser = {
+            'ma_tai_khoan': input.toUpperCase(),
+            'mat_khau': '123456',
+            'ho_ten': isCskh ? 'Nhân Viên CSKH' : 'Đinh Hoàng Cước',
+            'email': isCskh ? 'cskh@benhvien.vn' : 'dinhhoangcuoc@gmail.com',
+            'role': isCskh ? 'cham_soc_khach_hang' : 'le_tan',
+            'chuc_vu': isCskh ? 'Chuyên viên Chăm sóc khách hàng' : 'Nhân viên Lễ tân tiếp đón',
+            'khoa': isCskh ? 'Bộ Phận CSKH & Tiếp Nhận' : 'KHOA TIM',
+            'benh_vien_id': '1',
+            'da_kich_hoat': false, // Để chuyển sang màn hình thiết lập thông tin lần đầu
+            'ngay_tao': FieldValue.serverTimestamp(),
+          };
+          try {
+            await docRef.set(defaultUser);
+          } catch (_) {}
+          return {'id': input.toUpperCase(), ...defaultUser};
+        }
+
         throw Exception('Mã nhân viên không tồn tại trong hệ thống!');
       }
       final data = querySnap.docs.first.data();
