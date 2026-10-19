@@ -139,14 +139,22 @@ class _CapTaiKhoanNhanVienScreenState
       danhSach.add(TaiKhoanItem(maTk: maTk, matKhau: pass));
     }
 
+    final dotMoi = DotCapTaiKhoan(
+      tenKhoa: _selectedDepartment!,
+      vaiTro: _selectedRole.title,
+      soLuong: _accountCount,
+      danhSachTaiKhoan: danhSach,
+    );
+    StaffAccountStore.luuDotCap(dotMoi);
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => DanhSachTaiKhoanDaTaoScreen(
-          tenKhoa: _selectedDepartment!,
-          vaiTro: _selectedRole.title,
-          soLuong: _accountCount,
-          danhSachTaiKhoan: danhSach,
+          tenKhoa: dotMoi.tenKhoa,
+          vaiTro: dotMoi.vaiTro,
+          soLuong: dotMoi.soLuong,
+          danhSachTaiKhoan: dotMoi.danhSachTaiKhoan,
         ),
       ),
     );

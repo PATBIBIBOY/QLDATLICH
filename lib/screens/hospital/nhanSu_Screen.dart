@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'CapTK_Scream.dart';
+import 'danhSachTaiKhoanDaTao_Screen.dart';
 
 class NhanVienModel {
   final String id;
@@ -211,35 +212,189 @@ class _NhanSuScreenState extends State<NhanSuScreen> {
           ),
           const SizedBox(height: 10),
 
-          // NÚT CẤP TÀI KHOẢN NHÂN SỰ
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const CapTaiKhoanNhanVienScreen(),
+          // CẶP NÚT HÀNH ĐỘNG: CẤP TÀI KHOẢN & XEM TK VỪA TẠO
+          Row(
+            children: [
+              Expanded(
+                flex: 11,
+                child: SizedBox(
+                  height: 46,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CapTaiKhoanNhanVienScreen(),
+                        ),
+                      );
+                      if (mounted) setState(() {});
+                    },
+                    icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                    label: const Text(
+                      'Cấp Tài Khoản',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0284C7),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                    ),
                   ),
-                );
-              },
-              icon: const Icon(Icons.person_add_alt_1_rounded, size: 20),
-              label: const Text(
-                'Cấp Tài Khoản Nhân Sự',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0284C7),
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 10,
+                child: SizedBox(
+                  height: 46,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const DanhSachTaiKhoanDaTaoScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.vpn_key_rounded, size: 17, color: Color(0xFF16A34A)),
+                    label: const Text(
+                      'Xem TK Vừa Tạo',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF16A34A),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: const Color(0xFFF0FDF4),
+                      side: const BorderSide(color: Color(0xFF86EFAC), width: 1.2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // THẺ THÔNG BÁO ĐỢT CẤP TÀI KHOẢN GẦN NHẤT
+          _buildRecentBatchCard(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentBatchCard(BuildContext context) {
+    final batch = StaffAccountStore.dotCapGanNhat;
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DanhSachTaiKhoanDaTaoScreen(
+              tenKhoa: batch.tenKhoa,
+              vaiTro: batch.vaiTro,
+              soLuong: batch.soLuong,
+              danhSachTaiKhoan: batch.danhSachTaiKhoan,
             ),
           ),
-        ],
+        );
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0FDF4),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFBBF7D0)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDCFCE7),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.check_circle_rounded,
+                color: Color(0xFF16A34A),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        'Đợt vừa tạo',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF15803D),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF16A34A),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${batch.soLuong} TK',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${batch.vaiTro} • ${batch.tenKhoa}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F172A),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 1),
+                  const Text(
+                    'Chạm để xem mã đăng nhập & mật khẩu',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: Color(0xFF16A34A),
+            ),
+          ],
+        ),
       ),
     );
   }

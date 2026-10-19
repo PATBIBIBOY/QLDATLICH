@@ -15,19 +15,84 @@ class TaiKhoanItem {
   });
 }
 
-class DanhSachTaiKhoanDaTaoScreen extends StatelessWidget {
+class DotCapTaiKhoan {
+  final String id;
   final String tenKhoa;
   final String vaiTro;
   final int soLuong;
   final List<TaiKhoanItem> danhSachTaiKhoan;
+  final DateTime thoiGian;
 
-  const DanhSachTaiKhoanDaTaoScreen({
-    super.key,
+  DotCapTaiKhoan({
+    String? id,
     required this.tenKhoa,
     required this.vaiTro,
     required this.soLuong,
     required this.danhSachTaiKhoan,
+    DateTime? thoiGian,
+  })  : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        thoiGian = thoiGian ?? DateTime.now();
+}
+
+class StaffAccountStore {
+  // Dữ liệu mẫu mặc định chuẩn theo thiết kế ban đầu
+  static DotCapTaiKhoan dotCapGanNhat = DotCapTaiKhoan(
+    tenKhoa: 'Khoa Tim Mạch',
+    vaiTro: 'Lễ tân',
+    soLuong: 5,
+    danhSachTaiKhoan: const [
+      TaiKhoanItem(maTk: 'LT_TM_01', matKhau: 'bvtim9281'),
+      TaiKhoanItem(maTk: 'LT_TM_02', matKhau: 'bvtim8472'),
+      TaiKhoanItem(maTk: 'LT_TM_03', matKhau: 'bvtim3819'),
+      TaiKhoanItem(maTk: 'LT_TM_04', matKhau: 'bvtim5520'),
+      TaiKhoanItem(maTk: 'LT_TM_05', matKhau: 'bvtim7714'),
+    ],
+  );
+
+  static final List<DotCapTaiKhoan> lichSuCacDot = [dotCapGanNhat];
+
+  static void luuDotCap(DotCapTaiKhoan dot) {
+    dotCapGanNhat = dot;
+    lichSuCacDot.removeWhere((d) => d.id == dot.id);
+    lichSuCacDot.insert(0, dot);
+  }
+}
+
+class DanhSachTaiKhoanDaTaoScreen extends StatefulWidget {
+  final String? tenKhoa;
+  final String? vaiTro;
+  final int? soLuong;
+  final List<TaiKhoanItem>? danhSachTaiKhoan;
+
+  const DanhSachTaiKhoanDaTaoScreen({
+    super.key,
+    this.tenKhoa,
+    this.vaiTro,
+    this.soLuong,
+    this.danhSachTaiKhoan,
   });
+
+  @override
+  State<DanhSachTaiKhoanDaTaoScreen> createState() => _DanhSachTaiKhoanDaTaoScreenState();
+}
+
+class _DanhSachTaiKhoanDaTaoScreenState extends State<DanhSachTaiKhoanDaTaoScreen> {
+  late DotCapTaiKhoan _selectedBatch;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.danhSachTaiKhoan != null && widget.danhSachTaiKhoan!.isNotEmpty) {
+      _selectedBatch = DotCapTaiKhoan(
+        tenKhoa: widget.tenKhoa ?? StaffAccountStore.dotCapGanNhat.tenKhoa,
+        vaiTro: widget.vaiTro ?? StaffAccountStore.dotCapGanNhat.vaiTro,
+        soLuong: widget.soLuong ?? widget.danhSachTaiKhoan!.length,
+        danhSachTaiKhoan: widget.danhSachTaiKhoan!,
+      );
+    } else {
+      _selectedBatch = StaffAccountStore.dotCapGanNhat;
+    }
+  }
 
   void _saoChep(BuildContext context, String text, String thongBao) {
     Clipboard.setData(ClipboardData(text: text));
@@ -43,12 +108,98 @@ class DanhSachTaiKhoanDaTaoScreen extends StatelessWidget {
 
   void _saoChepTatCa(BuildContext context) {
     final buffer = StringBuffer();
-    buffer.writeln('=== DANH SÁCH TÀI KHOẢN $vaiTro - $tenKhoa ===');
-    for (int i = 0; i < danhSachTaiKhoan.length; i++) {
-      final item = danhSachTaiKhoan[i];
+    buffer.writeln('=== DANH SÁCH TÀI KHOẢN ${_selectedBatch.vaiTro} - ${_selectedBatch.tenKhoa} ===');
+    for (int i = 0; i < _selectedBatch.danhSachTaiKhoan.length; i++) {
+      final item = _selectedBatch.danhSachTaiKhoan[i];
       buffer.writeln('${i + 1}. TK: ${item.maTk} | MK: ${item.matKhau}');
     }
     _saoChep(context, buffer.toString(), 'Đã sao chép toàn bộ danh sách tài khoản!');
+  }
+
+  void _hienThiLichSuCacDot() {
+    final cacDot = StaffAccountStore.lichSuCacDot;
+    if (cacDot.length <= 1) return;
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Lịch sử các đợt cấp tài khoản',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 280),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: cacDot.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (_, index) {
+                      final dot = cacDot[index];
+                      final isSelected = dot.id == _selectedBatch.id;
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: isSelected ? const Color(0xFF0284C7) : const Color(0xFFF1F5F9),
+                          child: Icon(
+                            Icons.group_rounded,
+                            color: isSelected ? Colors.white : const Color(0xFF64748B),
+                            size: 18,
+                          ),
+                        ),
+                        title: Text(
+                          '${dot.soLuong} tài khoản ${dot.vaiTro}',
+                          style: TextStyle(
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                            color: isSelected ? const Color(0xFF0284C7) : const Color(0xFF0F172A),
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${dot.tenKhoa} • ${dot.thoiGian.hour.toString().padLeft(2, '0')}:${dot.thoiGian.minute.toString().padLeft(2, '0')}',
+                          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                        ),
+                        trailing: isSelected
+                            ? const Icon(Icons.check_circle_rounded, color: Color(0xFF0284C7), size: 20)
+                            : null,
+                        onTap: () {
+                          setState(() {
+                            _selectedBatch = dot;
+                          });
+                          Navigator.pop(ctx);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -108,8 +259,8 @@ class DanhSachTaiKhoanDaTaoScreen extends StatelessWidget {
                         const SizedBox(height: 10),
 
                         // Danh sách thẻ tài khoản
-                        for (int i = 0; i < danhSachTaiKhoan.length; i++) ...[
-                          _buildAccountCard(context, i + 1, danhSachTaiKhoan[i]),
+                        for (int i = 0; i < _selectedBatch.danhSachTaiKhoan.length; i++) ...[
+                          _buildAccountCard(context, i + 1, _selectedBatch.danhSachTaiKhoan[i]),
                           const SizedBox(height: 10),
                         ],
                       ],
@@ -163,29 +314,53 @@ class DanhSachTaiKhoanDaTaoScreen extends StatelessWidget {
               color: Color(0xFF0F172A),
             ),
           ),
-          InkWell(
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Đang chuẩn bị file danh sách tài khoản...'),
-                  duration: Duration(seconds: 1),
+          Row(
+            children: [
+              if (StaffAccountStore.lichSuCacDot.length > 1) ...[
+                InkWell(
+                  onTap: _hienThiLichSuCacDot,
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.history_rounded,
+                      size: 20,
+                      color: Color(0xFF334155),
+                    ),
+                  ),
                 ),
-              );
-            },
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+                const SizedBox(width: 8),
+              ],
+              InkWell(
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Đang chuẩn bị file danh sách tài khoản...'),
+                      duration: Duration(seconds: 1),
+                    ),
+                  );
+                },
                 borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.file_download_outlined,
+                    size: 20,
+                    color: Color(0xFF334155),
+                  ),
+                ),
               ),
-              child: const Icon(
-                Icons.file_download_outlined,
-                size: 20,
-                color: Color(0xFF334155),
-              ),
-            ),
+            ],
           ),
         ],
       ),
@@ -217,7 +392,7 @@ class DanhSachTaiKhoanDaTaoScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Đã tạo thành công $soLuong tài khoản',
+                  'Đã tạo thành công ${_selectedBatch.soLuong} tài khoản',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -226,7 +401,7 @@ class DanhSachTaiKhoanDaTaoScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '$tenKhoa • Vai trò: $vaiTro',
+                  '${_selectedBatch.tenKhoa} • Vai trò: ${_selectedBatch.vaiTro}',
                   style: const TextStyle(
                     fontSize: 12,
                     color: Color(0xFF047857),
@@ -236,6 +411,28 @@ class DanhSachTaiKhoanDaTaoScreen extends StatelessWidget {
               ],
             ),
           ),
+          if (StaffAccountStore.lichSuCacDot.length > 1) ...[
+            InkWell(
+              onTap: _hienThiLichSuCacDot,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFA7F3D0)),
+                ),
+                child: const Text(
+                  'Đổi đợt',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF047857),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
