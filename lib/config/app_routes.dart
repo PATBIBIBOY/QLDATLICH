@@ -57,6 +57,8 @@ class AppRoutes {
   static const String addClinic = '/add-clinic';
   static const String staffManagement = '/staff-management';
   static const String nhanSuScreen = '/hospital-nhan-su';
+  // ignore: constant_identifier_names
+  static const String NhanSuScreen = nhanSuScreen;
   static const String statistics = '/statistics';
 
   static const String adminDashboard = '/admin-dashboard';
