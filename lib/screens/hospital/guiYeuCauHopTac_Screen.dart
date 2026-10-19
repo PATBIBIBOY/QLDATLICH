@@ -64,8 +64,8 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
 
   String _getHospitalUid() {
     final auth = context.read<AuthProvider>();
-    return auth.hospital?.uid ??
-        FirebaseAuth.instance.currentUser?.uid ??
+    return FirebaseAuth.instance.currentUser?.uid ??
+        auth.hospital?.uid ??
         AppSession.benhVienId;
   }
 
@@ -157,10 +157,17 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
           .set(dataToSave, SetOptions(merge: true));
 
       // 2. Lưu vào collection YeuCauHopTac để Admin quản lý phê duyệt
-      await FirebaseFirestore.instance
-          .collection('YeuCauHopTac')
-          .doc(hospitalUid)
-          .set(dataToSave, SetOptions(merge: true));
+      try {
+        await FirebaseFirestore.instance
+            .collection('YeuCauHopTac')
+            .doc(hospitalUid)
+            .set(dataToSave, SetOptions(merge: true));
+      } catch (e) {
+        debugPrint('⚠️ Lưu YeuCauHopTac: $e');
+      }
+
+      // Cập nhật AppSession
+      AppSession.benhVienId = hospitalUid;
 
       if (!mounted) return;
 
