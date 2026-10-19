@@ -418,6 +418,7 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
                   children: [
                     // Header chuẩn theo tài khoản đang đăng nhập
                     _buildHeader(
+                      hospitalUid: hospitalUid,
                       tenBenhVien: tenBenhVien,
                       daGuiDon: daGuiDon,
                       daXacThuc: daXacThuc,
@@ -751,6 +752,7 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
 
   // Header hiển thị tên Bệnh viện và huy hiệu xác thực
   Widget _buildHeader({
+    required String hospitalUid,
     required String tenBenhVien,
     required bool daGuiDon,
     required bool daXacThuc,
@@ -831,6 +833,75 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+          // Nút DEV: Tự duyệt / Khóa lại để chuyển đổi màn hình làm các chức năng khác
+          InkWell(
+            onTap: () async {
+              final newStatus = daXacThuc ? 1 : 2;
+              await FirebaseFirestore.instance
+                  .collection('BenhVien')
+                  .doc(hospitalUid)
+                  .set({
+                'trang_thai_hop_tac_id': newStatus,
+                'da_gui_don': true,
+              }, SetOptions(merge: true));
+
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    newStatus == 2
+                        ? '⚡ [DEV] Đã tự duyệt: Chuyển sang Dashboard đầy đủ!'
+                        : '⚡ [DEV] Đã chuyển về: Chờ Admin phê duyệt!',
+                  ),
+                  backgroundColor: newStatus == 2
+                      ? const Color(0xFF16A34A)
+                      : const Color(0xFFD97706),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: daXacThuc
+                    ? const Color(0xFFF1F5F9)
+                    : const Color(0xFFDCFCE7),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: daXacThuc
+                      ? const Color(0xFFCBD5E1)
+                      : const Color(0xFF86EFAC),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    daXacThuc
+                        ? Icons.lock_open_rounded
+                        : Icons.bolt_rounded,
+                    size: 15,
+                    color: daXacThuc
+                        ? const Color(0xFF64748B)
+                        : const Color(0xFF16A34A),
+                  ),
+                  const SizedBox(width: 3),
+                  Text(
+                    daXacThuc ? 'Khóa lại' : 'Tự duyệt',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: daXacThuc
+                          ? const Color(0xFF64748B)
+                          : const Color(0xFF16A34A),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           Container(

@@ -1,5 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:flutter/material.dart';
 import '../../config/app_routes.dart';
+import '../../config/app_session.dart';
 
 class GuiDonThanhCongScreen extends StatelessWidget {
   final String maHoSo;
@@ -391,7 +394,47 @@ class GuiDonThanhCongScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
+
+                  // Nút DEV: Admin duyệt ngay để vào Dashboard phát triển chức năng
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        final uid = hospitalUid ??
+                            FirebaseAuth.instance.currentUser?.uid ??
+                            AppSession.benhVienId;
+
+                        await FirebaseFirestore.instance
+                            .collection('BenhVien')
+                            .doc(uid)
+                            .set({
+                          'trang_thai_hop_tac_id': 2,
+                          'da_gui_don': true,
+                        }, SetOptions(merge: true));
+
+                        if (!context.mounted) return;
+                        Navigator.pushNamedAndRemoveUntil(
+                          context,
+                          AppRoutes.hospitalDashboard,
+                          (r) => false,
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.bolt_rounded,
+                        size: 18,
+                        color: Color(0xFF16A34A),
+                      ),
+                      label: const Text(
+                        '⚡ [DEV] Phê duyệt ngay để mở khóa Dashboard',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF16A34A),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                 ],
               ),
             ),
