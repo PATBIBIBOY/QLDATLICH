@@ -725,6 +725,7 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () {
+                AppSession.benhVienId = hospitalUid;
                 Navigator.pushNamed(context, AppRoutes.addClinic);
               },
               icon: const Icon(Icons.add, size: 20),

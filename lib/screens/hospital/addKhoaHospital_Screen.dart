@@ -1,5 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:qldatlich/services/khoa_service.dart';
+
+import '../../config/app_routes.dart';
+import '../../config/app_session.dart';
 
 const _xanh = Color(0xFF1E88E5);
 
@@ -16,6 +20,16 @@ class ThemKhoaScreen extends StatefulWidget {
 }
 
 class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
+  String get _currentBenhVienId {
+    if (widget.benhVienId.isNotEmpty &&
+        widget.benhVienId != 'dFmZHBjFNUT1eRzJjXp5') {
+      return widget.benhVienId;
+    }
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) return uid;
+    return AppSession.benhVienId;
+  }
+
   final _ten = TextEditingController();
   final _soBuoi = TextEditingController(text: '2');
   final _slMoiBuoi = TextEditingController(text: '45');
@@ -74,15 +88,17 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
 
     if (ten.isEmpty) return _loi('Vui lòng nhập tên khoa khám');
     if (soBuoi == null || soBuoi <= 0) return _loi('Số buổi khám không hợp lệ');
-    if (sl == null || sl <= 0)
+    if (sl == null || sl <= 0) {
       return _loi('Số lượng khám mỗi buổi không hợp lệ');
+    }
     if (_ngay.isEmpty) return _loi('Chọn ít nhất 1 ngày làm việc');
     if (phong.isEmpty) return _loi('Thêm ít nhất 1 phòng khám');
 
     setState(() => _dangLuu = true);
     try {
+      final hospitalId = _currentBenhVienId;
       final ketQua = await KhoaService().themKhoa(
-        benhVienId: widget.benhVienId,
+        benhVienId: hospitalId,
         tenKhoa: ten,
         soCaMoiNgay: soBuoi,
         gioiHanBenhNhan: sl,
@@ -95,7 +111,7 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
         context,
         MaterialPageRoute(
           builder: (_) =>
-              ThanhCongScreen(khoa: ketQua, benhVienId: widget.benhVienId),
+              ThanhCongScreen(khoa: ketQua, benhVienId: hospitalId),
         ),
       );
     } catch (e) {
@@ -415,7 +431,7 @@ class ThanhCongScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: Colors.black.withValues(alpha: 0.08),
                       blurRadius: 12,
                     ),
                   ],
@@ -484,8 +500,13 @@ class ThanhCongScreen extends StatelessWidget {
               ),
               const Spacer(),
               ElevatedButton.icon(
-                onPressed: () =>
-                    Navigator.of(context).popUntil((r) => r.isFirst),
+                onPressed: () {
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    AppRoutes.hospitalDashboard,
+                    (route) => false,
+                  );
+                },
                 icon: const Icon(Icons.home_outlined),
                 label: const Text('Trở Về Trang Chủ'),
                 style: ElevatedButton.styleFrom(
@@ -503,7 +524,7 @@ class ThanhCongScreen extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                     builder: (_) =>
-                        ThemKhoaScreen(benhVienId: 'dFmZHBjFNUT1eRzJjXp5'),
+                        ThemKhoaScreen(benhVienId: benhVienId),
                   ),
                 ),
                 icon: const Icon(Icons.add),
