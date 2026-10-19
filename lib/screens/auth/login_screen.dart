@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuthException;
 import 'package:provider/provider.dart';
 import '../../config/app_routes.dart';
+import '../../database_seeder.dart';
 import '../../providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -53,6 +54,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // ✅ 1. Xử lý đăng nhập theo Role
       if (selectedRoleCode == 'admin') {
         await auth.loginAdmin(email: email, password: password);
+        await DatabaseSeeder.seedAllData();
       } else {
         await auth.login(email: email, password: password);
       }

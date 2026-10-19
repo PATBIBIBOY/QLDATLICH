@@ -6,18 +6,28 @@ import 'config/app_routes.dart';
 import 'config/app_theme.dart';
 import 'config/firebase_options.dart';
 import 'providers/auth_provider.dart';
+import 'providers/hospital_provider.dart'; 
+import 'providers/lich_hen_provider.dart';
+import 'providers/review_provider.dart';
 import 'screens/auth/login_screen.dart';
-
-import 'database_seeder.dart';
+import 'hospital_seeder.dart'; 
+import 'specialty_seeder.dart';
+import 'phong_kham_seeder.dart';
+import 'lichhen_seeder.dart';
+import 'danh_gia_seeder.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  await DatabaseSeeder.seedAllData();
-
+  
+  // Bỏ comment dòng dưới đây nếu bạn muốn chạy seeder để đẩy dữ liệu lên Firebase 1 lần
+  //await HospitalSeeder.seedAllData(); 
+  //await SpecialtySeeder.seedSpecialties();
+  //await PhongKhamSeeder.seedPhongKham(); 
+  //await LichHenSeeder.seedAllLichHen();
+  //await DanhGiaSeeder.seedAllDanhGia();
   runApp(const QLDatLichApp());
 }
 
@@ -26,14 +36,19 @@ class QLDatLichApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => AuthProvider(),
+    // ✅ 2. THAY ĐỔI: Dùng MultiProvider để khai báo nhiều Provider cùng lúc
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => HospitalProvider()), 
+        ChangeNotifierProvider(create: (_) => LichHenProvider()),
+        ChangeNotifierProvider(create: (_) => ReviewProvider()),
+      ],
       child: MaterialApp(
         title: 'QLDATLICH',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         home: const LoginScreen(),
-        // ✅ SỬA LỖI: Bỏ đoạn import bị dính vào đây
         routes: AppRoutes.routes, 
       ),
     );
