@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'danhSachTaiKhoanDaTao_Screen.dart';
 
@@ -23,6 +24,7 @@ class _CapTaiKhoanNhanVienScreenState
   String? _selectedDepartment;
   _StaffRole _selectedRole = _StaffRole.receptionist;
   int _accountCount = 5;
+  bool _isLoading = false;
 
   Future<void> _selectDepartment() async {
     final department = await showModalBottomSheet<String>(
@@ -101,11 +103,22 @@ class _CapTaiKhoanNhanVienScreenState
       case _StaffRole.doctorAssistant:
         return 'BS';
       case _StaffRole.customerSupport:
-        return 'SP';
+        return 'CSKH';
     }
   }
 
-  void _taoTaiKhoan() {
+  String _getRoleCode(_StaffRole role) {
+    switch (role) {
+      case _StaffRole.receptionist:
+        return 'receptionist';
+      case _StaffRole.doctorAssistant:
+        return 'doctorAssistant';
+      case _StaffRole.customerSupport:
+        return 'customerSupport';
+    }
+  }
+
+  Future<void> _taoTaiKhoan() async {
     if (_selectedDepartment == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -116,36 +129,109 @@ class _CapTaiKhoanNhanVienScreenState
       return;
     }
 
-    final deptShort = _getDepartmentCode(_selectedDepartment!);
-    final rolePrefix = _getRolePrefix(_selectedRole);
-    const commonPassword = StaffAccountStore.matKhauMacDinh;
+    if (_isLoading) return;
 
-    final List<TaiKhoanItem> danhSach = [];
-    for (int i = 1; i <= _accountCount; i++) {
-      final numStr = i.toString().padLeft(2, '0');
-      final maTk = '${rolePrefix}_${deptShort}_$numStr';
-      danhSach.add(TaiKhoanItem(maTk: maTk, matKhau: commonPassword));
-    }
+    setState(() => _isLoading = true);
 
-    final dotMoi = DotCapTaiKhoan(
-      tenKhoa: _selectedDepartment!,
-      vaiTro: _selectedRole.title,
-      soLuong: _accountCount,
-      danhSachTaiKhoan: danhSach,
-    );
-    StaffAccountStore.luuDotCap(dotMoi);
+    try {
+      final deptShort = _getDepartmentCode(_selectedDepartment!);
+      final rolePrefix = _getRolePrefix(_selectedRole);
+      final roleCode = _getRoleCode(_selectedRole);
+      const commonPassword = StaffAccountStore.matKhauMacDinh;
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => DanhSachTaiKhoanDaTaoScreen(
-          tenKhoa: dotMoi.tenKhoa,
-          vaiTro: dotMoi.vaiTro,
-          soLuong: dotMoi.soLuong,
-          danhSachTaiKhoan: dotMoi.danhSachTaiKhoan,
+      final prefix = '${rolePrefix}_${deptShort}_';
+
+      // Kiểm tra tài khoản đã cấp để tự động tăng số thứ tự tránh trùng lặp
+      int startIndex = 1;
+      try {
+        final existingQuery = await FirebaseFirestore.instance
+            .collection('NhanVien')
+            .where('ma_nhan_vien', isGreaterThanOrEqualTo: prefix)
+            .where('ma_nhan_vien', isLessThan: '$prefix\uf8ff')
+            .get();
+
+        int maxIndex = 0;
+        for (final doc in existingQuery.docs) {
+          final ma = (doc.data()['ma_nhan_vien'] ?? doc.id).toString();
+          final part = ma.replaceFirst(prefix, '');
+          final parsed = int.tryParse(part);
+          if (parsed != null && parsed > maxIndex) {
+            maxIndex = parsed;
+          }
+        }
+        startIndex = maxIndex + 1;
+      } catch (e) {
+        debugPrint('Lỗi kiểm tra mã tài khoản cũ: $e');
+      }
+
+      final List<TaiKhoanItem> danhSach = [];
+      final batch = FirebaseFirestore.instance.batch();
+
+      for (int i = 0; i < _accountCount; i++) {
+        final currentNum = startIndex + i;
+        final numStr = currentNum.toString().padLeft(2, '0');
+        final maTk = '$prefix$numStr';
+
+        danhSach.add(TaiKhoanItem(maTk: maTk, matKhau: commonPassword));
+
+        final docRef = FirebaseFirestore.instance.collection('NhanVien').doc(maTk);
+        batch.set(docRef, {
+          'ma_nhan_vien': maTk,
+          'ma_tai_khoan': maTk,
+          'mat_khau': commonPassword,
+          'role': roleCode,
+          'vai_tro': _selectedRole.title,
+          'khoa': _selectedDepartment!,
+          'da_kich_hoat': false,
+          'trang_thai': 'chua_kich_hoat',
+          'ngay_tao': FieldValue.serverTimestamp(),
+        });
+      }
+
+      // Lưu đồng loạt lên Firebase Firestore
+      await batch.commit();
+
+      final dotMoi = DotCapTaiKhoan(
+        tenKhoa: _selectedDepartment!,
+        vaiTro: _selectedRole.title,
+        soLuong: _accountCount,
+        danhSachTaiKhoan: danhSach,
+      );
+      StaffAccountStore.luuDotCap(dotMoi);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã tạo thành công $_accountCount tài khoản trên hệ thống!'),
+          backgroundColor: const Color(0xFF10B981),
         ),
-      ),
-    );
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DanhSachTaiKhoanDaTaoScreen(
+            tenKhoa: dotMoi.tenKhoa,
+            vaiTro: dotMoi.vaiTro,
+            soLuong: dotMoi.soLuong,
+            danhSachTaiKhoan: dotMoi.danhSachTaiKhoan,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi khi tạo tài khoản: $e'),
+          backgroundColor: const Color(0xFFEF4444),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -193,7 +279,7 @@ class _CapTaiKhoanNhanVienScreenState
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: _taoTaiKhoan,
+                      onPressed: _isLoading ? null : _taoTaiKhoan,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _blue,
                         foregroundColor: Colors.white,
@@ -202,14 +288,23 @@ class _CapTaiKhoanNhanVienScreenState
                           borderRadius: BorderRadius.circular(13),
                         ),
                       ),
-                      child: Text(
-                        'Tạo $_accountCount Tài Khoản Nhân Viên',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              'Tạo $_accountCount Tài Khoản Nhân Viên',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                     ),
                   ),
                 ),
