@@ -443,37 +443,52 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
 
               // Khi Firebase trả về danh sách khoa thật (như KHOA TIM phòng 110 trong database của bạn)
               final docs = snapshot.data!;
-              return Column(
-                children: docs.map((item) {
-                  final tenKhoa = item['tenKhoa'] ?? 'Khoa Khám';
-                  final moTaPhong = item['moTaPhong'] ?? 'Phòng ${item['phongDau']}';
-                  final bool laKhoaDangMo = item['trangThai'] == 'dang_mo';
 
-                  // Tự động gán Icon phù hợp theo tên khoa
-                  IconData iconKhoa = Icons.local_hospital_outlined;
-                  final lower = tenKhoa.toString().toLowerCase();
-                  if (lower.contains('tim')) {
-                    iconKhoa = Icons.favorite_border_rounded;
-                  } else if (lower.contains('nhi')) {
-                    iconKhoa = Icons.child_care_rounded;
-                  } else if (lower.contains('răng') || lower.contains('rang')) {
-                    iconKhoa = Icons.sentiment_satisfied_alt_rounded;
-                  } else if (lower.contains('mắt') || lower.contains('mat')) {
-                    iconKhoa = Icons.remove_red_eye_outlined;
-                  }
-
-                  final khoaItem = KhoaKhamModelC1(
-                    tenKhoa: tenKhoa,
-                    moTaPhong: moTaPhong,
-                    soLuongDon: '25 Đơn',
-                    icon: iconKhoa,
-                    laKhoaDangChon: lower.contains('tim'),
-                    laDayDon: !laKhoaDangMo,
-                  );
-
-                  return _buildCardKhoa(khoaItem, isDark);
-                }).toList(),
+              // Thêm thẻ "Tất cả các khoa (Tổng)" lên đầu để CSKH duyệt toàn viện
+              final cardTong = KhoaKhamModelC1(
+                tenKhoa: 'Tất cả các khoa (Tổng)',
+                moTaPhong: 'Toàn viện • Xem và duyệt đơn tất cả các khoa',
+                soLuongDon: 'Toàn viện',
+                icon: Icons.dashboard_customize_rounded,
+                laKhoaDangChon: false,
+                laDayDon: false,
               );
+
+              final List<Widget> danhSachCards = [
+                _buildCardKhoa(cardTong, isDark),
+              ];
+
+              danhSachCards.addAll(docs.map((item) {
+                final tenKhoa = item['tenKhoa'] ?? 'Khoa Khám';
+                final moTaPhong = item['moTaPhong'] ?? 'Phòng ${item['phongDau']}';
+                final bool laKhoaDangMo = item['trangThai'] == 'dang_mo';
+
+                // Tự động gán Icon phù hợp theo tên khoa
+                IconData iconKhoa = Icons.local_hospital_outlined;
+                final lower = tenKhoa.toString().toLowerCase();
+                if (lower.contains('tim')) {
+                  iconKhoa = Icons.favorite_border_rounded;
+                } else if (lower.contains('nhi')) {
+                  iconKhoa = Icons.child_care_rounded;
+                } else if (lower.contains('răng') || lower.contains('rang')) {
+                  iconKhoa = Icons.sentiment_satisfied_alt_rounded;
+                } else if (lower.contains('mắt') || lower.contains('mat')) {
+                  iconKhoa = Icons.remove_red_eye_outlined;
+                }
+
+                final khoaItem = KhoaKhamModelC1(
+                  tenKhoa: tenKhoa,
+                  moTaPhong: moTaPhong,
+                  soLuongDon: 'Chi tiết',
+                  icon: iconKhoa,
+                  laKhoaDangChon: lower.contains('tim'),
+                  laDayDon: !laKhoaDangMo,
+                );
+
+                return _buildCardKhoa(khoaItem, isDark);
+              }));
+
+              return Column(children: danhSachCards);
             },
           ),
           const SizedBox(height: 10),

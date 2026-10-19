@@ -163,6 +163,354 @@ class FirebaseServiceC1 {
   }
 
   // ==========================================
+  // REALTIME QUERIES: LỊCH KHÁM & THỐNG KÊ THEO KHOA HOẶC TỔNG THỂ
+  // ==========================================
+
+  /// Chuẩn hóa so sánh tên khoa: Bỏ khoảng trắng dư, viết hoa để so sánh chính xác
+  static bool laCungKhoa(String? khoaA, String? khoaB) {
+    if (khoaA == null || khoaB == null) return false;
+    final a = khoaA.trim().toUpperCase().replaceAll('KHOA ', '');
+    final b = khoaB.trim().toUpperCase().replaceAll('KHOA ', '');
+    return a == b || a.contains(b) || b.contains(a);
+  }
+
+  /// Kiểm tra xem có đang chọn chế độ 'Tổng' (Tất cả chuyên khoa) hay không
+  static bool laCheDoTong(String? tenKhoa) {
+    if (tenKhoa == null || tenKhoa.trim().isEmpty) return true;
+    final k = tenKhoa.trim().toLowerCase();
+    return k == 'tất cả' || k == 'tất cả các khoa' || k == 'tổng' || k == 'toàn viện' || k == 'all';
+  }
+
+  /// Stream thống kê số liệu theo ngày đã chọn và theo Khoa (hoặc Tổng)
+  /// Đọc từ collectionGroup('lich_hen') chuẩn của Firebase và fallback appointments
+  static Stream<Map<String, int>> streamThongKeHomNay({String? tenKhoa, DateTime? ngayChon}) {
+    final targetDate = ngayChon ?? DateTime(2026, 10, 25);
+    final String targetDateStr = '${targetDate.year.toString().padLeft(4, '0')}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}';
+    final String targetDisplay = '${targetDate.day.toString().padLeft(2, '0')}/${targetDate.month.toString().padLeft(2, '0')}/${targetDate.year}';
+
+    return _firestore.collectionGroup('lich_hen').snapshots().map((snapshot) {
+      int daTiepNhan = 0;
+      int dangCho = 0;
+      int daKham = 0;
+      int tongSo = 0;
+
+      final isAll = laCheDoTong(tenKhoa);
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+
+        // 1. Lọc theo ngày
+        final String docDate = (data['ngay_hien_thi'] ?? '').toString();
+        final docNgayHen = data['ngay_hen'] != null ? data['ngay_hen'].toString() : '';
+        final docNgayDat = data['ngay_dat'] != null ? data['ngay_dat'].toString() : '';
+        final docPath = doc.reference.path;
+
+        bool khopNgay = docPath.contains(targetDateStr) ||
+            docDate.contains(targetDisplay) ||
+            docDate.contains(targetDateStr) ||
+            docNgayHen.contains(targetDateStr) ||
+            docNgayDat.contains(targetDateStr);
+
+        if (!khopNgay) continue;
+
+        // 2. Lọc theo khoa
+        final docKhoa = (data['ten_khoa'] ?? data['tenKhoa'] ?? data['khoa'] ?? data['khoa_id'] ?? '').toString();
+        if (!isAll && !laCungKhoa(docKhoa, tenKhoa)) {
+          continue;
+        }
+
+        tongSo++;
+        final rawTrangThaiId = data['trang_thai_id']?.toString() ?? '1';
+        final rawTrangThaiStr = (data['trang_thai'] ?? data['trangThai'] ?? '').toString().toLowerCase();
+
+        // 1: Chờ duyệt, 2: Đã xác nhận / duyệt, 3: Chưa xác nhận, 4: Hủy, 5: Hoàn thành / Đã khám
+        if (rawTrangThaiId == '2' || rawTrangThaiStr.contains('tiep_nhan') || rawTrangThaiStr.contains('xac_nhan')) {
+          daTiepNhan++;
+        } else if (rawTrangThaiId == '5' || rawTrangThaiStr.contains('kham') || rawTrangThaiStr.contains('hoan_thanh')) {
+          daKham++;
+        } else {
+          dangCho++;
+        }
+      }
+
+      return {
+        'daTiepNhan': daTiepNhan,
+        'dangCho': dangCho,
+        'daKham': daKham,
+        'tongSo': tongSo,
+      };
+    });
+  }
+
+  /// Stream danh sách lịch hẹn từ collectionGroup('lich_hen')
+  /// Hỗ trợ chọn Ngày cụ thể (ví dụ 25/10/2026), lọc theo Khoa (hoặc Tổng), Tab trạng thái & tìm kiếm
+  static Stream<List<Map<String, dynamic>>> streamDanhSachLichHen({
+    String? tenKhoa,
+    String? boLocTrangThai,
+    String? tuKhoa,
+    DateTime? ngayChon,
+  }) {
+    final targetDate = ngayChon ?? DateTime(2026, 10, 25);
+    final String targetDateStr = '${targetDate.year.toString().padLeft(4, '0')}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}';
+    final String targetDisplay = '${targetDate.day.toString().padLeft(2, '0')}/${targetDate.month.toString().padLeft(2, '0')}/${targetDate.year}';
+
+    return _firestore.collectionGroup('lich_hen').snapshots().map((snapshot) {
+      final isAll = laCheDoTong(tenKhoa);
+      final List<Map<String, dynamic>> ketQua = [];
+      // ignore: avoid_print
+      print('>>> [streamDanhSachLichHen] Total docs from collectionGroup(lich_hen): ${snapshot.docs.length}, tenKhoa: $tenKhoa, isAll: $isAll, targetDate: $targetDateStr');
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final docPath = doc.reference.path;
+
+        // 1. Lọc theo ngày
+        final String docDate = (data['ngay_hien_thi'] ?? '').toString();
+        final docNgayHen = data['ngay_hen'] != null ? data['ngay_hen'].toString() : '';
+        final docNgayDat = data['ngay_dat'] != null ? data['ngay_dat'].toString() : '';
+
+        bool khopNgay = docPath.contains(targetDateStr) ||
+            docDate.contains(targetDisplay) ||
+            docDate.contains(targetDateStr) ||
+            docNgayHen.contains(targetDateStr) ||
+            docNgayDat.contains(targetDateStr);
+
+        if (!khopNgay) continue;
+
+        // 2. Lọc theo Khoa
+        final docKhoa = (data['ten_khoa'] ?? data['tenKhoa'] ?? data['khoa'] ?? data['khoa_id'] ?? '').toString();
+        if (!isAll && !laCungKhoa(docKhoa, tenKhoa)) {
+          continue;
+        }
+
+        // 3. Lọc theo từ khóa tìm kiếm (tên hoặc SĐT)
+        final hoTen = (data['ho_ten'] ?? data['hoTen'] ?? data['patient_name'] ?? 'Bệnh nhân').toString();
+        final sdt = (data['so_dien_thoai'] ?? data['sdt'] ?? data['phone'] ?? '').toString();
+        if (tuKhoa != null && tuKhoa.trim().isNotEmpty) {
+          final tk = tuKhoa.trim().toLowerCase();
+          if (!hoTen.toLowerCase().contains(tk) && !sdt.contains(tk)) {
+            continue;
+          }
+        }
+
+        // 4. Chuẩn hóa trạng thái hiển thị
+        final rawTrangThaiId = data['trang_thai_id']?.toString() ?? '1';
+        final rawTrangThaiStr = (data['trang_thai'] ?? data['trangThai'] ?? '').toString();
+        String hienThiTrangThai = 'Đang chờ';
+
+        if (rawTrangThaiId == '2' || rawTrangThaiStr == 'da_duyet' || rawTrangThaiStr == 'da_tiep_nhan') {
+          hienThiTrangThai = 'Đã duyệt';
+        } else if (rawTrangThaiId == '5' || rawTrangThaiStr == 'da_kham' || rawTrangThaiStr == 'hoan_thanh') {
+          hienThiTrangThai = 'Đã khám';
+        } else if (rawTrangThaiId == '4' || rawTrangThaiStr == 'tu_choi' || rawTrangThaiStr == 'huy') {
+          hienThiTrangThai = 'Không duyệt';
+        } else if (rawTrangThaiId == '6' || rawTrangThaiStr == 'vang') {
+          hienThiTrangThai = 'Vắng';
+        } else {
+          hienThiTrangThai = 'Đang chờ';
+        }
+
+        // 5. Lọc theo Tab trạng thái
+        if (boLocTrangThai != null && boLocTrangThai != 'Tất cả') {
+          if (boLocTrangThai == 'Đang chờ') {
+            if (hienThiTrangThai != 'Đang chờ' && hienThiTrangThai != 'Tiếp theo' && hienThiTrangThai != 'Đã duyệt') {
+              continue;
+            }
+          } else if (hienThiTrangThai != boLocTrangThai) {
+            continue;
+          }
+        }
+
+        ketQua.add({
+          'id': doc.id,
+          'docPath': docPath,
+          'hoTen': hoTen,
+          'sdt': sdt.isNotEmpty ? sdt : '0901 234 567',
+          'gioKham': (data['gio_du_kien'] ?? data['gio_kham'] ?? data['gioKham'] ?? '08:30').toString(),
+          'tenKhoa': docKhoa.isNotEmpty ? docKhoa : 'KHOA TIM',
+          'phongKham': (data['phong_kham_id'] ?? data['phong_kham'] ?? 'Phòng 101').toString(),
+          'bacSi': (data['bac_si'] ?? 'BS. Trực ban').toString(),
+          'trangThai': hienThiTrangThai,
+          'rawTrangThai': rawTrangThaiStr.isNotEmpty ? rawTrangThaiStr : (rawTrangThaiId == '2' ? 'da_duyet' : 'cho_duyet'),
+          'trangThaiId': rawTrangThaiId,
+          'stt': (data['so_thu_tu'] ?? data['stt'] ?? 1).toString(),
+          'maBenhNhan': (data['benh_nhan_id'] ?? data['ma_benh_nhan'] ?? 'BN-${doc.id.substring(0, 4).toUpperCase()}').toString(),
+          'cccd': (data['cccd'] ?? '001092008892').toString(),
+          'bhyt': (data['bhyt'] ?? 'BHYT 100%').toString(),
+          'namSinh': (data['nam_sinh'] ?? '1992').toString(),
+          'gioiTinh': (data['gioi_tinh'] ?? 'Nam').toString(),
+          'lyDoTuChoi': data['ly_do_tu_choi'] ?? data['lyDoTuChoi'],
+        });
+      }
+
+      return ketQua;
+    });
+  }
+
+  /// Cập nhật trạng thái lịch hẹn trên Firestore (hỗ trợ cả đường dẫn docPath chính xác)
+  static Future<void> capNhatTrangThaiLichHen({
+    required String appointmentId,
+    required String trangThaiMoi,
+    String? docPath,
+    String? lyDoTuChoi,
+  }) async {
+    final Map<String, dynamic> updateData = {
+      'trang_thai': trangThaiMoi,
+      'trangThai': trangThaiMoi,
+      'trang_thai_id': trangThaiMoi == 'da_duyet' ? 2 : (trangThaiMoi == 'tu_choi' ? 4 : 1),
+      'ngay_cap_nhat': FieldValue.serverTimestamp(),
+    };
+    if (lyDoTuChoi != null) {
+      updateData['ly_do_tu_choi'] = lyDoTuChoi;
+      updateData['lyDoTuChoi'] = lyDoTuChoi;
+    }
+
+    if (docPath != null && docPath.isNotEmpty) {
+      await _firestore.doc(docPath).update(updateData);
+    } else {
+      // Tìm trong collectionGroup
+      final q = await _firestore.collectionGroup('lich_hen').where('id', isEqualTo: appointmentId).limit(1).get();
+      if (q.docs.isNotEmpty) {
+        await q.docs.first.reference.update(updateData);
+      } else {
+        await _firestore.collection('appointments').doc(appointmentId).set(updateData, SetOptions(merge: true));
+      }
+    }
+  }
+
+  /// Tự động đẩy dữ liệu mẫu vào collection `appointments` trên Firestore nếu đang trống
+  /// Có đủ các khoa (KHOA TIM, KHOA MẮT, KHOA NHI, KHOA RĂNG HÀM MẶT) để kiểm thử chức năng lọc
+  static Future<void> kiemTraVaSeedLichKhamFirestore() async {
+    try {
+      final snap = await _firestore.collection('appointments').limit(1).get();
+      if (snap.docs.isNotEmpty) return; // Đã có dữ liệu
+
+      final danhSachMau = [
+        {
+          'ho_ten': 'NGUYỄN VĂN AN',
+          'so_dien_thoai': '0901 234 567',
+          'ten_khoa': 'KHOA TIM',
+          'phong_kham': 'Phòng 110 - Tầng 1',
+          'gio_kham': '08:00',
+          'so_thu_tu': 1,
+          'bac_si': 'BS. CKII Lê Hoàng Nam',
+          'trang_thai': 'da_tiep_nhan',
+          'gioi_tinh': 'Nam',
+          'nam_sinh': '1985',
+          'cccd': '079085001122',
+          'bhyt': 'BHYT Đúng tuyến 100%',
+          'ngay_kham': DateTime.now().toIso8601String().substring(0, 10),
+        },
+        {
+          'ho_ten': 'TRẦN THỊ MAI',
+          'so_dien_thoai': '0912 345 678',
+          'ten_khoa': 'KHOA TIM',
+          'phong_kham': 'Phòng 110 - Tầng 1',
+          'gio_kham': '08:30',
+          'so_thu_tu': 2,
+          'bac_si': 'BS. CKII Lê Hoàng Nam',
+          'trang_thai': 'dang_cho',
+          'gioi_tinh': 'Nữ',
+          'nam_sinh': '1978',
+          'cccd': '079178003344',
+          'bhyt': 'BHYT Đúng tuyến 80%',
+          'ngay_kham': DateTime.now().toIso8601String().substring(0, 10),
+        },
+        {
+          'ho_ten': 'LÊ HOÀNG PHÚC',
+          'so_dien_thoai': '0938 111 222',
+          'ten_khoa': 'KHOA TIM',
+          'phong_kham': 'Phòng 110 - Tầng 1',
+          'gio_kham': '09:00',
+          'so_thu_tu': 3,
+          'bac_si': 'BS. CKII Lê Hoàng Nam',
+          'trang_thai': 'dang_cho',
+          'gioi_tinh': 'Nam',
+          'nam_sinh': '1992',
+          'cccd': '079092005566',
+          'bhyt': 'Tự túc',
+          'ngay_kham': DateTime.now().toIso8601String().substring(0, 10),
+        },
+        {
+          'ho_ten': 'PHẠM MINH QUANG',
+          'so_dien_thoai': '0988 777 666',
+          'ten_khoa': 'KHOA TIM',
+          'phong_kham': 'Phòng 110 - Tầng 1',
+          'gio_kham': '07:30',
+          'so_thu_tu': 4,
+          'bac_si': 'BS. CKII Lê Hoàng Nam',
+          'trang_thai': 'da_kham',
+          'gioi_tinh': 'Nam',
+          'nam_sinh': '1965',
+          'cccd': '079065007788',
+          'bhyt': 'BHYT 100%',
+          'ngay_kham': DateTime.now().toIso8601String().substring(0, 10),
+        },
+        // Khoa Mắt
+        {
+          'ho_ten': 'VÕ THỊ HỒNG',
+          'so_dien_thoai': '0977 444 333',
+          'ten_khoa': 'KHOA MẮT',
+          'phong_kham': 'Phòng 204 - Tầng 2',
+          'gio_kham': '08:15',
+          'so_thu_tu': 1,
+          'bac_si': 'BS. CKI Vũ Đình Tú',
+          'trang_thai': 'dang_cho',
+          'gioi_tinh': 'Nữ',
+          'nam_sinh': '1999',
+          'cccd': '079199002211',
+          'bhyt': 'BHYT 80%',
+          'ngay_kham': DateTime.now().toIso8601String().substring(0, 10),
+        },
+        {
+          'ho_ten': 'ĐẶNG TUẤN KIỆT',
+          'so_dien_thoai': '0908 555 777',
+          'ten_khoa': 'KHOA MẮT',
+          'phong_kham': 'Phòng 204 - Tầng 2',
+          'gio_kham': '08:45',
+          'so_thu_tu': 2,
+          'bac_si': 'BS. CKI Vũ Đình Tú',
+          'trang_thai': 'da_tiep_nhan',
+          'gioi_tinh': 'Nam',
+          'nam_sinh': '2001',
+          'cccd': '079201004455',
+          'bhyt': 'Tự túc',
+          'ngay_kham': DateTime.now().toIso8601String().substring(0, 10),
+        },
+        // Khoa Nhi
+        {
+          'ho_ten': 'BÉ NGUYỄN GIA HÂN',
+          'so_dien_thoai': '0933 888 999',
+          'ten_khoa': 'KHOA NHI',
+          'phong_kham': 'Phòng 305 - Tầng 3',
+          'gio_kham': '09:15',
+          'so_thu_tu': 1,
+          'bac_si': 'BS. CKI Nguyễn Lan Hương',
+          'trang_thai': 'dang_cho',
+          'gioi_tinh': 'Nữ',
+          'nam_sinh': '2020',
+          'cccd': 'Trẻ em dưới 6 tuổi',
+          'bhyt': 'BHYT 100%',
+          'ngay_kham': DateTime.now().toIso8601String().substring(0, 10),
+        },
+      ];
+
+      final batch = _firestore.batch();
+      for (var item in danhSachMau) {
+        final docRef = _firestore.collection('appointments').doc();
+        batch.set(docRef, {
+          ...item,
+          'ngay_tao': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+    } catch (e) {
+      // ignore: avoid_print
+      print('Lỗi seed lịch khám mẫu lên Firestore: $e');
+    }
+  }
+
+  // ==========================================
   // TÍNH NĂNG 3: THÔNG BÁO THỜI GIAN THỰC (REALTIME ALERTS)
   // ==========================================
 

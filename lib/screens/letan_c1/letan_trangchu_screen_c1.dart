@@ -27,11 +27,31 @@ class LeTanHomeScreenC1 extends StatefulWidget {
 class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
   int _currentIndex = 0; // 0: Trang chu, 1: Quet QR, 2: Lich hen, 3: Profile
   late String _tenKhoaHienTai;
+  DateTime _ngayChon = DateTime(2026, 10, 25);
 
   @override
   void initState() {
     super.initState();
     _tenKhoaHienTai = widget.tenKhoa;
+    FirebaseServiceC1.kiemTraVaSeedLichKhamFirestore();
+  }
+
+  Future<void> _chonNgayLichHen() async {
+    AppDesignSystemC1.hapticLight();
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _ngayChon,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+      helpText: 'CHỌN NGÀY XEM LỊCH HẸN',
+      cancelText: 'HỦY',
+      confirmText: 'CHỌN',
+    );
+    if (picked != null && picked != _ngayChon) {
+      setState(() {
+        _ngayChon = picked;
+      });
+    }
   }
 
   void _moManHinhQuetQr() {
@@ -102,7 +122,7 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Dữ liệu tải từ /Khoa/.../danh_sach',
+                  'Chọn khoa của bạn hoặc xem Tổng toàn viện',
                   style: TextStyle(
                     color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
                     fontSize: 12.5,
@@ -138,7 +158,16 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
                         );
                       }
 
-                      final danhSachKhoa = snapshot.data!;
+                      // Tạo danh sách bao gồm tùy chọn "Tất cả các khoa (Tổng)" ở đầu
+                      final danhSachKhoa = [
+                        {
+                          'tenKhoa': 'Tất cả các khoa (Tổng)',
+                          'moTaPhong': 'Toàn viện • Xem và duyệt mọi lịch khám',
+                          'laTong': true,
+                        },
+                        ...snapshot.data!,
+                      ];
+
                       return ListView.separated(
                         shrinkWrap: true,
                         itemCount: danhSachKhoa.length,
@@ -147,7 +176,10 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
                           final item = danhSachKhoa[index];
                           final tenKhoa = item['tenKhoa'] ?? 'Khoa Khám';
                           final moTa = item['moTaPhong'] ?? '';
-                          final isSelected = tenKhoa.trim().toLowerCase() == _tenKhoaHienTai.trim().toLowerCase();
+                          final laTong = item['laTong'] == true;
+                          final isSelected = laTong
+                              ? FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai)
+                              : FirebaseServiceC1.laCungKhoa(tenKhoa, _tenKhoaHienTai);
 
                           return InkWell(
                             onTap: () {
@@ -186,7 +218,7 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Icon(
-                                      Icons.favorite_border_rounded,
+                                      laTong ? Icons.dashboard_outlined : Icons.favorite_border_rounded,
                                       size: 18,
                                       color: isSelected ? Colors.white : const Color(0xFF64748B),
                                     ),
@@ -265,7 +297,10 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
       return const LetanQuetQrCameraScreenC1();
     }
     if (_currentIndex == 2) {
-      return const LetanLichhenScreenC1();
+      return LetanLichhenScreenC1(
+        tenKhoa: _tenKhoaHienTai,
+        ngayChonBanDau: _ngayChon,
+      );
     }
     if (_currentIndex == 3) {
       return const LetanProfileTabC1();
@@ -492,54 +527,129 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
     );
   }
 
-  // Mục thống kê hôm nay (Đã tiếp nhận, Đang chờ, Đã khám)
+  // Mục thống kê theo ngày (Đã tiếp nhận, Đang chờ, Đã khám) - Đọc Realtime từ Firestore theo Khoa hoặc Toàn viện
   Widget _buildThongKe() {
-    const thongKe = DuLieuMauLeTanC1.thongKe;
     final isDark = AppDesignSystemC1.laCheDoToi;
+    final String ngayHienThi = '${_ngayChon.day.toString().padLeft(2, '0')}/${_ngayChon.month.toString().padLeft(2, '0')}/${_ngayChon.year}';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Thống kê hôm nay',
-          style: TextStyle(
-            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Row(
+    return StreamBuilder<Map<String, int>>(
+      stream: FirebaseServiceC1.streamThongKeHomNay(
+        tenKhoa: _tenKhoaHienTai,
+        ngayChon: _ngayChon,
+      ),
+      builder: (context, snapshot) {
+        final thongKe = snapshot.data ?? {
+          'daTiepNhan': 0,
+          'dangCho': 0,
+          'daKham': 0,
+          'tongSo': 0,
+        };
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: _buildItemThongKe(
-                soLuong: '${thongKe.daTiepNhan}',
-                nhanDe: 'Đã tiếp nhận',
-                mauSo: const Color(0xFFFF9500),
-                isDark: isDark,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Thống kê lịch khám',
+                      style: TextStyle(
+                        color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai) ? 'Toàn viện' : _tenKhoaHienTai,
+                        style: const TextStyle(
+                          color: Color(0xFF0284C7),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                InkWell(
+                  onTap: _chonNgayLichHen,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFCBD5E1),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.calendar_month_rounded, size: 14, color: Color(0xFF1E88E5)),
+                        const SizedBox(width: 4),
+                        Text(
+                          ngayHienThi,
+                          style: TextStyle(
+                            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        Icon(
+                          Icons.arrow_drop_down,
+                          size: 16,
+                          color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildItemThongKe(
-                soLuong: '${thongKe.dangCho}',
-                nhanDe: 'Đang chờ',
-                mauSo: const Color(0xFF007AFF),
-                isDark: isDark,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildItemThongKe(
-                soLuong: '${thongKe.daKham}',
-                nhanDe: 'Đã khám',
-                mauSo: const Color(0xFF34C759),
-                isDark: isDark,
-              ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildItemThongKe(
+                    soLuong: '${thongKe['daTiepNhan'] ?? 0}',
+                    nhanDe: 'Đã tiếp nhận',
+                    mauSo: const Color(0xFFFF9500),
+                    isDark: isDark,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildItemThongKe(
+                    soLuong: '${thongKe['dangCho'] ?? 0}',
+                    nhanDe: 'Đang chờ',
+                    mauSo: const Color(0xFF007AFF),
+                    isDark: isDark,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildItemThongKe(
+                    soLuong: '${thongKe['daKham'] ?? 0}',
+                    nhanDe: 'Đã khám',
+                    mauSo: const Color(0xFF34C759),
+                    isDark: isDark,
+                  ),
+                ),
+              ],
             ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -576,6 +686,211 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // Danh sách đang chờ - Đọc Realtime từ Firestore theo khoa đã chọn hoặc Tổng
+  Widget _buildDanhSachCho() {
+    final isDark = AppDesignSystemC1.laCheDoToi;
+
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: FirebaseServiceC1.streamDanhSachLichHen(
+        tenKhoa: _tenKhoaHienTai,
+        boLocTrangThai: 'Đang chờ',
+        ngayChon: _ngayChon,
+      ),
+      builder: (context, snapshot) {
+        final danhSach = snapshot.data ?? [];
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Danh sách đang chờ',
+                  style: TextStyle(
+                    color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  '${danhSach.length} bệnh nhân',
+                  style: TextStyle(
+                    color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (danhSach.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA)),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  'Hiện chưa có bệnh nhân nào chờ khám',
+                  style: TextStyle(
+                    color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
+                    fontSize: 13,
+                  ),
+                ),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: danhSach.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  return _buildItemBenhNhanMap(danhSach[index]);
+                },
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildItemBenhNhanMap(Map<String, dynamic> item) {
+    Color badgeBg;
+    Color badgeText;
+    Color avatarBg;
+    Color avatarText;
+
+    final trangThai = item['trangThai'] ?? 'Đang chờ';
+    if (trangThai == 'Tiếp theo') {
+      badgeBg = const Color(0xFFE8F8EF);
+      badgeText = const Color(0xFF34C759);
+      avatarBg = const Color(0xFFE8F8EF);
+      avatarText = const Color(0xFF34C759);
+    } else if (trangThai == 'Đang chờ') {
+      badgeBg = const Color(0xFFE8F4FD);
+      badgeText = const Color(0xFF007AFF);
+      avatarBg = const Color(0xFFE8F4FD);
+      avatarText = const Color(0xFF007AFF);
+    } else {
+      badgeBg = const Color(0xFFF2F2F7);
+      badgeText = const Color(0xFF8E8E93);
+      avatarBg = const Color(0xFFF2F2F7);
+      avatarText = const Color(0xFF8E8E93);
+    }
+
+    final isDark = AppDesignSystemC1.laCheDoToi;
+    final cardBg = isDark ? AppDesignSystemC1.darkSurface : Colors.white;
+    final borderCol = isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA);
+    final textCol = isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E);
+    final subTextCol = isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93);
+
+    final hoTen = (item['hoTen'] ?? 'Bệnh nhân').toString();
+    final initials = hoTen.trim().isNotEmpty
+        ? hoTen.trim().split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join()
+        : 'BN';
+
+    return InkWell(
+      onTap: () {
+        AppDesignSystemC1.hapticLight();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => LetanKetquaQrScreenC1(
+              ketQua: KetQuaQuetQrC1(
+                thanhCong: true,
+                thongBao: 'Hồ sơ tiếp nhận bệnh nhân',
+                chiTietLoi: 'Đã tiếp nhận vào hàng chờ',
+                soThuTu: int.tryParse(item['stt']?.toString() ?? '1') ?? 1,
+                gioKhamDuKien: '${item['gioKham']} - Hôm nay',
+                hoTen: hoTen.toUpperCase(),
+                maBenhNhan: (item['maBenhNhan'] ?? 'BN-2026').toString(),
+                namSinhGioiTinh: '${item['namSinh']} - ${item['gioiTinh']}',
+                cccd: (item['cccd'] ?? '001092008892').toString(),
+                bhyt: (item['bhyt'] ?? 'BHYT 100%').toString(),
+                khoaKham: (item['tenKhoa'] ?? 'Khoa Khám').toString(),
+                phongKham: (item['phongKham'] ?? 'Phòng 101').toString(),
+                bacSi: (item['bacSi'] ?? 'BS. Trực ban').toString(),
+              ),
+            ),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: borderCol),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: avatarBg,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                initials,
+                style: TextStyle(
+                  color: avatarText,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hoTen,
+                    style: TextStyle(
+                      color: textCol,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${item['gioKham']} • STT: ${item['stt']} • ${item['tenKhoa']}',
+                    style: TextStyle(
+                      color: subTextCol,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: badgeBg,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                trangThai,
+                style: TextStyle(
+                  color: badgeText,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -759,167 +1074,6 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
                     ),
                   ),
                 ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Danh sách đang chờ
-  Widget _buildDanhSachCho() {
-    final danhSach = DuLieuMauLeTanC1.danhSachCho;
-    final isDark = AppDesignSystemC1.laCheDoToi;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Danh sách đang chờ',
-          style: TextStyle(
-            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 10),
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: danhSach.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 10),
-          itemBuilder: (context, index) {
-            return _buildItemBenhNhan(danhSach[index]);
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildItemBenhNhan(BenhNhanChoKhamC1 item) {
-    Color badgeBg;
-    Color badgeText;
-    Color avatarBg;
-    Color avatarText;
-
-    if (item.trangThai == 'Tiếp theo') {
-      badgeBg = const Color(0xFFE8F8EF);
-      badgeText = const Color(0xFF34C759);
-      avatarBg = const Color(0xFFE8F8EF);
-      avatarText = const Color(0xFF34C759);
-    } else if (item.trangThai == 'Đang chờ') {
-      badgeBg = const Color(0xFFE8F4FD);
-      badgeText = const Color(0xFF007AFF);
-      avatarBg = const Color(0xFFE8F4FD);
-      avatarText = const Color(0xFF007AFF);
-    } else {
-      badgeBg = const Color(0xFFF2F2F7);
-      badgeText = const Color(0xFF8E8E93);
-      avatarBg = const Color(0xFFF2F2F7);
-      avatarText = const Color(0xFF8E8E93);
-    }
-
-    final isDark = AppDesignSystemC1.laCheDoToi;
-    final cardBg = isDark ? AppDesignSystemC1.darkSurface : Colors.white;
-    final borderCol = isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA);
-    final textCol = isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E);
-    final subTextCol = isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93);
-
-    return InkWell(
-      onTap: () {
-        AppDesignSystemC1.hapticLight();
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => LetanKetquaQrScreenC1(
-              ketQua: KetQuaQuetQrC1(
-                thanhCong: true,
-                thongBao: 'Hồ sơ tiếp nhận bệnh nhân',
-                chiTietLoi: 'Đã tiếp nhận vào hàng chờ',
-                soThuTu: item.trangThai == 'Tiếp theo' ? 14 : 15,
-                gioKhamDuKien: '${item.gioKham} - 09:30',
-                hoTen: item.ten.toUpperCase(),
-                maBenhNhan: 'BN-2026-${item.id}',
-                namSinhGioiTinh: '1992 - Nam',
-                cccd: '001092008892',
-                bhyt: 'BHYT 100%',
-                khoaKham: item.khoa,
-                phongKham: 'Phòng 204 - Tầng 2 Khu A',
-                bacSi: 'BS. CKII Lê Hoàng Nam',
-              ),
-            ),
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: borderCol),
-        ),
-        child: Row(
-          children: [
-            // Avatar viết tắt
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: avatarBg,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                item.avatarInitials,
-                style: TextStyle(
-                  color: avatarText,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Tên & giờ khám
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.ten,
-                    style: TextStyle(
-                      color: textCol,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${item.khoa} · ${item.gioKham}',
-                    style: TextStyle(
-                      color: subTextCol,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Badge trạng thái
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: badgeBg,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                item.trangThai,
-                style: TextStyle(
-                  color: badgeText,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
               ),
             ),
           ],
