@@ -118,25 +118,13 @@ class _CapTaiKhoanNhanVienScreenState
 
     final deptShort = _getDepartmentCode(_selectedDepartment!);
     final rolePrefix = _getRolePrefix(_selectedRole);
-    final passwords = [
-      'bv$deptShort#9281',
-      'bv$deptShort#8472',
-      'bv$deptShort#3819',
-      'bv$deptShort#5520',
-      'bv$deptShort#7714',
-      'bv$deptShort#6183',
-      'bv$deptShort#4920',
-      'bv$deptShort#1109',
-      'bv$deptShort#8321',
-      'bv$deptShort#9932',
-    ];
+    const commonPassword = StaffAccountStore.matKhauMacDinh;
 
     final List<TaiKhoanItem> danhSach = [];
     for (int i = 1; i <= _accountCount; i++) {
       final numStr = i.toString().padLeft(2, '0');
       final maTk = '${rolePrefix}_${deptShort}_$numStr';
-      final pass = passwords[(i - 1) % passwords.length];
-      danhSach.add(TaiKhoanItem(maTk: maTk, matKhau: pass));
+      danhSach.add(TaiKhoanItem(maTk: maTk, matKhau: commonPassword));
     }
 
     final dotMoi = DotCapTaiKhoan(
@@ -489,10 +477,10 @@ class _CapTaiKhoanNhanVienScreenState
         ),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Quy chuẩn cấp phát:',
             style: TextStyle(
               color: Color(0xFF252A32),
@@ -500,12 +488,12 @@ class _CapTaiKhoanNhanVienScreenState
               fontWeight: FontWeight.w700,
             ),
           ),
-          SizedBox(height: 3),
+          const SizedBox(height: 3),
           Text(
-            'Mật khẩu khởi tạo được cấp tự động. Nhân viên đổi mật khẩu ở lần đăng nhập đầu tiên.',
-            style: TextStyle(
+            'Mật khẩu khởi tạo chung cho tất cả tài khoản: ${StaffAccountStore.matKhauMacDinh}. Nhân viên đổi mật khẩu ở lần đăng nhập đầu tiên.',
+            style: const TextStyle(
               color: Color(0xFF737B86),
-              fontSize: 9,
+              fontSize: 9.5,
               height: 1.35,
             ),
           ),

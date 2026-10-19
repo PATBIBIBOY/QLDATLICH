@@ -35,17 +35,20 @@ class DotCapTaiKhoan {
 }
 
 class StaffAccountStore {
-  // Dữ liệu mẫu mặc định chuẩn theo thiết kế ban đầu
+  // Mật khẩu mặc định chung cho toàn bộ tài khoản nhân viên được cấp
+  static const String matKhauMacDinh = '123456';
+
+  // Dữ liệu mẫu mặc định với mật khẩu dùng chung, chỉ đổi mã nhân sự
   static DotCapTaiKhoan dotCapGanNhat = DotCapTaiKhoan(
     tenKhoa: 'Khoa Tim Mạch',
     vaiTro: 'Lễ tân',
     soLuong: 5,
     danhSachTaiKhoan: const [
-      TaiKhoanItem(maTk: 'LT_TM_01', matKhau: 'bvtim9281'),
-      TaiKhoanItem(maTk: 'LT_TM_02', matKhau: 'bvtim8472'),
-      TaiKhoanItem(maTk: 'LT_TM_03', matKhau: 'bvtim3819'),
-      TaiKhoanItem(maTk: 'LT_TM_04', matKhau: 'bvtim5520'),
-      TaiKhoanItem(maTk: 'LT_TM_05', matKhau: 'bvtim7714'),
+      TaiKhoanItem(maTk: 'LT_TM_01', matKhau: matKhauMacDinh),
+      TaiKhoanItem(maTk: 'LT_TM_02', matKhau: matKhauMacDinh),
+      TaiKhoanItem(maTk: 'LT_TM_03', matKhau: matKhauMacDinh),
+      TaiKhoanItem(maTk: 'LT_TM_04', matKhau: matKhauMacDinh),
+      TaiKhoanItem(maTk: 'LT_TM_05', matKhau: matKhauMacDinh),
     ],
   );
 
@@ -109,6 +112,7 @@ class _DanhSachTaiKhoanDaTaoScreenState extends State<DanhSachTaiKhoanDaTaoScree
   void _saoChepTatCa(BuildContext context) {
     final buffer = StringBuffer();
     buffer.writeln('=== DANH SÁCH TÀI KHOẢN ${_selectedBatch.vaiTro} - ${_selectedBatch.tenKhoa} ===');
+    buffer.writeln('Mật khẩu chung: ${StaffAccountStore.matKhauMacDinh}');
     for (int i = 0; i < _selectedBatch.danhSachTaiKhoan.length; i++) {
       final item = _selectedBatch.danhSachTaiKhoan[i];
       buffer.writeln('${i + 1}. TK: ${item.maTk} | MK: ${item.matKhau}');
@@ -231,13 +235,27 @@ class _DanhSachTaiKhoanDaTaoScreenState extends State<DanhSachTaiKhoanDaTaoScree
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
-                              'Chi tiết tài khoản & Mật khẩu',
-                              style: TextStyle(
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF0F172A),
-                              ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Chi tiết tài khoản & Mật khẩu',
+                                  style: TextStyle(
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Mật khẩu khởi tạo chung: ${StaffAccountStore.matKhauMacDinh}',
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
                             ),
                             InkWell(
                               onTap: () => _saoChepTatCa(context),
