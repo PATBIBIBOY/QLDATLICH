@@ -272,30 +272,34 @@ class _DanhSachTaiKhoanDaTaoScreenState
 
                         // Tiêu đề & nút Sao chép tất cả
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Chi tiết tài khoản & Mật khẩu',
-                                  style: TextStyle(
-                                    fontSize: 14.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF0F172A),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Chi tiết tài khoản & Mật khẩu',
+                                    style: TextStyle(
+                                      fontSize: 14.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF0F172A),
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Mật khẩu khởi tạo chung: ${StaffAccountStore.matKhauMacDinh}',
-                                  style: const TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF64748B),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Mật khẩu khởi tạo chung: ${StaffAccountStore.matKhauMacDinh}',
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF64748B),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
+                            const SizedBox(width: 8),
                             InkWell(
                               onTap: () => _saoChepTatCa(context),
                               borderRadius: BorderRadius.circular(6),
@@ -374,14 +378,21 @@ class _DanhSachTaiKhoanDaTaoScreenState
               ),
             ),
           ),
-          const Text(
-            'Danh Sách Tài Khoản Đã Tạo',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF0F172A),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                'Danh Sách Tài Khoản Đã Tạo',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
             ),
           ),
+          const SizedBox(width: 8),
           Row(
             children: [
               if (StaffAccountStore.lichSuCacDot.length > 1) ...[
@@ -564,25 +575,30 @@ class _DanhSachTaiKhoanDaTaoScreenState
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Text(
-                      'Mật khẩu: ',
-                      style: TextStyle(
-                        color: Color(0xFF64748B),
-                        fontSize: 12.5,
+                Expanded(
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Mật khẩu: ',
+                        style: TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 12.5,
+                        ),
                       ),
-                    ),
-                    Text(
-                      item.matKhau,
-                      style: const TextStyle(
-                        color: Color(0xFF0F172A),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.3,
+                      Flexible(
+                        child: Text(
+                          item.matKhau,
+                          style: const TextStyle(
+                            color: Color(0xFF0F172A),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 InkWell(
                   onTap: () => _saoChep(
