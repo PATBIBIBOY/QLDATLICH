@@ -1,13 +1,20 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../config/app_session.dart';
 import 'chiTietKhoa_screem.dart';
 
+String _getBenhVienId() {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid != null && uid.isNotEmpty) return uid;
+  return AppSession.benhVienId;
+}
+
 Stream<QuerySnapshot<Map<String, dynamic>>> _khoaStream() => FirebaseFirestore
     .instance
     .collection('Khoa')
-    .doc(AppSession.benhVienId)
+    .doc(_getBenhVienId())
     .collection('danh_sach')
     .orderBy('ngayTao', descending: true)
     .snapshots();
@@ -140,7 +147,7 @@ class ListKhoaDieuTri extends StatelessWidget {
                   : ListView.separated(
                       padding: const EdgeInsets.symmetric(horizontal: 18),
                       itemCount: docs.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      separatorBuilder: (_, _) => const SizedBox(height: 12),
                       itemBuilder: (ctx, i) => KhoaCard(
                         data: docs[i].data(),
                         onTap: () => _moChiTiet(ctx, docs[i]),
@@ -173,13 +180,13 @@ void _moChiTiet(
     case 'day_lich_sang':
       return (
         'Đầy lịch sáng',
-        const Color(0xFFFFF3D8),
-        const Color(0xFFB7791F),
+        const Color(0xFFFEF3C7),
+        const Color(0xFFD97706),
       );
     case 'dong_cua':
       return ('Đóng cửa', const Color(0xFFFEE2E2), const Color(0xFFDC2626));
     default:
-      return ('Đang mở', const Color(0xFFE8F9F2), const Color(0xFF16A34A));
+      return ('Đang mở', const Color(0xFFDCFCE7), const Color(0xFF16A34A));
   }
 }
 
@@ -202,24 +209,20 @@ class KhoaCard extends StatelessWidget {
     final phuDe = phongDau.isEmpty
         ? '$soPhong phòng khám'
         : (soPhong > 1 ? '$phongDau (+${soPhong - 1} phòng)' : phongDau);
-    final hinh = (data['hinhAnh'] ?? '') as String;
     final gioiHan = data['gioiHanBenhNhan'];
-    const xam = TextStyle(
-      color: Color(0xFF4B5563),
-      fontSize: 12,
-      fontWeight: FontWeight.w600,
-    );
+    final lichLamViec = (data['lichLamViec'] ?? '').toString();
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
+        border: Border.all(color: const Color(0xFFF1F5F9), width: 1),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 8,
-            offset: Offset(0, 3),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -227,6 +230,7 @@ class KhoaCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Column(
@@ -235,89 +239,106 @@ class KhoaCard extends StatelessWidget {
                     Text(
                       data['tenKhoa'] ?? '',
                       style: const TextStyle(
-                        color: Color(0xFF1F2937),
-                        fontSize: 17,
+                        color: Color(0xFF0F172A),
+                        fontSize: 16,
                         fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
                       phuDe,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xFF6B7280),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF64748B),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 10),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
-                  vertical: 6,
+                  vertical: 4,
                 ),
                 decoration: BoxDecoration(
                   color: nen,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   nhan,
                   style: TextStyle(
                     color: chu,
                     fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: hinh.isEmpty
-                ? Container(
-                    width: double.infinity,
-                    height: 76,
-                    color: const Color(0xFFE5E7EB),
-                  )
-                : Image.network(
-                    hinh,
-                    width: double.infinity,
-                    height: 76,
-                    fit: BoxFit.cover,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text.rich(
+                  TextSpan(
+                    text: 'Số ca: ',
+                    style: const TextStyle(
+                      color: Color(0xFF64748B),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    children: [
+                      TextSpan(
+                        text: '${data['soCaMoiNgay'] ?? '-'} ca/ngày',
+                        style: const TextStyle(
+                          color: Color(0xFF0F172A),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Số ca: ${data['soCaMoiNgay'] ?? '-'} ca/ngày',
-                  style: xam,
                 ),
-              ),
-              Expanded(
-                child: Text(
-                  'Giới hạn: ${gioiHan ?? '-'} BN/buổi',
-                  textAlign: TextAlign.right,
-                  style: xam,
+                Text.rich(
+                  TextSpan(
+                    text: 'Giới hạn: ',
+                    style: const TextStyle(
+                      color: Color(0xFF64748B),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    children: [
+                      TextSpan(
+                        text: '${gioiHan ?? '-'} BN/buổi',
+                        style: const TextStyle(
+                          color: Color(0xFF0F172A),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              data['lichLamViec'] ?? '',
-              style: const TextStyle(
-                color: Color(0xFF1D78D8),
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
+                if (lichLamViec.isNotEmpty)
+                  Text(
+                    lichLamViec,
+                    style: const TextStyle(
+                      color: Color(0xFF475569),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
@@ -400,7 +421,7 @@ class _TatCaKhoaScreenState extends State<TatCaKhoaScreen> {
                 return ListView.separated(
                   padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
                   itemCount: docs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (ctx, i) => KhoaCard(
                     data: docs[i].data(),
                     onTap: () => _moChiTiet(ctx, docs[i]),
