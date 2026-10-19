@@ -54,7 +54,77 @@ class _LoginScreenState extends State<LoginScreen> {
       final auth = context.read<AuthProvider>();
       final selectedRoleCode = _roles[_selectedRoleIndex]['code'] as String;
 
-      // ✅ 1. Xử lý đăng nhập theo Role
+      // ✅ 1. Kiểm tra nếu người dùng đăng nhập bằng MÃ NHÂN VIÊN nội bộ (chưa có Gmail Auth)
+      final input = email.trim();
+      if (!input.contains('@') && selectedRoleCode != 'admin') {
+        final firestore = FirebaseFirestore.instance;
+        DocumentSnapshot<Map<String, dynamic>> nhanVienDoc =
+            await firestore.collection('NhanVien').doc(input).get();
+
+        if (!nhanVienDoc.exists) {
+          final q = await firestore
+              .collection('NhanVien')
+              .where('ma_tai_khoan', isEqualTo: input)
+              .limit(1)
+              .get();
+          if (q.docs.isNotEmpty) nhanVienDoc = q.docs.first;
+        }
+
+        // Tự động khởi tạo tài khoản ban đầu nếu chưa có trên Firestore
+        if (!nhanVienDoc.exists && (input.toUpperCase() == 'LT_TM_01' || input.toUpperCase() == 'CSKH_01')) {
+          if (password != '123456') {
+            throw Exception('Mật khẩu cấp ban đầu không chính xác! (Mặc định: 123456)');
+          }
+          final isCskh = input.toUpperCase().contains('CSKH');
+          final defaultUser = {
+            'ma_tai_khoan': input.toUpperCase(),
+            'ma_nhan_vien': input.toUpperCase(),
+            'mat_khau': '123456',
+            'ho_ten': isCskh ? 'Nhân Viên CSKH' : 'Đinh Hoàng Cước',
+            'role': isCskh ? 'customerSupport' : 'receptionist',
+            'khoa': 'KHOA TIM',
+            'da_kich_hoat': false,
+            'ngay_tao': FieldValue.serverTimestamp(),
+          };
+          await firestore.collection('NhanVien').doc(input.toUpperCase()).set(defaultUser);
+          nhanVienDoc = await firestore.collection('NhanVien').doc(input.toUpperCase()).get();
+        }
+
+        if (nhanVienDoc.exists) {
+          final nvData = nhanVienDoc.data()!;
+          if (nvData['mat_khau'] != null && nvData['mat_khau'] != password) {
+            throw Exception('Mật khẩu không chính xác!');
+          }
+
+          if (!mounted) return;
+          final bool daKichHoat = nvData['da_kich_hoat'] ?? false;
+          final role = (nvData['role'] ?? 'receptionist').toString();
+
+          // Chưa kích hoạt -> Màn hình 3 thiết lập thông tin
+          if (!daKichHoat) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => LetanThietlapThongtinScreenC1(
+                  maNhanVienMacDinh: input.toUpperCase(),
+                ),
+              ),
+            );
+            return;
+          }
+
+          // Đã kích hoạt -> Vào đúng Role
+          if (role == 'receptionist' || role == 'le_tan') {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()));
+            return;
+          } else if (role == 'customerSupport' || role == 'cskh') {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const CskhDuyetdonKhoaScreenC1()));
+            return;
+          }
+        }
+      }
+
+      // ✅ 2. Xử lý đăng nhập bằng Gmail qua FirebaseAuth theo Role
       if (selectedRoleCode == 'admin') {
         await auth.loginAdmin(email: email, password: password);
       } else {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
+import 'cskh_duyetdon_khoa_screen_c1.dart';
 import 'letan_trangchu_screen_c1.dart';
 
 /// MÀN HÌNH 3: THIẾT LẬP THÔNG TIN KHI LẦN ĐẦU ĐĂNG NHẬP (FIGMA C1)
@@ -121,13 +122,22 @@ class _LetanThietlapThongtinScreenC1State extends State<LetanThietlapThongtinScr
       ),
     );
 
-    // Chuyển thẳng vào Bàn làm việc Lễ tân
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const LeTanHomeScreenC1(),
-      ),
-    );
+    // Điều hướng vào đúng Bàn làm việc theo Role
+    if (maNv.toUpperCase().contains('CSKH')) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const CskhDuyetdonKhoaScreenC1(),
+        ),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const LeTanHomeScreenC1(),
+        ),
+      );
+    }
   }
 
   @override

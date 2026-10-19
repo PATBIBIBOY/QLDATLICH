@@ -337,7 +337,10 @@ class FirebaseServiceC1 {
     }
   }
 
-  /// Kích hoạt tài khoản nhân viên và lưu thông tin lần đầu từ Màn hình 3
+  /// Kích hoạt tài khoản nhân viên từ Màn hình 3:
+  /// 1. Tự động tạo tài khoản thật trên Firebase Authentication bằng Gmail & Pass mới
+  /// 2. Lưu thông tin họ tên, ngày sinh, email và gắn UID vào Firestore /NhanVien/maNhanVien
+  /// 3. Bật da_kich_hoat = true
   static Future<void> kichHoatTaiKhoanLanDau({
     required String maNhanVien,
     required String hoTen,
@@ -346,16 +349,54 @@ class FirebaseServiceC1 {
     required String gioiTinh,
     required String matKhauMoi,
   }) async {
+    String? authUid;
+    try {
+      // 1. Tạo tài khoản trên Firebase Authentication
+      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: matKhauMoi.trim(),
+      );
+      authUid = cred.user?.uid;
+    } catch (e) {
+      // Nếu email đã tồn tại trên Auth (do trước đó đã tạo), thử đăng nhập để lấy UID
+      try {
+        final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: email.trim(),
+          password: matKhauMoi.trim(),
+        );
+        authUid = cred.user?.uid;
+      } catch (_) {}
+    }
+
+    // 2. Cập nhật hồ sơ nhân viên trong Firestore
     final docRef = _firestore.collection('NhanVien').doc(maNhanVien);
     await docRef.set({
+      'ma_tai_khoan': maNhanVien,
+      'ma_nhan_vien': maNhanVien,
+      'uid': authUid,
       'ho_ten': hoTen,
-      'email': email,
+      'email': email.trim(),
       'ngay_sinh': ngaySinh,
       'gioi_tinh': gioiTinh,
-      'mat_khau': matKhauMoi,
+      'mat_khau': matKhauMoi.trim(),
       'da_kich_hoat': true,
+      'ngay_kich_hoat': FieldValue.serverTimestamp(),
       'ngay_cap_nhat': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    // 3. Nếu có UID, tạo thêm 1 bản ghi liên kết bằng UID trong NhanVien để query O(1) theo Auth UID
+    if (authUid != null) {
+      await _firestore.collection('NhanVien').doc(authUid).set({
+        'ma_tai_khoan': maNhanVien,
+        'ma_nhan_vien': maNhanVien,
+        'uid': authUid,
+        'ho_ten': hoTen,
+        'email': email.trim(),
+        'da_kich_hoat': true,
+        'role': maNhanVien.toUpperCase().contains('CSKH') ? 'customerSupport' : 'receptionist',
+        'khoa': 'KHOA TIM',
+      }, SetOptions(merge: true));
+    }
   }
 
   /// Đổi mật khẩu cho nhân viên (cần xác thực mật khẩu hiện tại)
