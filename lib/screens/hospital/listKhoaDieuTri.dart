@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../config/app_routes.dart';
 import '../../config/app_session.dart';
 import 'chiTietKhoa_screem.dart';
 
@@ -86,7 +87,8 @@ class TongSoKhoaCard extends StatelessWidget {
 
 // ===================== DANH SÁCH KHOA ĐIỀU TRỊ =====================
 class ListKhoaDieuTri extends StatelessWidget {
-  const ListKhoaDieuTri({super.key});
+  final VoidCallback? onXemTatCa;
+  const ListKhoaDieuTri({super.key, this.onXemTatCa});
 
   @override
   Widget build(BuildContext context) {
@@ -117,12 +119,18 @@ class ListKhoaDieuTri extends StatelessWidget {
                   ),
                   const Spacer(),
                   InkWell(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const TatCaKhoaScreen(),
-                      ),
-                    ),
+                    onTap: () {
+                      if (onXemTatCa != null) {
+                        onXemTatCa!();
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const TatCaKhoaScreen(),
+                          ),
+                        );
+                      }
+                    },
                     child: Text(
                       'Xem tất cả (${docs.length})',
                       style: const TextStyle(
@@ -364,91 +372,189 @@ class KhoaCard extends StatelessWidget {
   }
 }
 
-// ===================== MÀN HÌNH "XEM TẤT CẢ" =====================
-class TatCaKhoaScreen extends StatefulWidget {
-  /// laTab = true: hiển thị như tab "Khoa khám" (có thanh điều hướng dưới).
-  /// laTab = false: trang "Xem tất cả" thông thường (có nút quay lại).
-  final bool laTab;
-  const TatCaKhoaScreen({super.key, this.laTab = false});
+// ===================== TAB "TẤT CẢ KHOA KHÁM" =====================
+class TatCaKhoaTab extends StatefulWidget {
+  const TatCaKhoaTab({super.key});
 
   @override
-  State<TatCaKhoaScreen> createState() => _TatCaKhoaScreenState();
+  State<TatCaKhoaTab> createState() => _TatCaKhoaTabState();
 }
 
-class _TatCaKhoaScreenState extends State<TatCaKhoaScreen> {
+class _TatCaKhoaTabState extends State<TatCaKhoaTab> {
   String _tuKhoa = '';
 
   @override
   Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Thanh tìm kiếm + Nút Thêm Khoa
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  onChanged: (v) =>
+                      setState(() => _tuKhoa = v.trim().toLowerCase()),
+                  decoration: InputDecoration(
+                    hintText: 'Tìm khoa khám...',
+                    hintStyle: const TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 14,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      color: Color(0xFF64748B),
+                      size: 20,
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF0284C7),
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              InkWell(
+                onTap: () {
+                  Navigator.pushNamed(context, AppRoutes.addClinic);
+                },
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.all(13),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0284C7),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.add, color: Colors.white, size: 22),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Tiêu đề số lượng khoa
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: _khoaStream(),
+            builder: (context, snap) {
+              final total = snap.data?.docs.length ?? 0;
+              return Row(
+                children: [
+                  Text(
+                    'Tất cả khoa khám ($total)',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 6),
+
+        // Danh sách khoa điều trị
+        Expanded(
+          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: _khoaStream(),
+            builder: (context, snap) {
+              if (snap.hasError) {
+                return Center(child: Text('Lỗi tải dữ liệu: ${snap.error}'));
+              }
+              if (!snap.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final docs = snap.data!.docs.where((d) {
+                final ten = (d.data()['tenKhoa'] ?? '').toString();
+                return ten.toLowerCase().contains(_tuKhoa);
+              }).toList();
+
+              if (docs.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.search_off_rounded,
+                        size: 48,
+                        color: Colors.grey.shade400,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _tuKhoa.isEmpty
+                            ? 'Bệnh viện chưa có khoa khám nào.\nHãy nhấn "+" để thêm khoa mới.'
+                            : 'Không tìm thấy khoa phù hợp với "$_tuKhoa"',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 13.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return ListView.separated(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(18, 6, 18, 20),
+                itemCount: docs.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
+                itemBuilder: (ctx, i) => KhoaCard(
+                  data: docs[i].data(),
+                  onTap: () => _moChiTiet(ctx, docs[i]),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ===================== MÀN HÌNH "XEM TẤT CẢ" =====================
+class TatCaKhoaScreen extends StatelessWidget {
+  final bool laTab;
+  const TatCaKhoaScreen({super.key, this.laTab = false});
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        automaticallyImplyLeading: !widget.laTab,
+        automaticallyImplyLeading: !laTab,
         title: Text(
-          widget.laTab ? 'Khoa khám' : 'Tất cả khoa khám',
+          laTab ? 'Khoa khám' : 'Tất cả khoa khám',
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         centerTitle: true,
-        backgroundColor: const Color(0xFFF5F7FB),
+        backgroundColor: Colors.white,
         elevation: 0,
+        foregroundColor: const Color(0xFF0F172A),
       ),
-      bottomNavigationBar: widget.laTab ? const _ThanhDieuHuong() : null,
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 4, 18, 12),
-            child: TextField(
-              onChanged: (v) =>
-                  setState(() => _tuKhoa = v.trim().toLowerCase()),
-              decoration: InputDecoration(
-                hintText: 'Tìm khoa khám...',
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _khoaStream(),
-              builder: (context, snap) {
-                if (snap.hasError) {
-                  return Center(child: Text('Lỗi tải dữ liệu: ${snap.error}'));
-                }
-                if (!snap.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final docs = snap.data!.docs.where((d) {
-                  final ten = (d.data()['tenKhoa'] ?? '').toString();
-                  return ten.toLowerCase().contains(_tuKhoa);
-                }).toList();
-
-                if (docs.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'Không có khoa nào phù hợp',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  );
-                }
-                return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
-                  itemCount: docs.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
-                  itemBuilder: (ctx, i) => KhoaCard(
-                    data: docs[i].data(),
-                    onTap: () => _moChiTiet(ctx, docs[i]),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+      bottomNavigationBar: laTab ? const _ThanhDieuHuong() : null,
+      body: const TatCaKhoaTab(),
     );
   }
 }

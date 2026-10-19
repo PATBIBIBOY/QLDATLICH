@@ -8,6 +8,7 @@ import '../../config/app_session.dart';
 import '../../config/constants.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/benhVien_service.dart';
+import 'CapTK_Scream.dart';
 import 'guiDonThanhCong_Screen.dart';
 import 'guiYeuCauHopTac_Screen.dart';
 import 'listKhoaDieuTri.dart';
@@ -424,10 +425,10 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
                       daXacThuc: daXacThuc,
                     ),
 
-                    // Body: Nếu đã xác thực -> Hiện Dashboard quản lý; Nếu chưa -> Hiện màn hình Chào mừng & Gửi đơn
+                    // Body: Nếu đã xác thực -> Hiện theo Tab được chọn; Nếu chưa -> Hiện màn hình Chào mừng & Gửi đơn
                     Expanded(
                       child: daXacThuc
-                          ? _buildVerifiedDashboard(hospitalUid: hospitalUid)
+                          ? _buildBodyForCurrentTab(hospitalUid: hospitalUid)
                           : _buildUnverifiedBody(
                               hospitalUid: hospitalUid,
                               tenBenhVien: tenBenhVien,
@@ -652,6 +653,95 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
     );
   }
 
+  // ==================== GIAO DIỆN THEO TAB ====================
+  Widget _buildBodyForCurrentTab({required String hospitalUid}) {
+    switch (_currentBottomNavIndex) {
+      case 1:
+        // Tab "Khoa khám": Hiển thị tất cả các khoa khám hiện có
+        return const TatCaKhoaTab();
+      case 2:
+        // Tab "Nhân sự": Cấp tài khoản & quản lý nhân sự
+        return const CapTaiKhoanNhanVienScreen();
+      case 3:
+        // Tab "Cài đặt": Thông tin & Đăng xuất
+        return _buildSettingsTab(hospitalUid: hospitalUid);
+      case 0:
+      default:
+        // Tab "Trang chủ"
+        return _buildVerifiedDashboard(hospitalUid: hospitalUid);
+    }
+  }
+
+  Widget _buildSettingsTab({required String hospitalUid}) {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Cài đặt tài khoản Bệnh viện',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.business_rounded, color: Color(0xFF0284C7)),
+                  title: const Text('Thông tin cơ sở y tế'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Tính năng đang hoàn thiện.')),
+                    );
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.shield_outlined, color: Color(0xFF0284C7)),
+                  title: const Text('Đổi mật khẩu & Bảo mật'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Tính năng đang hoàn thiện.')),
+                    );
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.logout_rounded, color: Colors.red),
+                  title: const Text(
+                    'Đăng xuất',
+                    style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+                  ),
+                  onTap: () async {
+                    await context.read<AuthProvider>().logout();
+                    if (!mounted) return;
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      AppRoutes.login,
+                      (route) => false,
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ==================== GIAO DIỆN KHI ĐÃ ĐƯỢC ADMIN DUYỆT ====================
   Widget _buildVerifiedDashboard({required String hospitalUid}) {
     return Column(
@@ -746,7 +836,11 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
           ),
         ),
         const SizedBox(height: 14),
-        const Expanded(child: ListKhoaDieuTri()),
+        Expanded(
+          child: ListKhoaDieuTri(
+            onXemTatCa: () => setState(() => _currentBottomNavIndex = 1),
+          ),
+        ),
       ],
     );
   }
