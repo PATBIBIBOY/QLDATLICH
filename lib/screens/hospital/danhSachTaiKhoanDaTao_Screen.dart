@@ -235,9 +235,8 @@ class _DanhSachTaiKhoanDaTaoScreenState
     } else {
       Navigator.pushNamedAndRemoveUntil(
         context,
-        AppRoutes.hospitalDashboard,
+        AppRoutes.nhanSuScreen,
         (route) => false,
-        arguments: 2,
       );
     }
   }

@@ -56,6 +56,7 @@ class AppRoutes {
   static const String hospitalRequestSuccess = '/hospital-request-success';
   static const String addClinic = '/add-clinic';
   static const String staffManagement = '/staff-management';
+  static const String nhanSuScreen = '/hospital-nhan-su';
   static const String statistics = '/statistics';
 
   static const String adminDashboard = '/admin-dashboard';
@@ -108,6 +109,7 @@ class AppRoutes {
     },
     addClinic: (_) => ThemKhoaScreen(benhVienId: AppSession.benhVienId),
     staffManagement: (_) => const StaffManagementScreen(),
+    nhanSuScreen: (_) => const HomeHospitalScreen(initialTabIndex: 2),
     statistics: (_) => const StatisticsScreen(),
     adminDashboard: (_) => const AdminDashboard(),
   };
