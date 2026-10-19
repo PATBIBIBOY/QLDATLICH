@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'danhSachTaiKhoanDaTao_Screen.dart';
+
 class CapTaiKhoanNhanVienScreen extends StatefulWidget {
   const CapTaiKhoanNhanVienScreen({super.key});
 
@@ -84,28 +86,68 @@ class _CapTaiKhoanNhanVienScreenState
     });
   }
 
-  void _showCreateSummary() {
+  String _getDepartmentCode(String dept) {
+    if (dept.contains('Tim')) return 'TM';
+    if (dept.contains('Mắt')) return 'MT';
+    if (dept.contains('Nhi')) return 'NH';
+    if (dept.contains('Răng')) return 'RHM';
+    return 'KHOA';
+  }
+
+  String _getRolePrefix(_StaffRole role) {
+    switch (role) {
+      case _StaffRole.receptionist:
+        return 'LT';
+      case _StaffRole.doctorAssistant:
+        return 'BS';
+      case _StaffRole.customerSupport:
+        return 'SP';
+    }
+  }
+
+  void _taoTaiKhoan() {
     if (_selectedDepartment == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng chọn khoa làm việc.')),
+        const SnackBar(
+          content: Text('Vui lòng chọn khoa làm việc.'),
+          backgroundColor: Color(0xFFD97706),
+        ),
       );
       return;
     }
 
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Thông tin cấp tài khoản'),
-        content: Text(
-          'Bạn đã chọn cấp $_accountCount tài khoản '
-          '${_selectedRole.title} cho ${_selectedDepartment!}.',
+    final deptShort = _getDepartmentCode(_selectedDepartment!);
+    final rolePrefix = _getRolePrefix(_selectedRole);
+    final passwords = [
+      'bv$deptShort#9281',
+      'bv$deptShort#8472',
+      'bv$deptShort#3819',
+      'bv$deptShort#5520',
+      'bv$deptShort#7714',
+      'bv$deptShort#6183',
+      'bv$deptShort#4920',
+      'bv$deptShort#1109',
+      'bv$deptShort#8321',
+      'bv$deptShort#9932',
+    ];
+
+    final List<TaiKhoanItem> danhSach = [];
+    for (int i = 1; i <= _accountCount; i++) {
+      final numStr = i.toString().padLeft(2, '0');
+      final maTk = '${rolePrefix}_${deptShort}_$numStr';
+      final pass = passwords[(i - 1) % passwords.length];
+      danhSach.add(TaiKhoanItem(maTk: maTk, matKhau: pass));
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DanhSachTaiKhoanDaTaoScreen(
+          tenKhoa: _selectedDepartment!,
+          vaiTro: _selectedRole.title,
+          soLuong: _accountCount,
+          danhSachTaiKhoan: danhSach,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Đã hiểu'),
-          ),
-        ],
       ),
     );
   }
@@ -155,7 +197,7 @@ class _CapTaiKhoanNhanVienScreenState
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: _showCreateSummary,
+                      onPressed: _taoTaiKhoan,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _blue,
                         foregroundColor: Colors.white,

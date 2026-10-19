@@ -8,10 +8,10 @@ import '../../config/app_session.dart';
 import '../../config/constants.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/benhVien_service.dart';
-import 'CapTK_Scream.dart';
 import 'guiDonThanhCong_Screen.dart';
 import 'guiYeuCauHopTac_Screen.dart';
 import 'listKhoaDieuTri.dart';
+import 'nhanSu_Screen.dart';
 
 /// 1240 -> "1,240"
 String _soCoDauPhay(int n) =>
@@ -660,8 +660,8 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
         // Tab "Khoa khám": Hiển thị tất cả các khoa khám hiện có
         return const TatCaKhoaTab();
       case 2:
-        // Tab "Nhân sự": Cấp tài khoản & quản lý nhân sự
-        return const CapTaiKhoanNhanVienScreen();
+        // Tab "Nhân sự": Danh sách nhân sự & nút Cấp tài khoản
+        return const NhanSuScreen();
       case 3:
         // Tab "Cài đặt": Thông tin & Đăng xuất
         return _buildSettingsTab(hospitalUid: hospitalUid);
