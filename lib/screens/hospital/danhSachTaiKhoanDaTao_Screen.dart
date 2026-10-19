@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
 import '../../config/app_routes.dart';
 
 class TaiKhoanItem {
@@ -30,8 +29,8 @@ class DotCapTaiKhoan {
     required this.soLuong,
     required this.danhSachTaiKhoan,
     DateTime? thoiGian,
-  })  : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-        thoiGian = thoiGian ?? DateTime.now();
+  }) : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+       thoiGian = thoiGian ?? DateTime.now();
 }
 
 class StaffAccountStore {
@@ -76,16 +75,19 @@ class DanhSachTaiKhoanDaTaoScreen extends StatefulWidget {
   });
 
   @override
-  State<DanhSachTaiKhoanDaTaoScreen> createState() => _DanhSachTaiKhoanDaTaoScreenState();
+  State<DanhSachTaiKhoanDaTaoScreen> createState() =>
+      _DanhSachTaiKhoanDaTaoScreenState();
 }
 
-class _DanhSachTaiKhoanDaTaoScreenState extends State<DanhSachTaiKhoanDaTaoScreen> {
+class _DanhSachTaiKhoanDaTaoScreenState
+    extends State<DanhSachTaiKhoanDaTaoScreen> {
   late DotCapTaiKhoan _selectedBatch;
 
   @override
   void initState() {
     super.initState();
-    if (widget.danhSachTaiKhoan != null && widget.danhSachTaiKhoan!.isNotEmpty) {
+    if (widget.danhSachTaiKhoan != null &&
+        widget.danhSachTaiKhoan!.isNotEmpty) {
       _selectedBatch = DotCapTaiKhoan(
         tenKhoa: widget.tenKhoa ?? StaffAccountStore.dotCapGanNhat.tenKhoa,
         vaiTro: widget.vaiTro ?? StaffAccountStore.dotCapGanNhat.vaiTro,
@@ -111,13 +113,19 @@ class _DanhSachTaiKhoanDaTaoScreenState extends State<DanhSachTaiKhoanDaTaoScree
 
   void _saoChepTatCa(BuildContext context) {
     final buffer = StringBuffer();
-    buffer.writeln('=== DANH SÁCH TÀI KHOẢN ${_selectedBatch.vaiTro} - ${_selectedBatch.tenKhoa} ===');
+    buffer.writeln(
+      '=== DANH SÁCH TÀI KHOẢN ${_selectedBatch.vaiTro} - ${_selectedBatch.tenKhoa} ===',
+    );
     buffer.writeln('Mật khẩu chung: ${StaffAccountStore.matKhauMacDinh}');
     for (int i = 0; i < _selectedBatch.danhSachTaiKhoan.length; i++) {
       final item = _selectedBatch.danhSachTaiKhoan[i];
       buffer.writeln('${i + 1}. TK: ${item.maTk} | MK: ${item.matKhau}');
     }
-    _saoChep(context, buffer.toString(), 'Đã sao chép toàn bộ danh sách tài khoản!');
+    _saoChep(
+      context,
+      buffer.toString(),
+      'Đã sao chép toàn bộ danh sách tài khoản!',
+    );
   }
 
   void _hienThiLichSuCacDot() {
@@ -166,27 +174,42 @@ class _DanhSachTaiKhoanDaTaoScreenState extends State<DanhSachTaiKhoanDaTaoScree
                       final isSelected = dot.id == _selectedBatch.id;
                       return ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: isSelected ? const Color(0xFF0284C7) : const Color(0xFFF1F5F9),
+                          backgroundColor: isSelected
+                              ? const Color(0xFF0284C7)
+                              : const Color(0xFFF1F5F9),
                           child: Icon(
                             Icons.group_rounded,
-                            color: isSelected ? Colors.white : const Color(0xFF64748B),
+                            color: isSelected
+                                ? Colors.white
+                                : const Color(0xFF64748B),
                             size: 18,
                           ),
                         ),
                         title: Text(
                           '${dot.soLuong} tài khoản ${dot.vaiTro}',
                           style: TextStyle(
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                            color: isSelected ? const Color(0xFF0284C7) : const Color(0xFF0F172A),
+                            fontWeight: isSelected
+                                ? FontWeight.w700
+                                : FontWeight.w600,
+                            color: isSelected
+                                ? const Color(0xFF0284C7)
+                                : const Color(0xFF0F172A),
                             fontSize: 14,
                           ),
                         ),
                         subtitle: Text(
                           '${dot.tenKhoa} • ${dot.thoiGian.hour.toString().padLeft(2, '0')}:${dot.thoiGian.minute.toString().padLeft(2, '0')}',
-                          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF64748B),
+                          ),
                         ),
                         trailing: isSelected
-                            ? const Icon(Icons.check_circle_rounded, color: Color(0xFF0284C7), size: 20)
+                            ? const Icon(
+                                Icons.check_circle_rounded,
+                                color: Color(0xFF0284C7),
+                                size: 20,
+                              )
                             : null,
                         onTap: () {
                           setState(() {
@@ -206,6 +229,19 @@ class _DanhSachTaiKhoanDaTaoScreenState extends State<DanhSachTaiKhoanDaTaoScree
     );
   }
 
+  void _veTrangNhanSu(BuildContext context) {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.hospitalDashboard,
+        (route) => false,
+        arguments: 2,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -223,7 +259,10 @@ class _DanhSachTaiKhoanDaTaoScreenState extends State<DanhSachTaiKhoanDaTaoScree
                 Expanded(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -261,7 +300,10 @@ class _DanhSachTaiKhoanDaTaoScreenState extends State<DanhSachTaiKhoanDaTaoScree
                               onTap: () => _saoChepTatCa(context),
                               borderRadius: BorderRadius.circular(6),
                               child: const Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 2,
+                                ),
                                 child: Text(
                                   'Sao chép tất cả',
                                   style: TextStyle(
@@ -277,8 +319,16 @@ class _DanhSachTaiKhoanDaTaoScreenState extends State<DanhSachTaiKhoanDaTaoScree
                         const SizedBox(height: 10),
 
                         // Danh sách thẻ tài khoản
-                        for (int i = 0; i < _selectedBatch.danhSachTaiKhoan.length; i++) ...[
-                          _buildAccountCard(context, i + 1, _selectedBatch.danhSachTaiKhoan[i]),
+                        for (
+                          int i = 0;
+                          i < _selectedBatch.danhSachTaiKhoan.length;
+                          i++
+                        ) ...[
+                          _buildAccountCard(
+                            context,
+                            i + 1,
+                            _selectedBatch.danhSachTaiKhoan[i],
+                          ),
                           const SizedBox(height: 10),
                         ],
                       ],
@@ -308,7 +358,7 @@ class _DanhSachTaiKhoanDaTaoScreenState extends State<DanhSachTaiKhoanDaTaoScree
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           InkWell(
-            onTap: () => Navigator.maybePop(context),
+            onTap: () => _veTrangNhanSu(context),
             borderRadius: BorderRadius.circular(10),
             child: Container(
               width: 36,
@@ -358,7 +408,9 @@ class _DanhSachTaiKhoanDaTaoScreenState extends State<DanhSachTaiKhoanDaTaoScree
                 onTap: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Đang chuẩn bị file danh sách tài khoản...'),
+                      content: Text(
+                        'Đang chuẩn bị file danh sách tài khoản...',
+                      ),
                       duration: Duration(seconds: 1),
                     ),
                   );
@@ -576,7 +628,9 @@ class _DanhSachTaiKhoanDaTaoScreenState extends State<DanhSachTaiKhoanDaTaoScree
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Đang xuất danh sách tài khoản ra file Excel / PDF...'),
+                    content: Text(
+                      'Đang xuất danh sách tài khoản ra file Excel / PDF...',
+                    ),
                     backgroundColor: Color(0xFF0284C7),
                   ),
                 );
@@ -601,13 +655,7 @@ class _DanhSachTaiKhoanDaTaoScreenState extends State<DanhSachTaiKhoanDaTaoScree
             width: double.infinity,
             height: 48,
             child: OutlinedButton(
-              onPressed: () {
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  AppRoutes.hospitalDashboard,
-                  (route) => false,
-                );
-              },
+              onPressed: () => _veTrangNhanSu(context),
               style: OutlinedButton.styleFrom(
                 backgroundColor: Colors.white,
                 foregroundColor: const Color(0xFF334155),
@@ -617,7 +665,7 @@ class _DanhSachTaiKhoanDaTaoScreenState extends State<DanhSachTaiKhoanDaTaoScree
                 ),
               ),
               child: const Text(
-                'Về trang chủ Quản lý',
+                'Quay lại trang Nhân sự',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
             ),

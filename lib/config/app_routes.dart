@@ -51,7 +51,8 @@ class AppRoutes {
   static const String ticket = '/ticket';
 
   static const String hospitalDashboard = '/hospital-dashboard';
-  static const String hospitalRequestCollaboration = '/hospital-request-collaboration';
+  static const String hospitalRequestCollaboration =
+      '/hospital-request-collaboration';
   static const String hospitalRequestSuccess = '/hospital-request-success';
   static const String addClinic = '/add-clinic';
   static const String staffManagement = '/staff-management';
@@ -88,10 +89,15 @@ class AppRoutes {
     supportHome: (_) => const SupportHomeScreen(),
     chatList: (_) => const ChatListScreen(),
     ticket: (_) => const TicketScreen(),
-    hospitalDashboard: (_) => const HomeHospitalScreen(),
+    hospitalDashboard: (context) {
+      final tabIndex =
+          ModalRoute.of(context)?.settings.arguments as int? ?? 0;
+      return HomeHospitalScreen(initialTabIndex: tabIndex);
+    },
     hospitalRequestCollaboration: (_) => const GuiYeuCauHopTacScreen(),
     hospitalRequestSuccess: (context) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      final args =
+          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       return GuiDonThanhCongScreen(
         maHoSo: args?['maHoSo'] ?? '#HS-BV-202688',
         tenBenhVien: args?['tenBenhVien'] ?? 'Bệnh viện Đa Khoa An Bình',

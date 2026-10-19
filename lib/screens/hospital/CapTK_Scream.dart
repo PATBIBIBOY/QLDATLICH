@@ -135,7 +135,7 @@ class _CapTaiKhoanNhanVienScreenState
     );
     StaffAccountStore.luuDotCap(dotMoi);
 
-    Navigator.push(
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (_) => DanhSachTaiKhoanDaTaoScreen(

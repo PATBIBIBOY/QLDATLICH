@@ -26,15 +26,22 @@ String _chuVietTat(String ten) {
 }
 
 class HomeHospitalScreen extends StatefulWidget {
-  const HomeHospitalScreen({super.key});
+  final int initialTabIndex;
+  const HomeHospitalScreen({super.key, this.initialTabIndex = 0});
 
   @override
   State<HomeHospitalScreen> createState() => _HomeHospitalScreenState();
 }
 
 class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
-  int _currentBottomNavIndex = 0;
+  late int _currentBottomNavIndex;
   bool _dangGuiDon = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentBottomNavIndex = widget.initialTabIndex;
+  }
 
   String _getHospitalUid(BuildContext context) {
     final auth = context.read<AuthProvider>();
