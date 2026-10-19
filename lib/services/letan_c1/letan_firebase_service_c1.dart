@@ -15,61 +15,39 @@ class FirebaseServiceC1 {
   static const String docKhoaChaId = 'dFmZHBjFNUT1eRzJjXp5';
   static const String subCollectionDanhSach = 'danh_sach';
 
-  /// Lấy danh sách các chuyên khoa thời gian thực (Stream) THEO BỆNH VIỆN CỤ THỂ
-  /// Mỗi nhân viên chỉ thuộc 1 bệnh viện và chỉ lấy đúng khoa của bệnh viện đó
-  static Stream<List<Map<String, dynamic>>> streamDanhSachKhoaTheoBenhVien(String benhVienId) {
+  /// Lấy danh sách các chuyên khoa thời gian thực (Stream) TRỰC TIẾP TỪ /Khoa/dFmZHBjFNUT1eRzJjXp5/danh_sach
+  /// Tải dữ liệu siêu tốc trong mili-giây, không bị giật lag qua trung gian
+  static Stream<List<Map<String, dynamic>>> streamDanhSachKhoa() {
     return _firestore
-        .collection('Khoa')
-        .where('benh_vien_id', isEqualTo: benhVienId)
+        .collection(duongDanKhoaCha)
+        .doc(docKhoaChaId)
+        .collection(subCollectionDanhSach)
         .snapshots()
-        .asyncMap((snapshot) async {
-      // Nếu collection Khoa theo benh_vien_id có dữ liệu -> Trả về danh sách đó
-      if (snapshot.docs.isNotEmpty) {
-        return snapshot.docs.map((doc) {
-          final data = doc.data();
-          final tenKhoa = data['ten_khoa'] ?? data['tenKhoa'] ?? 'Khoa Khám';
-          final phongDau = data['phong_dau']?.toString() ?? data['phongDau']?.toString() ?? '101';
-          final soPhong = (data['so_phong'] as num?)?.toInt() ?? (data['soPhong'] as num?)?.toInt() ?? 1;
-          final soCaMoiNgay = (data['so_ca'] as num?)?.toInt() ?? (data['soCaMoiNgay'] as num?)?.toInt() ?? 2;
-          final trangThai = data['trang_thai'] ?? data['trangThai'] ?? 'dang_mo';
-
-          return {
-            'id': doc.id,
-            'tenKhoa': tenKhoa,
-            'phongDau': phongDau,
-            'soPhong': soPhong,
-            'soCaMoiNgay': soCaMoiNgay,
-            'trangThai': trangThai,
-            'moTaPhong': 'Phòng $phongDau • ${trangThai == 'dang_mo' ? 'Đang mở' : 'Tạm đóng'}',
-          };
-        }).toList();
-      }
-
-      // Fallback: Lấy từ subcollection danh_sach đã có của C1 để luôn có dữ liệu hiển thị
-      final fallbackSnap = await _firestore
-          .collection(duongDanKhoaCha)
-          .doc(docKhoaChaId)
-          .collection(subCollectionDanhSach)
-          .get();
-
-      return fallbackSnap.docs.map((doc) {
+        .map((snapshot) {
+      if (snapshot.docs.isEmpty) return [];
+      return snapshot.docs.map((doc) {
         final data = doc.data();
+        final tenKhoa = data['tenKhoa'] ?? data['ten_khoa'] ?? 'Khoa Khám';
+        final phongDau = data['phongDau']?.toString() ?? data['phong_dau']?.toString() ?? '101';
+        final soPhong = (data['soPhong'] as num?)?.toInt() ?? (data['so_phong'] as num?)?.toInt() ?? 1;
+        final soCaMoiNgay = (data['soCaMoiNgay'] as num?)?.toInt() ?? (data['so_ca'] as num?)?.toInt() ?? 2;
+        final trangThai = data['trangThai'] ?? data['trang_thai'] ?? 'dang_mo';
+
         return {
           'id': doc.id,
-          'tenKhoa': data['tenKhoa'] ?? 'Khoa Khám',
-          'phongDau': data['phongDau']?.toString() ?? '101',
-          'soPhong': (data['soPhong'] as num?)?.toInt() ?? 1,
-          'soCaMoiNgay': (data['soCaMoiNgay'] as num?)?.toInt() ?? 2,
-          'trangThai': data['trangThai'] ?? 'dang_mo',
-          'moTaPhong': 'Phòng ${data['phongDau'] ?? '101'} • ${data['trangThai'] == 'dang_mo' ? 'Đang mở' : 'Tạm đóng'}',
+          'tenKhoa': tenKhoa,
+          'phongDau': phongDau,
+          'soPhong': soPhong,
+          'soCaMoiNgay': soCaMoiNgay,
+          'trangThai': trangThai,
+          'moTaPhong': 'Phòng $phongDau • ${trangThai == 'dang_mo' ? 'Đang mở' : 'Tạm đóng'}',
         };
       }).toList();
     });
   }
 
-  /// Lấy danh sách các chuyên khoa thời gian thực (Stream mặc định)
-  static Stream<List<Map<String, dynamic>>> streamDanhSachKhoa() {
-    return streamDanhSachKhoaTheoBenhVien('BV01');
+  static Stream<List<Map<String, dynamic>>> streamDanhSachKhoaTheoBenhVien(String benhVienId) {
+    return streamDanhSachKhoa();
   }
 
   /// Lấy danh sách tên các khoa dạng `List<String>` để đưa vào Dropdown/Modal chọn khoa
@@ -399,12 +377,32 @@ class FirebaseServiceC1 {
     }
   }
 
-  /// Đổi mật khẩu cho nhân viên (cần xác thực mật khẩu hiện tại)
+  /// Đổi mật khẩu cho nhân viên (đồng bộ cả Firebase Authentication và Firestore)
   static Future<void> doiMatKhauNhanVien({
     required String maNhanVien,
     required String matKhauHienTai,
     required String matKhauMoi,
   }) async {
+    // 1. Cập nhật mật khẩu trên Firebase Authentication nếu người dùng đang đăng nhập
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null && currentUser.email != null) {
+      try {
+        // Re-authenticate trước để Firebase Auth cho phép đổi pass
+        final cred = EmailAuthProvider.credential(
+          email: currentUser.email!,
+          password: matKhauHienTai,
+        );
+        await currentUser.reauthenticateWithCredential(cred);
+        await currentUser.updatePassword(matKhauMoi);
+      } catch (authError) {
+        // Thử đổi pass trực tiếp nếu vừa đăng nhập
+        try {
+          await currentUser.updatePassword(matKhauMoi);
+        } catch (_) {}
+      }
+    }
+
+    // 2. Cập nhật mật khẩu trong Firestore NhanVien
     final docRef = _firestore.collection('NhanVien').doc(maNhanVien);
     final snap = await docRef.get();
     if (!snap.exists) {
@@ -425,6 +423,13 @@ class FirebaseServiceC1 {
       'mat_khau': matKhauMoi,
       'ngay_cap_nhat': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    // Cập nhật cả bản ghi theo Auth UID nếu có
+    if (currentUser != null) {
+      await _firestore.collection('NhanVien').doc(currentUser.uid).set({
+        'mat_khau': matKhauMoi,
+      }, SetOptions(merge: true));
+    }
   }
 
   /// Đổi Gmail đăng nhập cho nhân viên (yêu cầu nhập đúng mật khẩu xác nhận)

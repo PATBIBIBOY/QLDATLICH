@@ -40,49 +40,6 @@ class CskhDuyetdonKhoaScreenC1 extends StatefulWidget {
 class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
   int _currentBottomNavIndex = 0; // 0: Trang chủ, 1: Duyệt đơn, 2: CSKH, 3: Profile
 
-  // Danh sách 5 chuyên khoa theo thiết kế Figma
-  final List<KhoaKhamModelC1> _danhSachKhoa = const [
-    KhoaKhamModelC1(
-      tenKhoa: 'Khoa Tim Mạch',
-      moTaPhong: 'Phòng 201 • Ca sáng &\nchiều',
-      soLuongDon: '25/25\nĐơn',
-      icon: Icons.favorite_border_rounded,
-      laKhoaDangChon: true,
-      laDayDon: true,
-    ),
-    KhoaKhamModelC1(
-      tenKhoa: 'Khoa Nội Tổng Quát',
-      moTaPhong: 'Phòng 102 • BS. Nguyễn Văn Hùng',
-      soLuongDon: '20 Đơn',
-      icon: Icons.local_hospital_outlined,
-      laKhoaDangChon: false,
-      laDayDon: false,
-    ),
-    KhoaKhamModelC1(
-      tenKhoa: 'Khoa Nhi',
-      moTaPhong: 'Phòng 305 • Khám nhi đồng',
-      soLuongDon: '15 Đơn',
-      icon: Icons.child_care_rounded,
-      laKhoaDangChon: false,
-      laDayDon: false,
-    ),
-    KhoaKhamModelC1(
-      tenKhoa: 'Khoa Răng Hàm Mặt',
-      moTaPhong: 'Phòng 401 • Nha khoa chuyên sâu',
-      soLuongDon: '12 Đơn',
-      icon: Icons.sentiment_satisfied_alt_rounded,
-      laKhoaDangChon: false,
-      laDayDon: false,
-    ),
-    KhoaKhamModelC1(
-      tenKhoa: 'Khoa Mắt',
-      moTaPhong: 'Phòng 204 • Đo thị lực & khúc xạ',
-      soLuongDon: '10 Đơn',
-      icon: Icons.remove_red_eye_outlined,
-      laKhoaDangChon: false,
-      laDayDon: false,
-    ),
-  ];
 
   // Danh sách thông báo lấy từ lớp dữ liệu tập trung
   final List<ThongBaoLeTanC1> _thongBaoCskh = DuLieuCskhKhoaC1.danhSachThongBao;
@@ -442,10 +399,45 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
           StreamBuilder<List<Map<String, dynamic>>>(
             stream: FirebaseServiceC1.streamDanhSachKhoa(),
             builder: (context, snapshot) {
-              // Nếu đang tải hoặc chưa có dữ liệu từ Firebase -> Dùng danh sách mẫu để không bao giờ bị trắng màn hình
+              // Trong lúc đang tải từ Firebase: Hiển thị hiệu ứng tải nhẹ, KHÔNG hiển thị danh sách mock cũ
+              if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 30),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(
+                          width: 26,
+                          height: 26,
+                          child: CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFF0284C7)),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Đang tải danh sách khoa...',
+                          style: TextStyle(
+                            color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return Column(
-                  children: _danhSachKhoa.map((khoa) => _buildCardKhoa(khoa, isDark)).toList(),
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Text(
+                      'Chưa có chuyên khoa nào được mở.',
+                      style: TextStyle(
+                        color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
                 );
               }
 
