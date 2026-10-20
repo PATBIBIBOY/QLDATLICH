@@ -27,6 +27,7 @@ Future<void> main() async {
   //await SpecialtySeeder.seedSpecialties();
   //await PhongKhamSeeder.seedPhongKham(); 
   //await LichHenSeeder.seedAllLichHen();
+  //await LichHenSeeder.seedCaKham();
   //await DanhGiaSeeder.seedAllDanhGia();
   runApp(const QLDatLichApp());
 }

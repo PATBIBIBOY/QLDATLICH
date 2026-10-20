@@ -19,12 +19,11 @@ class LichHenProvider extends ChangeNotifier {
 
   // ── Lịch hẹn của tôi ──
   List<LichHenModel> _myBookings = [];
+  
   bool _isLoadingMyBookings = false;
   String? _myBookingsError;
   int _myBookingsToken = 0; // bỏ kết quả của lần tải cũ về trễ
 
-  /// Mã trạng thái (bảng TrangThai) coi là "lịch sử":
-  /// 5 = Hoàn thành, 6 = Vắng mặt. Các trạng thái còn lại là lịch hẹn đang theo dõi.
   static const Set<String> _historyStatusIds = {'5', '6'};
 
   /// Khoá để tra cứu cache: bệnh viện | khoa | phòng | ngày | (ca)
@@ -51,10 +50,6 @@ class LichHenProvider extends ChangeNotifier {
   bool isLoadingSlots(String key) => _loadingSlotKeys.contains(key);
   String? slotsErrorOf(String key) => _slotErrors[key];
 
-  /// Tải tình trạng các ca của 1 phòng khám trong 1 ngày.
-  /// [soBenhNhanToiDa]: số bệnh nhân tối đa của phòng khám, dùng làm tổng số chỗ
-  /// khi bệnh viện / ngày đó chưa có dữ liệu trong LichHen (hiện "còn 31/31").
-  /// Đã có trong cache thì không tải lại (trừ khi [force] = true).
   Future<void> loadSlots({
     required DateTime ngay,
     required String benhVienId,
@@ -101,8 +96,7 @@ class LichHenProvider extends ChangeNotifier {
   bool isLoadingLichHen(String key) => _loadingLichHenKeys.contains(key);
   String? lichHenErrorOf(String key) => _lichHenErrors[key];
 
-  /// Tải DANH SÁCH LỊCH HẸN của 1 phòng khám trong 1 ngày
-  /// ([caId] = null: tất cả các ca).
+
   Future<void> loadLichHenList({
     required DateTime ngay,
     required String benhVienId,
@@ -181,6 +175,48 @@ class LichHenProvider extends ChangeNotifier {
     }
   }
 
+ 
+  Future<void> huyLichHen({
+    required String benhNhanId,
+    required String lichHenId,
+    String? lyDoHuy,
+  }) async {
+    await _service.huyLichHenTheoId(
+      benhNhanId: benhNhanId,
+      lichHenId: lichHenId,
+      lyDoHuy: lyDoHuy,
+    );
+ 
+    final token = ++_myBookingsToken;
+    try {
+      final result = await _service.getLichHenCuaBenhNhan(benhNhanId);
+      if (token == _myBookingsToken) _myBookings = result;
+    } catch (e) {
+      debugPrint('Không tải lại được lịch hẹn sau khi hủy: $e');
+    }
+ 
+    clearCache(); // số chỗ của ca vừa hủy có thể thay đổi (đã notifyListeners)
+  }
+
+  Future<void> xoaLichHen({
+    required String benhNhanId,
+    required String lichHenId,
+  }) async {
+    await _service.xoaLichHenTheoId(
+      benhNhanId: benhNhanId,
+      lichHenId: lichHenId,
+    );
+ 
+    final token = ++_myBookingsToken;
+    try {
+      final result = await _service.getLichHenCuaBenhNhan(benhNhanId);
+      if (token == _myBookingsToken) _myBookings = result;
+    } catch (e) {
+      debugPrint('Không tải lại được lịch hẹn sau khi xóa: $e');
+    }
+    notifyListeners();
+  }
+ 
   /// Gọi khi đăng xuất để không lộ lịch hẹn của tài khoản trước.
   void clearMyBookings() {
     _myBookingsToken++; // huỷ mọi lần tải đang chạy

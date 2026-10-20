@@ -81,13 +81,6 @@ class LichHenSeeder {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // 2. SEED LỊCH HẸN CHO NHIỀU NGÀY (18 -> 22/10/2026)
-  //    Ngày -> Ca -> Bệnh viện (BV001) -> Khoa -> Phòng khám
-  //    -> Bệnh nhân -> Lịch hẹn
-  //
-  // [force] = false: ngày nào đã có dữ liệu thì bỏ qua (tránh tạo trùng).
-  // ═══════════════════════════════════════════════════════════════
   static Future<void> seedLichHen({bool force = false}) async {
     print('⏳ Đang tạo lịch hẹn cho ${_danhSachNgayHen.length} ngày...');
 
@@ -95,7 +88,13 @@ class LichHenSeeder {
       // ── 0. Xác định ngày nào cần seed (bỏ qua ngày đã có dữ liệu) ──
       final List<DateTime> ngayCanSeed = [];
       for (final ngay in _danhSachNgayHen) {
-        final ngayRef = _firestore.collection(_colLichHen).doc(_ngayId(ngay));
+        // Kiểm tra xem ngày này đã có trong nhánh của trạng thái '2' chưa
+        final ngayRef = _firestore
+            .collection(_colLichHen)
+            .doc('2') // Document đầu tiên là trạng thái id = 2
+            .collection('danh_sach')
+            .doc(_ngayId(ngay));
+
         if (!force && (await ngayRef.get()).exists) {
           print('⚠️ Ngày ${_ngayHienThi(ngay)} đã có dữ liệu, bỏ qua.');
         } else {
@@ -199,14 +198,18 @@ class LichHenSeeder {
   }) async {
     final ngayId = _ngayId(ngay);
     final ngayCode = _ngayCode(ngay);
-    final ngayRef = _firestore.collection(_colLichHen).doc(ngayId);
+
+    // ✅ THAY ĐỔI: Document đầu tiên là trạng thái id = '2'
+    final trangThaiId = '2';
+    final rootRef = _firestore.collection(_colLichHen).doc(trangThaiId);
+    final ngayRef = rootRef.collection('danh_sach').doc(ngayId);
 
     print('\n════════ Ngày ${_ngayHienThi(ngay)} (id: $ngayId) ════════');
 
     final writer = _BatchWriter(_firestore);
     int soLichHen = 0; // đếm trong ngày này
 
-    // Cấp 1: ngày
+    // Cấp 1: ngày (nằm trong collection 'danh_sach' của document trạng thái)
     await writer.set(ngayRef, {
       'ngay': Timestamp.fromDate(ngay),
       'ngay_hien_thi': _ngayHienThi(ngay),
@@ -220,13 +223,13 @@ class LichHenSeeder {
 
       final caRef = ngayRef.collection(_colCaTrongNgay).doc(caId);
       await writer.set(caRef, {
-        'ca_id': caId, // id của bảng Ca
+        'ca_id': caId,
         'ten_ca': ca['ten_ca'],
         'gio_bat_dau': ca['gio_bat_dau'],
         'gio_ket_thuc': ca['gio_ket_thuc'],
       });
 
-      // Cấp 3: bệnh viện BV001
+      // Cấp 3: bệnh viện
       final bvRef = caRef.collection(_colBenhVien).doc(_benhVienId);
       await writer.set(bvRef, {
         'benh_vien_id': _benhVienId,
@@ -265,31 +268,32 @@ class LichHenSeeder {
             // Id bệnh nhân giả lập: BN0001, BN0002...
             final benhNhanId = 'BN${soLichHen.toString().padLeft(4, '0')}';
             // Id lịch hẹn có kèm ngày nên không trùng giữa các ngày
-            final lichHenId = 'LH$ngayCode${soLichHen.toString().padLeft(5, '0')}';
+            final lichHenId =
+                'LH$ngayCode${soLichHen.toString().padLeft(5, '0')}';
 
             // Giờ dự kiến ngẫu nhiên trong ca
             final int hour = caId == 'ca_sang'
-                ? _random.nextInt(5) + 7 // 7 - 11
+                ? _random.nextInt(5) +
+                      7 // 7 - 11
                 : _random.nextInt(4) + 13; // 13 - 16
             final int minute = _random.nextInt(4) * 15; // 0, 15, 30, 45
             final gioDuKien =
                 '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
 
-            // Trạng thái theo bảng TrangThai: 1 = Chờ duyệt,
-            // 2 = Đã xác nhận, 3 = Chưa xác nhận
-            final trangThaiId = _random.nextInt(3) + 1;
+            // ✅ Đặt cứng trạng thái là 2 (Đã xác nhận) để khớp với document gốc
+            final trangThaiIdValue = 2;
 
             final lichHenData = {
               'id': lichHenId,
               'ngay_hen': Timestamp.fromDate(ngay),
-              'ca_id': caId, // ← id của bảng Ca (ca_sang / ca_chieu)
-              'benh_vien_id': _benhVienId, // ← id bệnh viện
+              'ca_id': caId,
+              'benh_vien_id': _benhVienId,
               'khoa_id': khoa.id,
               'phong_kham_id': phongKhamId,
               'benh_nhan_id': benhNhanId,
               'gio_du_kien': gioDuKien,
               'so_thu_tu': i,
-              'trang_thai_id': trangThaiId,
+              'trang_thai_id': trangThaiIdValue, // Khớp với document gốc
               'nguoi_duyet_id': null,
               'ly_do_tu_choi': null,
               'thoi_gian_duyet': null,
@@ -302,7 +306,7 @@ class LichHenSeeder {
               'ngay_cap_nhat': FieldValue.serverTimestamp(),
             };
 
-            // Cấp 6: document bệnh nhân (chứa danh sách id lịch hẹn bên dưới)
+            // Cấp 6: document bệnh nhân
             final benhNhanRef = phongKhamRef
                 .collection(_colBenhNhan)
                 .doc(benhNhanId);
@@ -311,7 +315,7 @@ class LichHenSeeder {
               'so_lich_hen': 1,
             });
 
-            // Cấp 7: danh sách id lịch hẹn của bệnh nhân -> dữ liệu lịch hẹn
+            // Cấp 7: document lịch hẹn cụ thể
             final lichHenRef = benhNhanRef
                 .collection(_colLichHenCuaBenhNhan)
                 .doc(lichHenId);
@@ -330,6 +334,111 @@ class LichHenSeeder {
     return soLichHen;
   }
 
+    /// Tạo duy nhất 1 lịch hẹn test cho một UID cụ thể vào ngày 21/10/2026, trạng thái 2.
+  static Future<void> seedSingleTestAppointment({
+    String benhVienId = 'BV001',       // Có thể đổi nếu ID bệnh viện của bạn khác
+    String khoaId = 'K001',            // Có thể đổi nếu ID khoa của bạn khác
+    String phongKhamId = 'PK001',      // Có thể đổi nếu ID phòng khám của bạn khác
+    String caId = 'ca_sang',           // 'ca_sang' hoặc 'ca_chieu'
+  }) async {
+    print('⏳ Đang tạo 1 lịch hẹn test cho UID: tGBCLSp8r7TcEs2kk3MXoKwZkaB3...');
+
+    final db = FirebaseFirestore.instance;
+    final batch = db.batch(); // Dùng batch để đảm bảo tính toàn vẹn dữ liệu
+
+    // ── 1. Các biến cố định theo yêu cầu ──
+    final targetDate = DateTime(2026, 10, 21);
+    final ngayId = '2026-10-21';
+    final trangThaiId = '2'; // Document gốc là '2'
+    final benhNhanId = 'tGBCLSp8r7TcEs2kk3MXoKwZkaB3';
+    final lichHenId = 'LH_TEST_${DateTime.now().millisecondsSinceEpoch}';
+
+    // ── 2. Xây dựng cấu trúc Nested và thêm vào Batch ──
+    
+    // Cấp 1: Document trạng thái
+    final rootRef = db.collection('LichHen').doc(trangThaiId);
+    batch.set(rootRef, {'trang_thai_id': trangThaiId}, SetOptions(merge: true));
+
+    // Cấp 2: Ngày
+    final ngayRef = rootRef.collection('danh_sach').doc(ngayId);
+    batch.set(ngayRef, {
+      'ngay': Timestamp.fromDate(targetDate),
+      'ngay_hien_thi': 'Thứ Tư, 21/10/2026', 
+      'ngay_tao': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    // Cấp 3: Ca khám
+    final caRef = ngayRef.collection('ca').doc(caId);
+    batch.set(caRef, {
+      'ca_id': caId,
+      'ten_ca': caId == 'ca_sang' ? 'Ca sáng' : 'Ca chiều',
+      'gio_bat_dau': caId == 'ca_sang' ? '07:30' : '13:30',
+      'gio_ket_thuc': caId == 'ca_sang' ? '11:30' : '17:00',
+    }, SetOptions(merge: true));
+
+    // Cấp 4: Bệnh viện
+    final bvRef = caRef.collection('benh_vien').doc(benhVienId);
+    batch.set(bvRef, {'benh_vien_id': benhVienId}, SetOptions(merge: true));
+
+    // Cấp 5: Khoa
+    final khoaRef = bvRef.collection('khoa').doc(khoaId);
+    batch.set(khoaRef, {'khoa_id': khoaId}, SetOptions(merge: true));
+
+    // Cấp 6: Phòng khám
+    final phongKhamRef = khoaRef.collection('phong_kham').doc(phongKhamId);
+    batch.set(phongKhamRef, {
+      'phong_kham_id': phongKhamId,
+      'so_benh_nhan_toi_da': 25,
+      'so_lich_hen': 1, // Chỉ có 1 lịch hẹn này trong phòng
+    }, SetOptions(merge: true));
+
+    // Cấp 7: Bệnh nhân
+    final benhNhanRef = phongKhamRef.collection('benh_nhan').doc(benhNhanId);
+    batch.set(benhNhanRef, {
+      'benh_nhan_id': benhNhanId,
+      'so_lich_hen': 1,
+    }, SetOptions(merge: true));
+
+    // Cấp 8: Dữ liệu lịch hẹn cụ thể
+    final lichHenRef = benhNhanRef.collection('lich_hen').doc(lichHenId);
+    final lichHenData = {
+      'id': lichHenId,
+      'ngay_hen': Timestamp.fromDate(targetDate),
+      'ca_id': caId,
+      'benh_vien_id': benhVienId,
+      'khoa_id': khoaId,
+      'phong_kham_id': phongKhamId,
+      'benh_nhan_id': benhNhanId,
+      'gio_du_kien': caId == 'ca_sang' ? '08:00' : '14:00', // Giờ cố định cho dễ test
+      'so_thu_tu': 1,
+      'trang_thai_id': 2, // Lưu dưới dạng số nguyên 2 để khớp với logic map trạng thái
+      'nguoi_duyet_id': null,
+      'ly_do_tu_choi': null,
+      'thoi_gian_duyet': null,
+      'ma_qr': 'QR_TEST_${DateTime.now().millisecondsSinceEpoch}',
+      'qr_da_su_dung': 0,
+      'qr_het_han_luc': null,
+      'ly_do_huy': null,
+      'ngay_tao': FieldValue.serverTimestamp(),
+      'ngay_cap_nhat': FieldValue.serverTimestamp(),
+    };
+    batch.set(lichHenRef, lichHenData);
+
+    // ── 3. Thực thi Batch ──
+    try {
+      await batch.commit();
+      print('✅ ĐÃ TẠO THÀNH CÔNG 1 lịch hẹn test!');
+      print('   👤 UID Bệnh nhân : $benhNhanId');
+      print('   📅 Ngày khám      : $ngayId');
+      print('   🏥 Bệnh viện/Khoa : $benhVienId / $khoaId');
+      print('   📝 ID Lịch hẹn    : $lichHenId');
+      print('   🔖 Trạng thái     : $trangThaiId (Đã xác nhận)');
+    } catch (e) {
+      print('❌ Lỗi khi tạo lịch hẹn test: $e');
+      rethrow;
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════
   // 3. CHẠY TẤT CẢ
   // ═══════════════════════════════════════════════════════════════
@@ -337,8 +446,9 @@ class LichHenSeeder {
     print('⏳ Bắt đầu quá trình seeding lịch hẹn...\n');
 
     try {
-      await seedCaKham();
-      await seedLichHen();
+      //await seedCaKham();
+      //await seedLichHen();
+      await seedSingleTestAppointment();
 
       print('\n🎉 HOÀN TẤT TOÀN BỘ SEEDING LỊCH HẸN!');
     } catch (error) {

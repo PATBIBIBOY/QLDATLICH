@@ -1021,10 +1021,9 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         hospitalId: _hospitalId,
         khoaId: departmentId,
       );
+      
       if (!mounted) return;
-      for (final r in rooms) {
-        debugPrint('🏥 phòng ${_roomIdOf(r)}: tối đa = ${_roomMaxOf(r)}');
-      }
+
       setState(() {
         _roomsByDept[departmentId] = rooms;
         _loadingRoomDepts.remove(departmentId);
@@ -3270,7 +3269,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         .toLowerCase();
     final bhytNote = (bhyt == 'co_bhyt' || bhyt == 'có bhyt')
         ? 'Có hỗ trợ khám BHYT'
-        : 'Thông tin BHYT cần được bệnh viện xác nhận';
+        : 'Không hỗ trợ khám BHYT';
  
     // Gộp các ngày khác nhau (nhiều khoa có thể khám khác ngày)
     final dateLabel = dateLabels.toSet().join(', ');
@@ -3402,7 +3401,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
 }
 
 /// Bản đồ minh hoạ vẽ bằng CustomPaint: khối nhà, đường phố, công viên,
-/// dòng sông và một tuyến đường nét đứt tới bệnh viện.
 class _MiniMapPainter extends CustomPainter {
   const _MiniMapPainter({required this.accent});
 
