@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../services/nhan_vien_service.dart';
 import 'danhSachTaiKhoanDaTao_Screen.dart';
 
 class CapTaiKhoanNhanVienScreen extends StatefulWidget {
@@ -14,7 +15,9 @@ class CapTaiKhoanNhanVienScreen extends StatefulWidget {
 class _CapTaiKhoanNhanVienScreenState
     extends State<CapTaiKhoanNhanVienScreen> {
   static const _blue = Color(0xFF2F83FF);
-  static const _departments = [
+  final NhanVienService _nhanVienService = NhanVienService();
+
+  List<String> _departments = [
     'Khoa Tim Mạch',
     'Khoa Mắt Kỹ Thuật Cao',
     'Khoa Nhi',
@@ -25,6 +28,31 @@ class _CapTaiKhoanNhanVienScreenState
   _StaffRole _selectedRole = _StaffRole.receptionist;
   int _accountCount = 5;
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDepartments();
+  }
+
+  Future<void> _loadDepartments() async {
+    try {
+      final snap = await FirebaseFirestore.instance.collection('Khoa').get();
+      final set = <String>{..._departments};
+      for (final doc in snap.docs) {
+        final ten = (doc.data()['tenKhoa'] ?? doc.data()['ten_khoa'] ?? '')
+            .toString()
+            .trim();
+        if (ten.isNotEmpty) set.add(ten);
+      }
+      if (mounted) {
+        setState(() {
+          _departments = set.toList();
+          _selectedDepartment ??= _departments.first;
+        });
+      }
+    } catch (_) {}
+  }
 
   Future<void> _selectDepartment() async {
     final department = await showModalBottomSheet<String>(
@@ -58,17 +86,22 @@ class _CapTaiKhoanNhanVienScreenState
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 10),
-              ..._departments.map(
-                (department) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(department),
-                  trailing: department == _selectedDepartment
-                      ? const Icon(Icons.check_circle, color: _blue)
-                      : const Icon(
-                          Icons.radio_button_unchecked,
-                          color: Color(0xFFB8C0CC),
-                        ),
-                  onTap: () => Navigator.pop(context, department),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: _departments.map(
+                    (department) => ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(department),
+                      trailing: department == _selectedDepartment
+                          ? const Icon(Icons.check_circle, color: _blue)
+                          : const Icon(
+                              Icons.radio_button_unchecked,
+                              color: Color(0xFFB8C0CC),
+                            ),
+                      onTap: () => Navigator.pop(context, department),
+                    ),
+                  ).toList(),
                 ),
               ),
             ],
@@ -137,66 +170,18 @@ class _CapTaiKhoanNhanVienScreenState
       final deptShort = _getDepartmentCode(_selectedDepartment!);
       final rolePrefix = _getRolePrefix(_selectedRole);
       final roleCode = _getRoleCode(_selectedRole);
-      const commonPassword = StaffAccountStore.matKhauMacDinh;
 
-      final prefix = '${rolePrefix}_${deptShort}_';
-
-      // Kiểm tra tài khoản đã cấp để tự động tăng số thứ tự tránh trùng lặp
-      int startIndex = 1;
-      try {
-        final existingQuery = await FirebaseFirestore.instance
-            .collection('NhanVien')
-            .where('ma_nhan_vien', isGreaterThanOrEqualTo: prefix)
-            .where('ma_nhan_vien', isLessThan: '$prefix\uf8ff')
-            .get();
-
-        int maxIndex = 0;
-        for (final doc in existingQuery.docs) {
-          final ma = (doc.data()['ma_nhan_vien'] ?? doc.id).toString();
-          final part = ma.replaceFirst(prefix, '');
-          final parsed = int.tryParse(part);
-          if (parsed != null && parsed > maxIndex) {
-            maxIndex = parsed;
-          }
-        }
-        startIndex = maxIndex + 1;
-      } catch (e) {
-        debugPrint('Lỗi kiểm tra mã tài khoản cũ: $e');
-      }
-
-      final List<TaiKhoanItem> danhSach = [];
-      final batch = FirebaseFirestore.instance.batch();
-
-      for (int i = 0; i < _accountCount; i++) {
-        final currentNum = startIndex + i;
-        final numStr = currentNum.toString().padLeft(2, '0');
-        final maTk = '$prefix$numStr';
-
-        danhSach.add(TaiKhoanItem(maTk: maTk, matKhau: commonPassword));
-
-        final docRef = FirebaseFirestore.instance.collection('NhanVien').doc(maTk);
-        batch.set(docRef, {
-          'ma_nhan_vien': maTk,
-          'ma_tai_khoan': maTk,
-          'mat_khau': commonPassword,
-          'role': roleCode,
-          'vai_tro': _selectedRole.title,
-          'khoa': _selectedDepartment!,
-          'da_kich_hoat': false,
-          'trang_thai': 'chua_kich_hoat',
-          'ngay_tao': FieldValue.serverTimestamp(),
-        });
-      }
-
-      // Lưu đồng loạt lên Firebase Firestore
-      await batch.commit();
-
-      final dotMoi = DotCapTaiKhoan(
+      // Cấp tài khoản qua service và lưu đồng loạt lên Firebase Firestore
+      final dotMoi = await _nhanVienService.taoVaLuuNhanVien(
         tenKhoa: _selectedDepartment!,
+        deptCode: deptShort,
         vaiTro: _selectedRole.title,
+        rolePrefix: rolePrefix,
+        roleCode: roleCode,
         soLuong: _accountCount,
-        danhSachTaiKhoan: danhSach,
+        matKhau: StaffAccountStore.matKhauMacDinh,
       );
+
       StaffAccountStore.luuDotCap(dotMoi);
 
       if (!mounted) return;

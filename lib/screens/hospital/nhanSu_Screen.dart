@@ -1,79 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../models/nhan_vien_model.dart';
+import '../../services/nhan_vien_service.dart';
 import 'CapTK_Scream.dart';
 import 'danhSachTaiKhoanDaTao_Screen.dart';
 
-class NhanVienModel {
-  final String id;
-  final String hoTen;
-  final String maNv;
-  final String vaiTro;
-  final String role;
-  final String khoa;
-  final String soDienThoai;
-  final String email;
-  final String matKhau;
-  final bool dangHoatDong;
-  final DateTime? ngayTao;
-
-  const NhanVienModel({
-    required this.id,
-    required this.hoTen,
-    required this.maNv,
-    required this.vaiTro,
-    this.role = '',
-    required this.khoa,
-    required this.soDienThoai,
-    required this.email,
-    this.matKhau = '123456',
-    this.dangHoatDong = true,
-    this.ngayTao,
-  });
-
-  factory NhanVienModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? {};
-    final maNv = (data['ma_nhan_vien'] ??
-            data['maNv'] ??
-            data['ma_tai_khoan'] ??
-            doc.id)
-        .toString();
-    final vaiTro = (data['vai_tro'] ?? data['vaiTro'] ?? 'Lễ tân').toString();
-    final hoTen =
-        (data['ho_ten'] ?? data['hoTen'] ?? 'Nhân viên $maNv').toString();
-    final khoa = (data['khoa'] ?? '').toString();
-    final sdt =
-        (data['so_dien_thoai'] ?? data['soDienThoai'] ?? '').toString();
-    final email =
-        (data['email'] ?? '${maNv.toLowerCase()}@benhvien.vn').toString();
-    final matKhau =
-        (data['mat_khau'] ?? data['matKhau'] ?? '123456').toString();
-    final daKichHoat = data['da_kich_hoat'] ?? data['dangHoatDong'] ?? true;
-    final trangThai = (data['trang_thai'] ?? '').toString();
-    final dangHoatDong = trangThai != 'da_khoa' && daKichHoat != false;
-
-    DateTime? dt;
-    final nt = data['ngay_tao'] ?? data['ngayTao'];
-    if (nt is Timestamp) {
-      dt = nt.toDate();
-    }
-
-    return NhanVienModel(
-      id: doc.id,
-      hoTen: hoTen,
-      maNv: maNv,
-      vaiTro: vaiTro,
-      role: (data['role'] ?? '').toString(),
-      khoa: khoa,
-      soDienThoai: sdt,
-      email: email,
-      matKhau: matKhau,
-      dangHoatDong: dangHoatDong,
-      ngayTao: dt,
-    );
-  }
-}
+export '../../models/nhan_vien_model.dart' show NhanVienModel;
 
 class NhanSuScreen extends StatefulWidget {
   final bool isTab;
@@ -84,6 +17,7 @@ class NhanSuScreen extends StatefulWidget {
 }
 
 class _NhanSuScreenState extends State<NhanSuScreen> {
+  final NhanVienService _nhanVienService = NhanVienService();
   String _tuKhoa = '';
   String _filterRole = 'Tất cả';
 
@@ -223,14 +157,10 @@ class _NhanSuScreenState extends State<NhanSuScreen> {
                           final nextStatus = !nv.dangHoatDong;
                           nav.pop();
                           try {
-                            await FirebaseFirestore.instance
-                                .collection('NhanVien')
-                                .doc(nv.id)
-                                .update({
-                              'trang_thai':
-                                  nextStatus ? 'dang_hoat_dong' : 'da_khoa',
-                              'da_kich_hoat': nextStatus,
-                            });
+                            await _nhanVienService.capNhatTrangThai(
+                              nhanVienId: nv.id,
+                              dangHoatDong: nextStatus,
+                            );
                             messenger.showSnackBar(
                               SnackBar(
                                 content: Text(
@@ -315,10 +245,7 @@ class _NhanSuScreenState extends State<NhanSuScreen> {
                         if (confirm == true) {
                           nav.pop();
                           try {
-                            await FirebaseFirestore.instance
-                                .collection('NhanVien')
-                                .doc(nv.id)
-                                .delete();
+                            await _nhanVienService.xoaNhanVien(nv.id);
                             messenger.showSnackBar(
                               SnackBar(
                                 content: Text('Đã xóa nhân viên ${nv.maNv}'),
@@ -371,25 +298,15 @@ class _NhanSuScreenState extends State<NhanSuScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bodyContent = StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance.collection('NhanVien').snapshots(),
+    final bodyContent = StreamBuilder<List<NhanVienModel>>(
+      stream: _nhanVienService.streamNhanVien(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting &&
             !snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final staffDocs = snapshot.data?.docs ?? [];
-        final List<NhanVienModel> allStaff =
-            staffDocs.map((d) => NhanVienModel.fromDoc(d)).toList();
-
-        // Sắp xếp giảm dần theo ngày tạo
-        allStaff.sort((a, b) {
-          if (a.ngayTao == null && b.ngayTao == null) return 0;
-          if (a.ngayTao == null) return 1;
-          if (b.ngayTao == null) return -1;
-          return b.ngayTao!.compareTo(a.ngayTao!);
-        });
+        final allStaff = snapshot.data ?? [];
 
         // Lọc theo từ khóa và vai trò
         final filteredList = allStaff.where((nv) {
@@ -571,204 +488,7 @@ class _NhanSuScreenState extends State<NhanSuScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-
-          // THẺ THÔNG BÁO ĐỢT CẤP TÀI KHOẢN GẦN NHẤT
-          _buildRecentBatchCard(context, staffList),
         ],
-      ),
-    );
-  }
-
-  Widget _buildRecentBatchCard(
-    BuildContext context,
-    List<NhanVienModel> staffList,
-  ) {
-    final batch = StaffAccountStore.dotCapGanNhat;
-
-    if (batch == null) {
-      if (staffList.isEmpty) {
-        return const SizedBox.shrink();
-      }
-      final latestStaff = staffList.first;
-      return InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const DanhSachTaiKhoanDaTaoScreen(),
-            ),
-          );
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF0FDF4),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFBBF7D0)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.check_circle_rounded,
-                  color: Color(0xFF16A34A),
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Tài khoản trên Firestore',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF15803D),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${latestStaff.vaiTro} • ${latestStaff.khoa}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF0F172A),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      'Mã mới nhất: ${latestStaff.maNv} - Chạm để xem danh sách',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                size: 20,
-                color: Color(0xFF16A34A),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => DanhSachTaiKhoanDaTaoScreen(
-              tenKhoa: batch.tenKhoa,
-              vaiTro: batch.vaiTro,
-              soLuong: batch.soLuong,
-              danhSachTaiKhoan: batch.danhSachTaiKhoan,
-            ),
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF0FDF4),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFBBF7D0)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: const Color(0xFFDCFCE7),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.check_circle_rounded,
-                color: Color(0xFF16A34A),
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Text(
-                        'Đợt vừa tạo',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF15803D),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 1.5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF16A34A),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          '${batch.soLuong} TK',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${batch.vaiTro} • ${batch.tenKhoa}',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF0F172A),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 1),
-                  const Text(
-                    'Chạm để xem mã đăng nhập & mật khẩu',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              size: 20,
-              color: Color(0xFF16A34A),
-            ),
-          ],
-        ),
       ),
     );
   }

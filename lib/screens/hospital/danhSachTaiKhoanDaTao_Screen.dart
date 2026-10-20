@@ -1,39 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../../config/app_routes.dart';
+import '../../models/nhan_vien_model.dart';
+import '../../services/nhan_vien_service.dart';
 import 'CapTK_Scream.dart';
 
-class TaiKhoanItem {
-  final String maTk;
-  final String matKhau;
-  final String trangThai;
-
-  const TaiKhoanItem({
-    required this.maTk,
-    required this.matKhau,
-    this.trangThai = 'Chưa kích hoạt',
-  });
-}
-
-class DotCapTaiKhoan {
-  final String id;
-  final String tenKhoa;
-  final String vaiTro;
-  final int soLuong;
-  final List<TaiKhoanItem> danhSachTaiKhoan;
-  final DateTime thoiGian;
-
-  DotCapTaiKhoan({
-    String? id,
-    required this.tenKhoa,
-    required this.vaiTro,
-    required this.soLuong,
-    required this.danhSachTaiKhoan,
-    DateTime? thoiGian,
-  })  : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-        thoiGian = thoiGian ?? DateTime.now();
-}
+export '../../models/nhan_vien_model.dart' show TaiKhoanItem, DotCapTaiKhoan;
 
 class StaffAccountStore {
   // Mật khẩu mặc định chung cho toàn bộ tài khoản nhân viên được cấp
@@ -71,6 +44,7 @@ class DanhSachTaiKhoanDaTaoScreen extends StatefulWidget {
 
 class _DanhSachTaiKhoanDaTaoScreenState
     extends State<DanhSachTaiKhoanDaTaoScreen> {
+  final NhanVienService _nhanVienService = NhanVienService();
   DotCapTaiKhoan? _selectedBatch;
   bool _isLoading = true;
 
@@ -115,42 +89,13 @@ class _DanhSachTaiKhoanDaTaoScreenState
       return;
     }
 
-    // 3. Nếu chưa có, đọc dữ liệu thực tế từ Firebase Firestore
+    // 3. Nếu chưa có, đọc dữ liệu thực tế từ Firebase Firestore thông qua service
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('NhanVien')
-          .get();
-
-      if (snap.docs.isNotEmpty) {
-        final docs = snap.docs;
-        final list = docs.map((d) {
-          final data = d.data();
-          final maTk = (data['ma_nhan_vien'] ??
-                  data['ma_tai_khoan'] ??
-                  d.id)
-              .toString();
-          final matKhau =
-              (data['mat_khau'] ?? StaffAccountStore.matKhauMacDinh).toString();
-          final trangThaiRaw = (data['trang_thai'] ?? '').toString();
-          final daKichHoat = data['da_kich_hoat'] ?? false;
-          final trangThai = daKichHoat == true || trangThaiRaw == 'dang_hoat_dong'
-              ? 'Đang hoạt động'
-              : 'Chưa kích hoạt';
-
-          return TaiKhoanItem(
-            maTk: maTk,
-            matKhau: matKhau,
-            trangThai: trangThai,
-          );
-        }).toList();
-
-        final firstData = docs.first.data();
-        final tenKhoa = (firstData['khoa'] ?? 'Toàn viện').toString();
-        final vaiTro = (firstData['vai_tro'] ?? 'Nhân viên').toString();
-
+      final list = await _nhanVienService.layDanhSachTaiKhoan();
+      if (list.isNotEmpty) {
         final batch = DotCapTaiKhoan(
-          tenKhoa: tenKhoa,
-          vaiTro: vaiTro,
+          tenKhoa: widget.tenKhoa ?? 'Toàn viện',
+          vaiTro: widget.vaiTro ?? 'Nhân viên',
           soLuong: list.length,
           danhSachTaiKhoan: list,
         );

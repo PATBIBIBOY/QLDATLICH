@@ -1,0 +1,114 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class TaiKhoanItem {
+  final String maTk;
+  final String matKhau;
+  final String trangThai;
+
+  const TaiKhoanItem({
+    required this.maTk,
+    required this.matKhau,
+    this.trangThai = 'Chưa kích hoạt',
+  });
+
+  Map<String, dynamic> toMap() => {
+    'maTk': maTk,
+    'matKhau': matKhau,
+    'trangThai': trangThai,
+  };
+
+  factory TaiKhoanItem.fromMap(Map<String, dynamic> map) => TaiKhoanItem(
+    maTk: (map['maTk'] ?? '').toString(),
+    matKhau: (map['matKhau'] ?? '123456').toString(),
+    trangThai: (map['trangThai'] ?? 'Chưa kích hoạt').toString(),
+  );
+}
+
+class DotCapTaiKhoan {
+  final String id;
+  final String tenKhoa;
+  final String vaiTro;
+  final int soLuong;
+  final List<TaiKhoanItem> danhSachTaiKhoan;
+  final DateTime thoiGian;
+
+  DotCapTaiKhoan({
+    String? id,
+    required this.tenKhoa,
+    required this.vaiTro,
+    required this.soLuong,
+    required this.danhSachTaiKhoan,
+    DateTime? thoiGian,
+  })  : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        thoiGian = thoiGian ?? DateTime.now();
+}
+
+class NhanVienModel {
+  final String id;
+  final String hoTen;
+  final String maNv;
+  final String vaiTro;
+  final String role;
+  final String khoa;
+  final String soDienThoai;
+  final String email;
+  final String matKhau;
+  final bool dangHoatDong;
+  final DateTime? ngayTao;
+
+  const NhanVienModel({
+    required this.id,
+    required this.hoTen,
+    required this.maNv,
+    required this.vaiTro,
+    this.role = '',
+    required this.khoa,
+    required this.soDienThoai,
+    required this.email,
+    this.matKhau = '123456',
+    this.dangHoatDong = true,
+    this.ngayTao,
+  });
+
+  factory NhanVienModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? {};
+    final maNv = (data['ma_nhan_vien'] ??
+            data['maNv'] ??
+            data['ma_tai_khoan'] ??
+            doc.id)
+        .toString();
+    final vaiTro = (data['vai_tro'] ?? data['vaiTro'] ?? 'Lễ tân').toString();
+    final hoTen =
+        (data['ho_ten'] ?? data['hoTen'] ?? 'Nhân viên $maNv').toString();
+    final khoa = (data['khoa'] ?? '').toString();
+    final sdt =
+        (data['so_dien_thoai'] ?? data['soDienThoai'] ?? '').toString();
+    final email =
+        (data['email'] ?? '${maNv.toLowerCase()}@benhvien.vn').toString();
+    final matKhau =
+        (data['mat_khau'] ?? data['matKhau'] ?? '123456').toString();
+    final daKichHoat = data['da_kich_hoat'] ?? data['dangHoatDong'] ?? true;
+    final trangThai = (data['trang_thai'] ?? '').toString();
+    final dangHoatDong = trangThai != 'da_khoa' && daKichHoat != false;
+
+    DateTime? dt;
+    final nt = data['ngay_tao'] ?? data['ngayTao'];
+    if (nt is Timestamp) {
+      dt = nt.toDate();
+    }
+
+    return NhanVienModel(
+      id: doc.id,
+      hoTen: hoTen,
+      maNv: maNv,
+      vaiTro: vaiTro,
+      role: (data['role'] ?? '').toString(),
+      khoa: khoa,
+      soDienThoai: sdt,
+      email: email,
+      matKhau: matKhau,
+      dangHoatDong: dangHoatDong,
+      ngayTao: dt,
+    );
+  }
+}
