@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth, FirebaseAuthException;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_routes.dart';
 import '../../config/app_session.dart';
@@ -67,64 +66,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // ✅ 2. Điều hướng thông minh dựa trên dữ liệu thực tế và Role được chọn
       String route;
-      dynamic routeArgs;
-
       if (selectedRoleCode == 'admin' && auth.admin != null) {
         route = AppRoutes.adminDashboard;
       } else if (selectedRoleCode == 'benh_vien' || auth.hospital != null) {
-        final hospitalUid = auth.hospital?.uid ??
+        AppSession.benhVienId = auth.hospital?.uid ??
             FirebaseAuth.instance.currentUser?.uid ??
             '';
-        AppSession.benhVienId = hospitalUid;
-
-        DocumentSnapshot<Map<String, dynamic>>? docSnap;
-        if (hospitalUid.isNotEmpty) {
-          try {
-            docSnap = await FirebaseFirestore.instance
-                .collection('BenhVien')
-                .doc(hospitalUid)
-                .get();
-          } catch (e) {
-            debugPrint('⚠️ Lỗi kiểm tra hồ sơ bệnh viện: $e');
-          }
-        }
-
-        final data = docSnap?.data();
-        final int trangThaiId = (data?['trang_thai_hop_tac_id'] ??
-            auth.hospital?.trangThaiHopTacId ??
-            1) as int;
-
-        final bool daGuiDon = (data?['da_gui_don'] == true) ||
-            (data?['so_giay_phep'] != null &&
-                data!['so_giay_phep'].toString().trim().isNotEmpty);
-
-        final bool daXacThuc = trangThaiId == 2 || trangThaiId == 7;
-
-        if (daXacThuc) {
-          // Bệnh viện đã được Admin phê duyệt hợp tác
-          route = AppRoutes.hospitalDashboard;
-        } else if (daGuiDon) {
-          // Bệnh viện đã gửi đơn, đang chờ Admin duyệt -> Sang màn hình Đã Gửi Đơn
-          route = AppRoutes.hospitalRequestSuccess;
-          routeArgs = {
-            'maHoSo': (data?['ma_ho_so'] ?? '#HS-BV-202688').toString(),
-            'tenBenhVien': (data?['ten_benh_vien'] ??
-                    auth.hospital?.tenBenhVien ??
-                    'Bệnh viện Đa Khoa An Bình')
-                .toString(),
-            'loaiHinh': (data?['loai_hinh'] ?? 'Bệnh viện Tư lập').toString(),
-            'coBhyt': data?['co_bhyt'] ?? true,
-            'hospitalUid': hospitalUid,
-            'extraData': data,
-          };
-        } else {
-          // Tài khoản mới chưa gửi đơn -> Vào màn hình yêu cầu gửi đơn hợp tác
-          route = AppRoutes.hospitalRequestCollaboration;
-          routeArgs = {
-            'tenBenhVien': data?['ten_benh_vien'] ?? auth.hospital?.tenBenhVien,
-            'diaChi': data?['dia_chi'] ?? auth.hospital?.diaChi,
-          };
-        }
+        route = AppRoutes.hospitalDashboard;
       } else if (auth.user != null) {
         route = AppRoutes.patientHome;
       } else {
@@ -132,19 +80,8 @@ class _LoginScreenState extends State<LoginScreen> {
         route = AppRoutes.patientHome;
       }
 
-      if (!mounted) return;
-
-      if (routeArgs != null) {
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          route,
-          (route) => false,
-          arguments: routeArgs,
-        );
-      } else {
-        Navigator.pushNamedAndRemoveUntil(context, route, (route) => false);
-      }
-
+      Navigator.pushNamedAndRemoveUntil(context, route, (route) => false);
+    
     } catch (e) {
       if (!mounted) return;
       
