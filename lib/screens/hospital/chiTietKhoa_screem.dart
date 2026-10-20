@@ -181,36 +181,13 @@ class _ChiTietKhoaScreenState extends State<ChiTietKhoaScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  (data['tenKhoa'] ?? '').toString(),
-                  style: const TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF1F2937),
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, color: Color(0xFF0284C7)),
-                tooltip: 'Sửa thông tin khoa',
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ThemKhoaScreen(
-                        benhVienId: _bvid,
-                        khoaId: widget.khoaId,
-                        duLieuKhoa: data,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
+          Text(
+            (data['tenKhoa'] ?? '').toString(),
+            style: const TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1F2937),
+            ),
           ),
           const Divider(height: 16),
           _dong(

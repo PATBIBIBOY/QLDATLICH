@@ -139,16 +139,23 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
   }
 
   Future<void> _chonGio(int i) async {
+    final caTen = i == 0 ? 'Ca sáng' : 'Ca chiều';
     final bd = await showTimePicker(
       context: context,
       initialTime: _khung[i][0],
-      helpText: 'GIỜ BẮT ĐẦU',
+      initialEntryMode: TimePickerEntryMode.inputOnly,
+      helpText: '$caTen - Nhập giờ bắt đầu',
+      cancelText: 'Hủy',
+      confirmText: 'Tiếp tục',
     );
     if (bd == null || !mounted) return;
     final kt = await showTimePicker(
       context: context,
       initialTime: _khung[i][1],
-      helpText: 'GIỜ KẾT THÚC',
+      initialEntryMode: TimePickerEntryMode.inputOnly,
+      helpText: '$caTen - Nhập giờ kết thúc',
+      cancelText: 'Hủy',
+      confirmText: 'Xác nhận',
     );
     if (kt == null) return;
     setState(() => _khung[i] = [bd, kt]);
@@ -321,7 +328,7 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
             ],
           ),
 
-          _nhan('Thời gian khám', phu: 'Ca sáng & Chiều'),
+          _nhan('Thời gian khám', phu: 'Ca sáng & Chiều (nhập giờ)'),
           Row(
             children: [
               for (var i = 0; i < _khung.length; i++) ...[
@@ -331,16 +338,34 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
                     onTap: () => _chonGio(i),
                     borderRadius: BorderRadius.circular(14),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: Colors.grey.shade300),
                       ),
-                      child: Text(
-                        '${_gio(_khung[i][0])} - ${_gio(_khung[i][1])}',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            i == 0 ? 'Ca sáng' : 'Ca chiều',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${_gio(_khung[i][0])} - ${_gio(_khung[i][1])}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14.5,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
