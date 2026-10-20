@@ -21,29 +21,38 @@ class NhanVienService {
     });
   }
 
-  /// Lấy danh sách toàn bộ tài khoản cho màn hình xem danh sách tài khoản
-  Future<List<TaiKhoanItem>> layDanhSachTaiKhoan() async {
+  /// Lấy danh sách tài khoản vừa tạo chưa kích hoạt
+  Future<List<TaiKhoanItem>> layDanhSachTaiKhoanChuaKichHoat() async {
     final snap = await _nhanVienCol.get();
-    return snap.docs.map((d) {
+    final list = <TaiKhoanItem>[];
+    for (final d in snap.docs) {
       final data = d.data();
+      final daKichHoat = data['da_kich_hoat'] ?? false;
+      final trangThaiRaw = (data['trang_thai'] ?? '').toString();
+
+      // Chỉ lấy các tài khoản chưa kích hoạt
+      if (daKichHoat == true || trangThaiRaw == 'dang_hoat_dong') {
+        continue;
+      }
+
       final maTk = (data['ma_nhan_vien'] ??
               data['ma_tai_khoan'] ??
               d.id)
           .toString();
       final matKhau = (data['mat_khau'] ?? '123456').toString();
-      final trangThaiRaw = (data['trang_thai'] ?? '').toString();
-      final daKichHoat = data['da_kich_hoat'] ?? false;
-      final trangThai = daKichHoat == true || trangThaiRaw == 'dang_hoat_dong'
-          ? 'Đang hoạt động'
-          : 'Chưa kích hoạt';
 
-      return TaiKhoanItem(
+      list.add(TaiKhoanItem(
         maTk: maTk,
         matKhau: matKhau,
-        trangThai: trangThai,
-      );
-    }).toList();
+        trangThai: 'Chưa kích hoạt',
+      ));
+    }
+    return list;
   }
+
+  /// Tương thích ngược: Lấy danh sách tài khoản chưa kích hoạt
+  Future<List<TaiKhoanItem>> layDanhSachTaiKhoan() =>
+      layDanhSachTaiKhoanChuaKichHoat();
 
   /// Cấp mới danh sách tài khoản nhân viên và lưu đồng loạt bằng WriteBatch
   Future<DotCapTaiKhoan> taoVaLuuNhanVien({

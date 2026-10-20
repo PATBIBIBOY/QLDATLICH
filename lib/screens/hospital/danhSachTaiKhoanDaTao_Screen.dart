@@ -58,6 +58,10 @@ class _DanhSachTaiKhoanDaTaoScreenState
     // 1. Nếu có truyền qua constructor
     if (widget.danhSachTaiKhoan != null &&
         widget.danhSachTaiKhoan!.isNotEmpty) {
+      final listChuaKichHoat = widget.danhSachTaiKhoan!
+          .where((e) => e.trangThai == 'Chưa kích hoạt')
+          .toList();
+
       final batch = DotCapTaiKhoan(
         tenKhoa: widget.tenKhoa ??
             StaffAccountStore.dotCapGanNhat?.tenKhoa ??
@@ -65,33 +69,49 @@ class _DanhSachTaiKhoanDaTaoScreenState
         vaiTro: widget.vaiTro ??
             StaffAccountStore.dotCapGanNhat?.vaiTro ??
             'Nhân viên',
-        soLuong: widget.soLuong ?? widget.danhSachTaiKhoan!.length,
-        danhSachTaiKhoan: widget.danhSachTaiKhoan!,
+        soLuong: listChuaKichHoat.length,
+        danhSachTaiKhoan: listChuaKichHoat,
       );
       if (mounted) {
         setState(() {
-          _selectedBatch = batch;
+          _selectedBatch = listChuaKichHoat.isNotEmpty ? batch : null;
           _isLoading = false;
         });
       }
-      StaffAccountStore.luuDotCap(batch);
+      if (listChuaKichHoat.isNotEmpty) {
+        StaffAccountStore.luuDotCap(batch);
+      }
       return;
     }
 
     // 2. Nếu trong store đã có đợt vừa tạo
     if (StaffAccountStore.dotCapGanNhat != null) {
-      if (mounted) {
-        setState(() {
-          _selectedBatch = StaffAccountStore.dotCapGanNhat;
-          _isLoading = false;
-        });
+      final listChuaKichHoat = StaffAccountStore.dotCapGanNhat!.danhSachTaiKhoan
+          .where((e) => e.trangThai == 'Chưa kích hoạt')
+          .toList();
+
+      if (listChuaKichHoat.isNotEmpty) {
+        final batch = DotCapTaiKhoan(
+          id: StaffAccountStore.dotCapGanNhat!.id,
+          tenKhoa: StaffAccountStore.dotCapGanNhat!.tenKhoa,
+          vaiTro: StaffAccountStore.dotCapGanNhat!.vaiTro,
+          soLuong: listChuaKichHoat.length,
+          danhSachTaiKhoan: listChuaKichHoat,
+          thoiGian: StaffAccountStore.dotCapGanNhat!.thoiGian,
+        );
+        if (mounted) {
+          setState(() {
+            _selectedBatch = batch;
+            _isLoading = false;
+          });
+        }
+        return;
       }
-      return;
     }
 
-    // 3. Nếu chưa có, đọc dữ liệu thực tế từ Firebase Firestore thông qua service
+    // 3. Đọc dữ liệu tài khoản chưa kích hoạt từ Firebase Firestore thông qua service
     try {
-      final list = await _nhanVienService.layDanhSachTaiKhoan();
+      final list = await _nhanVienService.layDanhSachTaiKhoanChuaKichHoat();
       if (list.isNotEmpty) {
         final batch = DotCapTaiKhoan(
           tenKhoa: widget.tenKhoa ?? 'Toàn viện',
@@ -375,11 +395,11 @@ class _DanhSachTaiKhoanDaTaoScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.vpn_key_off_rounded,
-                size: 54, color: Colors.grey.shade400),
+            Icon(Icons.check_circle_outline_rounded,
+                size: 54, color: const Color(0xFF16A34A)),
             const SizedBox(height: 12),
             const Text(
-              'Chưa có tài khoản nào được cấp',
+              'Không có tài khoản chưa kích hoạt',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -388,7 +408,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
             ),
             const SizedBox(height: 6),
             const Text(
-              'Hệ thống Firestore chưa có danh sách tài khoản nào. Bạn có thể nhấn nút dưới để cấp tài khoản ngay.',
+              'Tất cả tài khoản nhân viên đã được kích hoạt hoặc chưa có tài khoản mới tạo.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
             ),
@@ -534,7 +554,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Đã tạo thành công ${batch.soLuong} tài khoản',
+                  'Đã tạo thành công ${batch.danhSachTaiKhoan.length} tài khoản',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -543,7 +563,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${batch.tenKhoa} • Vai trò: ${batch.vaiTro}',
+                  '${batch.tenKhoa} • Vai trò: ${batch.vaiTro} (Chưa kích hoạt)',
                   style: const TextStyle(
                     fontSize: 12,
                     color: Color(0xFF047857),
