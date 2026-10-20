@@ -10,16 +10,26 @@ const _xanh = Color(0xFF1E88E5);
 String _gio(TimeOfDay t) =>
     '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
-// ===================== MÀN HÌNH THÊM KHOA MỚI =====================
+// ===================== MÀN HÌNH THÊM / SỬA KHOA =====================
 class ThemKhoaScreen extends StatefulWidget {
   final String benhVienId;
-  const ThemKhoaScreen({super.key, required this.benhVienId});
+  final String? khoaId;
+  final Map<String, dynamic>? duLieuKhoa;
+
+  const ThemKhoaScreen({
+    super.key,
+    required this.benhVienId,
+    this.khoaId,
+    this.duLieuKhoa,
+  });
 
   @override
   State<ThemKhoaScreen> createState() => _ThemKhoaScreenState();
 }
 
 class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
+  bool get _isEditing => widget.khoaId != null && widget.khoaId!.isNotEmpty;
+
   String get _currentBenhVienId {
     if (widget.benhVienId.isNotEmpty &&
         widget.benhVienId != 'dFmZHBjFNUT1eRzJjXp5') {
@@ -46,6 +56,76 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
     ],
   ];
   bool _dangLuu = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEditing && widget.duLieuKhoa != null) {
+      final data = widget.duLieuKhoa!;
+      _ten.text = (data['tenKhoa'] ?? '').toString();
+      _soBuoi.text = (data['soCaMoiNgay'] ?? '2').toString();
+      _slMoiBuoi.text = (data['gioiHanBenhNhan'] ?? '45').toString();
+
+      // Ngày làm việc
+      if (data['ngayLamViec'] is List) {
+        _ngay.clear();
+        for (final n in data['ngayLamViec']) {
+          if (n is int) _ngay.add(n);
+          if (n is num) _ngay.add(n.toInt());
+        }
+      }
+
+      // Khung giờ
+      if (data['khungGio'] is List && (data['khungGio'] as List).isNotEmpty) {
+        final List<List<TimeOfDay>> loadedKhung = [];
+        for (final kg in data['khungGio']) {
+          final bdStr = (kg['batDau'] ?? '07:30').toString();
+          final ktStr = (kg['ketThuc'] ?? '11:30').toString();
+          final bdParts = bdStr.split(':');
+          final ktParts = ktStr.split(':');
+          loadedKhung.add([
+            TimeOfDay(
+              hour: int.tryParse(bdParts[0]) ?? 7,
+              minute:
+                  int.tryParse(bdParts.length > 1 ? bdParts[1] : '30') ?? 30,
+            ),
+            TimeOfDay(
+              hour: int.tryParse(ktParts[0]) ?? 11,
+              minute:
+                  int.tryParse(ktParts.length > 1 ? ktParts[1] : '30') ?? 30,
+            ),
+          ]);
+        }
+        if (loadedKhung.isNotEmpty) {
+          _khung.clear();
+          _khung.addAll(loadedKhung);
+        }
+      }
+
+      // Tải danh sách phòng từ Firestore
+      _taiDanhSachPhong();
+    }
+  }
+
+  Future<void> _taiDanhSachPhong() async {
+    try {
+      final phongs =
+          await KhoaService().dsPhong(_currentBenhVienId, widget.khoaId!);
+      if (phongs.isNotEmpty && mounted) {
+        setState(() {
+          for (final c in _phong) {
+            c.dispose();
+          }
+          _phong.clear();
+          for (final p in phongs) {
+            _phong.add(
+              TextEditingController(text: (p['tenPhong'] ?? '').toString()),
+            );
+          }
+        });
+      }
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -97,23 +177,48 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
     setState(() => _dangLuu = true);
     try {
       final hospitalId = _currentBenhVienId;
-      final ketQua = await KhoaService().themKhoa(
-        benhVienId: hospitalId,
-        tenKhoa: ten,
-        soCaMoiNgay: soBuoi,
-        gioiHanBenhNhan: sl,
-        khungGio: _khung.map((k) => KhungGio(_gio(k[0]), _gio(k[1]))).toList(),
-        ngayLamViec: _ngay.toList(),
-        phongKham: phong,
-      );
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              ThanhCongScreen(khoa: ketQua, benhVienId: hospitalId),
-        ),
-      );
+
+      if (_isEditing) {
+        await KhoaService().capNhatKhoa(
+          benhVienId: hospitalId,
+          khoaId: widget.khoaId!,
+          tenKhoa: ten,
+          soCaMoiNgay: soBuoi,
+          gioiHanBenhNhan: sl,
+          khungGio:
+              _khung.map((k) => KhungGio(_gio(k[0]), _gio(k[1]))).toList(),
+          ngayLamViec: _ngay.toList(),
+          phongKham: phong,
+        );
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã cập nhật thông tin khoa thành công!'),
+            backgroundColor: Color(0xFF16A34A),
+          ),
+        );
+        Navigator.pop(context, true);
+      } else {
+        final ketQua = await KhoaService().themKhoa(
+          benhVienId: hospitalId,
+          tenKhoa: ten,
+          soCaMoiNgay: soBuoi,
+          gioiHanBenhNhan: sl,
+          khungGio:
+              _khung.map((k) => KhungGio(_gio(k[0]), _gio(k[1]))).toList(),
+          ngayLamViec: _ngay.toList(),
+          phongKham: phong,
+        );
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                ThanhCongScreen(khoa: ketQua, benhVienId: hospitalId),
+          ),
+        );
+      }
     } catch (e) {
       _loi('Lỗi khi lưu: $e');
     } finally {
@@ -162,9 +267,9 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F8),
       appBar: AppBar(
-        title: const Text(
-          'Thêm Khoa Mới',
-          style: TextStyle(fontWeight: FontWeight.w700),
+        title: Text(
+          _isEditing ? 'Chỉnh Sửa Khoa' : 'Thêm Khoa Mới',
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         centerTitle: true,
         backgroundColor: const Color(0xFFF5F6F8),
@@ -178,7 +283,7 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
             controller: _ten,
             decoration: _deco(
               hint: 'VD: Khoa Mắt Kỹ Thuật Cao',
-            ).copyWith(prefixIcon: const Icon(Icons.person_outline)),
+            ).copyWith(prefixIcon: const Icon(Icons.business_outlined)),
           ),
 
           // Số buổi + SL mỗi buổi
@@ -306,29 +411,28 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
               padding: const EdgeInsets.only(bottom: 10),
               child: TextField(
                 controller: _phong[i],
-                decoration:
-                    _deco(
-                      hint: 'VD: Phòng 405 - Tầng 4 Nhà Điều Trị KTC',
-                    ).copyWith(
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Text(
-                          '${i + 1}',
-                          style: const TextStyle(
-                            color: _xanh,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                decoration: _deco(
+                  hint: 'VD: Phòng 405 - Tầng 4 Nhà Điều Trị KTC',
+                ).copyWith(
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      '${i + 1}',
+                      style: const TextStyle(
+                        color: _xanh,
+                        fontWeight: FontWeight.w700,
                       ),
-                      suffixIcon: _phong.length > 1
-                          ? IconButton(
-                              icon: const Icon(Icons.close, color: Colors.red),
-                              onPressed: () => setState(() {
-                                _phong.removeAt(i).dispose();
-                              }),
-                            )
-                          : null,
                     ),
+                  ),
+                  suffixIcon: _phong.length > 1
+                      ? IconButton(
+                          icon: const Icon(Icons.close, color: Colors.red),
+                          onPressed: () => setState(() {
+                            _phong.removeAt(i).dispose();
+                          }),
+                        )
+                      : null,
+                ),
               ),
             ),
           OutlinedButton.icon(
@@ -364,9 +468,12 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
                       color: Colors.white,
                     ),
                   )
-                : const Text(
-                    'Thêm Khoa Khám',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                : Text(
+                    _isEditing ? 'Lưu Thay Đổi' : 'Thêm Khoa Khám',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
                   ),
           ),
         ],
@@ -385,116 +492,40 @@ class ThanhCongScreen extends StatelessWidget {
     required this.benhVienId,
   });
 
-  Widget _dong(String nhan, Widget giaTri) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(nhan, style: const TextStyle(color: Colors.grey)),
-        giaTri,
-      ],
-    ),
-  );
-
   @override
   Widget build(BuildContext context) {
-    final bold = const TextStyle(fontWeight: FontWeight.w700);
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(20, 40, 20, 20),
           child: Column(
             children: [
-              const Spacer(),
-              const CircleAvatar(
-                radius: 36,
-                backgroundColor: Color(0xFF16A34A),
-                child: Icon(Icons.check, color: Colors.white, size: 40),
-              ),
-              const SizedBox(height: 20),
+              const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 84),
+              const SizedBox(height: 16),
               const Text(
-                'Đã Thêm Khoa Thành Công!',
+                'Tạo Khoa Thành Công!',
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Khoa mới đã được kích hoạt trên hệ thống lấy số tự động và phân luồng khám bệnh.',
+              Text(
+                'Khoa ${khoa.tenKhoa} đã được lưu vào hệ thống.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
+                style: const TextStyle(color: Colors.grey, fontSize: 14),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 30),
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 12,
-                    ),
-                  ],
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'KHOA VỪA KHỞI TẠO',
-                      style: TextStyle(
-                        color: Colors.green,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      khoa.tenKhoa,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const Divider(height: 24),
-                    _dong(
-                      'Số ca khám:',
-                      Text('${khoa.soCaMoiNgay} ca / ngày', style: bold),
-                    ),
-                    _dong(
-                      'Số lượng BN tối đa:',
-                      Text(
-                        '${khoa.gioiHanBenhNhan} bệnh nhân / ca',
-                        style: bold,
-                      ),
-                    ),
-                    _dong(
-                      'Thời gian:',
-                      Text(
-                        khoa.khungGio.map((e) => e.text).join(' | '),
-                        style: bold,
-                      ),
-                    ),
-                    _dong(
-                      'Lịch khám:',
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFDCEEFB),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          khoa.lichLamViec,
-                          style: const TextStyle(
-                            color: Color(0xFF0B5CAD),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
+                    _dong('Số ca khám:', '${khoa.soCaMoiNgay} ca/ngày'),
+                    _dong('Giới hạn:', '${khoa.gioiHanBenhNhan} BN/ca'),
+                    _dong('Lịch làm việc:', khoa.lichLamViec),
                   ],
                 ),
               ),
@@ -523,8 +554,7 @@ class ThanhCongScreen extends StatelessWidget {
                 onPressed: () => Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
-                    builder: (_) =>
-                        ThemKhoaScreen(benhVienId: benhVienId),
+                    builder: (_) => ThemKhoaScreen(benhVienId: benhVienId),
                   ),
                 ),
                 icon: const Icon(Icons.add),
@@ -542,4 +572,15 @@ class ThanhCongScreen extends StatelessWidget {
       ),
     );
   }
+
+  Widget _dong(String k, String v) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(k, style: const TextStyle(color: Color(0xFF64748B))),
+        Text(v, style: const TextStyle(fontWeight: FontWeight.w700)),
+      ],
+    ),
+  );
 }

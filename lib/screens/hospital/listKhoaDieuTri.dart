@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../config/app_routes.dart';
 import '../../config/app_session.dart';
+import '../../services/khoa_service.dart';
+import 'addKhoaHospital_Screen.dart';
 import 'chiTietKhoa_screem.dart';
 
 String _getBenhVienId() {
@@ -21,7 +23,6 @@ Stream<QuerySnapshot<Map<String, dynamic>>> _khoaStream() => FirebaseFirestore
     .snapshots();
 
 // ===================== THẺ "TỔNG SỐ KHOA KHÁM" =====================
-// Dùng thay cho _StatCard đầu tiên ở màn Trang chủ: const TongSoKhoaCard()
 class TongSoKhoaCard extends StatelessWidget {
   const TongSoKhoaCard({super.key});
 
@@ -34,7 +35,6 @@ class TongSoKhoaCard extends StatelessWidget {
         final dauThang = DateTime(DateTime.now().year, DateTime.now().month);
         final moi = docs.where((d) {
           final t = d.data()['ngayTao'];
-          // ngayTao null = vừa tạo, server chưa kịp ghi giờ
           return t == null || (t as Timestamp).toDate().isAfter(dauThang);
         }).length;
 
@@ -157,6 +157,7 @@ class ListKhoaDieuTri extends StatelessWidget {
                       itemCount: docs.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 12),
                       itemBuilder: (ctx, i) => KhoaCard(
+                        khoaId: docs[i].id,
                         data: docs[i].data(),
                         onTap: () => _moChiTiet(ctx, docs[i]),
                       ),
@@ -182,6 +183,71 @@ void _moChiTiet(
   );
 }
 
+// Xác nhận xóa khoa
+Future<void> _xacNhanXoaKhoa(
+  BuildContext context,
+  String khoaId,
+  String tenKhoa,
+) async {
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (dCtx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text(
+        'Xác nhận xóa khoa?',
+        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+      ),
+      content: Text(
+        'Bạn có chắc chắn muốn xóa khoa "$tenKhoa" cùng toàn bộ phòng khám liên quan không? Thao tác này không thể hoàn tác.',
+        style: const TextStyle(fontSize: 14, color: Color(0xFF475569)),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dCtx, false),
+          child: const Text('Hủy', style: TextStyle(color: Color(0xFF64748B))),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(dCtx, true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFDC2626),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          child: const Text('Xóa Khoa',
+              style: TextStyle(fontWeight: FontWeight.w700)),
+        ),
+      ],
+    ),
+  );
+
+  if (confirm != true || !context.mounted) return;
+
+  try {
+    await KhoaService().xoaKhoa(
+      benhVienId: _getBenhVienId(),
+      khoaId: khoaId,
+    );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Đã xóa thành công khoa "$tenKhoa"'),
+        backgroundColor: const Color(0xFFDC2626),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  } catch (e) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Lỗi khi xóa khoa: $e'),
+        backgroundColor: const Color(0xFFDC2626),
+      ),
+    );
+  }
+}
+
 // trangThai -> (nhãn, màu nền, màu chữ)
 (String, Color, Color) _trangThai(String? ma) {
   switch (ma) {
@@ -199,7 +265,14 @@ void _moChiTiet(
 }
 
 class KhoaCard extends StatelessWidget {
-  const KhoaCard({super.key, required this.data, this.onTap});
+  const KhoaCard({
+    super.key,
+    this.khoaId,
+    required this.data,
+    this.onTap,
+  });
+
+  final String? khoaId;
   final Map<String, dynamic> data;
   final VoidCallback? onTap;
 
@@ -267,24 +340,87 @@ class KhoaCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: nen,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  nhan,
-                  style: TextStyle(
-                    color: chu,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+              const SizedBox(width: 8),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: nen,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      nhan,
+                      style: TextStyle(
+                        color: chu,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-                ),
+                  if (khoaId != null && khoaId!.isNotEmpty) ...[
+                    const SizedBox(width: 2),
+                    PopupMenuButton<String>(
+                      icon: const Icon(
+                        Icons.more_vert_rounded,
+                        size: 20,
+                        color: Color(0xFF64748B),
+                      ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      tooltip: 'Tùy chọn',
+                      onSelected: (val) {
+                        if (val == 'edit') {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ThemKhoaScreen(
+                                benhVienId: _getBenhVienId(),
+                                khoaId: khoaId,
+                                duLieuKhoa: data,
+                              ),
+                            ),
+                          );
+                        } else if (val == 'delete') {
+                          _xacNhanXoaKhoa(
+                            context,
+                            khoaId!,
+                            (data['tenKhoa'] ?? 'khoa này').toString(),
+                          );
+                        }
+                      },
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit_outlined,
+                                  size: 18, color: Color(0xFF0284C7)),
+                              SizedBox(width: 8),
+                              Text('Chỉnh sửa'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete_outline_rounded,
+                                  size: 18, color: Color(0xFFDC2626)),
+                              SizedBox(width: 8),
+                              Text('Xóa khoa',
+                                  style: TextStyle(color: Color(0xFFDC2626))),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
               ),
             ],
           ),
@@ -521,6 +657,7 @@ class _TatCaKhoaTabState extends State<TatCaKhoaTab> {
                 itemCount: docs.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 12),
                 itemBuilder: (ctx, i) => KhoaCard(
+                  khoaId: docs[i].id,
                   data: docs[i].data(),
                   onTap: () => _moChiTiet(ctx, docs[i]),
                 ),
@@ -605,7 +742,6 @@ class _ThanhDieuHuong extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              // Trang chủ nằm ngay bên dưới trong stack, nên chỉ cần quay lại
               muc(
                 Icons.home_rounded,
                 'Trang chủ',

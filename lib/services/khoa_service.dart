@@ -100,7 +100,7 @@ class KhoaService {
       'soPhong': phongKham.length,
       'soCaMoiNgay': soCaMoiNgay,
       'gioiHanBenhNhan': gioiHanBenhNhan, // dùng cho thẻ ở Trang chủ
-      'phongDau': phongKham.first, // tên phòng đầu tiên, dùng cho thẻ
+      'phongDau': phongKham.isNotEmpty ? phongKham.first : '', // tên phòng đầu tiên
       'khungGio': ds.map((e) => e.toMap()).toList(), // dùng cho màn chi tiết
       'ngayLamViec': ([...ngayLamViec]..sort()),
       'lichLamViec': lich,
@@ -134,6 +134,112 @@ class KhoaService {
       khungGio: ds,
       lichLamViec: lich,
     );
+  }
+
+  /// Cập nhật thông tin khoa khám và đồng bộ danh sách phòng khám
+  Future<void> capNhatKhoa({
+    required String benhVienId,
+    required String khoaId,
+    required String tenKhoa,
+    required int soCaMoiNgay,
+    required int gioiHanBenhNhan,
+    required List<KhungGio> khungGio,
+    required List<int> ngayLamViec,
+    required List<String> phongKham,
+  }) async {
+    final khoaRef = _db
+        .collection('Khoa')
+        .doc(benhVienId)
+        .collection('danh_sach')
+        .doc(khoaId);
+    final lich = taoLichLamViec(ngayLamViec);
+
+    final ds = [...khungGio]..sort((a, b) => a.batDau.compareTo(b.batDau));
+    final gioMoCua = ds.first.batDau;
+    final gioDongCua = ds
+        .map((e) => e.ketThuc)
+        .reduce((a, b) => a.compareTo(b) >= 0 ? a : b);
+
+    final thoiGianKham = (ds.first.soPhut ~/ gioiHanBenhNhan)
+        .clamp(1, 1000)
+        .toInt();
+
+    final batch = _db.batch();
+
+    // 1. Cập nhật thông tin khoa
+    batch.update(khoaRef, {
+      'tenKhoa': tenKhoa,
+      'soPhong': phongKham.length,
+      'soCaMoiNgay': soCaMoiNgay,
+      'gioiHanBenhNhan': gioiHanBenhNhan,
+      'phongDau': phongKham.isNotEmpty ? phongKham.first : '',
+      'khungGio': ds.map((e) => e.toMap()).toList(),
+      'ngayLamViec': ([...ngayLamViec]..sort()),
+      'lichLamViec': lich,
+      'ngayCapNhat': FieldValue.serverTimestamp(),
+    });
+
+    // 2. Lấy các phòng khám cũ để tái sử dụng trạng thái hoặc xóa đi tạo mới
+    final oldRoomsSnap = await khoaRef.collection('phongKham').get();
+    final Map<String, DocumentSnapshot<Map<String, dynamic>>> oldRooms = {
+      for (final d in oldRoomsSnap.docs)
+        (d.data()['tenPhong'] ?? '').toString(): d,
+    };
+
+    // Xóa các phòng không còn trong danh sách
+    for (final d in oldRoomsSnap.docs) {
+      final oldName = (d.data()['tenPhong'] ?? '').toString();
+      if (!phongKham.contains(oldName)) {
+        batch.delete(d.reference);
+      }
+    }
+
+    // Thêm hoặc cập nhật các phòng trong danh sách mới
+    for (final ten in phongKham) {
+      final docRef = oldRooms.containsKey(ten)
+          ? oldRooms[ten]!.reference
+          : khoaRef.collection('phongKham').doc();
+
+      final existingData = oldRooms[ten]?.data();
+
+      batch.set(docRef, {
+        'tenPhong': ten,
+        'soPhong': tachSoPhong(ten),
+        'gioMoCua': gioMoCua,
+        'gioDongCua': gioDongCua,
+        'khungGio': ds.map((e) => e.toMap()).toList(),
+        'thoiGianKham': thoiGianKham,
+        'soBenhNhanToiDa': gioiHanBenhNhan,
+        'trangThai': existingData?['trangThai'] ?? 'san_sang',
+        'nhanVienId': existingData?['nhanVienId'],
+      }, SetOptions(merge: true));
+    }
+
+    await batch.commit();
+  }
+
+  /// Xóa khoa khám và toàn bộ các phòng khám thuộc khoa đó
+  Future<void> xoaKhoa({
+    required String benhVienId,
+    required String khoaId,
+  }) async {
+    final khoaRef = _db
+        .collection('Khoa')
+        .doc(benhVienId)
+        .collection('danh_sach')
+        .doc(khoaId);
+
+    // 1. Xóa tất cả phòng khám con
+    final phongs = await khoaRef.collection('phongKham').get();
+    final batch = _db.batch();
+    for (final d in phongs.docs) {
+      batch.delete(d.reference);
+    }
+
+    // 2. Xóa document khoa
+    batch.delete(khoaRef);
+
+    await batch.commit();
   }
 
   /// Lấy danh sách khoa cho màn Trang chủ
