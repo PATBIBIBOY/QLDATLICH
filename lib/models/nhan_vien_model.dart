@@ -8,7 +8,7 @@ class TaiKhoanItem {
   const TaiKhoanItem({
     required this.maTk,
     required this.matKhau,
-    this.trangThai = 'Chưa kích hoạt',
+    this.trangThai = 'Đợi kích hoạt',
   });
 
   Map<String, dynamic> toMap() => {
@@ -20,7 +20,7 @@ class TaiKhoanItem {
   factory TaiKhoanItem.fromMap(Map<String, dynamic> map) => TaiKhoanItem(
     maTk: (map['maTk'] ?? '').toString(),
     matKhau: (map['matKhau'] ?? '123456').toString(),
-    trangThai: (map['trangThai'] ?? 'Chưa kích hoạt').toString(),
+    trangThai: (map['trangThai'] ?? 'Đợi kích hoạt').toString(),
   );
 }
 
@@ -53,7 +53,9 @@ class NhanVienModel {
   final String soDienThoai;
   final String email;
   final String matKhau;
+  final bool daKichHoat;
   final bool dangHoatDong;
+  final String trangThai;
   final DateTime? ngayTao;
 
   const NhanVienModel({
@@ -66,7 +68,9 @@ class NhanVienModel {
     required this.soDienThoai,
     required this.email,
     this.matKhau = '123456',
+    this.daKichHoat = true,
     this.dangHoatDong = true,
+    this.trangThai = 'dang_hoat_dong',
     this.ngayTao,
   });
 
@@ -87,9 +91,18 @@ class NhanVienModel {
         (data['email'] ?? '${maNv.toLowerCase()}@benhvien.vn').toString();
     final matKhau =
         (data['mat_khau'] ?? data['matKhau'] ?? '123456').toString();
-    final daKichHoat = data['da_kich_hoat'] ?? data['dangHoatDong'] ?? true;
     final trangThai = (data['trang_thai'] ?? '').toString();
-    final dangHoatDong = trangThai != 'da_khoa' && daKichHoat != false;
+
+    final bool daKichHoat;
+    if (data.containsKey('da_kich_hoat')) {
+      daKichHoat = data['da_kich_hoat'] == true;
+    } else {
+      daKichHoat = (trangThai == 'dang_hoat_dong' || trangThai == 'da_khoa') &&
+          trangThai != 'doi_kich_hoat' &&
+          trangThai != 'chua_kich_hoat';
+    }
+
+    final dangHoatDong = trangThai != 'da_khoa';
 
     DateTime? dt;
     final nt = data['ngay_tao'] ?? data['ngayTao'];
@@ -107,7 +120,9 @@ class NhanVienModel {
       soDienThoai: sdt,
       email: email,
       matKhau: matKhau,
+      daKichHoat: daKichHoat,
       dangHoatDong: dangHoatDong,
+      trangThai: trangThai,
       ngayTao: dt,
     );
   }

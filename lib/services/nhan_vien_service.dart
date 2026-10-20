@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_session.dart';
@@ -9,10 +11,13 @@ class NhanVienService {
   CollectionReference<Map<String, dynamic>> get _nhanVienCol =>
       _db.collection('NhanVien');
 
-  /// Stream danh sách toàn bộ nhân viên theo thời gian thực (sắp xếp mới nhất lên đầu)
-  Stream<List<NhanVienModel>> streamNhanVien() {
+  /// Stream danh sách toàn bộ nhân viên theo thời gian thực (chỉ hiển thị nhân viên đã kích hoạt)
+  Stream<List<NhanVienModel>> streamNhanVien({bool chiLayDaKichHoat = true}) {
     return _nhanVienCol.snapshots().map((snap) {
-      final list = snap.docs.map((d) => NhanVienModel.fromDoc(d)).toList();
+      final list = snap.docs
+          .map((d) => NhanVienModel.fromDoc(d))
+          .where((nv) => !chiLayDaKichHoat || nv.daKichHoat)
+          .toList();
       list.sort((a, b) {
         if (a.ngayTao == null && b.ngayTao == null) return 0;
         if (a.ngayTao == null) return 1;
@@ -80,7 +85,7 @@ class NhanVienService {
     return sorted;
   }
 
-  /// Lấy danh sách tài khoản vừa tạo chưa kích hoạt
+  /// Lấy danh sách tài khoản vừa tạo đang ở trạng thái đợi kích hoạt
   Future<List<TaiKhoanItem>> layDanhSachTaiKhoanChuaKichHoat() async {
     final snap = await _nhanVienCol.get();
     final list = <TaiKhoanItem>[];
@@ -89,8 +94,10 @@ class NhanVienService {
       final daKichHoat = data['da_kich_hoat'] ?? false;
       final trangThaiRaw = (data['trang_thai'] ?? '').toString();
 
-      // Chỉ lấy các tài khoản chưa kích hoạt
-      if (daKichHoat == true || trangThaiRaw == 'dang_hoat_dong') {
+      // Bỏ qua các tài khoản đã kích hoạt hoặc đang hoạt động / đã khóa
+      if (daKichHoat == true ||
+          trangThaiRaw == 'dang_hoat_dong' ||
+          trangThaiRaw == 'da_khoa') {
         continue;
       }
 
@@ -103,17 +110,19 @@ class NhanVienService {
       list.add(TaiKhoanItem(
         maTk: maTk,
         matKhau: matKhau,
-        trangThai: 'Chưa kích hoạt',
+        trangThai: 'Đợi kích hoạt',
       ));
     }
     return list;
   }
 
-  /// Tương thích ngược: Lấy danh sách tài khoản chưa kích hoạt
+  /// Tương thích ngược: Lấy danh sách tài khoản đợi kích hoạt
   Future<List<TaiKhoanItem>> layDanhSachTaiKhoan() =>
       layDanhSachTaiKhoanChuaKichHoat();
 
   /// Cấp mới danh sách tài khoản nhân viên và lưu đồng loạt bằng WriteBatch
+  /// Mã tài khoản được tạo ngẫu nhiên và đảm bảo không trùng lặp
+  /// Mật khẩu là duy nhất cho tất cả các tài khoản
   Future<DotCapTaiKhoan> taoVaLuuNhanVien({
     required String tenKhoa,
     required String deptCode,
@@ -123,52 +132,59 @@ class NhanVienService {
     required int soLuong,
     String matKhau = '123456',
   }) async {
-    final prefix = '${rolePrefix}_${deptCode}_';
+    final prefix = deptCode.trim().isNotEmpty
+        ? '${rolePrefix}_${deptCode}_'
+        : '${rolePrefix}_';
 
-    // 1. Tính toán startIndex để tự động tăng số thứ tự tránh trùng lặp
-    int startIndex = 1;
+    // Quét toàn bộ mã tài khoản hiện có để đối soát không trùng lặp
+    final Set<String> existingCodes = {};
     try {
-      final existingQuery = await _nhanVienCol
-          .where('ma_nhan_vien', isGreaterThanOrEqualTo: prefix)
-          .where('ma_nhan_vien', isLessThan: '$prefix\uf8ff')
-          .get();
-
-      int maxIndex = 0;
-      for (final doc in existingQuery.docs) {
-        final ma = (doc.data()['ma_nhan_vien'] ?? doc.id).toString();
-        final part = ma.replaceFirst(prefix, '');
-        final parsed = int.tryParse(part);
-        if (parsed != null && parsed > maxIndex) {
-          maxIndex = parsed;
-        }
+      final snap = await _nhanVienCol.get();
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final ma = (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? doc.id)
+            .toString()
+            .trim();
+        if (ma.isNotEmpty) existingCodes.add(ma);
       }
-      startIndex = maxIndex + 1;
-    } catch (_) {
-      startIndex = 1;
-    }
+    } catch (_) {}
 
+    final random = Random();
     final List<TaiKhoanItem> danhSach = [];
     final batch = _db.batch();
 
-    for (int i = 0; i < soLuong; i++) {
-      final currentNum = startIndex + i;
-      final numStr = currentNum.toString().padLeft(2, '0');
-      final maTk = '$prefix$numStr';
+    // Mật khẩu duy nhất cho tất cả tài khoản
+    final String commonPassword =
+        matKhau.trim().isNotEmpty ? matKhau.trim() : '123456';
 
-      danhSach.add(TaiKhoanItem(maTk: maTk, matKhau: matKhau));
+    for (int i = 0; i < soLuong; i++) {
+      String maTk;
+      // Sinh mã ngẫu nhiên và kiểm tra tránh trùng lặp tuyệt đối
+      do {
+        final randomNum = 100000 + random.nextInt(900000); // 6 số ngẫu nhiên: 100000..999999
+        maTk = '$prefix$randomNum';
+      } while (existingCodes.contains(maTk));
+
+      existingCodes.add(maTk);
+
+      danhSach.add(TaiKhoanItem(
+        maTk: maTk,
+        matKhau: commonPassword,
+        trangThai: 'Đợi kích hoạt',
+      ));
 
       final docRef = _nhanVienCol.doc(maTk);
       batch.set(docRef, {
         'ma_nhan_vien': maTk,
         'ma_tai_khoan': maTk,
-        'mat_khau': matKhau,
+        'mat_khau': commonPassword,
         'role': roleCode,
         'vai_tro': vaiTro,
         'khoa': tenKhoa,
         'da_kich_hoat': false,
-        'trang_thai': 'chua_kich_hoat',
+        'trang_thai': 'doi_kich_hoat',
         'ngay_tao': FieldValue.serverTimestamp(),
-        'ho_ten': '$vaiTro $numStr',
+        'ho_ten': '$vaiTro ${maTk.split('_').last}',
         'so_dien_thoai': '',
         'email': '${maTk.toLowerCase()}@benhvien.vn',
       });
@@ -185,15 +201,70 @@ class NhanVienService {
     );
   }
 
+  /// Kích hoạt tài khoản nhân viên
+  Future<void> kichHoatTaiKhoan(String nhanVienId) async {
+    final docRef = _nhanVienCol.doc(nhanVienId);
+    final docSnap = await docRef.get();
+    if (docSnap.exists) {
+      await docRef.update({
+        'da_kich_hoat': true,
+        'trang_thai': 'dang_hoat_dong',
+      });
+      return;
+    }
+    final q1 = await _nhanVienCol
+        .where('ma_nhan_vien', isEqualTo: nhanVienId)
+        .get();
+    for (final d in q1.docs) {
+      await d.reference.update({
+        'da_kich_hoat': true,
+        'trang_thai': 'dang_hoat_dong',
+      });
+    }
+    final q2 = await _nhanVienCol
+        .where('ma_tai_khoan', isEqualTo: nhanVienId)
+        .get();
+    for (final d in q2.docs) {
+      await d.reference.update({
+        'da_kich_hoat': true,
+        'trang_thai': 'dang_hoat_dong',
+      });
+    }
+  }
+
   /// Cập nhật trạng thái khóa / mở khóa tài khoản
   Future<void> capNhatTrangThai({
     required String nhanVienId,
     required bool dangHoatDong,
   }) async {
-    await _nhanVienCol.doc(nhanVienId).update({
-      'trang_thai': dangHoatDong ? 'dang_hoat_dong' : 'da_khoa',
-      'da_kich_hoat': dangHoatDong,
-    });
+    final statusStr = dangHoatDong ? 'dang_hoat_dong' : 'da_khoa';
+    final docRef = _nhanVienCol.doc(nhanVienId);
+    final docSnap = await docRef.get();
+    if (docSnap.exists) {
+      await docRef.update({
+        'trang_thai': statusStr,
+        'da_kich_hoat': true,
+      });
+      return;
+    }
+    final q1 = await _nhanVienCol
+        .where('ma_nhan_vien', isEqualTo: nhanVienId)
+        .get();
+    for (final d in q1.docs) {
+      await d.reference.update({
+        'trang_thai': statusStr,
+        'da_kich_hoat': true,
+      });
+    }
+    final q2 = await _nhanVienCol
+        .where('ma_tai_khoan', isEqualTo: nhanVienId)
+        .get();
+    for (final d in q2.docs) {
+      await d.reference.update({
+        'trang_thai': statusStr,
+        'da_kich_hoat': true,
+      });
+    }
   }
 
   /// Xóa tài khoản nhân viên
