@@ -177,6 +177,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
     if (cacDot.isEmpty) return;
 
     showModalBottomSheet(
+      isScrollControlled: true,
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -207,8 +208,11 @@ class _DanhSachTaiKhoanDaTaoScreenState
                   ],
                 ),
                 const SizedBox(height: 8),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 280),
+                Flexible(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(ctx).size.height * 0.55,
+                    ),
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: cacDot.length,
@@ -265,6 +269,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
                     },
                   ),
                 ),
+              ),
               ],
             ),
           ),
