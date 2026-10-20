@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../config/app_routes.dart';
+import 'CapTK_Scream.dart';
 
 class TaiKhoanItem {
   final String maTk;
@@ -29,29 +31,17 @@ class DotCapTaiKhoan {
     required this.soLuong,
     required this.danhSachTaiKhoan,
     DateTime? thoiGian,
-  }) : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-       thoiGian = thoiGian ?? DateTime.now();
+  })  : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        thoiGian = thoiGian ?? DateTime.now();
 }
 
 class StaffAccountStore {
   // Mật khẩu mặc định chung cho toàn bộ tài khoản nhân viên được cấp
   static const String matKhauMacDinh = '123456';
 
-  // Dữ liệu mẫu mặc định với mật khẩu dùng chung, chỉ đổi mã nhân sự
-  static DotCapTaiKhoan dotCapGanNhat = DotCapTaiKhoan(
-    tenKhoa: 'Khoa Tim Mạch',
-    vaiTro: 'Lễ tân',
-    soLuong: 5,
-    danhSachTaiKhoan: const [
-      TaiKhoanItem(maTk: 'LT_TM_01', matKhau: matKhauMacDinh),
-      TaiKhoanItem(maTk: 'LT_TM_02', matKhau: matKhauMacDinh),
-      TaiKhoanItem(maTk: 'LT_TM_03', matKhau: matKhauMacDinh),
-      TaiKhoanItem(maTk: 'LT_TM_04', matKhau: matKhauMacDinh),
-      TaiKhoanItem(maTk: 'LT_TM_05', matKhau: matKhauMacDinh),
-    ],
-  );
-
-  static final List<DotCapTaiKhoan> lichSuCacDot = [dotCapGanNhat];
+  // Lưu đợt cấp vừa tạo trong bộ nhớ phiên làm việc (không hardcode)
+  static DotCapTaiKhoan? dotCapGanNhat;
+  static final List<DotCapTaiKhoan> lichSuCacDot = [];
 
   static void luuDotCap(DotCapTaiKhoan dot) {
     dotCapGanNhat = dot;
@@ -81,21 +71,107 @@ class DanhSachTaiKhoanDaTaoScreen extends StatefulWidget {
 
 class _DanhSachTaiKhoanDaTaoScreenState
     extends State<DanhSachTaiKhoanDaTaoScreen> {
-  late DotCapTaiKhoan _selectedBatch;
+  DotCapTaiKhoan? _selectedBatch;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _khoiTaoDuLieu();
+  }
+
+  Future<void> _khoiTaoDuLieu() async {
+    // 1. Nếu có truyền qua constructor
     if (widget.danhSachTaiKhoan != null &&
         widget.danhSachTaiKhoan!.isNotEmpty) {
-      _selectedBatch = DotCapTaiKhoan(
-        tenKhoa: widget.tenKhoa ?? StaffAccountStore.dotCapGanNhat.tenKhoa,
-        vaiTro: widget.vaiTro ?? StaffAccountStore.dotCapGanNhat.vaiTro,
+      final batch = DotCapTaiKhoan(
+        tenKhoa: widget.tenKhoa ??
+            StaffAccountStore.dotCapGanNhat?.tenKhoa ??
+            'Khoa',
+        vaiTro: widget.vaiTro ??
+            StaffAccountStore.dotCapGanNhat?.vaiTro ??
+            'Nhân viên',
         soLuong: widget.soLuong ?? widget.danhSachTaiKhoan!.length,
         danhSachTaiKhoan: widget.danhSachTaiKhoan!,
       );
-    } else {
-      _selectedBatch = StaffAccountStore.dotCapGanNhat;
+      if (mounted) {
+        setState(() {
+          _selectedBatch = batch;
+          _isLoading = false;
+        });
+      }
+      StaffAccountStore.luuDotCap(batch);
+      return;
+    }
+
+    // 2. Nếu trong store đã có đợt vừa tạo
+    if (StaffAccountStore.dotCapGanNhat != null) {
+      if (mounted) {
+        setState(() {
+          _selectedBatch = StaffAccountStore.dotCapGanNhat;
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
+    // 3. Nếu chưa có, đọc dữ liệu thực tế từ Firebase Firestore
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('NhanVien')
+          .get();
+
+      if (snap.docs.isNotEmpty) {
+        final docs = snap.docs;
+        final list = docs.map((d) {
+          final data = d.data();
+          final maTk = (data['ma_nhan_vien'] ??
+                  data['ma_tai_khoan'] ??
+                  d.id)
+              .toString();
+          final matKhau =
+              (data['mat_khau'] ?? StaffAccountStore.matKhauMacDinh).toString();
+          final trangThaiRaw = (data['trang_thai'] ?? '').toString();
+          final daKichHoat = data['da_kich_hoat'] ?? false;
+          final trangThai = daKichHoat == true || trangThaiRaw == 'dang_hoat_dong'
+              ? 'Đang hoạt động'
+              : 'Chưa kích hoạt';
+
+          return TaiKhoanItem(
+            maTk: maTk,
+            matKhau: matKhau,
+            trangThai: trangThai,
+          );
+        }).toList();
+
+        final firstData = docs.first.data();
+        final tenKhoa = (firstData['khoa'] ?? 'Toàn viện').toString();
+        final vaiTro = (firstData['vai_tro'] ?? 'Nhân viên').toString();
+
+        final batch = DotCapTaiKhoan(
+          tenKhoa: tenKhoa,
+          vaiTro: vaiTro,
+          soLuong: list.length,
+          danhSachTaiKhoan: list,
+        );
+
+        StaffAccountStore.luuDotCap(batch);
+
+        if (mounted) {
+          setState(() {
+            _selectedBatch = batch;
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() {
+        _selectedBatch = null;
+        _isLoading = false;
+      });
     }
   }
 
@@ -112,13 +188,16 @@ class _DanhSachTaiKhoanDaTaoScreenState
   }
 
   void _saoChepTatCa(BuildContext context) {
+    final batch = _selectedBatch;
+    if (batch == null) return;
+
     final buffer = StringBuffer();
     buffer.writeln(
-      '=== DANH SÁCH TÀI KHOẢN ${_selectedBatch.vaiTro} - ${_selectedBatch.tenKhoa} ===',
+      '=== DANH SÁCH TÀI KHOẢN ${batch.vaiTro} - ${batch.tenKhoa} ===',
     );
     buffer.writeln('Mật khẩu chung: ${StaffAccountStore.matKhauMacDinh}');
-    for (int i = 0; i < _selectedBatch.danhSachTaiKhoan.length; i++) {
-      final item = _selectedBatch.danhSachTaiKhoan[i];
+    for (int i = 0; i < batch.danhSachTaiKhoan.length; i++) {
+      final item = batch.danhSachTaiKhoan[i];
       buffer.writeln('${i + 1}. TK: ${item.maTk} | MK: ${item.matKhau}');
     }
     _saoChep(
@@ -130,7 +209,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
 
   void _hienThiLichSuCacDot() {
     final cacDot = StaffAccountStore.lichSuCacDot;
-    if (cacDot.length <= 1) return;
+    if (cacDot.isEmpty) return;
 
     showModalBottomSheet(
       context: context,
@@ -171,7 +250,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
                     separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (_, index) {
                       final dot = cacDot[index];
-                      final isSelected = dot.id == _selectedBatch.id;
+                      final isSelected = dot.id == _selectedBatch?.id;
                       return ListTile(
                         leading: CircleAvatar(
                           backgroundColor: isSelected
@@ -231,6 +310,15 @@ class _DanhSachTaiKhoanDaTaoScreenState
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF8FAFC),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final batch = _selectedBatch;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
@@ -244,83 +332,85 @@ class _DanhSachTaiKhoanDaTaoScreenState
 
                 // Nội dung danh sách
                 Expanded(
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Hộp thông báo xanh lá
-                        _buildSuccessBanner(),
-                        const SizedBox(height: 16),
-
-                        // Tiêu đề & nút Sao chép tất cả
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Chi tiết tài khoản & Mật khẩu',
-                                  style: TextStyle(
-                                    fontSize: 14.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF0F172A),
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Mật khẩu khởi tạo chung: ${StaffAccountStore.matKhauMacDinh}',
-                                  style: const TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF64748B),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            InkWell(
-                              onTap: () => _saoChepTatCa(context),
-                              borderRadius: BorderRadius.circular(6),
-                              child: const Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                  vertical: 2,
-                                ),
-                                child: Text(
-                                  'Sao chép tất cả',
-                                  style: TextStyle(
-                                    color: Color(0xFF0284C7),
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-
-                        // Danh sách thẻ tài khoản
-                        for (
-                          int i = 0;
-                          i < _selectedBatch.danhSachTaiKhoan.length;
-                          i++
-                        ) ...[
-                          _buildAccountCard(
-                            context,
-                            i + 1,
-                            _selectedBatch.danhSachTaiKhoan[i],
+                  child: batch == null || batch.danhSachTaiKhoan.isEmpty
+                      ? _buildEmptyState()
+                      : SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
                           ),
-                          const SizedBox(height: 10),
-                        ],
-                      ],
-                    ),
-                  ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Hộp thông báo xanh lá
+                              _buildSuccessBanner(batch),
+                              const SizedBox(height: 16),
+
+                              // Tiêu đề & nút Sao chép tất cả
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Chi tiết tài khoản & Mật khẩu',
+                                        style: TextStyle(
+                                          fontSize: 14.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF0F172A),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Mật khẩu khởi tạo chung: ${StaffAccountStore.matKhauMacDinh}',
+                                        style: const TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF64748B),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  InkWell(
+                                    onTap: () => _saoChepTatCa(context),
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 2,
+                                      ),
+                                      child: Text(
+                                        'Sao chép tất cả',
+                                        style: TextStyle(
+                                          color: Color(0xFF0284C7),
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+
+                              // Danh sách thẻ tài khoản
+                              for (int i = 0;
+                                  i < batch.danhSachTaiKhoan.length;
+                                  i++) ...[
+                                _buildAccountCard(
+                                  context,
+                                  i + 1,
+                                  batch.danhSachTaiKhoan[i],
+                                ),
+                                const SizedBox(height: 10),
+                              ],
+                            ],
+                          ),
+                        ),
                 ),
 
                 // Các nút dưới đáy
@@ -328,6 +418,56 @@ class _DanhSachTaiKhoanDaTaoScreenState
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.vpn_key_off_rounded,
+                size: 54, color: Colors.grey.shade400),
+            const SizedBox(height: 12),
+            const Text(
+              'Chưa có tài khoản nào được cấp',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Hệ thống Firestore chưa có danh sách tài khoản nào. Bạn có thể nhấn nút dưới để cấp tài khoản ngay.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CapTaiKhoanNhanVienScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+              label: const Text('Cấp Tài Khoản Mới'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0284C7),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -424,7 +564,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
     );
   }
 
-  Widget _buildSuccessBanner() {
+  Widget _buildSuccessBanner(DotCapTaiKhoan batch) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
@@ -449,7 +589,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Đã tạo thành công ${_selectedBatch.soLuong} tài khoản',
+                  'Đã tạo thành công ${batch.soLuong} tài khoản',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -458,7 +598,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${_selectedBatch.tenKhoa} • Vai trò: ${_selectedBatch.vaiTro}',
+                  '${batch.tenKhoa} • Vai trò: ${batch.vaiTro}',
                   style: const TextStyle(
                     fontSize: 12,
                     color: Color(0xFF047857),
