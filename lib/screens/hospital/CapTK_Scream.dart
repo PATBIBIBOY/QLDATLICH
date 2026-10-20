@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../config/app_session.dart';
 import '../../services/nhan_vien_service.dart';
+import 'addKhoaHospital_Screen.dart';
 import 'danhSachTaiKhoanDaTao_Screen.dart';
 
 class CapTaiKhoanNhanVienScreen extends StatefulWidget {
-  const CapTaiKhoanNhanVienScreen({super.key});
+  final String? benhVienId;
+  const CapTaiKhoanNhanVienScreen({super.key, this.benhVienId});
 
   @override
   State<CapTaiKhoanNhanVienScreen> createState() =>
@@ -17,17 +20,23 @@ class _CapTaiKhoanNhanVienScreenState
   static const _blue = Color(0xFF2F83FF);
   final NhanVienService _nhanVienService = NhanVienService();
 
-  List<String> _departments = [
-    'Khoa Tim Mạch',
-    'Khoa Mắt Kỹ Thuật Cao',
-    'Khoa Nhi',
-    'Khoa Răng Hàm Mặt',
-  ];
+  // Danh sách khoa được tải trực tiếp từ Firestore (hoàn toàn không hardcode)
+  List<String> _departments = [];
+  bool _isLoadingDepartments = true;
 
   String? _selectedDepartment;
   _StaffRole _selectedRole = _StaffRole.receptionist;
   int _accountCount = 5;
   bool _isLoading = false;
+
+  String _getBenhVienId() {
+    if (widget.benhVienId != null && widget.benhVienId!.isNotEmpty) {
+      return widget.benhVienId!;
+    }
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) return uid;
+    return AppSession.benhVienId;
+  }
 
   @override
   void initState() {
@@ -36,25 +45,65 @@ class _CapTaiKhoanNhanVienScreenState
   }
 
   Future<void> _loadDepartments() async {
-    try {
-      final snap = await FirebaseFirestore.instance.collection('Khoa').get();
-      final set = <String>{..._departments};
-      for (final doc in snap.docs) {
-        final ten = (doc.data()['tenKhoa'] ?? doc.data()['ten_khoa'] ?? '')
-            .toString()
-            .trim();
-        if (ten.isNotEmpty) set.add(ten);
-      }
-      if (mounted) {
-        setState(() {
-          _departments = set.toList();
-          _selectedDepartment ??= _departments.first;
-        });
-      }
-    } catch (_) {}
+    setState(() => _isLoadingDepartments = true);
+    final bvid = _getBenhVienId();
+    final list = await _nhanVienService.layDanhSachKhoaDaTao(bvid);
+    if (mounted) {
+      setState(() {
+        _departments = list;
+        _isLoadingDepartments = false;
+        if (_departments.isNotEmpty) {
+          // Nếu khoa đang chọn vẫn có trong danh sách mới thì giữ nguyên, ngược lại chọn khoa đầu tiên
+          if (_selectedDepartment == null || !_departments.contains(_selectedDepartment)) {
+            _selectedDepartment = _departments.first;
+          }
+        } else {
+          _selectedDepartment = null;
+        }
+      });
+    }
   }
 
   Future<void> _selectDepartment() async {
+    if (_departments.isEmpty) {
+      final themMoi = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Chưa có khoa khám nào'),
+          content: const Text(
+            'Hệ thống chưa tìm thấy khoa khám nào đã được tạo cho bệnh viện. Bạn có muốn thêm khoa khám mới ngay bây giờ không?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Để sau'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _blue,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Thêm khoa ngay'),
+            ),
+          ],
+        ),
+      );
+
+      if (themMoi == true && mounted) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ThemKhoaScreen(benhVienId: _getBenhVienId()),
+          ),
+        );
+        if (mounted) {
+          _loadDepartments();
+        }
+      }
+      return;
+    }
+
     final department = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -81,9 +130,30 @@ class _CapTaiKhoanNhanVienScreenState
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                'Chọn khoa làm việc',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Chọn khoa làm việc',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  ),
+                  TextButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              ThemKhoaScreen(benhVienId: _getBenhVienId()),
+                        ),
+                      );
+                      if (mounted) _loadDepartments();
+                    },
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Thêm khoa'),
+                    style: TextButton.styleFrom(foregroundColor: _blue),
+                  ),
+                ],
               ),
               const SizedBox(height: 10),
               Flexible(
@@ -92,7 +162,13 @@ class _CapTaiKhoanNhanVienScreenState
                   children: _departments.map(
                     (department) => ListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: Text(department),
+                      title: Text(
+                        department,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       trailing: department == _selectedDepartment
                           ? const Icon(Icons.check_circle, color: _blue)
                           : const Icon(
@@ -122,10 +198,32 @@ class _CapTaiKhoanNhanVienScreenState
   }
 
   String _getDepartmentCode(String dept) {
-    if (dept.contains('Tim')) return 'TM';
-    if (dept.contains('Mắt')) return 'MT';
-    if (dept.contains('Nhi')) return 'NH';
-    if (dept.contains('Răng')) return 'RHM';
+    final lower = dept.toLowerCase();
+    if (lower.contains('tim')) return 'TM';
+    if (lower.contains('mắt') || lower.contains('mat')) return 'MT';
+    if (lower.contains('nhi')) return 'NH';
+    if (lower.contains('răng') || lower.contains('rang')) return 'RHM';
+    if (lower.contains('cấp cứu') || lower.contains('cap cuu')) return 'CC';
+    if (lower.contains('sản') || lower.contains('san')) return 'PS';
+    if (lower.contains('ngoại') || lower.contains('ngoai')) return 'NG';
+    if (lower.contains('nội') || lower.contains('noi')) return 'NOI';
+    if (lower.contains('ung bướu') || lower.contains('ung buou')) return 'UB';
+    if (lower.contains('tai mũi họng')) return 'TMH';
+    if (lower.contains('da liễu') || lower.contains('da lieu')) return 'DL';
+    if (lower.contains('xét nghiệm') || lower.contains('xet nghiem')) return 'XN';
+
+    // Rút gọn theo chữ cái đầu
+    final words = dept
+        .replaceAll(RegExp(r'[^\p{L}\s]', unicode: true), '')
+        .split(' ')
+        .where((w) => w.isNotEmpty && w.toLowerCase() != 'khoa')
+        .toList();
+
+    if (words.isNotEmpty) {
+      final code = words.map((w) => w[0].toUpperCase()).join();
+      return code.length > 4 ? code.substring(0, 4) : code;
+    }
+
     return 'KHOA';
   }
 
@@ -152,10 +250,10 @@ class _CapTaiKhoanNhanVienScreenState
   }
 
   Future<void> _taoTaiKhoan() async {
-    if (_selectedDepartment == null) {
+    if (_departments.isEmpty || _selectedDepartment == null || _selectedDepartment!.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Vui lòng chọn khoa làm việc.'),
+          content: Text('Bệnh viện chưa có khoa khám nào được tạo. Vui lòng thêm khoa trước!'),
           backgroundColor: Color(0xFFD97706),
         ),
       );
@@ -188,7 +286,7 @@ class _CapTaiKhoanNhanVienScreenState
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Đã tạo thành công $_accountCount tài khoản trên hệ thống!'),
+          content: Text('Đã tạo thành công $_accountCount tài khoản cho ${_selectedDepartment!}!'),
           backgroundColor: const Color(0xFF10B981),
         ),
       );
@@ -264,9 +362,23 @@ class _CapTaiKhoanNhanVienScreenState
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: _isLoading ? null : _taoTaiKhoan,
+                      onPressed: _isLoading
+                          ? null
+                          : (_departments.isEmpty
+                              ? () async {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ThemKhoaScreen(
+                                        benhVienId: _getBenhVienId(),
+                                      ),
+                                    ),
+                                  );
+                                  if (mounted) _loadDepartments();
+                                }
+                              : _taoTaiKhoan),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _blue,
+                        backgroundColor: _departments.isEmpty ? const Color(0xFF0284C7) : _blue,
                         foregroundColor: Colors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
@@ -283,7 +395,9 @@ class _CapTaiKhoanNhanVienScreenState
                               ),
                             )
                           : Text(
-                              'Tạo $_accountCount Tài Khoản Nhân Viên',
+                              _departments.isEmpty
+                                  ? 'Tạo Khoa Mới Trước'
+                                  : 'Tạo $_accountCount Tài Khoản Nhân Viên',
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 fontSize: 15,
@@ -357,6 +471,21 @@ class _CapTaiKhoanNhanVienScreenState
   }
 
   Widget _buildDepartmentSelector() {
+    String textHienThi;
+    Color textColor;
+    if (_isLoadingDepartments) {
+      textHienThi = 'Đang tải danh sách khoa đã tạo...';
+      textColor = const Color(0xFF858B94);
+    } else if (_departments.isEmpty) {
+      textHienThi = 'Chưa có khoa nào (Nhấn để thêm khoa)';
+      textColor = const Color(0xFFEF4444);
+    } else {
+      textHienThi = _selectedDepartment ?? 'Chọn khoa làm việc';
+      textColor = _selectedDepartment == null
+          ? const Color(0xFF858B94)
+          : const Color(0xFF252A32);
+    }
+
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(12),
@@ -367,29 +496,48 @@ class _CapTaiKhoanNhanVienScreenState
           constraints: const BoxConstraints(minHeight: 48),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFD9DDE3)),
+            border: Border.all(
+              color: _departments.isEmpty && !_isLoadingDepartments
+                  ? const Color(0xFFFCA5A5)
+                  : const Color(0xFFD9DDE3),
+            ),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.account_balance_outlined,
-                color: Color(0xFF9AA1AA),
+                color: _departments.isEmpty && !_isLoadingDepartments
+                    ? const Color(0xFFEF4444)
+                    : const Color(0xFF9AA1AA),
                 size: 21,
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  _selectedDepartment ?? 'Chọn khoa',
+                  textHienThi,
                   style: TextStyle(
-                    color: _selectedDepartment == null
-                        ? const Color(0xFF858B94)
-                        : const Color(0xFF252A32),
+                    color: textColor,
                     fontSize: 13,
+                    fontWeight: _selectedDepartment != null
+                        ? FontWeight.w600
+                        : FontWeight.normal,
                   ),
                 ),
               ),
-              const Icon(Icons.keyboard_arrow_down, color: Color(0xFF9299A3)),
+              if (_isLoadingDepartments)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                Icon(
+                  _departments.isEmpty
+                      ? Icons.add_circle_outline
+                      : Icons.keyboard_arrow_down,
+                  color: const Color(0xFF9299A3),
+                ),
             ],
           ),
         ),

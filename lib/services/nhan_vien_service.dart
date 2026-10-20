@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../config/app_session.dart';
 import '../models/nhan_vien_model.dart';
 
 class NhanVienService {
@@ -19,6 +21,63 @@ class NhanVienService {
       });
       return list;
     });
+  }
+
+  /// Lấy danh sách tên các khoa đã được tạo thực tế trong Firestore (hoàn toàn không hardcode)
+  Future<List<String>> layDanhSachKhoaDaTao([String? benhVienId]) async {
+    final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty)
+        ? benhVienId.trim()
+        : (FirebaseAuth.instance.currentUser?.uid ?? AppSession.benhVienId);
+
+    final Set<String> names = {};
+
+    // 1. Đọc từ đường dẫn chuẩn của bệnh viện: Khoa/{benhVienId}/danh_sach
+    try {
+      final snap = await _db
+          .collection('Khoa')
+          .doc(bvid)
+          .collection('danh_sach')
+          .get();
+      for (final doc in snap.docs) {
+        final ten = (doc.data()['tenKhoa'] ?? doc.data()['ten_khoa'] ?? '')
+            .toString()
+            .trim();
+        if (ten.isNotEmpty) names.add(ten);
+      }
+    } catch (_) {}
+
+    // 2. Nếu chưa có hoặc dùng ID khác, thử quét collectionGroup 'danh_sach'
+    if (names.isEmpty) {
+      try {
+        final groupSnap = await _db.collectionGroup('danh_sach').get();
+        for (final doc in groupSnap.docs) {
+          final data = doc.data();
+          if (data.containsKey('tenKhoa') || data.containsKey('ten_khoa')) {
+            final ten = (data['tenKhoa'] ?? data['ten_khoa'] ?? '')
+                .toString()
+                .trim();
+            if (ten.isNotEmpty) names.add(ten);
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 3. Quét collection 'Khoa' cấp cao nhất nếu có tài liệu lưu trực tiếp
+    if (names.isEmpty) {
+      try {
+        final snapTop = await _db.collection('Khoa').get();
+        for (final doc in snapTop.docs) {
+          final data = doc.data();
+          final ten = (data['tenKhoa'] ?? data['ten_khoa'] ?? '')
+              .toString()
+              .trim();
+          if (ten.isNotEmpty) names.add(ten);
+        }
+      } catch (_) {}
+    }
+
+    final sorted = names.toList()..sort();
+    return sorted;
   }
 
   /// Lấy danh sách tài khoản vừa tạo chưa kích hoạt
