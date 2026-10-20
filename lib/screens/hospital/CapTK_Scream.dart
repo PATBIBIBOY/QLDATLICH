@@ -130,30 +130,9 @@ class _CapTaiKhoanNhanVienScreenState
                 ),
               ),
               const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Chọn khoa làm việc',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                  ),
-                  TextButton.icon(
-                    onPressed: () async {
-                      Navigator.pop(context);
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              ThemKhoaScreen(benhVienId: _getBenhVienId()),
-                        ),
-                      );
-                      if (mounted) _loadDepartments();
-                    },
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('Thêm khoa'),
-                    style: TextButton.styleFrom(foregroundColor: _blue),
-                  ),
-                ],
+              const Text(
+                'Chọn khoa làm việc',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 10),
               Flexible(
