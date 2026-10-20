@@ -198,6 +198,24 @@ class NhanVienService {
 
   /// Xóa tài khoản nhân viên
   Future<void> xoaNhanVien(String nhanVienId) async {
-    await _nhanVienCol.doc(nhanVienId).delete();
+    final docRef = _nhanVienCol.doc(nhanVienId);
+    final docSnap = await docRef.get();
+    if (docSnap.exists) {
+      await docRef.delete();
+      return;
+    }
+    // Nếu document ID khác ma_nhan_vien, tìm và xóa theo ma_nhan_vien / ma_tai_khoan
+    final q1 = await _nhanVienCol
+        .where('ma_nhan_vien', isEqualTo: nhanVienId)
+        .get();
+    for (final d in q1.docs) {
+      await d.reference.delete();
+    }
+    final q2 = await _nhanVienCol
+        .where('ma_tai_khoan', isEqualTo: nhanVienId)
+        .get();
+    for (final d in q2.docs) {
+      await d.reference.delete();
+    }
   }
 }

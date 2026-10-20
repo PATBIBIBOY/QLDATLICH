@@ -172,6 +172,115 @@ class _DanhSachTaiKhoanDaTaoScreenState
     );
   }
 
+
+  Future<void> _xoaTaiKhoan(TaiKhoanItem item) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text(
+          'Xác nhận xóa tài khoản?',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'Bạn có chắc chắn muốn xóa tài khoản ${item.maTk} không? Tài khoản sẽ bị xóa khỏi hệ thống.',
+          style: const TextStyle(fontSize: 14, color: Color(0xFF475569)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('Hủy', style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dCtx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Xóa', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    try {
+      await _nhanVienService.xoaNhanVien(item.maTk);
+
+      if (!mounted) return;
+
+      setState(() {
+        if (_selectedBatch != null) {
+          final updatedList = List<TaiKhoanItem>.from(_selectedBatch!.danhSachTaiKhoan)
+            ..removeWhere((tk) => tk.maTk == item.maTk);
+
+          if (updatedList.isEmpty) {
+            _selectedBatch = null;
+          } else {
+            _selectedBatch = DotCapTaiKhoan(
+              id: _selectedBatch!.id,
+              tenKhoa: _selectedBatch!.tenKhoa,
+              vaiTro: _selectedBatch!.vaiTro,
+              soLuong: updatedList.length,
+              danhSachTaiKhoan: updatedList,
+              thoiGian: _selectedBatch!.thoiGian,
+            );
+          }
+
+          if (StaffAccountStore.dotCapGanNhat?.id == _selectedBatch?.id || _selectedBatch == null) {
+            StaffAccountStore.dotCapGanNhat = _selectedBatch;
+          }
+
+          for (int i = 0; i < StaffAccountStore.lichSuCacDot.length; i++) {
+            final dot = StaffAccountStore.lichSuCacDot[i];
+            if (dot.danhSachTaiKhoan.any((tk) => tk.maTk == item.maTk)) {
+              final newDotList = dot.danhSachTaiKhoan
+                  .where((tk) => tk.maTk != item.maTk)
+                  .toList();
+              if (newDotList.isEmpty) {
+                StaffAccountStore.lichSuCacDot.removeAt(i);
+                i--;
+              } else {
+                StaffAccountStore.lichSuCacDot[i] = DotCapTaiKhoan(
+                  id: dot.id,
+                  tenKhoa: dot.tenKhoa,
+                  vaiTro: dot.vaiTro,
+                  soLuong: newDotList.length,
+                  danhSachTaiKhoan: newDotList,
+                  thoiGian: dot.thoiGian,
+                );
+              }
+            }
+          }
+        }
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã xóa tài khoản ${item.maTk}'),
+          backgroundColor: const Color(0xFFDC2626),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi khi xóa tài khoản: $e'),
+          backgroundColor: const Color(0xFFDC2626),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
   void _hienThiLichSuCacDot() {
     final cacDot = StaffAccountStore.lichSuCacDot;
     if (cacDot.isEmpty) return;
@@ -634,20 +743,42 @@ class _DanhSachTaiKhoanDaTaoScreenState
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFEF3C7),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  item.trangThai,
-                  style: const TextStyle(
-                    color: Color(0xFFD97706),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      item.trangThai,
+                      style: const TextStyle(
+                        color: Color(0xFFD97706),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () => _xoaTaiKhoan(item),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEE2E2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.delete_outline_rounded,
+                        color: Color(0xFFDC2626),
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
