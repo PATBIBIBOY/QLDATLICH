@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/app_routes.dart';
 import '../../config/app_session.dart';
 import '../../providers/auth_provider.dart';
 import 'guiDonThanhCong_Screen.dart';
@@ -209,7 +210,17 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
           padding: const EdgeInsets.only(left: 16),
           child: Center(
             child: InkWell(
-              onTap: () => Navigator.pop(context),
+              onTap: () {
+                if (Navigator.canPop(context)) {
+                  Navigator.pop(context);
+                } else {
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    AppRoutes.login,
+                    (route) => false,
+                  );
+                }
+              },
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 width: 40,
@@ -227,6 +238,22 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
             ),
           ),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Đăng xuất',
+            icon: const Icon(Icons.logout_rounded, color: Color(0xFF64748B)),
+            onPressed: () async {
+              await context.read<AuthProvider>().logout();
+              if (!context.mounted) return;
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                AppRoutes.login,
+                (route) => false,
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
         centerTitle: true,
         title: const Text(
           'Gửi Yêu Cầu Hợp Tác',

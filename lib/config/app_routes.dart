@@ -97,7 +97,14 @@ class AppRoutes {
           ModalRoute.of(context)?.settings.arguments as int? ?? 0;
       return HomeHospitalScreen(initialTabIndex: tabIndex);
     },
-    hospitalRequestCollaboration: (_) => const GuiYeuCauHopTacScreen(),
+    hospitalRequestCollaboration: (context) {
+      final args =
+          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      return GuiYeuCauHopTacScreen(
+        initialTenBenhVien: args?['tenBenhVien'],
+        initialDiaChi: args?['diaChi'],
+      );
+    },
     hospitalRequestSuccess: (context) {
       final args =
           ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
