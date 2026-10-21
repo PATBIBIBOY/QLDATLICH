@@ -25,14 +25,6 @@ class StaffAccountStore {
   }
 }
 
-String _getBenhVienIdGlobal([String? customId]) {
-  if (customId != null && customId.isNotEmpty && customId != 'dFmZHBjFNUT1eRzJjXp5') {
-    return customId;
-  }
-  final uid = FirebaseAuth.instance.currentUser?.uid;
-  if (uid != null && uid.isNotEmpty) return uid;
-  return AppSession.benhVienId;
-}
 
 class DanhSachTaiKhoanDaTaoScreen extends StatefulWidget {
   final String? benhVienId;
