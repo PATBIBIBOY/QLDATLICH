@@ -113,6 +113,7 @@ class AuthProvider extends ChangeNotifier {
           if (_hospital != null) {
             AppSession.benhVienId = _hospital!.uid ?? currentUser.uid;
           }
+
         }
         _selectedRole = patientModel?.role ?? _hospital?.role;
       }
