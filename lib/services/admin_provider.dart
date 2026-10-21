@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'admin_service.dart';
 
-class AdminProvider with ChangeNotifier {
+class AdminProvider extends ChangeNotifier {
   final AdminService _adminService = AdminService();
 
   bool _isLoading = false;

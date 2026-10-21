@@ -14,7 +14,11 @@ void main() async {
 
   runApp(
     MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => AdminProvider())],
+      providers: [
+        ChangeNotifierProvider<AdminProvider>(
+          create: (_) => AdminProvider(),
+        ),
+      ],
       child: const AdminApp(),
     ),
   );
