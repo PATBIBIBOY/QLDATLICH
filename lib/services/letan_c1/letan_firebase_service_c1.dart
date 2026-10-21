@@ -224,16 +224,13 @@ class FirebaseServiceC1 {
   }
 
   /// Stream thống kê số liệu theo ngày đã chọn và theo Khoa (hoặc Tổng)
-  /// Lắng nghe đồng thời cả collection `appointments` và `collectionGroup('lich_hen')`
+  /// Lắng nghe trực tiếp từ `collectionGroup('lich_hen')`
   static Stream<Map<String, int>> streamThongKeHomNay({String? tenKhoa, DateTime? ngayChon}) {
     final targetDate = ngayChon ?? DateTime(2026, 10, 25);
     final String targetDateStr = '${targetDate.year.toString().padLeft(4, '0')}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}';
     final String targetDisplay = '${targetDate.day.toString().padLeft(2, '0')}/${targetDate.month.toString().padLeft(2, '0')}/${targetDate.year}';
 
-    final controller = StreamController<Map<String, int>>();
-    Map<String, QueryDocumentSnapshot<Map<String, dynamic>>> allDocs = {};
-
-    void recompute() {
+    return _firestore.collectionGroup('lich_hen').snapshots().map((snap) {
       int daTiepNhan = 0;
       int dangCho = 0;
       int daKham = 0;
@@ -241,7 +238,7 @@ class FirebaseServiceC1 {
 
       final isAll = laCheDoTong(tenKhoa);
 
-      for (var doc in allDocs.values) {
+      for (var doc in snap.docs) {
         final data = doc.data();
 
         // 1. Lọc theo ngày (hỗ trợ cả String, Timestamp, date path segment)
@@ -288,52 +285,16 @@ class FirebaseServiceC1 {
         }
       }
 
-      if (!controller.isClosed) {
-        controller.add({
-          'daTiepNhan': daTiepNhan,
-          'dangCho': dangCho,
-          'daKham': daKham,
-          'tongSo': tongSo,
-        });
-      }
-    }
-
-    StreamSubscription? sub1;
-    StreamSubscription? sub2;
-
-    controller.onListen = () {
-      // Stream 1: Collection 'appointments' (luôn sẵn sàng trên Client Web)
-      sub1 = _firestore.collection('appointments').snapshots().listen((snap) {
-        for (var doc in snap.docs) {
-          allDocs[doc.id] = doc;
-        }
-        recompute();
-      }, onError: (e) {
-        // ignore: avoid_print
-        print('Error reading appointments: $e');
-      });
-
-      // Stream 2: CollectionGroup 'lich_hen'
-      sub2 = _firestore.collectionGroup('lich_hen').snapshots().listen((snap) {
-        for (var doc in snap.docs) {
-          allDocs[doc.id] = doc;
-        }
-        recompute();
-      }, onError: (e) {
-        // ignore: avoid_print
-        print('Error reading collectionGroup lich_hen: $e');
-      });
-    };
-
-    controller.onCancel = () {
-      sub1?.cancel();
-      sub2?.cancel();
-    };
-
-    return controller.stream;
+      return {
+        'daTiepNhan': daTiepNhan,
+        'dangCho': dangCho,
+        'daKham': daKham,
+        'tongSo': tongSo,
+      };
+    });
   }
 
-  /// Stream danh sách lịch hẹn từ collection `appointments` & `collectionGroup('lich_hen')`
+  /// Stream danh sách lịch hẹn từ `collectionGroup('lich_hen')`
   /// Hỗ trợ chọn Ngày cụ thể (ví dụ 25/10/2026), lọc theo Khoa (hoặc Tổng), Tab trạng thái & tìm kiếm
   static Stream<List<Map<String, dynamic>>> streamDanhSachLichHen({
     String? tenKhoa,
@@ -452,21 +413,10 @@ class FirebaseServiceC1 {
       }
     }
 
-    StreamSubscription? sub1;
-    StreamSubscription? sub2;
+    StreamSubscription? sub;
 
     controller.onListen = () {
-      sub1 = _firestore.collection('appointments').snapshots().listen((snap) {
-        for (var doc in snap.docs) {
-          allDocs[doc.id] = doc;
-        }
-        recompute();
-      }, onError: (e) {
-        // ignore: avoid_print
-        print('Error reading appointments in streamDanhSachLichHen: $e');
-      });
-
-      sub2 = _firestore.collectionGroup('lich_hen').snapshots().listen((snap) {
+      sub = _firestore.collectionGroup('lich_hen').snapshots().listen((snap) {
         for (var doc in snap.docs) {
           allDocs[doc.id] = doc;
         }
@@ -478,8 +428,7 @@ class FirebaseServiceC1 {
     };
 
     controller.onCancel = () {
-      sub1?.cancel();
-      sub2?.cancel();
+      sub?.cancel();
     };
 
     return controller.stream;
@@ -510,143 +459,11 @@ class FirebaseServiceC1 {
       final q = await _firestore.collectionGroup('lich_hen').where('id', isEqualTo: appointmentId).limit(1).get();
       if (q.docs.isNotEmpty) {
         await q.docs.first.reference.update(updateData);
-      } else {
-        await _firestore.collection('appointments').doc(appointmentId).set(updateData, SetOptions(merge: true));
       }
     }
   }
 
-  /// Tự động đẩy dữ liệu mẫu vào collection `appointments` trên Firestore nếu đang trống
-  /// Có đủ các khoa (KHOA TIM, KHOA MẮT, KHOA NHI, KHOA RĂNG HÀM MẶT) để kiểm thử chức năng lọc
-  static Future<void> kiemTraVaSeedLichKhamFirestore() async {
-    try {
-      final snap = await _firestore.collection('appointments').limit(1).get();
-      if (snap.docs.isNotEmpty) return; // Đã có dữ liệu
 
-      final danhSachMau = [
-        {
-          'ho_ten': 'NGUYỄN VĂN AN',
-          'so_dien_thoai': '0901 234 567',
-          'ten_khoa': 'KHOA TIM',
-          'phong_kham': 'Phòng 110 - Tầng 1',
-          'gio_kham': '08:00',
-          'so_thu_tu': 1,
-          'bac_si': 'BS. CKII Lê Hoàng Nam',
-          'trang_thai': 'da_tiep_nhan',
-          'gioi_tinh': 'Nam',
-          'nam_sinh': '1985',
-          'cccd': '079085001122',
-          'bhyt': 'BHYT Đúng tuyến 100%',
-          'ngay_kham': DateTime.now().toIso8601String().substring(0, 10),
-        },
-        {
-          'ho_ten': 'TRẦN THỊ MAI',
-          'so_dien_thoai': '0912 345 678',
-          'ten_khoa': 'KHOA TIM',
-          'phong_kham': 'Phòng 110 - Tầng 1',
-          'gio_kham': '08:30',
-          'so_thu_tu': 2,
-          'bac_si': 'BS. CKII Lê Hoàng Nam',
-          'trang_thai': 'dang_cho',
-          'gioi_tinh': 'Nữ',
-          'nam_sinh': '1978',
-          'cccd': '079178003344',
-          'bhyt': 'BHYT Đúng tuyến 80%',
-          'ngay_kham': DateTime.now().toIso8601String().substring(0, 10),
-        },
-        {
-          'ho_ten': 'LÊ HOÀNG PHÚC',
-          'so_dien_thoai': '0938 111 222',
-          'ten_khoa': 'KHOA TIM',
-          'phong_kham': 'Phòng 110 - Tầng 1',
-          'gio_kham': '09:00',
-          'so_thu_tu': 3,
-          'bac_si': 'BS. CKII Lê Hoàng Nam',
-          'trang_thai': 'dang_cho',
-          'gioi_tinh': 'Nam',
-          'nam_sinh': '1992',
-          'cccd': '079092005566',
-          'bhyt': 'Tự túc',
-          'ngay_kham': DateTime.now().toIso8601String().substring(0, 10),
-        },
-        {
-          'ho_ten': 'PHẠM MINH QUANG',
-          'so_dien_thoai': '0988 777 666',
-          'ten_khoa': 'KHOA TIM',
-          'phong_kham': 'Phòng 110 - Tầng 1',
-          'gio_kham': '07:30',
-          'so_thu_tu': 4,
-          'bac_si': 'BS. CKII Lê Hoàng Nam',
-          'trang_thai': 'da_kham',
-          'gioi_tinh': 'Nam',
-          'nam_sinh': '1965',
-          'cccd': '079065007788',
-          'bhyt': 'BHYT 100%',
-          'ngay_kham': DateTime.now().toIso8601String().substring(0, 10),
-        },
-        // Khoa Mắt
-        {
-          'ho_ten': 'VÕ THỊ HỒNG',
-          'so_dien_thoai': '0977 444 333',
-          'ten_khoa': 'KHOA MẮT',
-          'phong_kham': 'Phòng 204 - Tầng 2',
-          'gio_kham': '08:15',
-          'so_thu_tu': 1,
-          'bac_si': 'BS. CKI Vũ Đình Tú',
-          'trang_thai': 'dang_cho',
-          'gioi_tinh': 'Nữ',
-          'nam_sinh': '1999',
-          'cccd': '079199002211',
-          'bhyt': 'BHYT 80%',
-          'ngay_kham': DateTime.now().toIso8601String().substring(0, 10),
-        },
-        {
-          'ho_ten': 'ĐẶNG TUẤN KIỆT',
-          'so_dien_thoai': '0908 555 777',
-          'ten_khoa': 'KHOA MẮT',
-          'phong_kham': 'Phòng 204 - Tầng 2',
-          'gio_kham': '08:45',
-          'so_thu_tu': 2,
-          'bac_si': 'BS. CKI Vũ Đình Tú',
-          'trang_thai': 'da_tiep_nhan',
-          'gioi_tinh': 'Nam',
-          'nam_sinh': '2001',
-          'cccd': '079201004455',
-          'bhyt': 'Tự túc',
-          'ngay_kham': DateTime.now().toIso8601String().substring(0, 10),
-        },
-        // Khoa Nhi
-        {
-          'ho_ten': 'BÉ NGUYỄN GIA HÂN',
-          'so_dien_thoai': '0933 888 999',
-          'ten_khoa': 'KHOA NHI',
-          'phong_kham': 'Phòng 305 - Tầng 3',
-          'gio_kham': '09:15',
-          'so_thu_tu': 1,
-          'bac_si': 'BS. CKI Nguyễn Lan Hương',
-          'trang_thai': 'dang_cho',
-          'gioi_tinh': 'Nữ',
-          'nam_sinh': '2020',
-          'cccd': 'Trẻ em dưới 6 tuổi',
-          'bhyt': 'BHYT 100%',
-          'ngay_kham': DateTime.now().toIso8601String().substring(0, 10),
-        },
-      ];
-
-      final batch = _firestore.batch();
-      for (var item in danhSachMau) {
-        final docRef = _firestore.collection('appointments').doc();
-        batch.set(docRef, {
-          ...item,
-          'ngay_tao': FieldValue.serverTimestamp(),
-        });
-      }
-      await batch.commit();
-    } catch (e) {
-      // ignore: avoid_print
-      print('Lỗi seed lịch khám mẫu lên Firestore: $e');
-    }
-  }
 
   // ==========================================
   // TÍNH NĂNG 3: THÔNG BÁO THỜI GIAN THỰC (REALTIME ALERTS)

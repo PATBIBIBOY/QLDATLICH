@@ -33,7 +33,6 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
   void initState() {
     super.initState();
     _tenKhoaHienTai = widget.tenKhoa;
-    FirebaseServiceC1.kiemTraVaSeedLichKhamFirestore();
   }
 
   Future<void> _chonNgayLichHen() async {
