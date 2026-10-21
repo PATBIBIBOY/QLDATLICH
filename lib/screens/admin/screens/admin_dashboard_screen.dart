@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/admin_provider.dart';
+import 'package:qldatlich/services/admin_provider.dart';
 import 'manage_hospitals_screen.dart';
 import 'bug_reports_screen.dart';
 

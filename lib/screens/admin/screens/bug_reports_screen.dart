@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
-import '../../services/admin_service.dart';
-import '../../providers/admin_provider.dart';
+import 'package:qldatlich/services/admin_service.dart';
+import 'package:qldatlich/services/admin_provider.dart';
 
 class BugReportsScreen extends StatelessWidget {
   const BugReportsScreen({Key? key}) : super(key: key);
@@ -35,7 +35,7 @@ class BugReportsScreen extends StatelessWidget {
             itemBuilder: (context, index) {
               final data = docs[index].data();
               final docId = docs[index].id;
-              final tiêuĐề = data['tieuDe'] ?? 'Không có tiêu đề';
+              final tieuDe = data['tieuDe'] ?? 'Không có tiêu đề';
               final noiDung = data['noiDung'] ?? '';
               final trangThai = data['trangThaiXuly'] ?? 'CHO_XU_LY';
 
@@ -46,7 +46,7 @@ class BugReportsScreen extends StatelessWidget {
                     trangThai == 'DA_GIAI_QUYET' ? Icons.check_circle : Icons.warning,
                     color: trangThai == 'DA_GIAI_QUYET' ? Colors.green : Colors.orange,
                   ),
-                  title: Text(tiêuĐề, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  title: Text(tieuDe, style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text('Trạng thái: $trangThai'),
                   children: [
                     Padding(

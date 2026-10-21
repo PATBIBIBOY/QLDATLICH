@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
-import '../../services/admin_service.dart';
-import '../../providers/admin_provider.dart';
+import 'package:qldatlich/services/admin_service.dart';
+import 'package:qldatlich/services/admin_provider.dart';
 
 class ManageHospitalsScreen extends StatefulWidget {
   const ManageHospitalsScreen({Key? key}) : super(key: key);
