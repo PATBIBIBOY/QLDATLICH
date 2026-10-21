@@ -17,6 +17,14 @@ class HospitalModel {
   final String? email;
   final String? role;
   final bool daXacThucEmail;
+  
+  // ✅ THÊM 2 TRƯỜNG TỌA ĐỘ
+  final double? viDo;  // Latitude
+  final double? kinhDo; // Longitude
+
+  // ✅ THÊM 2 TRƯỜNG DANH SÁCH CHUYÊN KHOA
+  final List<String>? chuyenKhoaIds; // Ví dụ: ['CK01', 'CK04'] -> Dùng để query filter
+  final List<String>? tenCacKhoa;    // Ví dụ: ['Khoa Tim mạch', 'Khoa Hô hấp'] -> Dùng để hiển thị UI nhanh
 
   HospitalModel({
     this.id,
@@ -35,6 +43,10 @@ class HospitalModel {
     this.email,
     this.role = 'benh_vien',
     this.daXacThucEmail = false,
+    this.viDo,    
+    this.kinhDo,  
+    this.chuyenKhoaIds, // ✅ Thêm
+    this.tenCacKhoa,    // ✅ Thêm
   }) : ngayTao = ngayTao ?? DateTime.now();
 
   Map<String, dynamic> toMap() {
@@ -55,6 +67,10 @@ class HospitalModel {
       'email': email,
       'role': role,
       'da_xac_thuc_email': daXacThucEmail,
+      'vi_do': viDo,    
+      'kinh_do': kinhDo, 
+      'chuyen_khoa_ids': chuyenKhoaIds, // ✅ Thêm
+      'ten_cac_khoa': tenCacKhoa,       // ✅ Thêm
     };
   }
 
@@ -78,6 +94,16 @@ class HospitalModel {
       email: map['email'],
       role: map['role'] ?? 'benh_vien',
       daXacThucEmail: map['da_xac_thuc_email'] ?? false,
+      viDo: (map['vi_do'] as num?)?.toDouble(),    
+      kinhDo: (map['kinh_do'] as num?)?.toDouble(), 
+      
+      // ✅ Xử lý an toàn cho List<String> từ Firestore
+      chuyenKhoaIds: map['chuyen_khoa_ids'] != null
+          ? List<String>.from(map['chuyen_khoa_ids'])
+          : null,
+      tenCacKhoa: map['ten_cac_khoa'] != null
+          ? List<String>.from(map['ten_cac_khoa'])
+          : null,
     );
   }
 
@@ -98,6 +124,10 @@ class HospitalModel {
     String? email,
     String? role,
     bool? daXacThucEmail,
+    double? viDo,    
+    double? kinhDo,  
+    List<String>? chuyenKhoaIds, // ✅ Thêm
+    List<String>? tenCacKhoa,    // ✅ Thêm
   }) {
     return HospitalModel(
       id: id ?? this.id,
@@ -116,6 +146,10 @@ class HospitalModel {
       email: email ?? this.email,
       role: role ?? this.role,
       daXacThucEmail: daXacThucEmail ?? this.daXacThucEmail,
+      viDo: viDo ?? this.viDo,    
+      kinhDo: kinhDo ?? this.kinhDo, 
+      chuyenKhoaIds: chuyenKhoaIds ?? this.chuyenKhoaIds, // ✅ Thêm
+      tenCacKhoa: tenCacKhoa ?? this.tenCacKhoa,          // ✅ Thêm
     );
   }
 
@@ -135,6 +169,7 @@ class HospitalModel {
       ngayTao: DateTime.now(),
       role: role ?? 'benh_vien',
       daXacThucEmail: false,
+      // Các trường chuyên khoa sẽ để null khi mới đăng ký
     );
   }
 }

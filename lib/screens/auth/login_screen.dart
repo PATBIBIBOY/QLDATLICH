@@ -3,6 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_routes.dart';
+import '../../database_seeder.dart';
+import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth, FirebaseAuthException;
+import '../../config/app_session.dart';
 import '../../providers/auth_provider.dart';
 import '../letan_c1/cskh_duyetdon_khoa_screen_c1.dart';
 import '../letan_c1/letan_thietlap_thongtin_screen_c1.dart';
@@ -141,8 +144,13 @@ class _LoginScreenState extends State<LoginScreen> {
       // ✅ 2. Xử lý đăng nhập bằng Gmail qua FirebaseAuth theo Role
       if (selectedRoleCode == 'admin') {
         await auth.loginAdmin(email: email, password: password);
+        await DatabaseSeeder.seedAllData();
       } else {
-        await auth.login(email: email, password: password);
+        await auth.login(
+          email: email,
+          password: password,
+          role: selectedRoleCode,
+        );
       }
 
       if (!mounted) return;
@@ -153,10 +161,12 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
       
-      if (auth.hospital != null) {
-        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.hospitalDashboard, (route) => false);
-        return;
-      }
+      if (selectedRoleCode == 'benh_vien' || auth.hospital != null) {
+        AppSession.benhVienId = auth.hospital?.uid ??
+            FirebaseAuth.instance.currentUser?.uid ??
+            '';
+        route = AppRoutes.hospitalDashboard;
+      } 
 
       // Xử lý tài khoản người dùng / nhân viên
       final currentUid = FirebaseAuth.instance.currentUser?.uid;

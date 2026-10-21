@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.12.0
+  sdk: ^3.11.0
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -41,6 +41,8 @@ dependencies:
   intl: ^0.20.2
   shared_preferences: ^2.5.6
   mobile_scanner: ^7.4.2
+  geolocator: ^14.1.1
+  url_launcher: ^6.1.14
 
 dev_dependencies:
   flutter_test:
@@ -53,6 +55,8 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+  
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
@@ -63,6 +67,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - hospital.geojson
 
   # To add assets to your application, add an assets section, like this:
   # assets:
