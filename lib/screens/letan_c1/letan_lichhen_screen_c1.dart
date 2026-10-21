@@ -65,7 +65,7 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
   @override
   void initState() {
     super.initState();
-    _ngayChon = widget.ngayChonBanDau ?? DateTime(2026, 10, 25);
+    _ngayChon = widget.ngayChonBanDau ?? DateTime.now();
     _tuKhoa = widget.tuKhoaBanDau;
     _timKiemController = TextEditingController(text: widget.tuKhoaBanDau);
   }

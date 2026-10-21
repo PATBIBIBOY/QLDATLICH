@@ -27,7 +27,7 @@ class LeTanHomeScreenC1 extends StatefulWidget {
 class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
   int _currentIndex = 0; // 0: Trang chu, 1: Quet QR, 2: Lich hen, 3: Profile
   late String _tenKhoaHienTai;
-  DateTime _ngayChon = DateTime(2026, 10, 25);
+  DateTime _ngayChon = DateTime.now();
 
   @override
   void initState() {

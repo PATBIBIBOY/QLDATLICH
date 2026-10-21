@@ -39,7 +39,7 @@ class CskhDuyetdonKhoaScreenC1 extends StatefulWidget {
 
 class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
   int _currentBottomNavIndex = 0; // 0: Trang chủ, 1: Duyệt đơn, 2: CSKH, 3: Profile
-  DateTime _ngayChon = DateTime(2026, 10, 25);
+  DateTime _ngayChon = DateTime.now();
 
   Future<void> _chonNgay() async {
     AppDesignSystemC1.hapticLight();

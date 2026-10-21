@@ -25,7 +25,7 @@ class CskhDanhsachDonKhoaScreenC1 extends StatefulWidget {
 }
 
 class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC1> {
-  DateTime _ngayChon = DateTime(2026, 10, 25);
+  DateTime _ngayChon = DateTime.now();
 
   Future<void> _chonNgayLichHen() async {
     AppDesignSystemC1.hapticLight();

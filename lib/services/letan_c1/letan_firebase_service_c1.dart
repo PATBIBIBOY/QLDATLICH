@@ -226,7 +226,7 @@ class FirebaseServiceC1 {
   /// Stream thống kê số liệu theo ngày đã chọn và theo Khoa (hoặc Tổng)
   /// Lắng nghe trực tiếp từ `collectionGroup('lich_hen')`
   static Stream<Map<String, int>> streamThongKeHomNay({String? tenKhoa, DateTime? ngayChon}) {
-    final targetDate = ngayChon ?? DateTime(2026, 10, 25);
+    final targetDate = ngayChon ?? DateTime.now();
     final String targetDateStr = '${targetDate.year.toString().padLeft(4, '0')}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}';
     final String targetDisplay = '${targetDate.day.toString().padLeft(2, '0')}/${targetDate.month.toString().padLeft(2, '0')}/${targetDate.year}';
 
@@ -302,7 +302,7 @@ class FirebaseServiceC1 {
     String? tuKhoa,
     DateTime? ngayChon,
   }) {
-    final targetDate = ngayChon ?? DateTime(2026, 10, 25);
+    final targetDate = ngayChon ?? DateTime.now();
     final String targetDateStr = '${targetDate.year.toString().padLeft(4, '0')}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}';
     final String targetDisplay = '${targetDate.day.toString().padLeft(2, '0')}/${targetDate.month.toString().padLeft(2, '0')}/${targetDate.year}';
 
