@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/appointment_item.dart';
 import '../config/app_session.dart';
@@ -202,8 +203,14 @@ class AppRoutes {
         extraData: args?['extraData'],
       );
     },
-    addClinic: (_) => ThemKhoaScreen(benhVienId: AppSession.benhVienId),
- 
+    addClinic: (context) {
+      final args = ModalRoute.of(context)?.settings.arguments as String?;
+      final bvid = (args != null && args.isNotEmpty && args != 'dFmZHBjFNUT1eRzJjXp5')
+          ? args
+          : (FirebaseAuth.instance.currentUser?.uid ?? AppSession.benhVienId);
+      return ThemKhoaScreen(benhVienId: bvid);
+    },
+    staffManagement: (_) => const StaffManagementScreen(),
     nhanSuScreen: (_) => const HomeHospitalScreen(initialTabIndex: 2),
 
   };

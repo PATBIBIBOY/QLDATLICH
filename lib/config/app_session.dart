@@ -1,11 +1,26 @@
-/// Lưu ID bệnh viện đang quản lý (document trong collection `benhVien`).
-/// Sau này khi làm đăng nhập, thay bằng ID lấy theo tài khoản.
+import 'package:firebase_auth/firebase_auth.dart';
 
+/// Quản lý phiên làm việc và ID bệnh viện đang đăng nhập
 class AppSession {
-  static String benhVienId = 'dFmZHBjFNUT1eRzJjXp5';
+  static String _benhVienId = '';
 
-  /// (Tùy chọn) Đường dẫn đầy đủ tới document bệnh viện, ví dụ:
-  /// 'BenhVien/xxx/co_so/yyy/bhyt/zzz/danh_sach/dFmZHBjFNUT1eRzJjXp5'
-  /// Điền vào sẽ đọc tên nhanh hơn; để null thì app tự tìm theo ID.
+  static String get benhVienId {
+    if (_benhVienId.isNotEmpty && _benhVienId != 'dFmZHBjFNUT1eRzJjXp5') {
+      return _benhVienId;
+    }
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) {
+      _benhVienId = uid;
+      return uid;
+    }
+    return _benhVienId;
+  }
+
+  static set benhVienId(String value) {
+    if (value != 'dFmZHBjFNUT1eRzJjXp5') {
+      _benhVienId = value;
+    }
+  }
+
   static String? benhVienPath;
 }
