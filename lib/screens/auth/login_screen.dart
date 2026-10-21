@@ -1,14 +1,9 @@
 import 'package:flutter/material.dart';
-<<<<<<< HEAD
-import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuthException;
 import 'package:provider/provider.dart';
 import '../../config/app_routes.dart';
-=======
+import '../../database_seeder.dart';
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth, FirebaseAuthException;
-import 'package:provider/provider.dart';
-import '../../config/app_routes.dart';
 import '../../config/app_session.dart';
->>>>>>> origin/benhvien
 import '../../providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -60,37 +55,17 @@ class _LoginScreenState extends State<LoginScreen> {
       // ✅ 1. Xử lý đăng nhập theo Role
       if (selectedRoleCode == 'admin') {
         await auth.loginAdmin(email: email, password: password);
+        await DatabaseSeeder.seedAllData();
       } else {
-<<<<<<< HEAD
-        await auth.login(email: email, password: password);
-=======
         await auth.login(
           email: email,
           password: password,
           role: selectedRoleCode,
         );
->>>>>>> origin/benhvien
       }
 
       if (!mounted) return;
 
-<<<<<<< HEAD
-      // ✅ 2. Điều hướng thông minh dựa trên dữ liệu thực tế trong Provider
-      String route;
-      if (selectedRoleCode == 'admin' && auth.admin != null) {
-        route = AppRoutes.adminDashboard;
-      } else if (auth.user != null) {
-        route = AppRoutes.patientHome;
-      } else if (auth.hospital != null) {
-        route = AppRoutes.hospitalDashboard;
-      } else {
-        // Fallback nếu có lỗi logic
-        route = AppRoutes.patientHome; 
-      }
-
-      Navigator.pushNamedAndRemoveUntil(context, route, (route) => false);
-
-=======
       // ✅ 2. Điều hướng thông minh dựa trên dữ liệu thực tế và Role được chọn
       String route;
       if (selectedRoleCode == 'admin' && auth.admin != null) {
@@ -109,7 +84,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
       Navigator.pushNamedAndRemoveUntil(context, route, (route) => false);
     
->>>>>>> origin/benhvien
     } catch (e) {
       if (!mounted) return;
       
