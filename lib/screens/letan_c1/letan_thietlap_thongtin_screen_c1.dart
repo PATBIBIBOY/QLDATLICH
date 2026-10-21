@@ -5,7 +5,7 @@ import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
 import 'cskh_duyetdon_khoa_screen_c1.dart';
 import 'letan_trangchu_screen_c1.dart';
-import '../doctor_assistant/assistant_home_screen.dart';
+import '../../support_doctor/department_room_picker.dart';
 
 /// MÀN HÌNH 3: THIẾT LẬP THÔNG TIN KHI LẦN ĐẦU ĐĂNG NHẬP (FIGMA C1)
 /// Nhân viên nhập Mã nhân viên được cấp -> Bổ sung Gmail, Họ tên, Ngày sinh, Giới tính, Mật khẩu mới.
@@ -136,7 +136,7 @@ class _LetanThietlapThongtinScreenC1State extends State<LetanThietlapThongtinScr
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const AssistantHomeScreen(),
+          builder: (_) => const ClinicRoomPickerScreen(),
         ),
       );
     } else {

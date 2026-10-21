@@ -7,7 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../letan_c1/cskh_duyetdon_khoa_screen_c1.dart';
 import '../letan_c1/letan_thietlap_thongtin_screen_c1.dart';
 import '../letan_c1/letan_trangchu_screen_c1.dart';
-import '../doctor_assistant/assistant_home_screen.dart';
+import '../../support_doctor/department_room_picker.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -132,7 +132,7 @@ class _LoginScreenState extends State<LoginScreen> {
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const CskhDuyetdonKhoaScreenC1()));
             return;
           } else if (role == 'doctorAssistant' || role == 'ho_tro_bac_si' || role == 'bac_si') {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AssistantHomeScreen()));
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ClinicRoomPickerScreen()));
             return;
           }
         }
@@ -245,7 +245,7 @@ class _LoginScreenState extends State<LoginScreen> {
           } else if (role == 'doctorAssistant' || role == 'ho_tro_bac_si' || role == 'bac_si') {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const AssistantHomeScreen()),
+              MaterialPageRoute(builder: (_) => const ClinicRoomPickerScreen()),
             );
             return;
           }
