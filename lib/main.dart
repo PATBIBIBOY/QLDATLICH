@@ -9,9 +9,17 @@ import 'config/firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'screens/auth/login_screen.dart';
 
+import 'database_seeder.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+<<<<<<< HEAD
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+=======
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await DatabaseSeeder.seedAllData();
+>>>>>>> origin/benhvien
 
   runApp(const QLDatLichApp());
 }
@@ -27,7 +35,12 @@ class QLDatLichApp extends StatelessWidget {
         title: 'QLDATLICH',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
+<<<<<<< HEAD
         home: ha.MainShell(), // gọi qua prefix ha.
+=======
+        home: const LoginScreen(),
+        // ✅ SỬA LỖI: Bỏ đoạn import bị dính vào đây
+>>>>>>> origin/benhvien
         routes: AppRoutes.routes,
       ),
     );
