@@ -1,26 +1,34 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TaiKhoanItem {
+  final String? id;
+  final String? benhVienId;
   final String maTk;
   final String matKhau;
   final String trangThai;
 
   const TaiKhoanItem({
+    this.id,
+    this.benhVienId,
     required this.maTk,
     required this.matKhau,
     this.trangThai = 'Đợi kích hoạt',
   });
 
   Map<String, dynamic> toMap() => {
+    'id': id,
+    'benh_vien_id': benhVienId,
     'maTk': maTk,
     'matKhau': matKhau,
     'trangThai': trangThai,
   };
 
   factory TaiKhoanItem.fromMap(Map<String, dynamic> map) => TaiKhoanItem(
-    maTk: (map['maTk'] ?? '').toString(),
-    matKhau: (map['matKhau'] ?? '123456').toString(),
-    trangThai: (map['trangThai'] ?? 'Đợi kích hoạt').toString(),
+    id: map['id']?.toString(),
+    benhVienId: (map['benh_vien_id'] ?? map['benhVienId'])?.toString(),
+    maTk: (map['maTk'] ?? map['ma_nhan_vien'] ?? map['ma_tai_khoan'] ?? '').toString(),
+    matKhau: (map['matKhau'] ?? map['mat_khau'] ?? '123456').toString(),
+    trangThai: (map['trangThai'] ?? map['trang_thai'] ?? 'Đợi kích hoạt').toString(),
   );
 }
 
@@ -45,6 +53,7 @@ class DotCapTaiKhoan {
 
 class NhanVienModel {
   final String id;
+  final String benhVienId;
   final String hoTen;
   final String maNv;
   final String vaiTro;
@@ -60,6 +69,7 @@ class NhanVienModel {
 
   const NhanVienModel({
     required this.id,
+    this.benhVienId = '',
     required this.hoTen,
     required this.maNv,
     required this.vaiTro,
@@ -76,6 +86,8 @@ class NhanVienModel {
 
   factory NhanVienModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? {};
+    final benhVienId =
+        (data['benh_vien_id'] ?? data['benhVienId'] ?? '').toString();
     final maNv = (data['ma_nhan_vien'] ??
             data['maNv'] ??
             data['ma_tai_khoan'] ??
@@ -112,6 +124,7 @@ class NhanVienModel {
 
     return NhanVienModel(
       id: doc.id,
+      benhVienId: benhVienId,
       hoTen: hoTen,
       maNv: maNv,
       vaiTro: vaiTro,

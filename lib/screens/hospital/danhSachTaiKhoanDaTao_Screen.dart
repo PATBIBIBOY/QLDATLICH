@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../config/app_session.dart';
 
 import '../../config/app_routes.dart';
 import '../../models/nhan_vien_model.dart';
@@ -24,6 +26,7 @@ class StaffAccountStore {
 }
 
 class DanhSachTaiKhoanDaTaoScreen extends StatefulWidget {
+  final String? benhVienId;
   final String? tenKhoa;
   final String? vaiTro;
   final int? soLuong;
@@ -31,6 +34,7 @@ class DanhSachTaiKhoanDaTaoScreen extends StatefulWidget {
 
   const DanhSachTaiKhoanDaTaoScreen({
     super.key,
+    this.benhVienId,
     this.tenKhoa,
     this.vaiTro,
     this.soLuong,
@@ -47,6 +51,15 @@ class _DanhSachTaiKhoanDaTaoScreenState
   final NhanVienService _nhanVienService = NhanVienService();
   DotCapTaiKhoan? _selectedBatch;
   bool _isLoading = true;
+
+  String _getBenhVienId() {
+    if (widget.benhVienId != null && widget.benhVienId!.isNotEmpty) {
+      return widget.benhVienId!;
+    }
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) return uid;
+    return AppSession.benhVienId;
+  }
 
   @override
   void initState() {
@@ -111,7 +124,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
 
     // 3. Đọc dữ liệu tài khoản chưa kích hoạt từ Firebase Firestore thông qua service
     try {
-      final list = await _nhanVienService.layDanhSachTaiKhoanChuaKichHoat();
+      final list = await _nhanVienService.layDanhSachTaiKhoanChuaKichHoat(_getBenhVienId());
       if (list.isNotEmpty) {
         final batch = DotCapTaiKhoan(
           tenKhoa: widget.tenKhoa ?? 'Toàn viện',
@@ -211,7 +224,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
     if (confirm != true || !mounted) return;
 
     try {
-      await _nhanVienService.xoaNhanVien(item.maTk);
+      await _nhanVienService.xoaNhanVien(item.id ?? item.maTk, _getBenhVienId());
 
       if (!mounted) return;
 
@@ -532,7 +545,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const CapTaiKhoanNhanVienScreen(),
+                    builder: (_) => CapTaiKhoanNhanVienScreen(benhVienId: _getBenhVienId()),
                   ),
                 );
               },

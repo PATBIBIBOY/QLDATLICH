@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../config/app_session.dart';
 
 import '../../models/nhan_vien_model.dart';
 import '../../services/nhan_vien_service.dart';
@@ -10,7 +12,8 @@ export '../../models/nhan_vien_model.dart' show NhanVienModel;
 
 class NhanSuScreen extends StatefulWidget {
   final bool isTab;
-  const NhanSuScreen({super.key, this.isTab = true});
+  final String? benhVienId;
+  const NhanSuScreen({super.key, this.isTab = true, this.benhVienId});
 
   @override
   State<NhanSuScreen> createState() => _NhanSuScreenState();
@@ -18,6 +21,15 @@ class NhanSuScreen extends StatefulWidget {
 
 class _NhanSuScreenState extends State<NhanSuScreen> {
   final NhanVienService _nhanVienService = NhanVienService();
+
+  String _getBenhVienId() {
+    if (widget.benhVienId != null && widget.benhVienId!.isNotEmpty) {
+      return widget.benhVienId!;
+    }
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) return uid;
+    return AppSession.benhVienId;
+  }
   String _tuKhoa = '';
   String _filterRole = 'Tất cả';
 
@@ -245,7 +257,7 @@ class _NhanSuScreenState extends State<NhanSuScreen> {
                         if (confirm == true) {
                           nav.pop();
                           try {
-                            await _nhanVienService.xoaNhanVien(nv.id);
+                            await _nhanVienService.xoaNhanVien(nv.id, _getBenhVienId());
                             messenger.showSnackBar(
                               SnackBar(
                                 content: Text('Đã xóa nhân viên ${nv.maNv}'),
@@ -299,7 +311,7 @@ class _NhanSuScreenState extends State<NhanSuScreen> {
   @override
   Widget build(BuildContext context) {
     final bodyContent = StreamBuilder<List<NhanVienModel>>(
-      stream: _nhanVienService.streamNhanVien(),
+      stream: _nhanVienService.streamNhanVien(benhVienId: _getBenhVienId()),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting &&
             !snapshot.hasData) {
@@ -422,7 +434,7 @@ class _NhanSuScreenState extends State<NhanSuScreen> {
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const CapTaiKhoanNhanVienScreen(),
+                          builder: (_) => CapTaiKhoanNhanVienScreen(benhVienId: _getBenhVienId()),
                         ),
                       );
                       if (mounted) setState(() {});
@@ -456,7 +468,7 @@ class _NhanSuScreenState extends State<NhanSuScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const DanhSachTaiKhoanDaTaoScreen(),
+                          builder: (_) => DanhSachTaiKhoanDaTaoScreen(benhVienId: _getBenhVienId()),
                         ),
                       );
                     },
@@ -756,7 +768,7 @@ class _NhanSuScreenState extends State<NhanSuScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const CapTaiKhoanNhanVienScreen(),
+                    builder: (_) => CapTaiKhoanNhanVienScreen(benhVienId: _getBenhVienId()),
                   ),
                 );
               },

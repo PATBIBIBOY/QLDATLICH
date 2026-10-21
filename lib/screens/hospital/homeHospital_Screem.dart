@@ -668,7 +668,7 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
         return const TatCaKhoaTab();
       case 2:
         // Tab "Nhân sự": Danh sách nhân sự & nút Cấp tài khoản
-        return const NhanSuScreen();
+        return NhanSuScreen(benhVienId: hospitalUid);
       case 3:
         // Tab "Cài đặt": Thông tin & Đăng xuất
         return _buildSettingsTab(hospitalUid: hospitalUid);

@@ -250,6 +250,7 @@ class _CapTaiKhoanNhanVienScreenState
 
       // Cấp tài khoản qua service và lưu đồng loạt lên Firebase Firestore
       final dotMoi = await _nhanVienService.taoVaLuuNhanVien(
+        benhVienId: _getBenhVienId(),
         tenKhoa: _selectedDepartment!,
         deptCode: deptShort,
         vaiTro: _selectedRole.title,
@@ -274,6 +275,7 @@ class _CapTaiKhoanNhanVienScreenState
         context,
         MaterialPageRoute(
           builder: (_) => DanhSachTaiKhoanDaTaoScreen(
+            benhVienId: _getBenhVienId(),
             tenKhoa: dotMoi.tenKhoa,
             vaiTro: dotMoi.vaiTro,
             soLuong: dotMoi.soLuong,
