@@ -118,7 +118,7 @@ class _LoginScreenState extends State<LoginScreen> {
           if (role == 'receptionist' || role == 'le_tan') {
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()));
             return;
-          } else if (role == 'customerSupport' || role == 'cskh') {
+          } else if (role == 'customerSupport' || role == 'cskh' || role == 'cham_soc_khach_hang') {
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const CskhDuyetdonKhoaScreenC1()));
             return;
           } else if (role == 'doctorAssistant' || role == 'ho_tro_bac_si' || role == 'bac_si') {
@@ -155,9 +155,28 @@ class _LoginScreenState extends State<LoginScreen> {
         final firestore = FirebaseFirestore.instance;
         DocumentSnapshot<Map<String, dynamic>> userDoc =
             await firestore.collection('NhanVien').doc(currentUid).get();
-            
+
+        // 1. Nếu doc(currentUid) có trường ma_nhan_vien, ưu tiên đọc bản ghi gốc theo mã nhân viên
+        if (userDoc.exists) {
+          final maNvGoc = userDoc.data()?['ma_nhan_vien'] ?? userDoc.data()?['ma_tai_khoan'];
+          if (maNvGoc != null && maNvGoc.toString().isNotEmpty && maNvGoc.toString() != currentUid) {
+            final docGoc = await firestore.collection('NhanVien').doc(maNvGoc.toString()).get();
+            if (docGoc.exists) userDoc = docGoc;
+          }
+        }
+
+        // 2. Thử tìm theo UID nếu doc ID là mã nhân viên
+        if (!userDoc.exists || (userDoc.data()?['role'] == null)) {
+          final qUid = await firestore
+              .collection('NhanVien')
+              .where('uid', isEqualTo: currentUid)
+              .limit(1)
+              .get();
+          if (qUid.docs.isNotEmpty) userDoc = qUid.docs.first;
+        }
+
+        // 3. Thử tìm theo email nếu doc ID là mã nhân viên
         if (!userDoc.exists) {
-          // Thử tìm theo email nếu doc ID là mã nhân viên
           final q = await firestore
               .collection('NhanVien')
               .where('email', isEqualTo: email)

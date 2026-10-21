@@ -448,7 +448,7 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
               body: SafeArea(
                 child: Column(
                   children: [
-                    _buildHeader(isDark),
+                    _buildHeader(isDark, tong),
                     _buildBannerTienDo(isDark, soDonDaDuyet, soDonChoDuyet, tong),
                     Expanded(
                       child: danhSach.isEmpty
@@ -483,7 +483,8 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
   }
 
   // Header màn hình duyệt đơn khoa
-  Widget _buildHeader(bool isDark) {
+  Widget _buildHeader(bool isDark, [int? tongSoReal]) {
+    final int hienThiTong = tongSoReal ?? widget.tongDon;
     return Container(
       height: 58,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -559,7 +560,7 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
                 ),
                 const SizedBox(width: 5),
                 Text(
-                  '${widget.tongDon} Đơn',
+                  '$hienThiTong Đơn',
                   style: const TextStyle(
                     color: Color(0xFF0284C7),
                     fontSize: 11.5,

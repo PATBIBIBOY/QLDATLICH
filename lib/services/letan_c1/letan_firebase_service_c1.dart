@@ -791,6 +791,7 @@ class FirebaseServiceC1 {
   }
 
   /// Cập nhật thông tin nhân viên (Họ tên, Vai trò/Chức vụ trong 3 role, Khoa)
+  /// Đồng thời đồng bộ sang cả doc có ID là Auth UID nếu có liên kết
   static Future<void> capNhatThongTinNhanVien({
     required String maNhanVien,
     required String hoTen,
@@ -799,15 +800,24 @@ class FirebaseServiceC1 {
     required int vaiTroId,
     required String khoa,
   }) async {
-    final docRef = _firestore.collection('NhanVien').doc(maNhanVien);
-    await docRef.set({
+    final Map<String, dynamic> updateMap = {
       'ho_ten': hoTen,
       'chuc_vu': chucVu,
       'role': role,
       'vai_tro_id': vaiTroId,
       'khoa': khoa,
       'ngay_cap_nhat': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    };
+
+    final docRef = _firestore.collection('NhanVien').doc(maNhanVien);
+    await docRef.set(updateMap, SetOptions(merge: true));
+
+    // Đọc trường uid hoặc kiểm tra currentUser để đồng bộ sang doc(uid)
+    final docSnap = await docRef.get();
+    final String? authUid = docSnap.data()?['uid'] ?? FirebaseAuth.instance.currentUser?.uid;
+    if (authUid != null && authUid.isNotEmpty && authUid != maNhanVien) {
+      await _firestore.collection('NhanVien').doc(authUid).set(updateMap, SetOptions(merge: true));
+    }
   }
 
   /// Gửi OTP / liên kết đặt lại mật khẩu thật về Gmail hoặc Số điện thoại
