@@ -11,12 +11,12 @@ class FirebaseServiceC1 {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   /// Đường dẫn chính xác tuyệt đối trên Firestore của C1:
-  /// /Khoa/dFmZHBjFNUT1eRzJjXp5/danh_sach
+  /// /Khoa/BO85AxXqDMSB68hnYjzhYfPIxHC2/danh_sach
   static const String duongDanKhoaCha = 'Khoa';
-  static const String docKhoaChaId = 'dFmZHBjFNUT1eRzJjXp5';
+  static const String docKhoaChaId = 'BO85AxXqDMSB68hnYjzhYfPIxHC2';
   static const String subCollectionDanhSach = 'danh_sach';
 
-  /// Lấy danh sách các chuyên khoa thời gian thực (Stream) TRỰC TIẾP TỪ /Khoa/dFmZHBjFNUT1eRzJjXp5/danh_sach
+  /// Lấy danh sách các chuyên khoa thời gian thực (Stream) TRỰC TIẾP TỪ /Khoa/BO85AxXqDMSB68hnYjzhYfPIxHC2/danh_sach
   /// Tải dữ liệu siêu tốc trong mili-giây, không bị giật lag qua trung gian
   static Stream<List<Map<String, dynamic>>> streamDanhSachKhoa() {
     return _firestore
@@ -104,7 +104,7 @@ class FirebaseServiceC1 {
   static Future<void> khoiTaoDuLieuMauC1() async {
     // 1. Khởi tạo danh sách Chuyên Khoa vào đúng cấu trúc Khoa -> default -> danh_sach
     final batch = _firestore.batch();
-    final khoaRef = _firestore.collection('Khoa').doc('dFmZHBjFNUT1eRzJjXp5').collection('danh_sach');
+    final khoaRef = _firestore.collection('Khoa').doc('BO85AxXqDMSB68hnYjzhYfPIxHC2').collection('danh_sach');
 
     final danhSachKhoaMau = [
       {

@@ -54,7 +54,7 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
     _roleDuocChon = roleHienTai['role'];
     _tenChucVuDuocChon = roleHienTai['ten'];
 
-    // Tự động tải khoa thật từ Firebase Firestore /Khoa/dFmZHBjFNUT1eRzJjXp5/danh_sach
+    // Tự động tải khoa thật từ Firebase Firestore /Khoa/BO85AxXqDMSB68hnYjzhYfPIxHC2/danh_sach
     FirebaseServiceC1.layDanhSachTenKhoa().then((danhSachFirebase) {
       if (mounted && danhSachFirebase.isNotEmpty) {
         setState(() {

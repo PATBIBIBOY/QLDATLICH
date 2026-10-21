@@ -59,7 +59,7 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
     });
   }
 
-  // Mở popup chọn Khoa nạp trực tiếp từ /Khoa/dFmZHBjFNUT1eRzJjXp5/danh_sach
+  // Mở popup chọn Khoa nạp trực tiếp từ /Khoa/BO85AxXqDMSB68hnYjzhYfPIxHC2/danh_sach
   void _moModalChonKhoaFirebase() {
     AppDesignSystemC1.hapticLight();
     final isDark = AppDesignSystemC1.laCheDoToi;
