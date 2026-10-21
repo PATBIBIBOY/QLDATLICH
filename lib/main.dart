@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:qldatlich/hospital_admin.dart' as ha; // chỉ giữ 1 file admin
 
 import 'config/app_routes.dart';
 import 'config/app_theme.dart';
@@ -29,6 +30,7 @@ Future<void> main() async {
   //await LichHenSeeder.seedAllLichHen();
   //await LichHenSeeder.seedCaKham();
   //await DanhGiaSeeder.seedAllDanhGia();
+
   runApp(const QLDatLichApp());
 }
 
@@ -51,6 +53,7 @@ class QLDatLichApp extends StatelessWidget {
         theme: AppTheme.lightTheme,
         home: const LoginScreen(),
         routes: AppRoutes.routes, 
+
       ),
     );
   }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../models/appointment_item.dart';
+import '../config/app_session.dart';
+import '../screens/admin/admin_dashboard.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
 import '../screens/auth/email_verification_screen.dart';
@@ -23,6 +25,11 @@ import '../screens/customer_support/support_home_screen.dart';
 import '../screens/customer_support/chat_list_screen.dart';
 import '../screens/customer_support/ticket_screen.dart';
 import '../screens/hospital/hospital_dashboard.dart';
+import '../screens/hospital/homeHospital_Screem.dart';
+import '../screens/hospital/addKhoaHospital_Screen.dart';
+import '../screens/hospital/guiYeuCauHopTac_Screen.dart';
+import '../screens/hospital/guiDonThanhCong_Screen.dart';
+import '../screens/hospital/statistics_screen.dart';
 import '../screens/hospital/staff_management_screen.dart';
 import '../screens/hospital/statistics_screen.dart';
 import '../screens/admin/admin_dashboard.dart';
@@ -57,7 +64,14 @@ class AppRoutes {
   static const String ticket = '/ticket';
 
   static const String hospitalDashboard = '/hospital-dashboard';
+  static const String hospitalRequestCollaboration =
+      '/hospital-request-collaboration';
+  static const String hospitalRequestSuccess = '/hospital-request-success';
+  static const String addClinic = '/add-clinic';
   static const String staffManagement = '/staff-management';
+  static const String nhanSuScreen = '/hospital-nhan-su';
+  // ignore: constant_identifier_names
+  static const String NhanSuScreen = nhanSuScreen;
   static const String statistics = '/statistics';
 
   static const String adminDashboard = '/admin-dashboard';
@@ -158,9 +172,39 @@ class AppRoutes {
         supportHome: (_) => const SupportHomeScreen(),
         chatList: (_) => const ChatListScreen(),
         ticket: (_) => const TicketScreen(),
-        hospitalDashboard: (_) => const HospitalDashboard(),
+
         staffManagement: (_) => const StaffManagementScreen(),
         statistics: (_) => const StatisticsScreen(),
         adminDashboard: (_) => const AdminDashboard(),
       };
+
+
+    hospitalDashboard: (context) {
+      final tabIndex = ModalRoute.of(context)?.settings.arguments as int? ?? 0;
+      return HomeHospitalScreen(initialTabIndex: tabIndex);
+    },
+    hospitalRequestCollaboration: (context) {
+      final args =
+          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      return GuiYeuCauHopTacScreen(
+        initialTenBenhVien: args?['tenBenhVien'],
+        initialDiaChi: args?['diaChi'],
+      );
+    },
+    hospitalRequestSuccess: (context) {
+      final args =
+          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      return GuiDonThanhCongScreen(
+        maHoSo: args?['maHoSo'] ?? '#HS-BV-202688',
+        tenBenhVien: args?['tenBenhVien'] ?? 'Bệnh viện Đa Khoa An Bình',
+        loaiHinh: args?['loaiHinh'] ?? 'Bệnh viện Tư lập',
+        coBhyt: args?['coBhyt'] ?? true,
+        extraData: args?['extraData'],
+      );
+    },
+    addClinic: (_) => ThemKhoaScreen(benhVienId: AppSession.benhVienId),
+ 
+    nhanSuScreen: (_) => const HomeHospitalScreen(initialTabIndex: 2),
+
+  };
 }
