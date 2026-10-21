@@ -237,7 +237,8 @@ class AuthService {
           .get();
 
       if (snapshot.docs.isNotEmpty) {
-        return HospitalModel.fromMap(snapshot.docs.first.data());
+        final d = snapshot.docs.first;
+        return HospitalModel.fromMap(d.data(), d.id);
       }
       return null;
     } catch (e) {
@@ -367,7 +368,7 @@ class AuthService {
           .doc(uid)
           .get();
       if (doc.exists) {
-        return HospitalModel.fromMap(doc.data()!);
+        return HospitalModel.fromMap(doc.data()!, doc.id);
       }
       return null;
     } catch (e) {

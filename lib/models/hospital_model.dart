@@ -58,14 +58,16 @@ class HospitalModel {
     };
   }
 
-  factory HospitalModel.fromMap(Map<String, dynamic> map) {
+  factory HospitalModel.fromMap(Map<String, dynamic> map, [String? docId]) {
+    final rawUid = (map['uid'] ?? map['benh_vien_id'] ?? docId)?.toString();
+    final rawTen = (map['ten_benh_vien'] ?? map['tenBenhVien'] ?? map['ten'] ?? '').toString();
     return HospitalModel(
       id: map['id'] is int ? map['id'] : (map['id'] as num?)?.toInt(),
-      uid: map['uid'],
-      tenBenhVien: map['ten_benh_vien'],
-      diaChi: map['dia_chi'],
-      moTa: map['mo_ta'],
-      hinhAnh: map['hinh_anh'],
+      uid: rawUid,
+      tenBenhVien: rawTen.isNotEmpty ? rawTen : null,
+      diaChi: map['dia_chi'] ?? map['diaChi'],
+      moTa: map['mo_ta'] ?? map['moTa'],
+      hinhAnh: map['hinh_anh'] ?? map['hinhAnh'],
       trangThaiHopTacId: map['trang_thai_hop_tac_id'] ?? TrangThaiId.choDuyet,
       diemDanhGiaTb: (map['diem_danh_gia_tb'] as num?)?.toDouble() ?? 0.0,
       tongSoDanhGia: map['tong_so_danh_gia'] ?? 0,
@@ -73,8 +75,8 @@ class HospitalModel {
           ? DateTime.parse(map['ngay_hop_tac'])
           : null,
       ngayTao: map['ngay_tao'] != null ? DateTime.parse(map['ngay_tao']) : null,
-      coSo: map['co_so'],
-      bhyt: map['bhyt'],
+      coSo: map['co_so'] ?? map['coSo'],
+      bhyt: map['bhyt']?.toString(),
       email: map['email'],
       role: map['role'] ?? 'benh_vien',
       daXacThucEmail: map['da_xac_thuc_email'] ?? false,

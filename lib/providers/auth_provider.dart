@@ -107,6 +107,9 @@ class AuthProvider extends ChangeNotifier {
           _hospital = await _authService.getHospitalFromFirestore(
             currentUser.uid,
           );
+          _hospital ??= await _authService.findHospitalByEmail(
+            currentUser.email ?? '',
+          );
           if (_hospital != null) {
             AppSession.benhVienId = _hospital!.uid ?? currentUser.uid;
           }
