@@ -39,10 +39,10 @@ class _LetanThietlapThongtinScreenC1State extends State<LetanThietlapThongtinScr
   void initState() {
     super.initState();
     _maNvController = TextEditingController(text: widget.maNhanVienMacDinh);
-    _hoTenController = TextEditingController(text: 'Trần Thị Mai Phương');
-    _ngaySinhController = TextEditingController(text: '15/08/1998');
-    _emailController = TextEditingController(text: 'cuoc@gmail.com');
-    _matKhauController = TextEditingController(text: 'matkhau123');
+    _hoTenController = TextEditingController();
+    _ngaySinhController = TextEditingController();
+    _emailController = TextEditingController();
+    _matKhauController = TextEditingController();
   }
 
   @override

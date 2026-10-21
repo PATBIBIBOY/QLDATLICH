@@ -39,6 +39,7 @@ class _CskhProfileTabC1State extends State<CskhProfileTabC1> {
       if (mounted && data != null) {
         setState(() {
           _thongTin = _thongTin.copyWith(
+            maNhanVien: (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? _thongTin.maNhanVien).toString(),
             email: (data['email'] ?? _thongTin.email).toString(),
             hoTen: (data['ho_ten'] ?? _thongTin.hoTen).toString(),
             chucVu: (data['chuc_vu'] ?? 'Chuyên viên Chăm sóc khách hàng').toString(),

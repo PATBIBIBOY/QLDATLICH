@@ -605,13 +605,47 @@ class FirebaseServiceC1 {
     return {'id': docSnap.id, ...data};
   }
 
-  /// Đọc thông tin nhân viên trực tiếp từ Firestore NhanVien
+  /// Đọc thông tin nhân viên trực tiếp từ Firestore NhanVien (hỗ trợ đọc theo mã, theo Auth UID, hoặc theo email)
   static Future<Map<String, dynamic>?> layThongTinNhanVienTuFirestore(String maNhanVien) async {
     try {
-      final docSnap = await _firestore.collection('NhanVien').doc(maNhanVien).get();
-      if (docSnap.exists) {
-        return docSnap.data();
+      final currentAuth = FirebaseAuth.instance.currentUser;
+      
+      // 1. Nếu có Auth UID đăng nhập, thử tìm theo doc UID trước
+      if (currentAuth?.uid != null) {
+        final docByUid = await _firestore.collection('NhanVien').doc(currentAuth!.uid).get();
+        if (docByUid.exists && docByUid.data() != null) {
+          final data = docByUid.data()!;
+          final maGoc = data['ma_nhan_vien'] ?? data['ma_tai_khoan'];
+          if (maGoc != null && maGoc.toString().isNotEmpty && maGoc.toString() != currentAuth.uid) {
+            final docGoc = await _firestore.collection('NhanVien').doc(maGoc.toString()).get();
+            if (docGoc.exists && docGoc.data() != null) return docGoc.data();
+          }
+          return data;
+        }
       }
+
+      // 2. Tìm trực tiếp theo maNhanVien
+      if (maNhanVien.isNotEmpty) {
+        final docSnap = await _firestore.collection('NhanVien').doc(maNhanVien).get();
+        if (docSnap.exists && docSnap.data() != null) {
+          return docSnap.data();
+        }
+
+        // Tìm theo trường ma_tai_khoan
+        final qMa = await _firestore.collection('NhanVien').where('ma_tai_khoan', isEqualTo: maNhanVien).limit(1).get();
+        if (qMa.docs.isNotEmpty) {
+          return qMa.docs.first.data();
+        }
+      }
+
+      // 3. Fallback tìm theo Email nếu có currentUser
+      if (currentAuth?.email != null && currentAuth!.email!.isNotEmpty) {
+        final qEmail = await _firestore.collection('NhanVien').where('email', isEqualTo: currentAuth.email).limit(1).get();
+        if (qEmail.docs.isNotEmpty) {
+          return qEmail.docs.first.data();
+        }
+      }
+
       return null;
     } catch (e) {
       return null;

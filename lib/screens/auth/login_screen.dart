@@ -8,6 +8,7 @@ import '../letan_c1/cskh_duyetdon_khoa_screen_c1.dart';
 import '../letan_c1/letan_thietlap_thongtin_screen_c1.dart';
 import '../letan_c1/letan_trangchu_screen_c1.dart';
 import '../doctor_assistant/assistant_home_screen.dart';
+import '../../models/letan_c1/letan_profile_model_c1.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -115,6 +116,15 @@ class _LoginScreenState extends State<LoginScreen> {
           }
 
           // Đã kích hoạt -> Vào đúng Role
+          final maNvThucTe = (nvData['ma_nhan_vien'] ?? nvData['ma_tai_khoan'] ?? input).toString();
+          DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai.copyWith(
+            maNhanVien: maNvThucTe,
+            hoTen: (nvData['ho_ten'] ?? 'Nhân viên').toString(),
+            chucVu: (nvData['chuc_vu'] ?? (role == 'le_tan' || role == 'receptionist' ? 'Lễ tân tiếp đón' : 'Chăm sóc khách hàng')).toString(),
+            khoa: (nvData['khoa'] ?? 'Khoa Khám Bệnh').toString(),
+            email: (nvData['email'] ?? '').toString(),
+          );
+
           if (role == 'receptionist' || role == 'le_tan') {
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()));
             return;
@@ -211,6 +221,15 @@ class _LoginScreenState extends State<LoginScreen> {
           }
 
           // 2. NẾU ĐÃ KÍCH HOẠT -> VÀO ĐÚNG ROLE
+          final maNvThucTe = (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? currentUid).toString();
+          DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai.copyWith(
+            maNhanVien: maNvThucTe,
+            hoTen: (data['ho_ten'] ?? 'Nhân viên').toString(),
+            chucVu: (data['chuc_vu'] ?? (role == 'le_tan' || role == 'receptionist' ? 'Lễ tân tiếp đón' : 'Chăm sóc khách hàng')).toString(),
+            khoa: (data['khoa'] ?? 'Khoa Khám Bệnh').toString(),
+            email: (data['email'] ?? email).toString(),
+          );
+
           if (role == 'receptionist' || role == 'le_tan') {
             Navigator.pushReplacement(
               context,
