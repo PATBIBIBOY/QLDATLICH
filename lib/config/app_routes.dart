@@ -202,7 +202,7 @@ class AppRoutes {
           final args = ModalRoute.of(context)?.settings.arguments as String?;
           final bvid = (args != null && args.isNotEmpty && args != 'dFmZHBjFNUT1eRzJjXp5')
               ? args
-              : (FirebaseAuth.instance.currentUser?.uid ?? AppSession.benhVienId);
+              : (AppSession.benhVienId.isNotEmpty ? AppSession.benhVienId : (FirebaseAuth.instance.currentUser?.uid ?? ''));
           return ThemKhoaScreen(benhVienId: bvid);
         },
         nhanSuScreen: (_) => const HomeHospitalScreen(initialTabIndex: 2),

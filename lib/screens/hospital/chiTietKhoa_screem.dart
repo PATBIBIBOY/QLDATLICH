@@ -31,9 +31,10 @@ String _gioText(dynamic kg) {
 }
 
 String _getHospitalId() {
-  final uid = FirebaseAuth.instance.currentUser?.uid;
-  if (uid != null && uid.isNotEmpty) return uid;
-  return AppSession.benhVienId;
+  if (AppSession.benhVienId.isNotEmpty) {
+    return AppSession.benhVienId;
+  }
+  return FirebaseAuth.instance.currentUser?.uid ?? '';
 }
 
 class ChiTietKhoaScreen extends StatefulWidget {

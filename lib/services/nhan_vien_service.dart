@@ -18,7 +18,7 @@ class NhanVienService {
   }) {
     final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty)
         ? benhVienId.trim()
-        : (FirebaseAuth.instance.currentUser?.uid ?? AppSession.benhVienId);
+        : (AppSession.benhVienId.isNotEmpty ? AppSession.benhVienId : (FirebaseAuth.instance.currentUser?.uid ?? ''));
 
     Query<Map<String, dynamic>> query = _nhanVienCol;
     if (bvid.isNotEmpty) {
@@ -44,7 +44,7 @@ class NhanVienService {
   Future<List<String>> layDanhSachKhoaDaTao([String? benhVienId]) async {
     final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty)
         ? benhVienId.trim()
-        : (FirebaseAuth.instance.currentUser?.uid ?? AppSession.benhVienId);
+        : (AppSession.benhVienId.isNotEmpty ? AppSession.benhVienId : (FirebaseAuth.instance.currentUser?.uid ?? ''));
 
     final Set<String> names = {};
 
@@ -101,7 +101,7 @@ class NhanVienService {
   Future<List<TaiKhoanItem>> layDanhSachTaiKhoanChuaKichHoat([String? benhVienId]) async {
     final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty)
         ? benhVienId.trim()
-        : (FirebaseAuth.instance.currentUser?.uid ?? AppSession.benhVienId);
+        : (AppSession.benhVienId.isNotEmpty ? AppSession.benhVienId : (FirebaseAuth.instance.currentUser?.uid ?? ''));
 
     Query<Map<String, dynamic>> query = _nhanVienCol;
     if (bvid.isNotEmpty) {
@@ -160,7 +160,7 @@ class NhanVienService {
   }) async {
     final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty)
         ? benhVienId.trim()
-        : (FirebaseAuth.instance.currentUser?.uid ?? AppSession.benhVienId);
+        : (AppSession.benhVienId.isNotEmpty ? AppSession.benhVienId : (FirebaseAuth.instance.currentUser?.uid ?? ''));
 
     final prefix = deptCode.trim().isNotEmpty
         ? '${rolePrefix}_${deptCode}_'
@@ -253,7 +253,7 @@ class NhanVienService {
   Future<void> kichHoatTaiKhoan(String nhanVienId, [String? benhVienId]) async {
     final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty)
         ? benhVienId.trim()
-        : (FirebaseAuth.instance.currentUser?.uid ?? AppSession.benhVienId);
+        : (AppSession.benhVienId.isNotEmpty ? AppSession.benhVienId : (FirebaseAuth.instance.currentUser?.uid ?? ''));
 
     // 1. Tìm theo docId trực tiếp
     final docRef = _nhanVienCol.doc(nhanVienId);
@@ -340,7 +340,7 @@ class NhanVienService {
     final statusStr = dangHoatDong ? 'dang_hoat_dong' : 'da_khoa';
     final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty)
         ? benhVienId.trim()
-        : (FirebaseAuth.instance.currentUser?.uid ?? AppSession.benhVienId);
+        : (AppSession.benhVienId.isNotEmpty ? AppSession.benhVienId : (FirebaseAuth.instance.currentUser?.uid ?? ''));
 
     // 1. Tìm theo docId trực tiếp
     final docRef = _nhanVienCol.doc(nhanVienId);
@@ -422,7 +422,7 @@ class NhanVienService {
   Future<void> xoaNhanVien(String nhanVienId, [String? benhVienId]) async {
     final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty)
         ? benhVienId.trim()
-        : (FirebaseAuth.instance.currentUser?.uid ?? AppSession.benhVienId);
+        : (AppSession.benhVienId.isNotEmpty ? AppSession.benhVienId : (FirebaseAuth.instance.currentUser?.uid ?? ''));
 
     // 1. Thử xóa theo docId trực tiếp
     final docRef = _nhanVienCol.doc(nhanVienId);

@@ -209,6 +209,95 @@ class AuthService {
     }
   }
 
+  /// ✅ SINH ID BỆNH VIỆN TỰ ĐỘNG TĂNG DẦN THEO DATABASE
+  /// CSDL gốc có 500 bệnh viện (BV001 - BV500).
+  /// Mỗi khi tạo bệnh viện mới, ID tăng thêm 1 (501 -> BV501, 502 -> BV502,...).
+  Future<Map<String, dynamic>> generateHospitalId() async {
+    try {
+      int maxFound = 500; // Mặc định cơ sở ban đầu có 500 bệnh viện
+
+      // 1. Kiểm tra tài liệu có trường 'id' số lớn nhất
+      try {
+        final snapId = await _firestore
+            .collection(AppConstants.hospitalsCollection)
+            .orderBy('id', descending: true)
+            .limit(1)
+            .get();
+        if (snapId.docs.isNotEmpty) {
+          final val = snapId.docs.first.data()['id'];
+          if (val is num && val.toInt() > maxFound) {
+            maxFound = val.toInt();
+          }
+        }
+      } catch (e) {
+        print('⚠️ [AuthService] Query id descending: $e');
+      }
+
+      // 2. Kiểm tra theo 'ma_benh_vien'
+      try {
+        final snapMa = await _firestore
+            .collection(AppConstants.hospitalsCollection)
+            .where('ma_benh_vien', isNotEqualTo: null)
+            .orderBy('ma_benh_vien', descending: true)
+            .limit(5)
+            .get();
+        for (final doc in snapMa.docs) {
+          final ma = doc.data()['ma_benh_vien']?.toString() ?? '';
+          final match = RegExp(r'\d+').firstMatch(ma);
+          if (match != null) {
+            final parsed = int.tryParse(match.group(0)!);
+            if (parsed != null && parsed > maxFound) {
+              maxFound = parsed;
+            }
+          }
+        }
+      } catch (e) {
+        print('⚠️ [AuthService] Query ma_benh_vien: $e');
+      }
+
+      // 3. Kiểm tra các document mới nhất theo 'ngay_tao'
+      try {
+        final snapRecent = await _firestore
+            .collection(AppConstants.hospitalsCollection)
+            .orderBy('ngay_tao', descending: true)
+            .limit(5)
+            .get();
+        for (final doc in snapRecent.docs) {
+          final data = doc.data();
+          if (data['id'] is num) {
+            final idVal = (data['id'] as num).toInt();
+            if (idVal > maxFound) maxFound = idVal;
+          }
+          final ma = (data['ma_benh_vien'] ?? doc.id).toString();
+          final match = RegExp(r'\d+').firstMatch(ma);
+          if (match != null) {
+            final parsed = int.tryParse(match.group(0)!);
+            if (parsed != null && parsed > maxFound) {
+              maxFound = parsed;
+            }
+          }
+        }
+      } catch (e) {
+        print('⚠️ [AuthService] Query recent hospitals: $e');
+      }
+
+      final nextId = maxFound + 1;
+      final nextMaBv = 'BV${nextId.toString().padLeft(3, '0')}';
+      print('✅ [DEBUG] Mã và ID bệnh viện tiếp theo: $nextMaBv (ID: $nextId)');
+
+      return {
+        'id': nextId,
+        'ma_benh_vien': nextMaBv,
+      };
+    } catch (e) {
+      print('❌ [DEBUG] Lỗi khi sinh ID bệnh viện: $e');
+      return {
+        'id': 501,
+        'ma_benh_vien': 'BV501',
+      };
+    }
+  }
+
   // ✅ HÀM MỚI 1: Tìm user theo email
   Future<PatientModel?> findPatientByEmail(String email) async {
     try {
@@ -252,7 +341,18 @@ class AuthService {
   }
 
   Future<void> deleteUnverifiedHospital(String uid) async {
-    await _deleteUnverifiedAccount(uid, AppConstants.hospitalsCollection);
+    try {
+      final hospital = await getHospitalFromFirestore(uid);
+      final docId = hospital?.maBenhVien ?? uid;
+      await _firestore
+          .collection(AppConstants.hospitalsCollection)
+          .doc(docId)
+          .delete();
+      await _auth.currentUser?.delete();
+      print('✅ Đã xóa bệnh viện chưa xác thực: $docId');
+    } catch (e) {
+      print('❌ Lỗi khi xóa bệnh viện chưa xác thực: $e');
+    }
   }
 
   Future<void> _deleteUnverifiedAccount(String uid, String collection) async {
@@ -289,6 +389,31 @@ class AuthService {
     final hospital = await hospitalRef.get();
     if (hospital.exists) {
       await hospitalRef.update({'da_xac_thuc_email': isVerified});
+      final maBv = hospital.data()?['ma_benh_vien']?.toString();
+      final authUid = hospital.data()?['auth_uid']?.toString();
+      if (maBv != null && maBv != uid) {
+        await _firestore
+            .collection(AppConstants.hospitalsCollection)
+            .doc(maBv)
+            .update({'da_xac_thuc_email': isVerified});
+      }
+      if (authUid != null && authUid != uid) {
+        await _firestore
+            .collection(AppConstants.hospitalsCollection)
+            .doc(authUid)
+            .update({'da_xac_thuc_email': isVerified});
+      }
+      return;
+    }
+
+    // Tìm theo auth_uid
+    final authQuery = await _firestore
+        .collection(AppConstants.hospitalsCollection)
+        .where('auth_uid', isEqualTo: uid)
+        .limit(1)
+        .get();
+    if (authQuery.docs.isNotEmpty) {
+      await authQuery.docs.first.reference.update({'da_xac_thuc_email': isVerified});
       return;
     }
 
@@ -296,32 +421,24 @@ class AuthService {
   }
 
   Future<void> saveUserToFirestore(PatientModel user) async {
-    // 1. Chuyển user hiện tại sang Map để giữ nguyên tất cả các trường dữ liệu
     Map<String, dynamic> userData = user.toMap();
 
-    // 2. ⚠️ QUAN TRỌNG: Phải kiểm tra đúng chuỗi 'benh_nhan' (chữ thường, có gạch dưới)
-    // Nếu bạn để là 'Bệnh nhân' ở đây, nó sẽ KHÔNG chạy vào khối sinh mã.
     if (user.role?.trim() == 'benh_nhan' &&
         (user.maBenhNhan == null || user.maBenhNhan!.isEmpty)) {
       try {
         final generatedId = await _generatePatientId();
-
-        // Gán trực tiếp vào Map (Key 'ma_benh_nhan' phải khớp với trong hàm toMap)
         userData['ma_benh_nhan'] = generatedId;
-
         print('✅ [DEBUG] Đã sinh mã bệnh nhân thành công: $generatedId');
       } catch (e) {
         print('❌ [DEBUG] Lỗi khi sinh mã bệnh nhân: $e');
-        rethrow; // Ném lỗi ra để UI có thể bắt và hiển thị
+        rethrow;
       }
     } else {
-      // Dòng này giúp bạn debug nếu điều kiện if bị sai
       print(
         '⚠️ [DEBUG] Bỏ qua sinh mã. Role hiện tại: "${user.role}", maBenhNhan: "${user.maBenhNhan}"',
       );
     }
 
-    // 3. Lưu thông tin user vào Firestore
     await _firestore
         .collection(AppConstants.patientsCollection)
         .doc(user.uid)
@@ -333,16 +450,44 @@ class AuthService {
     print('✅ [DEBUG] Đã lưu user vào Firestore với UID: ${user.uid}');
   }
 
+  /// ✅ LƯU BỆNH VIỆN VÀO FIRESTORE
+  /// - Lưu document ID là `ma_benh_vien` (ví dụ `BV501`) để liên kết chuẩn khóa ngoại với Khoa, PhongKham, NhanVien
+  /// - Nếu chưa có ID thì tự động gọi `generateHospitalId()`
+  /// - Đồng thời liên kết `auth_uid` để tìm kiếm từ Firebase Auth UID
   Future<void> saveHospitalToFirestore(HospitalModel hospital) async {
-    final uid = hospital.uid;
-    if (uid == null || uid.isEmpty) {
-      throw ArgumentError('Hospital UID is required to save the account.');
+    HospitalModel modelToSave = hospital;
+
+    if (modelToSave.id == null ||
+        modelToSave.maBenhVien == null ||
+        modelToSave.maBenhVien!.isEmpty) {
+      final generated = await generateHospitalId();
+      final genId = generated['id'] as int;
+      final genMa = generated['ma_benh_vien'] as String;
+
+      modelToSave = modelToSave.copyWith(
+        id: genId,
+        maBenhVien: genMa,
+        uid: genMa,
+      );
     }
 
-    await _firestore.collection(AppConstants.hospitalsCollection).doc(uid).set({
-      ...hospital.toMap(),
+    final docId = modelToSave.maBenhVien ?? modelToSave.uid;
+    if (docId == null || docId.isEmpty) {
+      throw ArgumentError('Hospital ID/UID is required to save the account.');
+    }
+
+    final dataToSave = {
+      ...modelToSave.toMap(),
       'mat_khau': FieldValue.delete(),
-    }, SetOptions(merge: true));
+    };
+
+    // Lưu 1 tài liệu duy nhất theo mã bệnh viện BVxxx (ví dụ: BV501)
+    await _firestore
+        .collection(AppConstants.hospitalsCollection)
+        .doc(docId)
+        .set(dataToSave, SetOptions(merge: true));
+
+    print('✅ [DEBUG] Đã lưu bệnh viện thành công với ID: ${modelToSave.id}, Mã: $docId');
   }
 
   Future<PatientModel?> getPatientFromFirestore(String uid) async {
@@ -363,13 +508,37 @@ class AuthService {
 
   Future<HospitalModel?> getHospitalFromFirestore(String uid) async {
     try {
+      // 1. Thử lấy trực tiếp theo Document ID (mã BVxxx hoặc Auth UID)
       final doc = await _firestore
           .collection(AppConstants.hospitalsCollection)
           .doc(uid)
           .get();
-      if (doc.exists) {
+      if (doc.exists && doc.data() != null) {
         return HospitalModel.fromMap(doc.data()!, doc.id);
       }
+
+      // 2. Tìm theo auth_uid
+      final authQuery = await _firestore
+          .collection(AppConstants.hospitalsCollection)
+          .where('auth_uid', isEqualTo: uid)
+          .limit(1)
+          .get();
+      if (authQuery.docs.isNotEmpty) {
+        final d = authQuery.docs.first;
+        return HospitalModel.fromMap(d.data(), d.id);
+      }
+
+      // 3. Tìm theo ma_benh_vien
+      final maQuery = await _firestore
+          .collection(AppConstants.hospitalsCollection)
+          .where('ma_benh_vien', isEqualTo: uid)
+          .limit(1)
+          .get();
+      if (maQuery.docs.isNotEmpty) {
+        final d = maQuery.docs.first;
+        return HospitalModel.fromMap(d.data(), d.id);
+      }
+
       return null;
     } catch (e) {
       print('Lỗi khi lấy thông tin bệnh viện từ Firestore: $e');

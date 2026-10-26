@@ -35,9 +35,10 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
         widget.benhVienId != 'dFmZHBjFNUT1eRzJjXp5') {
       return widget.benhVienId;
     }
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid != null && uid.isNotEmpty) return uid;
-    return AppSession.benhVienId;
+    if (AppSession.benhVienId.isNotEmpty) {
+      return AppSession.benhVienId;
+    }
+    return FirebaseAuth.instance.currentUser?.uid ?? '';
   }
 
   final _ten = TextEditingController();

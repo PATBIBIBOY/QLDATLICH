@@ -69,6 +69,8 @@ class GuiDonThanhCongScreen extends StatelessWidget {
               _rowChiTiet('Địa chỉ trụ sở', extraData!['dia_chi'].toString()),
             if (extraData?['file_giay_phep'] != null)
               _rowChiTiet('Giấy phép hoạt động', extraData!['file_giay_phep'].toString()),
+            if (extraData?['vi_do'] != null && extraData?['kinh_do'] != null)
+              _rowChiTiet('Tọa độ GPS', '${extraData!['vi_do']}, ${extraData!['kinh_do']}'),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
@@ -401,8 +403,9 @@ class GuiDonThanhCongScreen extends StatelessWidget {
                     child: TextButton.icon(
                       onPressed: () async {
                         final uid = hospitalUid ??
-                            FirebaseAuth.instance.currentUser?.uid ??
-                            AppSession.benhVienId;
+                            (AppSession.benhVienId.isNotEmpty
+                                ? AppSession.benhVienId
+                                : (FirebaseAuth.instance.currentUser?.uid ?? ''));
 
                         await FirebaseFirestore.instance
                             .collection('BenhVien')

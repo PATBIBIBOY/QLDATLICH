@@ -26,9 +26,10 @@ class _NhanSuScreenState extends State<NhanSuScreen> {
     if (widget.benhVienId != null && widget.benhVienId!.isNotEmpty) {
       return widget.benhVienId!;
     }
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid != null && uid.isNotEmpty) return uid;
-    return AppSession.benhVienId;
+    if (AppSession.benhVienId.isNotEmpty) {
+      return AppSession.benhVienId;
+    }
+    return FirebaseAuth.instance.currentUser?.uid ?? '';
   }
   String _tuKhoa = '';
   String _filterRole = 'Tất cả';

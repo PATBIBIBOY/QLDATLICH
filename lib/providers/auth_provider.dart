@@ -76,8 +76,16 @@ class AuthProvider extends ChangeNotifier {
                 (currentUser.displayName?.trim().isNotEmpty ?? false)
                     ? currentUser.displayName!
                     : (currentUser.email?.split('@').first ?? 'Bệnh Viện Mới');
+            
+            final idData = await _authService.generateHospitalId();
+            final nextId = idData['id'] as int;
+            final nextMaBv = idData['ma_benh_vien'] as String;
+
             final newHospital = HospitalModel(
-              uid: currentUser.uid,
+              id: nextId,
+              maBenhVien: nextMaBv,
+              uid: nextMaBv,
+              authUid: currentUser.uid,
               tenBenhVien: fallbackName,
               email: currentUser.email,
               role: 'benh_vien',
@@ -94,7 +102,7 @@ class AuthProvider extends ChangeNotifier {
 
           _hospital = hospital;
           _user = null;
-          AppSession.benhVienId = hospital.uid ?? currentUser.uid;
+          AppSession.benhVienId = hospital.maBenhVien ?? hospital.uid ?? currentUser.uid;
           _selectedRole = 'benh_vien';
           return;
         }
@@ -111,9 +119,8 @@ class AuthProvider extends ChangeNotifier {
             currentUser.email ?? '',
           );
           if (_hospital != null) {
-            AppSession.benhVienId = _hospital!.uid ?? currentUser.uid;
+            AppSession.benhVienId = _hospital!.maBenhVien ?? _hospital!.uid ?? currentUser.uid;
           }
-
         }
         _selectedRole = patientModel?.role ?? _hospital?.role;
       }
@@ -246,8 +253,16 @@ class AuthProvider extends ChangeNotifier {
       );
       await credential.user?.sendEmailVerification();
 
+      // ✅ Tự động sinh ID bệnh viện tăng dần theo CSDL
+      final idData = await _authService.generateHospitalId();
+      final nextId = idData['id'] as int;
+      final nextMaBv = idData['ma_benh_vien'] as String;
+
       final newHospital = HospitalModel.fromRegisterEmail(
-        uid: credential.user!.uid,
+        id: nextId,
+        maBenhVien: nextMaBv,
+        uid: nextMaBv,
+        authUid: credential.user!.uid,
         tenBenhVien: hospital.tenBenhVien!,
         email: email,
         diaChi: hospital.diaChi,
@@ -255,6 +270,9 @@ class AuthProvider extends ChangeNotifier {
       ).copyWith(daXacThucEmail: false);
 
       await _authService.saveHospitalToFirestore(newHospital);
+      _hospital = newHospital;
+      _user = null;
+      AppSession.benhVienId = nextMaBv;
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
         await _handleExistingHospitalEmail(email, password, hospital);
@@ -279,7 +297,7 @@ class AuthProvider extends ChangeNotifier {
       );
     }
     await _signInToReplaceUnverifiedAccount(email, password);
-    await _authService.deleteUnverifiedHospital(oldHospital.uid!);
+    await _authService.deleteUnverifiedHospital(oldHospital.uid ?? oldHospital.authUid ?? '');
 
     final credential = await _authService.registerWithEmailAndPassword(
       email: email,
@@ -287,16 +305,25 @@ class AuthProvider extends ChangeNotifier {
     );
     await credential.user?.sendEmailVerification();
 
+    final idData = await _authService.generateHospitalId();
+    final nextId = oldHospital.id ?? (idData['id'] as int);
+    final nextMaBv = oldHospital.maBenhVien ?? (idData['ma_benh_vien'] as String);
+
     final newHospital = HospitalModel.fromRegisterEmail(
-      uid: credential.user!.uid,
+      id: nextId,
+      maBenhVien: nextMaBv,
+      uid: nextMaBv,
+      authUid: credential.user!.uid,
       tenBenhVien: hospital.tenBenhVien!,
       email: email,
       diaChi: hospital.diaChi,
       role: hospital.role,
     ).copyWith(daXacThucEmail: false);
+
     await _authService.saveHospitalToFirestore(newHospital);
     _hospital = newHospital;
     _user = null;
+    AppSession.benhVienId = nextMaBv;
   }
 
   Future<void> _signInToReplaceUnverifiedAccount(
@@ -376,6 +403,9 @@ class AuthProvider extends ChangeNotifier {
         _hospital = _user == null
             ? await _authService.getHospitalFromFirestore(user.uid)
             : null;
+        if (_hospital != null) {
+          AppSession.benhVienId = _hospital!.maBenhVien ?? _hospital!.uid ?? user.uid;
+        }
         notifyListeners();
       }
     } catch (e) {

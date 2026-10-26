@@ -43,6 +43,7 @@ dependencies:
   mobile_scanner: ^7.4.2
   geolocator: ^14.1.1
   url_launcher: ^6.1.14
+  file_picker: ^13.3.0
 
 dev_dependencies:
   flutter_test:

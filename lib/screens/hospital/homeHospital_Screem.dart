@@ -45,9 +45,16 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
 
   String _getHospitalUid(BuildContext context) {
     final auth = context.read<AuthProvider>();
-    return auth.hospital?.uid ??
-        FirebaseAuth.instance.currentUser?.uid ??
-        AppSession.benhVienId;
+    if (auth.hospital?.maBenhVien != null && auth.hospital!.maBenhVien!.isNotEmpty) {
+      return auth.hospital!.maBenhVien!;
+    }
+    if (auth.hospital?.uid != null && auth.hospital!.uid!.isNotEmpty) {
+      return auth.hospital!.uid!;
+    }
+    if (AppSession.benhVienId.isNotEmpty) {
+      return AppSession.benhVienId;
+    }
+    return FirebaseAuth.instance.currentUser?.uid ?? '';
   }
 
   // ignore: unused_element

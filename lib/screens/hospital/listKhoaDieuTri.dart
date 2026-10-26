@@ -9,9 +9,10 @@ import 'addKhoaHospital_Screen.dart';
 import 'chiTietKhoa_screem.dart';
 
 String _getBenhVienId() {
-  final uid = FirebaseAuth.instance.currentUser?.uid;
-  if (uid != null && uid.isNotEmpty) return uid;
-  return AppSession.benhVienId;
+  if (AppSession.benhVienId.isNotEmpty) {
+    return AppSession.benhVienId;
+  }
+  return FirebaseAuth.instance.currentUser?.uid ?? '';
 }
 
 Stream<QuerySnapshot<Map<String, dynamic>>> _khoaStream() => FirebaseFirestore

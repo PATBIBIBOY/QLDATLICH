@@ -2,7 +2,9 @@ import '../config/constants.dart';
 
 class HospitalModel {
   final int? id;
-  final String? uid;
+  final String? maBenhVien; // Mã chuẩn: BV001, BV500, BV501...
+  final String? uid;        // Đồng bộ với maBenhVien hoặc docId
+  final String? authUid;    // Firebase Auth UID
   final String? tenBenhVien;
   final String? diaChi;
   final String? moTa;
@@ -28,7 +30,9 @@ class HospitalModel {
 
   HospitalModel({
     this.id,
+    this.maBenhVien,
     this.uid,
+    this.authUid,
     this.tenBenhVien,
     this.diaChi,
     this.moTa,
@@ -45,14 +49,16 @@ class HospitalModel {
     this.daXacThucEmail = false,
     this.viDo,    
     this.kinhDo,  
-    this.chuyenKhoaIds, // ✅ Thêm
-    this.tenCacKhoa,    // ✅ Thêm
+    this.chuyenKhoaIds,
+    this.tenCacKhoa,
   }) : ngayTao = ngayTao ?? DateTime.now();
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'uid': uid,
+      'ma_benh_vien': maBenhVien ?? uid,
+      'uid': uid ?? maBenhVien,
+      if (authUid != null) 'auth_uid': authUid,
       'ten_benh_vien': tenBenhVien,
       'dia_chi': diaChi,
       'mo_ta': moTa,
@@ -69,28 +75,59 @@ class HospitalModel {
       'da_xac_thuc_email': daXacThucEmail,
       'vi_do': viDo,    
       'kinh_do': kinhDo, 
-      'chuyen_khoa_ids': chuyenKhoaIds, // ✅ Thêm
-      'ten_cac_khoa': tenCacKhoa,       // ✅ Thêm
+      'chuyen_khoa_ids': chuyenKhoaIds,
+      'ten_cac_khoa': tenCacKhoa,
     };
   }
 
   factory HospitalModel.fromMap(Map<String, dynamic> map, [String? docId]) {
-    final rawUid = (map['uid'] ?? map['benh_vien_id'] ?? docId)?.toString();
+    final rawMaBv = (map['ma_benh_vien'] ?? map['maBenhVien'] ?? (docId != null && docId.startsWith('BV') ? docId : null))?.toString();
+    final rawUid = (map['uid'] ?? map['benh_vien_id'] ?? rawMaBv ?? docId)?.toString();
+    final rawAuthUid = (map['auth_uid'] ?? map['authUid'])?.toString();
     final rawTen = (map['ten_benh_vien'] ?? map['tenBenhVien'] ?? map['ten'] ?? '').toString();
+
+    // Trích xuất id kiểu int từ map hoặc maBenhVien / docId (BV500 -> 500)
+    int? parsedId;
+    if (map['id'] is int) {
+      parsedId = map['id'];
+    } else if (map['id'] is num) {
+      parsedId = (map['id'] as num).toInt();
+    } else if (map['id'] != null) {
+      parsedId = int.tryParse(map['id'].toString());
+    } else if (rawMaBv != null) {
+      final match = RegExp(r'\d+').firstMatch(rawMaBv);
+      if (match != null) {
+        parsedId = int.tryParse(match.group(0)!);
+      }
+    } else if (docId != null) {
+      final match = RegExp(r'\d+').firstMatch(docId);
+      if (match != null) {
+        parsedId = int.tryParse(match.group(0)!);
+      }
+    }
+
+    final maBv = rawMaBv ?? (parsedId != null ? 'BV${parsedId.toString().padLeft(3, '0')}' : null);
+
     return HospitalModel(
-      id: map['id'] is int ? map['id'] : (map['id'] as num?)?.toInt(),
-      uid: rawUid,
+      id: parsedId,
+      maBenhVien: maBv,
+      uid: rawUid ?? maBv,
+      authUid: rawAuthUid,
       tenBenhVien: rawTen.isNotEmpty ? rawTen : null,
       diaChi: map['dia_chi'] ?? map['diaChi'],
       moTa: map['mo_ta'] ?? map['moTa'],
       hinhAnh: map['hinh_anh'] ?? map['hinhAnh'],
-      trangThaiHopTacId: map['trang_thai_hop_tac_id'] ?? TrangThaiId.choDuyet,
+      trangThaiHopTacId: map['trang_thai_hop_tac_id'] is int
+          ? map['trang_thai_hop_tac_id']
+          : int.tryParse(map['trang_thai_hop_tac_id']?.toString() ?? '') ?? TrangThaiId.choDuyet,
       diemDanhGiaTb: (map['diem_danh_gia_tb'] as num?)?.toDouble() ?? 0.0,
-      tongSoDanhGia: map['tong_so_danh_gia'] ?? 0,
+      tongSoDanhGia: map['tong_so_danh_gia'] is int
+          ? map['tong_so_danh_gia']
+          : int.tryParse(map['tong_so_danh_gia']?.toString() ?? '') ?? 0,
       ngayHopTac: map['ngay_hop_tac'] != null
-          ? DateTime.parse(map['ngay_hop_tac'])
+          ? DateTime.tryParse(map['ngay_hop_tac'].toString())
           : null,
-      ngayTao: map['ngay_tao'] != null ? DateTime.parse(map['ngay_tao']) : null,
+      ngayTao: map['ngay_tao'] != null ? DateTime.tryParse(map['ngay_tao'].toString()) : null,
       coSo: map['co_so'] ?? map['coSo'],
       bhyt: map['bhyt']?.toString(),
       email: map['email'],
@@ -98,8 +135,6 @@ class HospitalModel {
       daXacThucEmail: map['da_xac_thuc_email'] ?? false,
       viDo: (map['vi_do'] as num?)?.toDouble(),    
       kinhDo: (map['kinh_do'] as num?)?.toDouble(), 
-      
-      // ✅ Xử lý an toàn cho List<String> từ Firestore
       chuyenKhoaIds: map['chuyen_khoa_ids'] != null
           ? List<String>.from(map['chuyen_khoa_ids'])
           : null,
@@ -111,7 +146,9 @@ class HospitalModel {
 
   HospitalModel copyWith({
     int? id,
+    String? maBenhVien,
     String? uid,
+    String? authUid,
     String? tenBenhVien,
     String? diaChi,
     String? moTa,
@@ -128,12 +165,14 @@ class HospitalModel {
     bool? daXacThucEmail,
     double? viDo,    
     double? kinhDo,  
-    List<String>? chuyenKhoaIds, // ✅ Thêm
-    List<String>? tenCacKhoa,    // ✅ Thêm
+    List<String>? chuyenKhoaIds,
+    List<String>? tenCacKhoa,
   }) {
     return HospitalModel(
       id: id ?? this.id,
+      maBenhVien: maBenhVien ?? this.maBenhVien,
       uid: uid ?? this.uid,
+      authUid: authUid ?? this.authUid,
       tenBenhVien: tenBenhVien ?? this.tenBenhVien,
       diaChi: diaChi ?? this.diaChi,
       moTa: moTa ?? this.moTa,
@@ -150,20 +189,26 @@ class HospitalModel {
       daXacThucEmail: daXacThucEmail ?? this.daXacThucEmail,
       viDo: viDo ?? this.viDo,    
       kinhDo: kinhDo ?? this.kinhDo, 
-      chuyenKhoaIds: chuyenKhoaIds ?? this.chuyenKhoaIds, // ✅ Thêm
-      tenCacKhoa: tenCacKhoa ?? this.tenCacKhoa,          // ✅ Thêm
+      chuyenKhoaIds: chuyenKhoaIds ?? this.chuyenKhoaIds,
+      tenCacKhoa: tenCacKhoa ?? this.tenCacKhoa,
     );
   }
 
   factory HospitalModel.fromRegisterEmail({
+    int? id,
+    String? maBenhVien,
     required String uid,
+    String? authUid,
     required String tenBenhVien,
     required String email,
     String? diaChi,
     String? role,
   }) {
     return HospitalModel(
+      id: id,
+      maBenhVien: maBenhVien,
       uid: uid,
+      authUid: authUid,
       tenBenhVien: tenBenhVien,
       email: email,
       diaChi: diaChi,
@@ -171,7 +216,6 @@ class HospitalModel {
       ngayTao: DateTime.now(),
       role: role ?? 'benh_vien',
       daXacThucEmail: false,
-      // Các trường chuyên khoa sẽ để null khi mới đăng ký
     );
   }
 }

@@ -35,10 +35,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
         // ✅ SỬA DÒNG NÀY: Dùng AppAuthProvider.AuthProvider
         final authProvider = context.read<AppAuthProvider.AuthProvider>();
         await authProvider.markEmailAsVerified();
-<<<<<<< HEAD
-=======
+
         if (!mounted) return;
->>>>>>> origin/benhvien
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -75,32 +73,39 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     }
   }
 
-    Future<void> _resendVerificationEmail() async {
+  Future<void> _resendVerificationEmail() async {
     setState(() => _isLoading = true);
     try {
       User? user = _auth.currentUser;
-      
+
       // ✅ 1. KIỂM TRA NẾU USER BỊ NULL
       if (user == null) {
-        throw Exception("Phiên làm việc đã hết hạn. Vui lòng quay lại và đăng ký lại.");
+        throw Exception(
+          "Phiên làm việc đã hết hạn. Vui lòng quay lại và đăng ký lại.",
+        );
       }
 
       // ✅ 2. GỬI LẠI EMAIL
       await user.sendEmailVerification();
-      
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Đã gửi lại email xác thực! Vui lòng kiểm tra hộp thư (kể cả Spam).'), 
+          content: Text(
+            'Đã gửi lại email xác thực! Vui lòng kiểm tra hộp thư (kể cả Spam).',
+          ),
           backgroundColor: Colors.blue,
         ),
       );
     } catch (e) {
       if (!mounted) return;
       // ✅ 3. IN RA LỖI THỰC SỰ ĐỂ BIẾT NGUYÊN NHÂN
-      print('❌ LỖI THỰC SỰ KHI GỬI LẠI EMAIL: $e'); 
+      print('❌ LỖI THỰC SỰ KHI GỬI LẠI EMAIL: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi: ${e.toString().replaceAll("Exception: ", "")}'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Lỗi: ${e.toString().replaceAll("Exception: ", "")}'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
