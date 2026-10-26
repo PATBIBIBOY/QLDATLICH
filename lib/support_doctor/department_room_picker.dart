@@ -29,6 +29,9 @@ class DepartmentRoomPicker<T> extends StatefulWidget {
     this.initialDepartment,
     this.hospitalName = 'Bệnh viện',
     this.title = 'Chọn phòng khám',
+    this.onLogout,
+    this.logoutLabel = 'Đăng xuất',
+    this.confirmLogout = true,
   });
 
   /// Room data supplied by the app.
@@ -58,6 +61,17 @@ class DepartmentRoomPicker<T> extends StatefulWidget {
   final String hospitalName;
   final String title;
 
+  /// Xử lý đăng xuất (xoá token/phiên đăng nhập, đóng socket, điều hướng về
+  /// màn hình đăng nhập…). Nếu để `null`, nút đăng xuất vẫn hiển thị và chỉ
+  /// đưa người dùng về route đầu tiên trong stack.
+  final Future<void> Function()? onLogout;
+
+  /// Nhãn của nút đăng xuất (ẩn nhãn khi màn hình hẹp).
+  final String logoutLabel;
+
+  /// Có hỏi xác nhận trước khi đăng xuất hay không.
+  final bool confirmLogout;
+
   @override
   State<DepartmentRoomPicker<T>> createState() =>
       _DepartmentRoomPickerState<T>();
@@ -67,6 +81,7 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
   final TextEditingController _searchController = TextEditingController();
   String? _selectedDepartment;
   _RoomFilter _filter = _RoomFilter.all;
+  bool _loggingOut = false;
 
   List<String> get _departments {
     final values = widget.rooms
@@ -167,6 +182,115 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
       );
   }
 
+  /// Hỏi xác nhận (nếu bật) rồi gọi [DepartmentRoomPicker.onLogout].
+  Future<void> _handleLogout() async {
+    if (_loggingOut) return;
+
+    if (widget.confirmLogout) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0x14E94B45),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.logout_rounded,
+                  size: 20,
+                  color: Color(0xFFE94B45),
+                ),
+              ),
+              const SizedBox(width: 11),
+              const Expanded(
+                child: Text(
+                  'Đăng xuất?',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: _PickerUi.text,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'Bạn sẽ thoát khỏi ${widget.hospitalName}. '
+            'Các phòng đang khám vẫn tiếp tục chạy trên hệ thống.',
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.45,
+              color: _PickerUi.secondary,
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text(
+                'Huỷ',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: _PickerUi.secondary,
+                ),
+              ),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFE94B45),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 11,
+                ),
+              ),
+              child: Text(
+                widget.logoutLabel,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+      if (!mounted) return;
+    }
+
+    setState(() => _loggingOut = true);
+    try {
+      final onLogout = widget.onLogout;
+      if (onLogout != null) {
+        await onLogout();
+      } else {
+        // Mặc định: về route đầu tiên (thường là màn hình đăng nhập).
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        if (mounted) _showMessage('Đã đăng xuất.');
+      }
+    } catch (_) {
+      if (mounted) {
+        _showMessage('Đăng xuất thất bại. Vui lòng thử lại.');
+      }
+    } finally {
+      if (mounted) setState(() => _loggingOut = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final rooms = _visibleRooms;
@@ -198,32 +322,51 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          widget.title,
-                          style: TextStyle(
-                            fontSize: compact ? 21 : 24,
-                            fontWeight: FontWeight.w800,
-                            color: _PickerUi.text,
-                            letterSpacing: -0.4,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const _PickerPulseDot(),
-                            const SizedBox(width: 7),
-                            Flexible(
-                              child: Text(
-                                '${_selectedDepartment ?? 'Tất cả khoa'} · '
-                                '${widget.hospitalName}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: _PickerUi.secondary,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.title,
+                                    style: TextStyle(
+                                      fontSize: compact ? 21 : 24,
+                                      fontWeight: FontWeight.w800,
+                                      color: _PickerUi.text,
+                                      letterSpacing: -0.4,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      const _PickerPulseDot(),
+                                      const SizedBox(width: 7),
+                                      Flexible(
+                                        child: Text(
+                                          '${_selectedDepartment ?? 'Tất cả khoa'} · '
+                                          '${widget.hospitalName}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: _PickerUi.secondary,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
+                            ),
+                            const SizedBox(width: 10),
+                            _PickerLogoutButton(
+                              compact: compact,
+                              label: widget.logoutLabel,
+                              busy: _loggingOut,
+                              onTap: _loggingOut ? null : _handleLogout,
                             ),
                           ],
                         ),
@@ -686,6 +829,82 @@ class _PickerPulseDot extends StatelessWidget {
   );
 }
 
+/// Nút đăng xuất ở góc phải phần tiêu đề. Ẩn nhãn chữ khi màn hình hẹp,
+/// hiện vòng xoay khi đang xử lý đăng xuất.
+class _PickerLogoutButton extends StatelessWidget {
+  const _PickerLogoutButton({
+    required this.compact,
+    required this.label,
+    required this.busy,
+    required this.onTap,
+  });
+
+  final bool compact;
+  final String label;
+  final bool busy;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final button = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 160),
+          opacity: onTap == null ? 0.65 : 1,
+          child: Container(
+            height: 40,
+            padding: EdgeInsets.symmetric(horizontal: compact ? 11 : 13),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _PickerUi.border),
+              boxShadow: _PickerUi.quietShadow,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (busy)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xFFE94B45),
+                      ),
+                    ),
+                  )
+                else
+                  const Icon(
+                    Icons.logout_rounded,
+                    size: 17,
+                    color: Color(0xFFE94B45),
+                  ),
+                if (!compact) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFFE94B45),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    return compact ? Tooltip(message: label, child: button) : button;
+  }
+}
+
 class _PickerStat extends StatelessWidget {
   const _PickerStat({
     required this.icon,
@@ -1023,11 +1242,31 @@ class ClinicRoomPickerScreen extends StatelessWidget {
     this.rooms = demoClinicRooms,
     this.initialDepartment = 'Khoa Tim',
     this.hospitalName = 'Bệnh viện Bạch Mai',
+    this.onLogout,
   });
 
   final List<ClinicRoomData> rooms;
   final String initialDepartment;
   final String hospitalName;
+
+  /// Xử lý đăng xuất thật của app. Ví dụ:
+  ///
+  /// ```dart
+  /// ClinicRoomPickerScreen(
+  ///   onLogout: () async {
+  ///     await AuthStore.instance.logout();      // xoá token/phiên đăng nhập
+  ///     RoomSessionStore.instance.resetAll();   // (tuỳ chọn) dọn phiên phòng
+  ///     if (!context.mounted) return;
+  ///     Navigator.of(context).pushNamedAndRemoveUntil(
+  ///       '/login',
+  ///       (route) => false,
+  ///     );
+  ///   },
+  /// )
+  /// ```
+  ///
+  /// Để `null` thì nút đăng xuất chỉ đưa người dùng về route đầu tiên.
+  final Future<void> Function()? onLogout;
 
   /// Danh sách phòng kèm trạng thái/số liệu thật lấy từ [RoomSessionStore]
   /// (phòng chưa mở lần nào thì giữ nguyên dữ liệu ban đầu).
@@ -1060,6 +1299,7 @@ class ClinicRoomPickerScreen extends StatelessWidget {
         rooms: liveRooms,
         initialDepartment: initialDepartment,
         hospitalName: hospitalName,
+        onLogout: onLogout,
         departmentOf: (room) => room.department,
         hospitalIdOf: (room) => room.hospitalId,
         departmentIdOf: (room) => room.departmentId,
@@ -1102,15 +1342,21 @@ class ClinicRoomPickerApp extends StatelessWidget {
     super.key,
     this.rooms = demoClinicRooms,
     this.hospitalName = 'Bệnh viện Bạch Mai',
+    this.onLogout,
   });
 
   /// Danh sách phòng do app cung cấp (mặc định: dữ liệu demo trong bộ nhớ).
   final List<ClinicRoomData> rooms;
   final String hospitalName;
+  final Future<void> Function()? onLogout;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
-    home: ClinicRoomPickerScreen(rooms: rooms, hospitalName: hospitalName),
+    home: ClinicRoomPickerScreen(
+      rooms: rooms,
+      hospitalName: hospitalName,
+      onLogout: onLogout,
+    ),
   );
 }
