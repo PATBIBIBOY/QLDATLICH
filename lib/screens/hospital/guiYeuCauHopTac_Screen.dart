@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/app_routes.dart';
@@ -34,6 +35,12 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
   late final TextEditingController _maSoThueCtrl;
   late final TextEditingController _diaChiCtrl;
 
+  // Tọa độ GPS của thiết bị
+  double? _viDo;
+  double? _kinhDo;
+  bool _dangLayViTri = false;
+  String _viTriStatus = 'Chưa xác định tọa độ GPS';
+
   String _loaiHinh = 'Bệnh viện Tư lập';
   bool _coBhyt = true;
   String _tenFileDinhKem = 'giay_phep_byt.pdf';
@@ -56,6 +63,18 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     _maCoSoCtrl = TextEditingController(text: 'BV-79-102');
     _maSoThueCtrl = TextEditingController(text: '0312891201');
     _diaChiCtrl = TextEditingController(text: diaChi);
+
+    // Lấy tọa độ có sẵn nếu tài khoản đã từng lưu
+    _viDo = auth.hospital?.viDo;
+    _kinhDo = auth.hospital?.kinhDo;
+    if (_viDo != null && _kinhDo != null) {
+      _viTriStatus = 'Đã có tọa độ: ${_viDo!.toStringAsFixed(5)}, ${_kinhDo!.toStringAsFixed(5)}';
+    }
+
+    // Tự động yêu cầu định vị GPS từ thiết bị khi mở màn hình
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _layViTriTuThietBi(isAuto: true);
+    });
   }
 
   @override
@@ -69,9 +88,115 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
 
   String _getHospitalUid() {
     final auth = context.read<AuthProvider>();
-    return FirebaseAuth.instance.currentUser?.uid ??
+    return auth.hospital?.maBenhVien ??
         auth.hospital?.uid ??
-        AppSession.benhVienId;
+        (AppSession.benhVienId.isNotEmpty ? AppSession.benhVienId : null) ??
+        FirebaseAuth.instance.currentUser?.uid ??
+        '';
+  }
+
+  /// Lấy vị trí GPS thực tế từ thiết bị để quy ra vĩ độ & kinh độ
+  Future<void> _layViTriTuThietBi({bool isAuto = false}) async {
+    if (_dangLayViTri) return;
+
+    setState(() {
+      _dangLayViTri = true;
+      _viTriStatus = 'Đang lấy vị trí GPS từ thiết bị...';
+    });
+
+    try {
+      // 1. Kiểm tra dịch vụ định vị (Location Service)
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!mounted) return;
+        setState(() {
+          _dangLayViTri = false;
+          _viTriStatus = 'Dịch vụ GPS trên thiết bị chưa được bật';
+        });
+        if (!isAuto && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Vui lòng bật định vị GPS trên thiết bị để lấy tọa độ'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // 2. Kiểm tra và yêu cầu quyền truy cập vị trí
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (!mounted) return;
+          setState(() {
+            _dangLayViTri = false;
+            _viTriStatus = 'Quyền truy cập vị trí bị từ chối';
+          });
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        setState(() {
+          _dangLayViTri = false;
+          _viTriStatus = 'Quyền vị trí bị chặn trong Cài đặt thiết bị';
+        });
+        return;
+      }
+
+      // 3. Lấy tọa độ GPS (thử getCurrentPosition, nếu timeout thử getLastKnownPosition)
+      Position? position;
+      try {
+        position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.medium,
+            timeLimit: Duration(seconds: 8),
+          ),
+        );
+      } catch (e) {
+        debugPrint('⚠️ getCurrentPosition chậm hoặc lỗi, thử getLastKnownPosition: $e');
+        position = await Geolocator.getLastKnownPosition();
+      }
+
+      if (!mounted) return;
+
+      if (position != null) {
+        final pos = position;
+        setState(() {
+          _viDo = pos.latitude;
+          _kinhDo = pos.longitude;
+          _dangLayViTri = false;
+          _viTriStatus = 'Đã định vị: ${_viDo!.toStringAsFixed(5)}, ${_kinhDo!.toStringAsFixed(5)}';
+        });
+
+        if (!isAuto && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '✅ Đã lấy tọa độ GPS: Vĩ độ ${_viDo!.toStringAsFixed(5)}, Kinh độ ${_kinhDo!.toStringAsFixed(5)}',
+              ),
+              backgroundColor: const Color(0xFF16A34A),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } else {
+        setState(() {
+          _dangLayViTri = false;
+          _viTriStatus = 'Không lấy được tọa độ GPS từ thiết bị';
+        });
+      }
+    } catch (e) {
+      debugPrint('Lỗi khi định vị thiết bị: $e');
+      if (!mounted) return;
+      setState(() {
+        _dangLayViTri = false;
+        _viTriStatus = 'Lỗi định vị: $e';
+      });
+    }
   }
 
   String _formatFileSize(int bytes) {
@@ -344,6 +469,21 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
       final randSuffix = Random().nextInt(900) + 100;
       final maHoSo = '#HS-BV-2026$randSuffix';
 
+      // Nếu chưa có tọa độ, thử lấy nhanh trước khi gửi
+      if (_viDo == null || _kinhDo == null) {
+        try {
+          final pos = await Geolocator.getLastKnownPosition() ??
+              await Geolocator.getCurrentPosition(
+                locationSettings: const LocationSettings(
+                  accuracy: LocationAccuracy.low,
+                  timeLimit: Duration(seconds: 4),
+                ),
+              );
+          _viDo = pos.latitude;
+          _kinhDo = pos.longitude;
+        } catch (_) {}
+      }
+
       // Upload file lên Firebase Storage nếu có bytes từ máy
       String? fileDownloadUrl;
       if (_fileBytes != null) {
@@ -365,6 +505,8 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
         'so_giay_phep': _maCoSoCtrl.text.trim(),
         'ma_so_thue': _maSoThueCtrl.text.trim(),
         'dia_chi': _diaChiCtrl.text.trim(),
+        'vi_do': _viDo,
+        'kinh_do': _kinhDo,
         'loai_hinh': _loaiHinh,
         'co_bhyt': _coBhyt,
         'file_giay_phep': _tenFileDinhKem,
@@ -616,6 +758,15 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
                               return null;
                             },
                           ),
+                          const SizedBox(height: 12),
+
+                          // Tọa độ GPS cơ sở (Kinh độ & Vĩ độ từ thiết bị)
+                          _buildSectionHeaderWithNote(
+                            title: 'Tọa độ GPS cơ sở',
+                            note: _viDo != null && _kinhDo != null ? 'Đã định vị' : 'Từ thiết bị',
+                          ),
+                          const SizedBox(height: 8),
+                          _buildLocationCard(),
                           const SizedBox(height: 18),
 
                           // 4. Loại hình bệnh viện (Spinner lựa chọn)
@@ -899,6 +1050,100 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  /// Khung hiển thị và kích hoạt lấy vị trí GPS từ thiết bị
+  Widget _buildLocationCard() {
+    final hasCoords = _viDo != null && _kinhDo != null;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: hasCoords ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: hasCoords ? const Color(0xFF86EFAC) : const Color(0xFFE2E8F0),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: hasCoords ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              hasCoords ? Icons.location_on_rounded : Icons.location_searching_rounded,
+              size: 22,
+              color: hasCoords ? const Color(0xFF16A34A) : const Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasCoords
+                      ? 'Vĩ độ: ${_viDo!.toStringAsFixed(6)}'
+                      : 'Chưa có tọa độ GPS',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: hasCoords ? const Color(0xFF166534) : const Color(0xFF1E293B),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  hasCoords
+                      ? 'Kinh độ: ${_kinhDo!.toStringAsFixed(6)}'
+                      : _viTriStatus,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: hasCoords ? const Color(0xFF15803D) : const Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_dangLayViTri)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Color(0xFF0284C7),
+              ),
+            )
+          else
+            TextButton.icon(
+              onPressed: () => _layViTriTuThietBi(isAuto: false),
+              icon: Icon(
+                hasCoords ? Icons.refresh_rounded : Icons.my_location_rounded,
+                size: 16,
+                color: const Color(0xFF0284C7),
+              ),
+              label: Text(
+                hasCoords ? 'Định vị lại' : 'Lấy vị trí',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0284C7),
+                ),
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+        ],
+      ),
     );
   }
 
