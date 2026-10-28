@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:qldatlich/services/khoa_service.dart';
@@ -41,6 +42,11 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
     return FirebaseAuth.instance.currentUser?.uid ?? '';
   }
 
+  String? _selectedChuyenKhoaId;
+  String? _selectedTenChuyenKhoa;
+  List<Map<String, String>> _dsChuyenKhoa = [];
+  bool _dangTaiChuyenKhoa = true;
+
   final _ten = TextEditingController();
   final _soBuoi = TextEditingController(text: '2');
   final _slMoiBuoi = TextEditingController(text: '45');
@@ -61,6 +67,7 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
   @override
   void initState() {
     super.initState();
+    _taiDanhSachChuyenKhoa();
     if (_isEditing && widget.duLieuKhoa != null) {
       final data = widget.duLieuKhoa!;
       _ten.text = (data['tenKhoa'] ?? '').toString();
@@ -105,6 +112,92 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
 
       // Tải danh sách phòng từ Firestore
       _taiDanhSachPhong();
+    }
+  }
+
+  Future<void> _taiDanhSachChuyenKhoa() async {
+    final Map<String, Map<String, String>> danhSachMap = {};
+
+    try {
+      final snapshot =
+          await FirebaseFirestore.instance.collection('chuyen_khoa').get();
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final id = (data['ma_chuyen_khoa'] ?? doc.id).toString().trim();
+        final ten = (data['ten_chuyen_khoa'] ??
+                data['ten_khoa'] ??
+                data['ten'] ??
+                doc.id)
+            .toString()
+            .trim();
+        if (id.isNotEmpty && ten.isNotEmpty) {
+          danhSachMap[id] = {'id': id, 'ten': ten};
+        }
+      }
+
+      // Nếu collection rỗng, thử collection 'ChuyenKhoa'
+      if (danhSachMap.isEmpty) {
+        final snapshotFallback =
+            await FirebaseFirestore.instance.collection('ChuyenKhoa').get();
+        for (final doc in snapshotFallback.docs) {
+          final data = doc.data();
+          final id = (data['ma_chuyen_khoa'] ?? doc.id).toString().trim();
+          final ten = (data['ten_chuyen_khoa'] ??
+                  data['ten_khoa'] ??
+                  data['ten'] ??
+                  doc.id)
+              .toString()
+              .trim();
+          if (id.isNotEmpty && ten.isNotEmpty) {
+            danhSachMap[id] = {'id': id, 'ten': ten};
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Lỗi tải chuyên khoa từ Firebase: $e');
+    }
+
+    final ds = danhSachMap.values.toList();
+    ds.sort((a, b) => a['ten']!.compareTo(b['ten']!));
+
+    if (mounted) {
+      setState(() {
+        _dsChuyenKhoa = ds;
+        _dangTaiChuyenKhoa = false;
+        _khoiTaoChuyenKhoaDuocChon();
+      });
+    }
+  }
+
+  void _khoiTaoChuyenKhoaDuocChon() {
+    if (_isEditing && widget.duLieuKhoa != null) {
+      final data = widget.duLieuKhoa!;
+      final ckId =
+          (data['chuyenKhoaId'] ?? data['chuyen_khoa_id'])?.toString();
+      final ckTen =
+          (data['tenChuyenKhoa'] ?? data['ten_chuyen_khoa'])?.toString();
+
+      if (ckId != null && _dsChuyenKhoa.any((e) => e['id'] == ckId)) {
+        _selectedChuyenKhoaId = ckId;
+        _selectedTenChuyenKhoa =
+            _dsChuyenKhoa.firstWhere((e) => e['id'] == ckId)['ten'];
+      } else if (ckTen != null && _dsChuyenKhoa.any((e) => e['ten'] == ckTen)) {
+        final found = _dsChuyenKhoa.firstWhere((e) => e['ten'] == ckTen);
+        _selectedChuyenKhoaId = found['id'];
+        _selectedTenChuyenKhoa = found['ten'];
+      } else if (_ten.text.isNotEmpty) {
+        // Thử khớp theo tên khoa hiện tại
+        final match = _dsChuyenKhoa.firstWhere(
+          (e) =>
+              _ten.text.toLowerCase().contains((e['ten'] ?? '').toLowerCase()),
+          orElse: () => {},
+        );
+        if (match.isNotEmpty) {
+          _selectedChuyenKhoaId = match['id'];
+          _selectedTenChuyenKhoa = match['ten'];
+        }
+      }
     }
   }
 
@@ -166,6 +259,10 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
   Future<void> _luu() async {
+    if (_selectedChuyenKhoaId == null || _selectedChuyenKhoaId!.isEmpty) {
+      return _loi('Vui lòng chọn chuyên khoa');
+    }
+
     final ten = _ten.text.trim();
     final soBuoi = int.tryParse(_soBuoi.text.trim());
     final sl = int.tryParse(_slMoiBuoi.text.trim());
@@ -191,6 +288,8 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
           benhVienId: hospitalId,
           khoaId: widget.khoaId!,
           tenKhoa: ten,
+          chuyenKhoaId: _selectedChuyenKhoaId,
+          tenChuyenKhoa: _selectedTenChuyenKhoa,
           soCaMoiNgay: soBuoi,
           gioiHanBenhNhan: sl,
           khungGio:
@@ -211,6 +310,8 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
         final ketQua = await KhoaService().themKhoa(
           benhVienId: hospitalId,
           tenKhoa: ten,
+          chuyenKhoaId: _selectedChuyenKhoaId,
+          tenChuyenKhoa: _selectedTenChuyenKhoa,
           soCaMoiNgay: soBuoi,
           gioiHanBenhNhan: sl,
           khungGio:
@@ -286,13 +387,143 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
         children: [
-          _nhan('Tên khoa khám *'),
-          TextField(
-            controller: _ten,
-            decoration: _deco(
-              hint: 'VD: Khoa Mắt Kỹ Thuật Cao',
-            ).copyWith(prefixIcon: const Icon(Icons.business_outlined)),
-          ),
+          // 1. CHUYÊN KHOA (SPINNER)
+          _nhan('Chuyên khoa *', phu: 'Chọn chuyên khoa từ danh mục'),
+          if (_dangTaiChuyenKhoa)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Đang tải danh sách chuyên khoa...',
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
+                ],
+              ),
+            )
+          else if (_dsChuyenKhoa.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFFECACA)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 20),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Chưa có dữ liệu chuyên khoa trên Firebase (collection: chuyen_khoa).',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF991B1B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            DropdownButtonFormField<String>(
+              initialValue: (_selectedChuyenKhoaId != null &&
+                      _dsChuyenKhoa.any((e) => e['id'] == _selectedChuyenKhoaId))
+                  ? _selectedChuyenKhoaId
+                  : null,
+              decoration: _deco(hint: 'Chọn chuyên khoa').copyWith(
+                prefixIcon: const Icon(Icons.local_hospital_outlined, color: _xanh),
+              ),
+              isExpanded: true,
+              icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
+              items: _dsChuyenKhoa.map((ck) {
+                return DropdownMenuItem<String>(
+                  value: ck['id'],
+                  child: Text(
+                    ck['ten'] ?? '',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                );
+              }).toList(),
+              onChanged: (val) {
+                if (val == null) return;
+                final found = _dsChuyenKhoa.firstWhere(
+                  (e) => e['id'] == val,
+                  orElse: () => {'id': val, 'ten': val},
+                );
+                setState(() {
+                  _selectedChuyenKhoaId = val;
+                  _selectedTenChuyenKhoa = found['ten'];
+
+                  final newName = found['ten'] ?? '';
+                  _ten.text =
+                      newName.startsWith('Khoa ') ? newName : 'Khoa $newName';
+                });
+              },
+            ),
+
+          // 2. TÊN KHOA KHÁM (CHỈ HIỂN THỊ KHI ĐÃ CHỌN CHUYÊN KHOA VÀ KHÔNG THỂ SỬA)
+          if (_selectedChuyenKhoaId != null &&
+              _selectedChuyenKhoaId!.isNotEmpty) ...[
+            _nhan('Tên khoa khám *', phu: 'Cố định theo chuyên khoa đã chọn'),
+            TextField(
+              controller: _ten,
+              readOnly: true,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF334155),
+              ),
+              decoration: _deco().copyWith(
+                prefixIcon:
+                    const Icon(Icons.business_outlined, color: Colors.grey),
+                suffixIcon: const Tooltip(
+                  message: 'Tên khoa được cố định theo chuyên khoa đã chọn',
+                  child: Icon(Icons.lock_outline, size: 20, color: Colors.grey),
+                ),
+                fillColor: const Color(0xFFF1F5F9),
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFBFDBFE)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: Color(0xFF2563EB), size: 20),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Vui lòng chọn chuyên khoa ở trên để hiển thị tên khoa khám.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF1E40AF),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           // Số buổi + SL mỗi buổi
           Row(
@@ -339,32 +570,28 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
                     onTap: () => _chonGio(i),
                     borderRadius: BorderRadius.circular(14),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                        horizontal: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: Colors.grey.shade300),
                       ),
                       child: Column(
-                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             i == 0 ? 'Ca sáng' : 'Ca chiều',
                             style: const TextStyle(
                               fontSize: 12,
-                              color: Color(0xFF64748B),
-                              fontWeight: FontWeight.w600,
+                              color: Colors.grey,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             '${_gio(_khung[i][0])} - ${_gio(_khung[i][1])}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14.5,
-                              color: Color(0xFF0F172A),
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                         ],
                       ),
@@ -375,37 +602,50 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
             ],
           ),
 
-          _nhan('Khám các ngày trong tuần', phu: 'Chọn ngày làm việc'),
+          _nhan('Ngày làm việc trong tuần', phu: 'Chọn ngày làm việc'),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              for (final d in tenNgay.keys)
-                GestureDetector(
-                  onTap: () => setState(
-                    () => _ngay.contains(d) ? _ngay.remove(d) : _ngay.add(d),
-                  ),
-                  child: Container(
-                    width: 42,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: _ngay.contains(d) ? _xanh : Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: _ngay.contains(d) ? _xanh : Colors.grey.shade300,
+              for (final d in [2, 3, 4, 5, 6, 7, 8]) ...[
+                if (d > 2) const SizedBox(width: 5),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() {
+                      if (_ngay.contains(d)) {
+                        if (_ngay.length > 1) {
+                          _ngay.remove(d);
+                        }
+                      } else {
+                        _ngay.add(d);
+                      }
+                    }),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: _ngay.contains(d) ? _xanh : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color:
+                              _ngay.contains(d) ? _xanh : Colors.grey.shade300,
+                        ),
                       ),
-                    ),
-                    child: Text(
-                      tenNgay[d]!,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: _ngay.contains(d) ? Colors.white : Colors.grey,
+                      child: Text(
+                        tenNgay[d]!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _ngay.contains(d)
+                              ? Colors.white
+                              : Colors.grey.shade700,
+                          height: 1.25,
+                        ),
                       ),
                     ),
                   ),
                 ),
+              ],
             ],
           ),
           Padding(

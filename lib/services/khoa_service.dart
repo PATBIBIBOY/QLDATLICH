@@ -61,6 +61,8 @@ class KhoaService {
   Future<KhoaVuaTao> themKhoa({
     required String benhVienId,
     required String tenKhoa,
+    String? chuyenKhoaId,
+    String? tenChuyenKhoa,
     required int soCaMoiNgay,
     required int gioiHanBenhNhan,
     required List<KhungGio> khungGio,
@@ -96,6 +98,8 @@ class KhoaService {
     // 1) Khoa
     batch.set(khoaRef, {
       'tenKhoa': tenKhoa,
+      'chuyenKhoaId': ?chuyenKhoaId,
+      'tenChuyenKhoa': ?tenChuyenKhoa,
       'moTa': '',
       'soPhong': phongKham.length,
       'soCaMoiNgay': soCaMoiNgay,
@@ -107,6 +111,18 @@ class KhoaService {
       'trangThai': 'dang_mo',
       'ngayTao': FieldValue.serverTimestamp(),
     });
+
+    // Đồng bộ vào tài khoản BenhVien
+    try {
+      final bvRef = _db.collection('BenhVien').doc(benhVienId);
+      final bvData = <String, dynamic>{
+        'ten_cac_khoa': FieldValue.arrayUnion([tenKhoa]),
+      };
+      if (chuyenKhoaId != null && chuyenKhoaId.isNotEmpty) {
+        bvData['chuyen_khoa_ids'] = FieldValue.arrayUnion([chuyenKhoaId]);
+      }
+      batch.set(bvRef, bvData, SetOptions(merge: true));
+    } catch (_) {}
 
     // 2) Các phòng khám (subcollection của khoa)
     for (final ten in phongKham) {
@@ -141,6 +157,8 @@ class KhoaService {
     required String benhVienId,
     required String khoaId,
     required String tenKhoa,
+    String? chuyenKhoaId,
+    String? tenChuyenKhoa,
     required int soCaMoiNgay,
     required int gioiHanBenhNhan,
     required List<KhungGio> khungGio,
@@ -169,6 +187,8 @@ class KhoaService {
     // 1. Cập nhật thông tin khoa
     batch.update(khoaRef, {
       'tenKhoa': tenKhoa,
+      'chuyenKhoaId': ?chuyenKhoaId,
+      'tenChuyenKhoa': ?tenChuyenKhoa,
       'soPhong': phongKham.length,
       'soCaMoiNgay': soCaMoiNgay,
       'gioiHanBenhNhan': gioiHanBenhNhan,
