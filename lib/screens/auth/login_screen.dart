@@ -77,6 +77,27 @@ class _LoginScreenState extends State<LoginScreen> {
           if (q.docs.isNotEmpty) nhanVienDoc = q.docs.first;
         }
 
+        // Tìm trong subcollection danh_sach của NhanVien
+        if (!nhanVienDoc.exists) {
+          try {
+            final cg = await firestore
+                .collectionGroup('danh_sach')
+                .where('ma_nhan_vien', isEqualTo: input)
+                .limit(1)
+                .get();
+            if (cg.docs.isNotEmpty) {
+              nhanVienDoc = cg.docs.first;
+            } else {
+              final cg2 = await firestore
+                  .collectionGroup('danh_sach')
+                  .where('ma_tai_khoan', isEqualTo: input)
+                  .limit(1)
+                  .get();
+              if (cg2.docs.isNotEmpty) nhanVienDoc = cg2.docs.first;
+            }
+          } catch (_) {}
+        }
+
         // Tự động khởi tạo tài khoản ban đầu nếu chưa có trên Firestore
         if (!nhanVienDoc.exists &&
             (input.toUpperCase() == 'LT_TM_01' ||
@@ -256,6 +277,29 @@ class _LoginScreenState extends State<LoginScreen> {
               .limit(1)
               .get();
           if (q.docs.isNotEmpty) userDoc = q.docs.first;
+        }
+
+        // 4. Tìm trong collectionGroup('danh_sach') theo UID hoặc email
+        if (!userDoc.exists) {
+          try {
+            final cgUid = await firestore
+                .collectionGroup('danh_sach')
+                .where('uid', isEqualTo: currentUid)
+                .limit(1)
+                .get();
+            if (cgUid.docs.isNotEmpty) {
+              userDoc = cgUid.docs.first;
+            } else {
+              final cgEmail = await firestore
+                  .collectionGroup('danh_sach')
+                  .where('email', isEqualTo: email)
+                  .limit(1)
+                  .get();
+              if (cgEmail.docs.isNotEmpty) {
+                userDoc = cgEmail.docs.first;
+              }
+            }
+          } catch (_) {}
         }
 
         if (!userDoc.exists) {
