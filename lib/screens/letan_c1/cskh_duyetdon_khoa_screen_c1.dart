@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../mock/mock_c1/dulieu_mau_cskh_c1.dart';
 import '../../models/letan_c1/letan_design_system_c1.dart';
-import '../../models/letan_c1/letan_model_c1.dart';
+import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
 import 'cskh_danhsach_don_khoa_screen_c1.dart';
 import 'cskh_danhsach_tinnhan_screen_c1.dart';
@@ -41,6 +40,244 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
   int _currentBottomNavIndex = 0; // 0: Trang chủ, 1: Duyệt đơn, 2: CSKH, 3: Profile
   DateTime _ngayChon = DateTime.now();
 
+  // Khoa đang chọn làm việc (mặc định lấy theo khoa của nhân viên trong profile hoặc 'Tất cả các khoa (Tổng)')
+  late String _tenKhoaHienTai;
+  String? _khoaIdHienTai;
+
+  @override
+  void initState() {
+    super.initState();
+    final khoaNv = DuLieuProfileMauC1.thongTinHienTai.khoa.trim();
+    if (khoaNv.isNotEmpty &&
+        !khoaNv.toLowerCase().contains('bộ phận') &&
+        !khoaNv.toLowerCase().contains('cskh') &&
+        !khoaNv.toLowerCase().contains('toàn viện')) {
+      _tenKhoaHienTai = khoaNv;
+    } else {
+      _tenKhoaHienTai = 'Tất cả các khoa (Tổng)';
+    }
+  }
+
+  // Mở BottomSheet cho phép đổi Chuyên khoa của Bệnh viện
+  void _moModalChonKhoa() {
+    AppDesignSystemC1.hapticLight();
+    final isDark = AppDesignSystemC1.laCheDoToi;
+    final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.apartment_rounded, color: Color(0xFF0284C7), size: 22),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Chọn Khoa Duyệt Đơn',
+                            style: TextStyle(
+                              color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE0F2FE),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'Bệnh Viện',
+                          style: TextStyle(color: Color(0xFF0284C7), fontSize: 11, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Khoa được lấy tự động từ bệnh viện bạn đang làm việc',
+                    style: TextStyle(
+                      color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
+                      fontSize: 12.5,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.45,
+                    ),
+                    child: StreamBuilder<List<Map<String, dynamic>>>(
+                      stream: FirebaseServiceC1.streamDanhSachKhoa(bvid),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const CircularProgressIndicator(strokeWidth: 2),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'Đang tải danh sách khoa từ Firebase...',
+                                    style: TextStyle(
+                                      color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+
+                        final danhSachKhoa = [
+                          {
+                            'id': 'ALL',
+                            'tenKhoa': 'Tất cả các khoa (Tổng)',
+                            'moTaPhong': 'Toàn viện • Duyệt đơn tất cả các khoa',
+                            'laTong': true,
+                          },
+                          ...snapshot.data!,
+                        ];
+
+                        return ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: danhSachKhoa.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final item = danhSachKhoa[index];
+                            final tenKhoa = (item['tenKhoa'] ?? 'Khoa Khám').toString();
+                            final moTa = (item['moTaPhong'] ?? '').toString();
+                            final laTong = item['laTong'] == true;
+                            final isSelected = laTong
+                                ? FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai)
+                                : FirebaseServiceC1.laCungKhoa(tenKhoa, _tenKhoaHienTai);
+
+                            return InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _tenKhoaHienTai = tenKhoa;
+                                  _khoaIdHienTai = laTong ? null : item['id']?.toString();
+                                });
+                                Navigator.pop(ctx);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Đã chọn khoa: $tenKhoa'),
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(14),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? (isDark ? const Color(0xFF0C2444) : const Color(0xFFF0F9FF))
+                                      : (isDark ? AppDesignSystemC1.darkSurface : const Color(0xFFF8FAFC)),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? const Color(0xFF0284C7)
+                                        : (isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0)),
+                                    width: isSelected ? 1.5 : 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 38,
+                                      height: 38,
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? const Color(0xFF0284C7)
+                                            : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Icon(
+                                        laTong ? Icons.dashboard_rounded : Icons.local_hospital_rounded,
+                                        size: 20,
+                                        color: isSelected ? Colors.white : const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            tenKhoa,
+                                            style: TextStyle(
+                                              color: isSelected
+                                                  ? const Color(0xFF0284C7)
+                                                  : (isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1E293B)),
+                                              fontSize: 14.5,
+                                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                            ),
+                                          ),
+                                          if (moTa.isNotEmpty) ...[
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              moTa,
+                                              style: TextStyle(
+                                                color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    if (isSelected)
+                                      const Icon(Icons.check_circle_rounded, color: Color(0xFF0284C7), size: 20),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _chonNgay() async {
     AppDesignSystemC1.hapticLight();
     final DateTime? picked = await showDatePicker(
@@ -59,9 +296,6 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
     }
   }
 
-  // Danh sách thông báo lấy từ lớp dữ liệu tập trung
-  final List<ThongBaoLeTanC1> _thongBaoCskh = DuLieuCskhKhoaC1.danhSachThongBao;
-
   void _onSelectKhoa(KhoaKhamModelC1 khoa) {
     AppDesignSystemC1.hapticLight();
     Navigator.push(
@@ -77,6 +311,23 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
     );
   }
 
+  // Mở màn hình duyệt đơn cho một phòng khám cụ thể
+  void _onSelectPhong(Map<String, dynamic> phong, String tenKhoa) {
+    AppDesignSystemC1.hapticLight();
+    final tenPhong = (phong['tenPhong'] ?? phong['soPhong'] ?? 'Phòng Khám').toString();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CskhDanhsachDonKhoaScreenC1(
+          tenKhoa: tenKhoa,
+          phongKham: tenPhong,
+          caKham: 'Tất cả các ca',
+          tongDon: 0,
+        ),
+      ),
+    );
+  }
+
   void _moBaoCaoLoi() {
     AppDesignSystemC1.hapticLight();
     Navigator.push(
@@ -85,7 +336,7 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
     );
   }
 
-  // Popup thông báo CSKH
+  // Popup thông báo CSKH kết nối Realtime Firestore /ThongBaoHeThong
   void _showModalThongBao() {
     AppDesignSystemC1.hapticLight();
     final isDark = AppDesignSystemC1.laCheDoToi;
@@ -98,222 +349,253 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
       builder: (modalCtx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            final soLuongChuaDoc = _thongBaoCskh.where((e) => !e.daDoc).length;
-            final danhSachHienThi = tabLocHienTai == 'chua_doc'
-                ? _thongBaoCskh.where((e) => !e.daDoc).toList()
-                : _thongBaoCskh;
+            return StreamBuilder<List<Map<String, dynamic>>>(
+              stream: FirebaseServiceC1.streamThongBaoRealtime(vaiTro: 'cskh'),
+              builder: (context, snapshot) {
+                final dsThongBaoRaw = snapshot.data ?? [];
+                final soLuongChuaDoc = dsThongBaoRaw.where((e) => e['da_doc'] != true).length;
+                final danhSachHienThi = tabLocHienTai == 'chua_doc'
+                    ? dsThongBaoRaw.where((e) => e['da_doc'] != true).toList()
+                    : dsThongBaoRaw;
 
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.72,
-              decoration: BoxDecoration(
-                color: isDark ? AppDesignSystemC1.darkBackground : Colors.white,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: Column(
-                children: [
-                  const SizedBox(height: 10),
-                  Container(
-                    width: 44,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                return Container(
+                  height: MediaQuery.of(context).size.height * 0.72,
+                  decoration: BoxDecoration(
+                    color: isDark ? AppDesignSystemC1.darkBackground : Colors.white,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                   ),
-                  const SizedBox(height: 14),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 10),
+                      Container(
+                        width: 44,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Icon(
-                                Icons.notifications_active_rounded,
-                                color: Color(0xFF0284C7),
-                                size: 22,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            Row(
                               children: [
-                                Text(
-                                  'Thông Báo CSKH',
-                                  style: TextStyle(
-                                    color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(
+                                    Icons.notifications_active_rounded,
+                                    color: Color(0xFF0284C7),
+                                    size: 22,
                                   ),
                                 ),
-                                Text(
-                                  '$soLuongChuaDoc thông báo chưa đọc',
-                                  style: TextStyle(
-                                    color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-                                    fontSize: 12,
-                                  ),
+                                const SizedBox(width: 12),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Thông Báo CSKH',
+                                      style: TextStyle(
+                                        color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    Text(
+                                      '$soLuongChuaDoc thông báo chưa đọc',
+                                      style: TextStyle(
+                                        color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
+                            IconButton(
+                              icon: Icon(
+                                Icons.close,
+                                color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                              ),
+                              onPressed: () => Navigator.pop(modalCtx),
+                            ),
                           ],
                         ),
-                        IconButton(
-                          icon: Icon(
-                            Icons.close,
-                            color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-                          ),
-                          onPressed: () => Navigator.pop(modalCtx),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  // Tabs lọc: Tất cả / Chưa đọc
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: isDark ? AppDesignSystemC1.darkSurface : const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: InkWell(
-                              onTap: () {
-                                AppDesignSystemC1.hapticLight();
-                                setModalState(() => tabLocHienTai = 'tat_ca');
-                              },
-                              borderRadius: BorderRadius.circular(10),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: tabLocHienTai == 'tat_ca'
-                                      ? (isDark ? const Color(0xFF0C2444) : Colors.white)
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  'Tất cả (${_thongBaoCskh.length})',
-                                  style: TextStyle(
-                                    color: tabLocHienTai == 'tat_ca'
-                                        ? const Color(0xFF0284C7)
-                                        : (isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B)),
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: InkWell(
-                              onTap: () {
-                                AppDesignSystemC1.hapticLight();
-                                setModalState(() => tabLocHienTai = 'chua_doc');
-                              },
-                              borderRadius: BorderRadius.circular(10),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: tabLocHienTai == 'chua_doc'
-                                      ? (isDark ? const Color(0xFF0C2444) : Colors.white)
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  'Chưa đọc ($soLuongChuaDoc)',
-                                  style: TextStyle(
-                                    color: tabLocHienTai == 'chua_doc'
-                                        ? const Color(0xFFFF3B30)
-                                        : (isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B)),
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Expanded(
-                    child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      itemCount: danhSachHienThi.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final item = danhSachHienThi[index];
-                        return Container(
-                          padding: const EdgeInsets.all(12),
+                      const SizedBox(height: 12),
+                      // Tabs lọc: Tất cả / Chưa đọc
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
-                            color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
-                            ),
+                            color: isDark ? AppDesignSystemC1.darkSurface : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Row(
                             children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    item.tieuDe,
-                                    style: TextStyle(
-                                      color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () {
+                                    AppDesignSystemC1.hapticLight();
+                                    setModalState(() => tabLocHienTai = 'tat_ca');
+                                  },
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: tabLocHienTai == 'tat_ca'
+                                          ? (isDark ? const Color(0xFF0C2444) : Colors.white)
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(10),
                                     ),
-                                  ),
-                                  if (!item.daDoc)
-                                    Container(
-                                      width: 8,
-                                      height: 8,
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xFF0284C7),
-                                        shape: BoxShape.circle,
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      'Tất cả (${dsThongBaoRaw.length})',
+                                      style: TextStyle(
+                                        color: tabLocHienTai == 'tat_ca'
+                                          ? const Color(0xFF0284C7)
+                                          : (isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B)),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
                                       ),
                                     ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                item.noiDungNgan,
-                                style: TextStyle(
-                                  color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-                                  fontSize: 12.5,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                item.thoiGian,
-                                style: TextStyle(
-                                  color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF94A3B8),
-                                  fontSize: 11,
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () {
+                                    AppDesignSystemC1.hapticLight();
+                                    setModalState(() => tabLocHienTai = 'chua_doc');
+                                  },
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: tabLocHienTai == 'chua_doc'
+                                          ? (isDark ? const Color(0xFF0C2444) : Colors.white)
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      'Chưa đọc ($soLuongChuaDoc)',
+                                      style: TextStyle(
+                                        color: tabLocHienTai == 'chua_doc'
+                                          ? const Color(0xFFFF3B30)
+                                          : (isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B)),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: danhSachHienThi.isEmpty
+                            ? Center(
+                                child: Text(
+                                  'Không có thông báo nào',
+                                  style: TextStyle(
+                                    color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                itemCount: danhSachHienThi.length,
+                                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                                itemBuilder: (context, index) {
+                                  final item = danhSachHienThi[index];
+                                  final tieuDe = (item['tieu_de'] ?? item['tieuDe'] ?? 'Thông báo').toString();
+                                  final noiDung = (item['noi_dung'] ?? item['noiDung'] ?? '').toString();
+                                  final thoiGian = (item['thoi_gian_hien_thi'] ?? item['thoiGian'] ?? 'Vừa xong').toString();
+                                  final daDoc = item['da_doc'] == true;
+
+                                  return InkWell(
+                                    onTap: () {
+                                      if (item['id'] != null) {
+                                        FirebaseServiceC1.danhDauDaDocThongBao(item['id'].toString());
+                                      }
+                                    },
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  tieuDe,
+                                                  style: TextStyle(
+                                                    color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                              if (!daDoc)
+                                                Container(
+                                                  width: 8,
+                                                  height: 8,
+                                                  decoration: const BoxDecoration(
+                                                    color: Color(0xFF0284C7),
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            noiDung,
+                                            style: TextStyle(
+                                              color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                                              fontSize: 12.5,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            thoiGian,
+                                            style: TextStyle(
+                                              color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF94A3B8),
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             );
           },
         );
@@ -385,6 +667,122 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 1. Selector chọn Khoa làm việc ở trên cùng (Lấy từ Bệnh viện nhân viên)
+          Container(
+            margin: const EdgeInsets.only(bottom: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: const Color(0xFF0284C7).withValues(alpha: isDark ? 0.4 : 0.25),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0284C7).withValues(alpha: 0.06),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0F2FE),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.apartment_rounded,
+                    color: Color(0xFF0284C7),
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'KHOA HIỆN TẠI',
+                            style: TextStyle(
+                              color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0F2FE),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'Bệnh viện',
+                              style: TextStyle(
+                                color: Color(0xFF0284C7),
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _tenKhoaHienTai,
+                        style: TextStyle(
+                          color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                InkWell(
+                  onTap: _moModalChonKhoa,
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0284C7),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.swap_horiz_rounded, size: 16, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text(
+                          'Đổi Khoa',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 2. Danh sách Phòng khám của Khoa đang chọn (ListView ngang / dạng thẻ cuộn)
+          _buildDanhSachPhongCuaKhoa(isDark),
+          const SizedBox(height: 16),
+
           // Banner lớn duyệt đơn hôm nay (Gradient xanh dương y tế)
           _buildBannerTongDon(),
           const SizedBox(height: 18),
@@ -469,7 +867,7 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
           ),
           // Danh sách chuyên khoa (Lấy Realtime từ Firebase Firestore)
           StreamBuilder<List<Map<String, dynamic>>>(
-            stream: FirebaseServiceC1.streamDanhSachKhoa(),
+            stream: FirebaseServiceC1.streamDanhSachKhoa(DuLieuProfileMauC1.thongTinHienTai.benhVienId),
             builder: (context, snapshot) {
               // Trong lúc đang tải từ Firebase: Hiển thị hiệu ứng tải nhẹ, KHÔNG hiển thị danh sách mock cũ
               if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
@@ -570,6 +968,220 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
           const SizedBox(height: 20),
         ],
       ),
+    );
+  }
+
+  // Widget hiển thị danh sách phòng khám của khoa đang chọn
+  Widget _buildDanhSachPhongCuaKhoa(bool isDark) {
+    final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
+    final laTong = FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai);
+
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: FirebaseServiceC1.streamDanhSachKhoa(bvid),
+      builder: (context, snapKhoa) {
+        final dsKhoa = snapKhoa.data ?? [];
+        Map<String, dynamic>? khoaDoc;
+        for (var k in dsKhoa) {
+          if (FirebaseServiceC1.laCungKhoa(k['tenKhoa']?.toString(), _tenKhoaHienTai)) {
+            khoaDoc = k;
+            break;
+          }
+        }
+
+        final khoaId = _khoaIdHienTai ?? khoaDoc?['id']?.toString() ?? 'KHOA_MAC_DINH';
+        final int soPhongKhoa = (khoaDoc?['soPhong'] as num?)?.toInt() ?? 1;
+        final String phongDau = khoaDoc?['phongDau']?.toString() ?? '101';
+
+        return StreamBuilder<List<Map<String, dynamic>>>(
+          stream: FirebaseServiceC1.streamDanhSachPhongTheoKhoa(
+            benhVienId: bvid,
+            khoaId: khoaId,
+            tenKhoa: _tenKhoaHienTai,
+            soPhongMacDinh: soPhongKhoa,
+            phongDau: phongDau,
+          ),
+          builder: (context, snapPhong) {
+            final dsPhong = snapPhong.data ?? [];
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.meeting_room_outlined,
+                          size: 18,
+                          color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          laTong ? 'PHÒNG KHÁM TIÊU BIỂU' : 'PHÒNG KHÁM THUỘC KHOA',
+                          style: TextStyle(
+                            color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF475569),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      '${dsPhong.length} phòng',
+                      style: TextStyle(
+                        color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (dsPhong.isEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      'Khoa chưa có phòng khám nào được tạo.',
+                      style: TextStyle(
+                        color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                        fontSize: 13,
+                      ),
+                    ),
+                  )
+                else
+                  SizedBox(
+                    height: 110,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: dsPhong.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 10),
+                      itemBuilder: (context, index) {
+                        final phong = dsPhong[index];
+                        final tenPhong = (phong['tenPhong'] ?? phong['soPhong'] ?? 'Phòng').toString();
+                        final soPhong = (phong['soPhong'] ?? '').toString();
+                        final bacSi = (phong['bacSi'] ?? 'BS. Trực ban').toString();
+                        final trangThai = (phong['trangThai'] ?? 'san_sang').toString();
+                        final bool isSanSang = trangThai == 'san_sang' || trangThai == 'dang_kham';
+
+                        return InkWell(
+                          onTap: () => _onSelectPhong(phong, _tenKhoaHienTai),
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            width: 175,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
+                                width: 1.2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        soPhong.isNotEmpty ? 'P.$soPhong' : 'Phòng',
+                                        style: const TextStyle(
+                                          color: Color(0xFF0284C7),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        color: isSanSang ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      tenPhong,
+                                      style: TextStyle(
+                                        color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      bacSi,
+                                      style: TextStyle(
+                                        color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                                        fontSize: 11,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: const [
+                                    Text(
+                                      'Ấn để duyệt',
+                                      style: TextStyle(
+                                        color: Color(0xFF0284C7),
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    Icon(
+                                      Icons.arrow_forward_rounded,
+                                      size: 13,
+                                      color: Color(0xFF0284C7),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -710,10 +1322,11 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
 
   // Banner Gradient tổng số đơn hôm nay
   Widget _buildBannerTongDon() {
+    final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: FirebaseServiceC1.streamDanhSachKhoa(),
+      stream: FirebaseServiceC1.streamDanhSachKhoa(bvid),
       builder: (context, snapshot) {
-        final soLuongKhoa = snapshot.hasData ? snapshot.data!.length : 2;
+        final soLuongKhoa = snapshot.hasData ? snapshot.data!.length : 0;
 
         return Container(
           width: double.infinity,
@@ -783,9 +1396,12 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
 
   // Khối thống kê hôm nay (Đọc Realtime từ Firestore Firebase)
   Widget _buildThongKeNhanh(bool isDark) {
+    final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
     return StreamBuilder<Map<String, int>>(
       stream: FirebaseServiceC1.streamThongKeHomNay(
+        tenKhoa: _tenKhoaHienTai,
         ngayChon: _ngayChon,
+        benhVienId: bvid,
       ),
       builder: (context, snapshot) {
         final thongKe = snapshot.data ?? {

@@ -53,7 +53,10 @@ class QLDatLichApp extends StatelessWidget {
         theme: AppTheme.lightTheme,
         home: const LoginScreen(),
         routes: AppRoutes.routes, 
-
+        localizationsDelegates: const [
+          DefaultMaterialLocalizations.delegate,
+          DefaultWidgetsLocalizations.delegate,
+        ],
       ),
     );
   }

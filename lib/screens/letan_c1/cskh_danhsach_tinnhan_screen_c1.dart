@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../mock/mock_c1/dulieu_mau_cskh_c1.dart';
 import '../../models/letan_c1/cskh_model_c1.dart';
 import '../../models/letan_c1/letan_design_system_c1.dart';
+import '../../models/letan_c1/letan_profile_model_c1.dart';
+import '../../services/letan_c1/letan_firebase_service_c1.dart';
 import 'cskh_chat_chitiet_screen_c1.dart';
 
 /// MÀN HÌNH 3: DANH SÁCH TIN NHẮN HỖ TRỢ BỆNH NHÂN (CSKH)
@@ -18,9 +20,9 @@ class _CskhDanhsachTinnhanScreenC1State extends State<CskhDanhsachTinnhanScreenC
   String _tabDangChon = 'tat_ca'; // 'tat_ca', 'chua_doc', 'dang_cho'
   final TextEditingController _timKiemController = TextEditingController();
 
-  List<HoiThoaiCskhModelC1> get _danhSachLoc {
+  List<HoiThoaiCskhModelC1> _locDanhSach(List<HoiThoaiCskhModelC1> nguon) {
     final tuKhoa = _timKiemController.text.trim().toLowerCase();
-    return DuLieuCskhKhoaC1.danhSachHoiThoai.where((item) {
+    return nguon.where((item) {
       final khopTuKhoa = item.hoTen.toLowerCase().contains(tuKhoa) ||
           item.khoa.toLowerCase().contains(tuKhoa) ||
           item.tinNhanCuoi.toLowerCase().contains(tuKhoa);
@@ -49,35 +51,51 @@ class _CskhDanhsachTinnhanScreenC1State extends State<CskhDanhsachTinnhanScreenC
   @override
   Widget build(BuildContext context) {
     final isDark = AppDesignSystemC1.laCheDoToi;
+    final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
 
-    return Column(
-      children: [
-        _buildHeader(isDark),
-        _buildThanhTimKiem(isDark),
-        _buildTabFilter(isDark),
-        const SizedBox(height: 10),
-        Expanded(
-          child: _danhSachLoc.isEmpty
-              ? Center(
-                  child: Text(
-                    'Không có tin nhắn phù hợp',
-                    style: TextStyle(
-                      color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
-                      fontSize: 14,
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: FirebaseServiceC1.streamDanhSachHoiThoaiCskh(bvid),
+      builder: (context, snapshot) {
+        List<HoiThoaiCskhModelC1> danhSachAll;
+
+        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+          danhSachAll = snapshot.data!.map((m) => HoiThoaiCskhModelC1.fromMap(m, m['id'])).toList();
+        } else {
+          danhSachAll = DuLieuCskhKhoaC1.danhSachHoiThoai;
+        }
+
+        final danhSachHienThi = _locDanhSach(danhSachAll);
+
+        return Column(
+          children: [
+            _buildHeader(isDark),
+            _buildThanhTimKiem(isDark),
+            _buildTabFilter(isDark),
+            const SizedBox(height: 10),
+            Expanded(
+              child: danhSachHienThi.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Không có tin nhắn phù hợp',
+                        style: TextStyle(
+                          color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
+                          fontSize: 14,
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      itemCount: danhSachHienThi.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final item = danhSachHienThi[index];
+                        return _buildCardChat(item, isDark);
+                      },
                     ),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  itemCount: _danhSachLoc.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final item = _danhSachLoc[index];
-                    return _buildCardChat(item, isDark);
-                  },
-                ),
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 

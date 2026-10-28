@@ -26,6 +26,13 @@ class CskhDanhsachDonKhoaScreenC1 extends StatefulWidget {
 
 class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC1> {
   DateTime _ngayChon = DateTime.now();
+  late String _phongHienTai;
+
+  @override
+  void initState() {
+    super.initState();
+    _phongHienTai = widget.phongKham;
+  }
 
   Future<void> _chonNgayLichHen() async {
     AppDesignSystemC1.hapticLight();
@@ -45,23 +52,29 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
     }
   }
 
-  // Duyệt đơn và lưu trực tiếp lên Firestore
+  // Duyệt đơn và lưu trực tiếp lên Firestore:
+  // Cập nhật trang_thai_id sang số 2 ("Đã xác nhận") và gán so_thu_tu tự động tăng dần
   void _duyetDon(Map<String, dynamic> don) async {
     AppDesignSystemC1.hapticLight();
     final appointmentId = don['id'];
     final docPath = don['docPath'];
+    int? soThuTuMoi;
+
     if (appointmentId != null) {
-      await FirebaseServiceC1.capNhatTrangThaiLichHen(
+      soThuTuMoi = await FirebaseServiceC1.capNhatTrangThaiLichHen(
         appointmentId: appointmentId,
         docPath: docPath,
         trangThaiMoi: 'da_duyet',
+        phongKhamId: don['phong_kham_id'] ?? _phongHienTai,
+        ngayChon: _ngayChon,
       );
     }
     if (mounted) {
+      final sttHienThi = soThuTuMoi ?? don['stt'] ?? 1;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('✓ Đã duyệt đơn của ${don['hoTen']} (STT ${don['stt']})'),
-          duration: const Duration(seconds: 1),
+          content: Text('✓ Đã xác nhận đơn của ${don['hoTen']} - Cấp STT: #$sttHienThi'),
+          duration: const Duration(seconds: 2),
           backgroundColor: const Color(0xFF10B981),
           behavior: SnackBarBehavior.floating,
         ),
@@ -370,27 +383,20 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
     );
   }
 
-  // Duyệt hết toàn bộ đơn đang chờ trên Firestore
+  // Duyệt hết toàn bộ đơn đang chờ trên Firestore:
+  // Lọc ai đặt trước thì cấp số thứ tự trước, cập nhật trang_thai_id sang số 2 ("Đã xác nhận") và so_thu_tu tăng dần
   void _duyetHetTatCa(List<Map<String, dynamic>> danhSach) async {
     AppDesignSystemC1.hapticLight();
-    for (var don in danhSach) {
-      final trangThai = (don['rawTrangThai'] ?? '').toString();
-      if (trangThai != 'da_duyet' && trangThai != 'da_kham') {
-        final id = don['id'];
-        final docPath = don['docPath'];
-        if (id != null) {
-          await FirebaseServiceC1.capNhatTrangThaiLichHen(
-            appointmentId: id,
-            docPath: docPath,
-            trangThaiMoi: 'da_duyet',
-          );
-        }
-      }
-    }
+    await FirebaseServiceC1.duyetTatCaLichHen(
+      danhSachDon: danhSach,
+      phongKhamId: _phongHienTai,
+      ngayChon: _ngayChon,
+    );
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('✓ Đã phê duyệt tất cả các đơn khám!'),
+          content: Text('✓ Đã xác nhận tất cả các đơn khám theo thứ tự thời gian đặt!'),
           backgroundColor: Color(0xFF10B981),
           behavior: SnackBarBehavior.floating,
         ),
@@ -435,6 +441,7 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
         return StreamBuilder<List<Map<String, dynamic>>>(
           stream: FirebaseServiceC1.streamDanhSachLichHen(
             tenKhoa: widget.tenKhoa,
+            phongKham: _phongHienTai,
             ngayChon: _ngayChon,
           ),
           builder: (context, snapshot) {
@@ -533,7 +540,7 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
               ),
               const SizedBox(height: 2),
               Text(
-                '${widget.phongKham} • ${widget.caKham}',
+                '$_phongHienTai • ${widget.caKham}',
                 style: TextStyle(
                   color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
                   fontSize: 11.5,

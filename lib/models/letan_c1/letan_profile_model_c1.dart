@@ -15,7 +15,7 @@ class ThongTinLeTanC1 {
     required this.khoa,
     required this.email,
     this.avatarUrl = '',
-    this.benhVienId = 'BV01',
+    this.benhVienId = 'BV502',
     this.tenBenhVien = 'Bệnh viện Đa khoa Quốc tế',
   });
 

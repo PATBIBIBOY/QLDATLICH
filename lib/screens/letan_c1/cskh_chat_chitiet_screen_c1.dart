@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../../mock/mock_c1/dulieu_mau_cskh_c1.dart';
 import '../../models/letan_c1/cskh_model_c1.dart';
 import '../../models/letan_c1/letan_design_system_c1.dart';
+import '../../models/letan_c1/letan_profile_model_c1.dart';
+import '../../services/letan_c1/letan_firebase_service_c1.dart';
 
 /// MÀN HÌNH 4: CHI TIẾT ĐOẠN CHAT HỖ TRỢ BỆNH NHÂN (CSKH)
-/// Model TinNhanCskhModelC1 chuẩn bị sẵn sàng cho Firebase Collection `tin_nhan`
+/// Kết nối thời gian thực Firestore /HoiThoaiCskh/{benhVienId}/danh_sach/{hoiThoaiId}/tin_nhan
 class CskhChatChitietScreenC1 extends StatefulWidget {
   final HoiThoaiCskhModelC1 hoiThoai;
 
@@ -22,35 +24,23 @@ class _CskhChatChitietScreenC1State extends State<CskhChatChitietScreenC1> {
   final TextEditingController _noiDungController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  late List<TinNhanCskhModelC1> _danhSachTin;
-
-  @override
-  void initState() {
-    super.initState();
-    _danhSachTin = DuLieuCskhKhoaC1.layTinNhanTheoHoiThoai(widget.hoiThoai.id);
-  }
-
-  void _guiTinNhan([String? noiDungGui]) {
+  void _guiTinNhan([String? noiDungGui]) async {
     final text = noiDungGui ?? _noiDungController.text.trim();
     if (text.isEmpty) return;
 
     AppDesignSystemC1.hapticLight();
-    setState(() {
-      _danhSachTin.add(
-        TinNhanCskhModelC1(
-          id: 'tn_${DateTime.now().millisecondsSinceEpoch}',
-          hoiThoaiId: widget.hoiThoai.id,
-          noiDung: text,
-          thoiGian: '09:45',
-          laCskhGui: true,
-        ),
-      );
-      if (noiDungGui == null) {
-        _noiDungController.clear();
-      }
-    });
+    if (noiDungGui == null) {
+      _noiDungController.clear();
+    }
 
-    Future.delayed(const Duration(milliseconds: 100), () {
+    final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
+    await FirebaseServiceC1.guiTinNhanCskh(
+      benhVienId: bvid,
+      hoiThoaiId: widget.hoiThoai.id,
+      noiDung: text,
+    );
+
+    Future.delayed(const Duration(milliseconds: 150), () {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
@@ -63,6 +53,8 @@ class _CskhChatChitietScreenC1State extends State<CskhChatChitietScreenC1> {
 
   @override
   Widget build(BuildContext context) {
+    final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
+
     return ValueListenableBuilder<bool>(
       valueListenable: AppDesignSystemC1.isDarkMode,
       builder: (context, isDark, child) {
@@ -74,13 +66,37 @@ class _CskhChatChitietScreenC1State extends State<CskhChatChitietScreenC1> {
                 _buildHeader(isDark),
                 _buildCardThongTinBenhNhan(isDark),
                 Expanded(
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    itemCount: _danhSachTin.length,
-                    itemBuilder: (context, index) {
-                      final item = _danhSachTin[index];
-                      return _buildBongBongTinNhan(item, isDark);
+                  child: StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: FirebaseServiceC1.streamTinNhanCskh(
+                      benhVienId: bvid,
+                      hoiThoaiId: widget.hoiThoai.id,
+                    ),
+                    builder: (context, snapshot) {
+                      List<TinNhanCskhModelC1> danhSachTin;
+
+                      if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                        danhSachTin = snapshot.data!.map((m) {
+                          return TinNhanCskhModelC1(
+                            id: m['id'] ?? '',
+                            hoiThoaiId: widget.hoiThoai.id,
+                            noiDung: (m['noi_dung'] ?? '').toString(),
+                            thoiGian: (m['gio_hien_thi'] ?? 'Vừa xong').toString(),
+                            laCskhGui: m['la_cskh_gui'] == true,
+                          );
+                        }).toList();
+                      } else {
+                        danhSachTin = DuLieuCskhKhoaC1.layTinNhanTheoHoiThoai(widget.hoiThoai.id);
+                      }
+
+                      return ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        itemCount: danhSachTin.length,
+                        itemBuilder: (context, index) {
+                          final item = danhSachTin[index];
+                          return _buildBongBongTinNhan(item, isDark);
+                        },
+                      );
                     },
                   ),
                 ),

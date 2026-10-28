@@ -62,8 +62,7 @@ class _LetanThietlapThongtinScreenC1State extends State<LetanThietlapThongtinScr
       initialDate: DateTime(1998, 8, 15),
       firstDate: DateTime(1950),
       lastDate: DateTime.now(),
-      locale: const Locale('vi', 'VN'),
-    );
+     );
     if (picked != null) {
       setState(() {
         final ngay = picked.day.toString().padLeft(2, '0');
