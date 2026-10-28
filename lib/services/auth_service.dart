@@ -216,74 +216,43 @@ class AuthService {
     try {
       int maxFound = 500; // Mặc định cơ sở ban đầu có 500 bệnh viện
 
-      // 1. Kiểm tra tài liệu có trường 'id' số lớn nhất
+      // 1. Quét tìm tất cả document có id dạng BVxxx để tìm số lớn nhất
       try {
-        final snapId = await _firestore
+        final snap = await _firestore
             .collection(AppConstants.hospitalsCollection)
-            .orderBy('id', descending: true)
-            .limit(1)
             .get();
-        if (snapId.docs.isNotEmpty) {
-          final val = snapId.docs.first.data()['id'];
-          if (val is num && val.toInt() > maxFound) {
-            maxFound = val.toInt();
-          }
-        }
-      } catch (e) {
-        print('⚠️ [AuthService] Query id descending: $e');
-      }
 
-      // 2. Kiểm tra theo 'ma_benh_vien'
-      try {
-        final snapMa = await _firestore
-            .collection(AppConstants.hospitalsCollection)
-            .where('ma_benh_vien', isNotEqualTo: null)
-            .orderBy('ma_benh_vien', descending: true)
-            .limit(5)
-            .get();
-        for (final doc in snapMa.docs) {
+        final regex = RegExp(r'^BV(\d+)$', caseSensitive: false);
+        for (final doc in snap.docs) {
+          final match = regex.firstMatch(doc.id);
+          if (match != null) {
+            final parsed = int.tryParse(match.group(1)!);
+            if (parsed != null && parsed > maxFound) {
+              maxFound = parsed;
+            }
+          }
+
           final ma = doc.data()['ma_benh_vien']?.toString() ?? '';
-          final match = RegExp(r'\d+').firstMatch(ma);
-          if (match != null) {
-            final parsed = int.tryParse(match.group(0)!);
+          final matchMa = regex.firstMatch(ma);
+          if (matchMa != null) {
+            final parsed = int.tryParse(matchMa.group(1)!);
             if (parsed != null && parsed > maxFound) {
               maxFound = parsed;
             }
           }
-        }
-      } catch (e) {
-        print('⚠️ [AuthService] Query ma_benh_vien: $e');
-      }
 
-      // 3. Kiểm tra các document mới nhất theo 'ngay_tao'
-      try {
-        final snapRecent = await _firestore
-            .collection(AppConstants.hospitalsCollection)
-            .orderBy('ngay_tao', descending: true)
-            .limit(5)
-            .get();
-        for (final doc in snapRecent.docs) {
-          final data = doc.data();
-          if (data['id'] is num) {
-            final idVal = (data['id'] as num).toInt();
-            if (idVal > maxFound) maxFound = idVal;
-          }
-          final ma = (data['ma_benh_vien'] ?? doc.id).toString();
-          final match = RegExp(r'\d+').firstMatch(ma);
-          if (match != null) {
-            final parsed = int.tryParse(match.group(0)!);
-            if (parsed != null && parsed > maxFound) {
-              maxFound = parsed;
-            }
+          final idVal = doc.data()['id'];
+          if (idVal is num && idVal.toInt() > maxFound) {
+            maxFound = idVal.toInt();
           }
         }
       } catch (e) {
-        print('⚠️ [AuthService] Query recent hospitals: $e');
+        print('⚠️ [AuthService] Lỗi quét danh sách bệnh viện: $e');
       }
 
       final nextId = maxFound + 1;
       final nextMaBv = 'BV${nextId.toString().padLeft(3, '0')}';
-      print('✅ [DEBUG] Mã và ID bệnh viện tiếp theo: $nextMaBv (ID: $nextId)');
+      print('✅ [AuthService] Sinh ID bệnh viện tăng dần (+1): $nextMaBv (ID: $nextId)');
 
       return {
         'id': nextId,
@@ -292,8 +261,8 @@ class AuthService {
     } catch (e) {
       print('❌ [DEBUG] Lỗi khi sinh ID bệnh viện: $e');
       return {
-        'id': 501,
-        'ma_benh_vien': 'BV501',
+        'id': 503,
+        'ma_benh_vien': 'BV503',
       };
     }
   }
@@ -413,11 +382,25 @@ class AuthService {
         .limit(1)
         .get();
     if (authQuery.docs.isNotEmpty) {
-      await authQuery.docs.first.reference.update({'da_xac_thuc_email': isVerified});
+      await authQuery.docs.first.reference
+          .update({'da_xac_thuc_email': isVerified});
       return;
     }
 
-    throw StateError('Không tìm thấy hồ sơ bệnh nhân hoặc bệnh viện: $uid');
+    // Tìm theo email hiện tại của Firebase Auth
+    final currentEmail = _auth.currentUser?.email;
+    if (currentEmail != null && currentEmail.isNotEmpty) {
+      final emailQuery = await _firestore
+          .collection(AppConstants.hospitalsCollection)
+          .where('email', isEqualTo: currentEmail)
+          .limit(1)
+          .get();
+      if (emailQuery.docs.isNotEmpty) {
+        await emailQuery.docs.first.reference
+            .update({'da_xac_thuc_email': isVerified});
+        return;
+      }
+    }
   }
 
   Future<void> saveUserToFirestore(PatientModel user) async {
@@ -481,13 +464,32 @@ class AuthService {
       'mat_khau': FieldValue.delete(),
     };
 
-    // Lưu 1 tài liệu duy nhất theo mã bệnh viện BVxxx (ví dụ: BV501)
+    // CHỈ LƯU DUY NHẤT 1 TÀI LIỆU VỚI ID LÀ MÃ BỆNH VIỆN BVxxx (ví dụ: BV502)
+    // TUYỆT ĐỐI KHÔNG TẠO DOCUMENT VỚI ID TỰ SINH / AUTH UID
     await _firestore
         .collection(AppConstants.hospitalsCollection)
         .doc(docId)
         .set(dataToSave, SetOptions(merge: true));
 
-    print('✅ [DEBUG] Đã lưu bệnh viện thành công với ID: ${modelToSave.id}, Mã: $docId');
+    print('✅ [AuthService] Đã lưu bệnh viện theo đúng định dạng mẫu: $docId');
+
+    // Tự động dọn dẹp các document có id tự sinh (như UJqOeEvWBsY...) nếu có
+    _donDepDocumentTuSinhBenhVien();
+  }
+
+  /// Dọn dẹp các document có ID tự sinh (không phải dạng BVxxx) trong collection BenhVien
+  Future<void> _donDepDocumentTuSinhBenhVien() async {
+    try {
+      final snap = await _firestore
+          .collection(AppConstants.hospitalsCollection)
+          .get();
+      for (final doc in snap.docs) {
+        if (!doc.id.startsWith('BV')) {
+          print('🧹 [AuthService] Đang xóa document ID tự sinh trong BenhVien: ${doc.id}');
+          await doc.reference.delete();
+        }
+      }
+    } catch (_) {}
   }
 
   Future<PatientModel?> getPatientFromFirestore(String uid) async {

@@ -472,6 +472,20 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
                   final newName = found['ten'] ?? '';
                   _ten.text =
                       newName.startsWith('Khoa ') ? newName : 'Khoa $newName';
+
+                  // Cập nhật mã phòng khám tự động theo tiền tố chuẩn Firebase (VD: NGT001, NGT002...)
+                  final prefix = KhoaService.layPrefixKhoa(
+                    _ten.text,
+                    _selectedTenChuyenKhoa,
+                  );
+                  for (int i = 0; i < _phong.length; i++) {
+                    if (_phong[i].text.isEmpty ||
+                        RegExp(r'^[A-Z0-9_]+$').hasMatch(_phong[i].text) ||
+                        _phong[i].text.startsWith('Phòng ')) {
+                      _phong[i].text =
+                          '$prefix${(i + 1).toString().padLeft(3, '0')}';
+                    }
+                  }
                 });
               },
             ),
@@ -671,14 +685,21 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
             ),
           ),
 
-          _nhan('Vị trí phòng khám', phu: 'Có thể thêm nhiều phòng'),
+          _nhan(
+            'Vị trí / Tên phòng khám',
+            phu: _selectedChuyenKhoaId != null
+                ? 'Định dạng mã: ${KhoaService.layPrefixKhoa(_ten.text, _selectedTenChuyenKhoa)}001...'
+                : 'Có thể thêm nhiều phòng',
+          ),
           for (var i = 0; i < _phong.length; i++)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: TextField(
                 controller: _phong[i],
                 decoration: _deco(
-                  hint: 'VD: Phòng 405 - Tầng 4 Nhà Điều Trị KTC',
+                  hint: _selectedChuyenKhoaId != null
+                      ? 'VD: ${KhoaService.layPrefixKhoa(_ten.text, _selectedTenChuyenKhoa)}${(i + 1).toString().padLeft(3, '0')}'
+                      : 'VD: NGT001',
                 ).copyWith(
                   prefixIcon: Padding(
                     padding: const EdgeInsets.all(12),
@@ -702,8 +723,16 @@ class _ThemKhoaScreenState extends State<ThemKhoaScreen> {
               ),
             ),
           OutlinedButton.icon(
-            onPressed: () =>
-                setState(() => _phong.add(TextEditingController())),
+            onPressed: () => setState(() {
+              final prefix = KhoaService.layPrefixKhoa(
+                _ten.text,
+                _selectedTenChuyenKhoa,
+              );
+              final nextIndex = _phong.length + 1;
+              final roomName =
+                  '$prefix${nextIndex.toString().padLeft(3, '0')}';
+              _phong.add(TextEditingController(text: roomName));
+            }),
             icon: const Icon(Icons.add),
             label: const Text('Thêm phòng khám'),
             style: OutlinedButton.styleFrom(
@@ -789,6 +818,7 @@ class ThanhCongScreen extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
+                    _dong('Mã khoa (ID):', khoa.khoaId),
                     _dong('Số ca khám:', '${khoa.soCaMoiNgay} ca/ngày'),
                     _dong('Giới hạn:', '${khoa.gioiHanBenhNhan} BN/ca'),
                     _dong('Lịch làm việc:', khoa.lichLamViec),

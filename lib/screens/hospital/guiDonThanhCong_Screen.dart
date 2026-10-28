@@ -411,7 +411,7 @@ class GuiDonThanhCongScreen extends StatelessWidget {
                             .collection('BenhVien')
                             .doc(uid)
                             .set({
-                          'trang_thai_hop_tac_id': 2,
+                          'trang_thai_hop_tac_id': 10,
                           'da_gui_don': true,
                         }, SetOptions(merge: true));
 

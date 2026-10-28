@@ -183,7 +183,7 @@ class _ChiTietKhoaScreenState extends State<ChiTietKhoaScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            (data['tenKhoa'] ?? '').toString(),
+            (data['tenKhoa'] ?? data['ten_khoa'] ?? '').toString(),
             style: const TextStyle(
               fontSize: 19,
               fontWeight: FontWeight.w800,
@@ -237,10 +237,12 @@ class _ChiTietKhoaScreenState extends State<ChiTietKhoaScreen> {
   ) {
     final p = d.data();
     final (nhan, nen, chu) = _trangThaiPhong(p['trangThai'] as String?);
-    final ten = (p['tenPhong'] ?? '').toString();
+    final ten = (p['tenPhong'] ?? p['ten_phong'] ?? p['id'] ?? '').toString();
     final gio = (p['gioMoCua'] != null && p['gioDongCua'] != null)
         ? '${p['gioMoCua']} - ${p['gioDongCua']}'
-        : '-';
+        : (p['gio_mo_cua'] != null && p['gio_dong_cua'] != null)
+            ? '${p['gio_mo_cua']} - ${p['gio_dong_cua']}'
+            : '-';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),

@@ -1,13 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_session.dart';
-import '../config/constants.dart';
 import '../models/hospital_model.dart';
 import '../models/patient_model.dart';
 import '../services/auth_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
+
+  AuthProvider() {
+    _initAutoRestore();
+  }
+
+  void _initAutoRestore() {
+    final cur = _authService.currentUser;
+    if (cur != null) {
+      fetchCurrentUser(preferredRole: 'benh_vien');
+    }
+  }
 
   PatientModel? _user;
   HospitalModel? _hospital;
@@ -71,40 +81,14 @@ class AuthProvider extends ChangeNotifier {
             currentUser.email ?? '',
           );
 
-          if (hospital == null) {
-            final fallbackName =
-                (currentUser.displayName?.trim().isNotEmpty ?? false)
-                    ? currentUser.displayName!
-                    : (currentUser.email?.split('@').first ?? 'Bệnh Viện Mới');
-            
-            final idData = await _authService.generateHospitalId();
-            final nextId = idData['id'] as int;
-            final nextMaBv = idData['ma_benh_vien'] as String;
-
-            final newHospital = HospitalModel(
-              id: nextId,
-              maBenhVien: nextMaBv,
-              uid: nextMaBv,
-              authUid: currentUser.uid,
-              tenBenhVien: fallbackName,
-              email: currentUser.email,
-              role: 'benh_vien',
-              trangThaiHopTacId: TrangThaiId.choDuyet,
-              daXacThucEmail: true,
-            );
-            try {
-              await _authService.saveHospitalToFirestore(newHospital);
-            } catch (e) {
-              print('⚠️ Không thể lưu document BenhVien: $e');
-            }
-            hospital = newHospital;
+          if (hospital != null) {
+            _hospital = hospital;
+            _user = null;
+            AppSession.benhVienId =
+                hospital.maBenhVien ?? hospital.uid ?? currentUser.uid;
+            _selectedRole = 'benh_vien';
+            return;
           }
-
-          _hospital = hospital;
-          _user = null;
-          AppSession.benhVienId = hospital.maBenhVien ?? hospital.uid ?? currentUser.uid;
-          _selectedRole = 'benh_vien';
-          return;
         }
 
         final patientModel = await _authService.getPatientFromFirestore(
@@ -175,17 +159,32 @@ class AuthProvider extends ChangeNotifier {
         password: password,
       );
       _admin = null;
+
+      // 1. Đồng bộ trạng thái xác thực từ Firebase Auth sang Firestore
+      final currentFbUser = _authService.currentUser;
+      await currentFbUser?.reload();
+      final freshFbUser = _authService.currentUser;
+      final isAuthEmailVerified = freshFbUser?.emailVerified ?? false;
+
+      if (freshFbUser != null && isAuthEmailVerified) {
+        try {
+          await _authService.updateUserVerificationStatus(
+            freshFbUser.uid,
+            true,
+          );
+        } catch (_) {}
+      }
+
       await fetchCurrentUser(preferredRole: role);
 
-      // ✅ Kiểm tra nếu đăng nhập thành công nhưng chưa xác thực email
-      // Lưu ý: User đăng ký bằng SĐT (OTP) sẽ có daXacThucEmail = true, nên không bị chặn ở đây
-      final isEmailUnverified =
-          _user?.daXacThucEmail == false || _hospital?.daXacThucEmail == false;
-      if (isEmailUnverified) {
-        await _authService.signOut();
-        _user = null;
-        _hospital = null;
-        notifyListeners();
+      // 2. Kiểm tra xác thực email: nếu cả Firebase Auth lẫn Firestore đều chưa xác thực
+      final isFirestoreEmailVerified = (_user?.daXacThucEmail ?? false) ||
+          (_hospital?.daXacThucEmail ?? false);
+
+      final isVerified = isAuthEmailVerified || isFirestoreEmailVerified;
+
+      if (!isVerified) {
+        // KHÔNG gọi signOut() tại đây để phiên làm việc còn giữ lại cho màn hình EmailVerificationScreen
         throw Exception('EMAIL_NOT_VERIFIED');
       }
     } catch (e) {

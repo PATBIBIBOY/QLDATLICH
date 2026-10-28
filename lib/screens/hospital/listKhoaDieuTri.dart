@@ -20,7 +20,6 @@ Stream<QuerySnapshot<Map<String, dynamic>>> _khoaStream() => FirebaseFirestore
     .collection('Khoa')
     .doc(_getBenhVienId())
     .collection('danh_sach')
-    .orderBy('ngayTao', descending: true)
     .snapshots();
 
 // ===================== THẺ "TỔNG SỐ KHOA KHÁM" =====================
@@ -35,7 +34,7 @@ class TongSoKhoaCard extends StatelessWidget {
         final docs = snap.data?.docs ?? [];
         final dauThang = DateTime(DateTime.now().year, DateTime.now().month);
         final moi = docs.where((d) {
-          final t = d.data()['ngayTao'];
+          final t = d.data()['ngayTao'] ?? d.data()['ngay_tao'];
           return t == null || (t as Timestamp).toDate().isAfter(dauThang);
         }).length;
 
@@ -102,7 +101,15 @@ class ListKhoaDieuTri extends StatelessWidget {
         if (!snap.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final docs = snap.data!.docs;
+        final docs = snap.data!.docs.toList()
+          ..sort((a, b) {
+            final tA = a.data()['ngayTao'] ?? a.data()['ngay_tao'];
+            final tB = b.data()['ngayTao'] ?? b.data()['ngay_tao'];
+            if (tA is Timestamp && tB is Timestamp) {
+              return tB.compareTo(tA);
+            }
+            return b.id.compareTo(a.id);
+          });
 
         return Column(
           children: [
@@ -319,7 +326,7 @@ class KhoaCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      data['tenKhoa'] ?? '',
+                      (data['tenKhoa'] ?? data['ten_khoa'] ?? '').toString(),
                       style: const TextStyle(
                         color: Color(0xFF0F172A),
                         fontSize: 16,
@@ -390,7 +397,8 @@ class KhoaCard extends StatelessWidget {
                           _xacNhanXoaKhoa(
                             context,
                             khoaId!,
-                            (data['tenKhoa'] ?? 'khoa này').toString(),
+                            (data['tenKhoa'] ?? data['ten_khoa'] ?? 'khoa này')
+                                .toString(),
                           );
                         }
                       },
@@ -623,7 +631,8 @@ class _TatCaKhoaTabState extends State<TatCaKhoaTab> {
                 return const Center(child: CircularProgressIndicator());
               }
               final docs = snap.data!.docs.where((d) {
-                final ten = (d.data()['tenKhoa'] ?? '').toString();
+                final ten = (d.data()['tenKhoa'] ?? d.data()['ten_khoa'] ?? '')
+                    .toString();
                 return ten.toLowerCase().contains(_tuKhoa);
               }).toList();
 

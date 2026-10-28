@@ -41,6 +41,65 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
   void initState() {
     super.initState();
     _currentBottomNavIndex = widget.initialTabIndex;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthProvider>();
+      if (auth.hospital == null) {
+        auth.fetchCurrentUser(preferredRole: 'benh_vien');
+      }
+    });
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>?> _getHospitalStream(
+    BuildContext context,
+  ) {
+    final auth = context.watch<AuthProvider>();
+    final user = FirebaseAuth.instance.currentUser;
+    final maBv =
+        auth.hospital?.maBenhVien ?? auth.hospital?.uid ?? AppSession.benhVienId;
+
+    if (maBv.isNotEmpty && maBv.startsWith('BV')) {
+      return FirebaseFirestore.instance
+          .collection('BenhVien')
+          .doc(maBv)
+          .snapshots();
+    }
+
+    if (user != null) {
+      return FirebaseFirestore.instance
+          .collection('BenhVien')
+          .where('auth_uid', isEqualTo: user.uid)
+          .limit(1)
+          .snapshots()
+          .asyncMap((q) async {
+        if (q.docs.isNotEmpty) {
+          final doc = q.docs.first;
+          if (doc.id.startsWith('BV') && AppSession.benhVienId != doc.id) {
+            AppSession.benhVienId = doc.id;
+          }
+          return doc;
+        }
+        if (user.email != null && user.email!.isNotEmpty) {
+          final qEmail = await FirebaseFirestore.instance
+              .collection('BenhVien')
+              .where('email', isEqualTo: user.email)
+              .limit(1)
+              .get();
+          if (qEmail.docs.isNotEmpty) {
+            final doc = qEmail.docs.first;
+            if (doc.id.startsWith('BV') && AppSession.benhVienId != doc.id) {
+              AppSession.benhVienId = doc.id;
+            }
+            return doc;
+          }
+        }
+        return await FirebaseFirestore.instance
+            .collection('BenhVien')
+            .doc(user.uid)
+            .get();
+      });
+    }
+
+    return const Stream.empty();
   }
 
   String _getHospitalUid(BuildContext context) {
@@ -394,34 +453,39 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
     final hospitalUid = _getHospitalUid(context);
 
     // Lắng nghe dữ liệu realtime từ Firestore của đúng tài khoản bệnh viện này
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('BenhVien')
-          .doc(hospitalUid)
-          .snapshots(),
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>?>(
+      stream: _getHospitalStream(context),
       builder: (context, snapshot) {
         final authProvider = context.watch<AuthProvider>();
         final data = snapshot.data?.data();
+
+        final realId = snapshot.data?.id ?? hospitalUid;
+        if (realId.startsWith('BV') && AppSession.benhVienId != realId) {
+          AppSession.benhVienId = realId;
+        }
 
         // Tên bệnh viện động từ Firestore / AuthProvider / fallback
         final tenBenhVien = data?['ten_benh_vien'] ??
             data?['tenBenhVien'] ??
             authProvider.hospital?.tenBenhVien ??
-            'BV Đa Khoa An Bình';
+            FirebaseAuth.instance.currentUser?.displayName ??
+            'Bệnh viện';
 
-        // Trạng thái hợp tác: 1 = Chờ duyệt, 2 = Đã xác nhận, 7 = Hoạt động
-        final trangThaiId = (data?['trang_thai_hop_tac_id'] ??
-                authProvider.hospital?.trangThaiHopTacId ??
-                TrangThaiId.choDuyet) as int;
+        // Trạng thái hợp tác: 1 = Chờ duyệt, 10 = Hợp tác (theo document 10 trên Firebase)
+        final rawTrangThaiId = data?['trang_thai_hop_tac_id'] ??
+            authProvider.hospital?.trangThaiHopTacId ??
+            1;
+        final int trangThaiId = (rawTrangThaiId is int)
+            ? rawTrangThaiId
+            : int.tryParse(rawTrangThaiId.toString()) ?? 1;
 
         // Bệnh viện đã gửi đơn hay chưa
         final bool daGuiDon = (data?['da_gui_don'] == true) ||
             (data?['so_giay_phep'] != null &&
                 data!['so_giay_phep'].toString().isNotEmpty);
 
-        // Đã được Admin phê duyệt hợp tác hay chưa
-        final bool daXacThuc = trangThaiId == TrangThaiId.daXacNhan ||
-            trangThaiId == TrangThaiId.hoatDong;
+        // Đã được Admin phê duyệt hợp tác hay chưa (10: Hợp tác theo Firebase, hoặc 2: Đã xác nhận)
+        final bool daXacThuc = trangThaiId == 10 || trangThaiId == 2;
 
         return Scaffold(
           backgroundColor: const Color(0xFFF8FAFC),
@@ -947,24 +1011,39 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
           // Nút DEV: Tự duyệt / Khóa lại để chuyển đổi màn hình làm các chức năng khác
           InkWell(
             onTap: () async {
-              final newStatus = daXacThuc ? 1 : 2;
+              final newStatus = daXacThuc ? 1 : 10;
+              final targetId = AppSession.benhVienId.isNotEmpty
+                  ? AppSession.benhVienId
+                  : hospitalUid;
               await FirebaseFirestore.instance
                   .collection('BenhVien')
-                  .doc(hospitalUid)
+                  .doc(targetId)
                   .set({
                 'trang_thai_hop_tac_id': newStatus,
                 'da_gui_don': true,
               }, SetOptions(merge: true));
 
+              if (hospitalUid != targetId) {
+                try {
+                  await FirebaseFirestore.instance
+                      .collection('BenhVien')
+                      .doc(hospitalUid)
+                      .set({
+                    'trang_thai_hop_tac_id': newStatus,
+                    'da_gui_don': true,
+                  }, SetOptions(merge: true));
+                } catch (_) {}
+              }
+
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    newStatus == 2
-                        ? '⚡ [DEV] Đã tự duyệt: Chuyển sang Dashboard đầy đủ!'
-                        : '⚡ [DEV] Đã chuyển về: Chờ Admin phê duyệt!',
+                    newStatus == 10
+                        ? '⚡ [DEV] Đã tự duyệt (10 - Hợp tác): Chuyển sang Dashboard đầy đủ!'
+                        : '⚡ [DEV] Đã chuyển về: 1 - Chờ duyệt!',
                   ),
-                  backgroundColor: newStatus == 2
+                  backgroundColor: newStatus == 10
                       ? const Color(0xFF16A34A)
                       : const Color(0xFFD97706),
                   duration: const Duration(seconds: 2),

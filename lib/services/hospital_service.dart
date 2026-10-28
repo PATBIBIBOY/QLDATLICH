@@ -307,9 +307,22 @@ class HospitalService {
           .collection('danh_sach')
           .get();
 
-      debugPrint('✅ Tìm thấy ${snapshot.docs.length} phòng khám.');
+      if (snapshot.docs.isNotEmpty) {
+        debugPrint('✅ Tìm thấy ${snapshot.docs.length} phòng khám (subcollection).');
+        return snapshot.docs.map((doc) {
+          return PhongKhamModel.fromMap(doc.data(), doc.id);
+        }).toList();
+      }
 
-      return snapshot.docs.map((doc) {
+      // Dự phòng: Tìm trực tiếp trong root collection PhongKham (theo chuẩn hình ảnh)
+      final rootSnap = await _firestore
+          .collection('PhongKham')
+          .where('hospitalId', isEqualTo: hospitalId)
+          .where('khoaId', isEqualTo: khoaId)
+          .get();
+
+      debugPrint('✅ Tìm thấy ${rootSnap.docs.length} phòng khám (root collection).');
+      return rootSnap.docs.map((doc) {
         return PhongKhamModel.fromMap(doc.data(), doc.id);
       }).toList();
     } catch (e) {

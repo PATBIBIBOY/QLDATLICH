@@ -52,12 +52,15 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
   void initState() {
     super.initState();
     final auth = context.read<AuthProvider>();
+    final currentFbUser = FirebaseAuth.instance.currentUser;
     final tenBv = widget.initialTenBenhVien ??
         auth.hospital?.tenBenhVien ??
-        'Bệnh viện Đa Khoa An Bình';
+        (currentFbUser?.displayName?.isNotEmpty == true
+            ? currentFbUser!.displayName!
+            : '');
     final diaChi = widget.initialDiaChi ??
         auth.hospital?.diaChi ??
-        '146 An Bình, Phường 7, Quận 5, TP.HCM';
+        '';
 
     _tenBenhVienCtrl = TextEditingController(text: tenBv);
     _maCoSoCtrl = TextEditingController(text: 'BV-79-102');

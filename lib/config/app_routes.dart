@@ -192,7 +192,7 @@ class AppRoutes {
               ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
           return GuiDonThanhCongScreen(
             maHoSo: args?['maHoSo'] ?? '#HS-BV-202688',
-            tenBenhVien: args?['tenBenhVien'] ?? 'Bệnh viện Đa Khoa An Bình',
+            tenBenhVien: args?['tenBenhVien'] ?? 'Bệnh viện',
             loaiHinh: args?['loaiHinh'] ?? 'Bệnh viện Tư lập',
             coBhyt: args?['coBhyt'] ?? true,
             extraData: args?['extraData'],
