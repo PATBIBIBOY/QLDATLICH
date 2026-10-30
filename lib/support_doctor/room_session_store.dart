@@ -24,6 +24,22 @@ class RoomSessionSnapshot {
   /// Các số đã bấm "Đợi" (đang chờ chèn lại).
   List<int> deferredNumbers = <int>[];
 
+  /// LỊCH SỬ tất cả số đã từng bấm "Đợi". Khác với [deferredNumbers], danh
+  /// sách này KHÔNG bị xoá khi số được gọi lại, chèn lại hay xác nhận vắng
+  /// mặt — chỉ xoá khi bấm "Đặt lại số".
+  ///
+  /// Dùng cho các việc khác (báo cáo, thống kê, màn hình khác…). Đọc qua:
+  /// `RoomSessionStore.instance.sessionOf(roomId).deferredHistory`.
+  List<int> deferredHistory = <int>[];
+
+  /// Các lượt chèn đang chờ một số mốc TƯƠNG LAI xuất hiện trong hàng chờ.
+  ///
+  /// Mỗi phần tử là một số đã cho qua (`number`) cần nằm ngay sau số mốc
+  /// (`afterNumber`) khi hàng chờ sinh tới số mốc đó. Khi số mốc xuất
+  /// hiện, màn hình hàng chờ chuyển số này vào [waiting] và xoá lịch.
+  List<({int number, int afterNumber})> scheduledFutureInserts =
+      <({int number, int afterNumber})>[];
+
   /// Các số đã khám xong (dùng cho "Gọi lại").
   List<int> examinedNumbers = <int>[];
 
@@ -61,6 +77,11 @@ class RoomSessionStore extends ChangeNotifier {
   /// Lấy (hoặc tạo) trạng thái của một phòng theo [roomId].
   RoomSessionSnapshot sessionOf(String roomId) =>
       _sessions.putIfAbsent(roomId, RoomSessionSnapshot.new);
+
+  /// Lịch sử các số đã từng bấm "Đợi" của một phòng – bản chỉ đọc, dùng cho
+  /// các việc khác (báo cáo, thống kê, màn hình khác…).
+  List<int> deferredHistoryOf(String roomId) =>
+      List<int>.unmodifiable(sessionOf(roomId).deferredHistory);
 
   /// Báo cho các màn hình đang lắng nghe vẽ lại.
   void refresh() => notifyListeners();
