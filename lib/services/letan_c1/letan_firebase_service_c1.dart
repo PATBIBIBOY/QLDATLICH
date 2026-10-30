@@ -398,14 +398,24 @@ class FirebaseServiceC1 {
     StreamSubscription? subGroup;
 
     controller.onListen = () {
-      subTop = _firestore.collection('LichHen').snapshots().listen((snap) {
+      Query<Map<String, dynamic>> topQuery = _firestore.collection('LichHen');
+      if (bvid.isNotEmpty) {
+        topQuery = topQuery.where('benh_vien_id', isEqualTo: bvid);
+      }
+
+      subTop = topQuery.snapshots().listen((snap) {
+        allDocs.clear();
         for (var doc in snap.docs) {
           allDocs[doc.id] = doc;
         }
         recompute();
       });
 
-      subGroup = _firestore.collectionGroup('lich_hen').snapshots().listen((snap) {
+      Query<Map<String, dynamic>> groupQuery = _firestore.collectionGroup('lich_hen');
+      if (bvid.isNotEmpty) {
+        groupQuery = groupQuery.where('benh_vien_id', isEqualTo: bvid);
+      }
+      subGroup = groupQuery.snapshots().listen((snap) {
         for (var doc in snap.docs) {
           allDocs[doc.id] = doc;
         }
@@ -599,15 +609,34 @@ class FirebaseServiceC1 {
     StreamSubscription? subTop;
     StreamSubscription? subGroup;
 
-    controller.onListen = () async {
-      // Tải trước danh sách Bệnh nhân để nạp tên
-      try {
-        final bnSnap = await _firestore.collection('BenhNhan').get();
-        for (var b in bnSnap.docs) {
-          cacheBenhNhan[b.id] = b.data();
-        }
-      } catch (_) {}
+    // Cache thông tin Bệnh nhân theo từng ID để tránh get toàn bộ collection BenhNhan
+    Future<void> napThongTinBenhNhanTheoIds(Set<String> patientIds) async {
+      final idsCanNap = patientIds.where((id) => id.isNotEmpty && !cacheBenhNhan.containsKey(id)).toList();
+      if (idsCanNap.isEmpty) return;
 
+      // Firestore whereIn tối đa 10 phần tử
+      for (var i = 0; i < idsCanNap.length; i += 10) {
+        final chunk = idsCanNap.sublist(i, i + 10 > idsCanNap.length ? idsCanNap.length : i + 10);
+        try {
+          final snap = await _firestore.collection('BenhNhan').where(FieldPath.documentId, whereIn: chunk).get();
+          for (var doc in snap.docs) {
+            cacheBenhNhan[doc.id] = doc.data();
+          }
+        } catch (_) {
+          // Fallback lấy lẻ nếu Firestore whereIn gặp lỗi index
+          for (var pid in chunk) {
+            try {
+              final d = await _firestore.collection('BenhNhan').doc(pid).get();
+              if (d.exists && d.data() != null) {
+                cacheBenhNhan[pid] = d.data()!;
+              }
+            } catch (_) {}
+          }
+        }
+      }
+    }
+
+    controller.onListen = () async {
       // Tải trước danh mục Khoa của bệnh viện
       try {
         final kSnap = await _firestore.collection('Khoa').doc(bvid).collection('danh_sach').get();
@@ -617,18 +646,37 @@ class FirebaseServiceC1 {
         }
       } catch (_) {}
 
-      // Lắng nghe cả collection cấp 1 'LichHen' và collectionGroup 'lich_hen'
-      subTop = _firestore.collection('LichHen').snapshots().listen((snap) {
+      // Lọc Lịch Hẹn theo bệnh viện trực tiếp từ Firestore query để giảm document reads
+      Query<Map<String, dynamic>> topQuery = _firestore.collection('LichHen');
+      if (bvid.isNotEmpty) {
+        topQuery = topQuery.where('benh_vien_id', isEqualTo: bvid);
+      }
+
+      subTop = topQuery.snapshots().listen((snap) async {
+        allDocs.clear();
+        final Set<String> patientIds = {};
         for (var doc in snap.docs) {
           allDocs[doc.id] = doc;
+          final bnId = (doc.data()['benh_nhan_id'] ?? doc.data()['benhNhanId'] ?? '').toString();
+          if (bnId.isNotEmpty) patientIds.add(bnId);
         }
+        await napThongTinBenhNhanTheoIds(patientIds);
         recompute();
       });
 
-      subGroup = _firestore.collectionGroup('lich_hen').snapshots().listen((snap) {
+      // Lắng nghe thêm subcollection nếu có
+      Query<Map<String, dynamic>> groupQuery = _firestore.collectionGroup('lich_hen');
+      if (bvid.isNotEmpty) {
+        groupQuery = groupQuery.where('benh_vien_id', isEqualTo: bvid);
+      }
+      subGroup = groupQuery.snapshots().listen((snap) async {
+        final Set<String> patientIds = {};
         for (var doc in snap.docs) {
           allDocs[doc.id] = doc;
+          final bnId = (doc.data()['benh_nhan_id'] ?? doc.data()['benhNhanId'] ?? '').toString();
+          if (bnId.isNotEmpty) patientIds.add(bnId);
         }
+        await napThongTinBenhNhanTheoIds(patientIds);
         recompute();
       }, onError: (_) {});
     };
@@ -654,14 +702,14 @@ class FirebaseServiceC1 {
     int maxStt = 0;
 
     try {
-      // 1. Quét trong collection LichHen cấp 1
-      final topSnap = await _firestore.collection('LichHen').get();
+      // 1. Quét trong collection LichHen cấp 1 theo benh_vien_id
+      Query<Map<String, dynamic>> topQuery = _firestore.collection('LichHen');
+      if (benhVienId.isNotEmpty) {
+        topQuery = topQuery.where('benh_vien_id', isEqualTo: benhVienId);
+      }
+      final topSnap = await topQuery.get();
       for (var d in topSnap.docs) {
         final data = d.data();
-        final docBv = (data['benh_vien_id'] ?? data['benhVienId'] ?? '').toString();
-        if (docBv.isNotEmpty && benhVienId.isNotEmpty && !docBv.contains(benhVienId) && !benhVienId.contains(docBv)) {
-          continue;
-        }
 
         // Lọc theo ngày
         final docNgayHen = data['ngay_hen']?.toString() ?? '';
