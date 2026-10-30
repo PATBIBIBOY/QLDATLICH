@@ -257,93 +257,110 @@ class _LoginScreenState extends State<LoginScreen> {
             }
           }
         }
+      }
 
-        // 3. Nếu tìm thấy document nhân viên -> Điều hướng ngay vào role nhân viên tương ứng
-        if (userDoc != null && userDoc.exists) {
-          final data = userDoc.data() ?? {};
-          final role = (data['role'] ?? '').toString();
-          final bool daKichHoat = (data['da_kich_hoat'] == true) || (data['trang_thai'] == 'dang_hoat_dong');
+      // ✅ 2.2. Kiểm tra tài khoản Nhân Viên (bảo mật nghiêm ngặt: Nhân viên chỉ được vào role nhân viên, không được vào Bệnh nhân hay Bệnh viện)
+      if (userDoc != null && userDoc.exists) {
+        final data = userDoc.data() ?? {};
+        final role = (data['role'] ?? '').toString();
+        final bool daKichHoat = (data['da_kich_hoat'] == true) || (data['trang_thai'] == 'dang_hoat_dong');
 
-          final bool laNhanVien = role == 'receptionist' ||
-              role == 'le_tan' ||
-              role == 'customerSupport' ||
-              role == 'cskh' ||
-              role == 'cham_soc_khach_hang' ||
-              role == 'doctorAssistant' ||
-              role == 'ho_tro_bac_si' ||
-              role == 'bac_si';
+        final bool laNhanVien = role == 'receptionist' ||
+            role == 'le_tan' ||
+            role == 'customerSupport' ||
+            role == 'cskh' ||
+            role == 'cham_soc_khach_hang' ||
+            role == 'doctorAssistant' ||
+            role == 'ho_tro_bac_si' ||
+            role == 'bac_si';
 
-          if (laNhanVien) {
-            if (!mounted) return;
+        if (laNhanVien) {
+          if (!mounted) return;
 
-            // Chưa kích hoạt -> Vào thiết lập thông tin
-            if (!daKichHoat) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => LetanThietlapThongtinScreenC1(
-                    maNhanVienMacDinh: (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? currentUid).toString(),
-                  ),
+          // Nếu người dùng cố tình chọn Role "Bệnh viện" hoặc "Admin" nhưng thực chất là tài khoản Nhân viên
+          // Ta vẫn tự động chuyển họ về đúng trang nghiệp vụ nhân viên của họ
+          if (!daKichHoat) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => LetanThietlapThongtinScreenC1(
+                  maNhanVienMacDinh: (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? currentUid).toString(),
                 ),
-              );
-              return;
-            }
-
-            // Đã kích hoạt -> Nạp profile và vào đúng màn hình của Role
-            final maNvThucTe = (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? currentUid).toString();
-            final bvId = (data['ma_benh_vien'] ?? data['benh_vien_id'] ?? 'BV502').toString();
-            final tenBv = (data['ten_benh_vien'] ?? 'Bệnh viện BV502').toString();
-
-            DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai.copyWith(
-              maNhanVien: maNvThucTe,
-              hoTen: (data['ho_ten'] ?? 'Nhân viên').toString(),
-              chucVu: (data['chuc_vu'] ?? (role == 'le_tan' || role == 'receptionist' ? 'Lễ tân tiếp đón' : 'Chăm sóc khách hàng')).toString(),
-              khoa: (data['khoa'] ?? 'Khoa Khám Bệnh').toString(),
-              email: (data['email'] ?? email).toString(),
-              benhVienId: bvId,
-              tenBenhVien: tenBv,
+              ),
             );
+            return;
+          }
 
-            if (role == 'receptionist' || role == 'le_tan') {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()),
-              );
-              return;
-            } else if (role == 'customerSupport' || role == 'cskh' || role == 'cham_soc_khach_hang') {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const CskhDuyetdonKhoaScreenC1()),
-              );
-              return;
-            } else if (role == 'doctorAssistant' || role == 'ho_tro_bac_si' || role == 'bac_si') {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const ClinicRoomPickerScreen()),
-              );
-              return;
-            }
+          // Đã kích hoạt -> Nạp profile và chuyển thẳng vào đúng Role nhân viên
+          final maNvThucTe = (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? currentUid).toString();
+          final bvId = (data['ma_benh_vien'] ?? data['benh_vien_id'] ?? 'BV502').toString();
+          final tenBv = (data['ten_benh_vien'] ?? 'Bệnh viện BV502').toString();
+
+          DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai.copyWith(
+            maNhanVien: maNvThucTe,
+            hoTen: (data['ho_ten'] ?? 'Nhân viên').toString(),
+            chucVu: (data['chuc_vu'] ?? (role == 'le_tan' || role == 'receptionist' ? 'Lễ tân tiếp đón' : 'Chăm sóc khách hàng')).toString(),
+            khoa: (data['khoa'] ?? 'Khoa Khám Bệnh').toString(),
+            email: (data['email'] ?? email).toString(),
+            benhVienId: bvId,
+            tenBenhVien: tenBv,
+          );
+
+          if (role == 'receptionist' || role == 'le_tan') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()),
+            );
+            return;
+          } else if (role == 'customerSupport' || role == 'cskh' || role == 'cham_soc_khach_hang') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const CskhDuyetdonKhoaScreenC1()),
+            );
+            return;
+          } else if (role == 'doctorAssistant' || role == 'ho_tro_bac_si' || role == 'bac_si') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const ClinicRoomPickerScreen()),
+            );
+            return;
           }
         }
       }
 
-      // ✅ 2.2. Nếu không phải nhân viên, kiểm tra các role khác
-      if (selectedRoleCode == 'admin' && auth.admin != null) {
-        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.adminDashboard, (route) => false);
-        return;
+      // ✅ 2.3. Nếu chọn Bệnh viện nhưng KHÔNG PHẢI tài khoản Bệnh viện
+      if (selectedRoleCode == 'benh_vien') {
+        if (auth.hospital != null) {
+          AppSession.benhVienId = auth.hospital?.uid ??
+              FirebaseAuth.instance.currentUser?.uid ??
+              '';
+          Navigator.pushNamedAndRemoveUntil(context, AppRoutes.hospitalDashboard, (route) => false);
+          return;
+        } else {
+          // Báo lỗi nếu tài khoản này không phải bệnh viện
+          throw Exception('Tài khoản này không có quyền truy cập vai trò Bệnh viện!');
+        }
       }
-      
-      if (selectedRoleCode == 'benh_vien' && auth.hospital != null) {
-        AppSession.benhVienId = auth.hospital?.uid ??
-            FirebaseAuth.instance.currentUser?.uid ??
-            '';
-        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.hospitalDashboard, (route) => false);
-        return;
+
+      // ✅ 2.4. Nếu chọn Admin
+      if (selectedRoleCode == 'admin') {
+        if (auth.admin != null) {
+          Navigator.pushNamedAndRemoveUntil(context, AppRoutes.adminDashboard, (route) => false);
+          return;
+        } else {
+          throw Exception('Tài khoản này không có quyền truy cập Admin!');
+        }
       }
 
       if (!mounted) return;
-      // Mặc định: Vào giao diện bệnh nhân
-      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.patientHome, (route) => false);
+      // ✅ 2.5. Nếu chọn Bệnh nhân: chỉ cho phép nếu tài khoản là bệnh nhân thật
+      if (auth.user != null) {
+        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.patientHome, (route) => false);
+        return;
+      }
+
+      // Mặc định: Chặn các trường hợp sai lệch role
+      throw Exception('Không tìm thấy thông tin tài khoản phù hợp với vai trò đã chọn!');
 
     } catch (e) {
       if (!mounted) return;
