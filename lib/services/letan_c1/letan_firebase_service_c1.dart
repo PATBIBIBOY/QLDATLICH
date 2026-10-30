@@ -698,6 +698,7 @@ class FirebaseServiceC1 {
   }) async {
     final targetDate = ngayChon ?? DateTime.now();
     final String targetDateStr = '${targetDate.year.toString().padLeft(4, '0')}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}';
+    final String targetDisplay = '${targetDate.day.toString().padLeft(2, '0')}/${targetDate.month.toString().padLeft(2, '0')}/${targetDate.year}';
 
     int maxStt = 0;
 
@@ -714,8 +715,15 @@ class FirebaseServiceC1 {
         // Lọc theo ngày
         final docNgayHen = data['ngay_hen']?.toString() ?? '';
         final docNgayDat = data['ngay_dat']?.toString() ?? '';
+        final docNgayKham = (data['ngay_kham'] ?? '').toString();
+        final docNgayHienThi = (data['ngay_hien_thi'] ?? '').toString();
         final docPath = d.reference.path;
-        bool khopNgay = docPath.contains(targetDateStr) || docNgayHen.contains(targetDateStr) || docNgayDat.contains(targetDateStr);
+        bool khopNgay = docPath.contains(targetDateStr) ||
+            docNgayHen.contains(targetDateStr) ||
+            docNgayDat.contains(targetDateStr) ||
+            docNgayKham.contains(targetDateStr) ||
+            docNgayHienThi.contains(targetDateStr) ||
+            docNgayHienThi.contains(targetDisplay);
         if (!khopNgay && data['ngay_hen'] is Timestamp) {
           final dt = (data['ngay_hen'] as Timestamp).toDate();
           if (dt.year == targetDate.year && dt.month == targetDate.month && dt.day == targetDate.day) khopNgay = true;
@@ -726,12 +734,7 @@ class FirebaseServiceC1 {
         }
         if (!khopNgay) continue;
 
-        // Nếu có phòng khám cụ thể thì so khớp phòng khám
-        if (phongKhamId != null && phongKhamId.isNotEmpty) {
-          final pDoc = (data['phong_kham_id'] ?? data['phong_kham'] ?? '').toString();
-          if (pDoc.isNotEmpty && pDoc != phongKhamId) continue;
-        }
-
+        // Chỉ xét các đơn đã được duyệt hoặc đã có số thứ tự
         final sttVal = data['so_thu_tu'] ?? data['stt'];
         if (sttVal is num) {
           if (sttVal.toInt() > maxStt) maxStt = sttVal.toInt();
@@ -742,7 +745,11 @@ class FirebaseServiceC1 {
       }
 
       // 2. Quét thêm trong collectionGroup('lich_hen')
-      final groupSnap = await _firestore.collectionGroup('lich_hen').get();
+      Query<Map<String, dynamic>> groupQuery = _firestore.collectionGroup('lich_hen');
+      if (benhVienId.isNotEmpty) {
+        groupQuery = groupQuery.where('benh_vien_id', isEqualTo: benhVienId);
+      }
+      final groupSnap = await groupQuery.get();
       for (var d in groupSnap.docs) {
         final data = d.data();
         final sttVal = data['so_thu_tu'] ?? data['stt'];
