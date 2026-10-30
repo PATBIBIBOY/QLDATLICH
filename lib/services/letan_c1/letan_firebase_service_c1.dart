@@ -713,6 +713,8 @@ class FirebaseServiceC1 {
   /// Cập nhật trạng thái lịch hẹn trên Firestore (hỗ trợ cả collection LichHen cấp 1 và subcollection)
   /// - Khi duyệt (trang_thai_id: "2" - Đã xác nhận trong TrangThai số 2)
   /// - Gán số thứ tự (so_thu_tu) tự động tăng dần bắt đầu từ 1
+  /// - Chỉ sử dụng `trang_thai_id`, không lưu redundant `trang_thai`, `trangThai`, `ten_trang_thai`.
+  /// - Khi duyệt thì xóa `ly_do_tu_choi`, khi hủy (`trang_thai_id: "4"`) mới lưu `ly_do_tu_choi`.
   static Future<int?> capNhatTrangThaiLichHen({
     required String appointmentId,
     required String trangThaiMoi,
@@ -726,7 +728,6 @@ class FirebaseServiceC1 {
   }) async {
     // Số 1: Chờ duyệt | Số 2: Đã xác nhận (TrangThai/2) | Số 4: Hủy / Không duyệt (TrangThai/4)
     final String newStatusId = trangThaiMoi == 'da_duyet' ? '2' : (trangThaiMoi == 'tu_choi' ? '4' : '1');
-    final String newStatusName = trangThaiMoi == 'da_duyet' ? 'Đã xác nhận' : (trangThaiMoi == 'tu_choi' ? 'Hủy' : 'Chờ duyệt');
 
     int? capNhatStt = soThuTuChiDinh;
     if (trangThaiMoi == 'da_duyet' && capNhatStt == null) {
@@ -740,21 +741,28 @@ class FirebaseServiceC1 {
     }
 
     final Map<String, dynamic> updateData = {
-      'trang_thai': trangThaiMoi,
-      'trangThai': trangThaiMoi,
       'trang_thai_id': newStatusId,
-      'ten_trang_thai': newStatusName,
       'ngay_cap_nhat': FieldValue.serverTimestamp(),
+      // Dọn dẹp các trường thừa nếu có
+      'trang_thai': FieldValue.delete(),
+      'trangThai': FieldValue.delete(),
+      'ten_trang_thai': FieldValue.delete(),
     };
 
-    if (capNhatStt != null) {
-      updateData['so_thu_tu'] = capNhatStt;
-      updateData['stt'] = capNhatStt;
-    }
-
-    if (lyDoTuChoi != null) {
-      updateData['ly_do_tu_choi'] = lyDoTuChoi;
-      updateData['lyDoTuChoi'] = lyDoTuChoi;
+    if (trangThaiMoi == 'da_duyet') {
+      if (capNhatStt != null) {
+        updateData['so_thu_tu'] = capNhatStt;
+      }
+      // Khi đã duyệt thì xóa lý do từ chối (nếu có từ trước)
+      updateData['ly_do_tu_choi'] = FieldValue.delete();
+      updateData['lyDoTuChoi'] = FieldValue.delete();
+      updateData['stt'] = FieldValue.delete();
+    } else if (trangThaiMoi == 'tu_choi') {
+      if (lyDoTuChoi != null && lyDoTuChoi.trim().isNotEmpty) {
+        updateData['ly_do_tu_choi'] = lyDoTuChoi.trim();
+      }
+      updateData['lyDoTuChoi'] = FieldValue.delete();
+      updateData['stt'] = FieldValue.delete();
     }
 
     // 1. Cập nhật trực tiếp nếu là doc trong collection 'LichHen' cấp 1
