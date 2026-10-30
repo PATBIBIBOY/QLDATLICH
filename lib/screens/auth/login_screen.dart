@@ -58,8 +58,64 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final auth = context.read<AuthProvider>();
       final selectedRoleCode = _roles[_selectedRoleIndex]['code'] as String;
+      final firestore = FirebaseFirestore.instance;
 
-      // ✅ 1. Kiểm tra nếu người dùng đăng nhập bằng MÃ NHÂN VIÊN nội bộ (không chứa @)
+      // ✅ 1. NẾU LÀ cuoc2004@gmail.com HOẶC EMAIL NHÂN VIÊN LỄ TÂN / CSKH
+      // XÁC THỰC THẲNG VÀ ĐIỀU HƯỚNG NGAY VÀO LỄ TÂN / CSKH, KHÔNG CHO QUA auth.login BỆNH VIỆN
+      final isCuoc = email.toLowerCase() == 'cuoc2004@gmail.com';
+      if (isCuoc) {
+        // Đăng nhập Firebase Auth trước
+        UserCredential? cred;
+        try {
+          cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+        } catch (e) {
+          // Nếu sai pass hoặc lỗi auth thì quăng lỗi ra ngay
+          rethrow;
+        }
+
+        final currentUid = cred.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+
+        // Cập nhật/đảm bảo tài liệu nhân viên Lễ tân LT_TM_01 trên Firestore
+        try {
+          await firestore.collection('NhanVien').doc('BV502').collection('danh_sach').doc('LT_TM_01').set({
+            'ma_tai_khoan': 'LT_TM_01',
+            'ma_nhan_vien': 'LT_TM_01',
+            'ho_ten': 'Đinh Hoàng Cước',
+            'email': 'cuoc2004@gmail.com',
+            'role': 'receptionist',
+            'chuc_vu': 'Lễ tân tiếp đón',
+            'khoa': 'KHOA TIM',
+            'ma_benh_vien': 'BV502',
+            'benh_vien_id': 'BV502',
+            'ten_benh_vien': 'Bệnh viện Quân y 17',
+            'da_kich_hoat': true,
+            'trang_thai': 'dang_hoat_dong',
+            'uid': currentUid,
+          }, SetOptions(merge: true));
+        } catch (_) {}
+
+        DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai.copyWith(
+          maNhanVien: 'LT_TM_01',
+          hoTen: 'Đinh Hoàng Cước',
+          chucVu: 'Lễ tân tiếp đón',
+          khoa: 'KHOA TIM',
+          email: 'cuoc2004@gmail.com',
+          benhVienId: 'BV502',
+          tenBenhVien: 'Bệnh viện Quân y 17',
+        );
+
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()),
+        );
+        return;
+      }
+
+      // ✅ 2. Kiểm tra nếu người dùng đăng nhập bằng MÃ NHÂN VIÊN nội bộ (không chứa @)
       final input = email.trim();
       if (!input.contains('@') && selectedRoleCode != 'admin') {
         final firestore = FirebaseFirestore.instance;
@@ -211,7 +267,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // ✅ 2.1. ĐẶC BIỆT: KIỂM TRA TRƯỚC XEM EMAIL CÓ PHẢI NHÂN VIÊN Y TẾ HAY KHÔNG (Dù người dùng chọn role nào ở giao diện)
       final currentUid = FirebaseAuth.instance.currentUser?.uid;
-      final firestore = FirebaseFirestore.instance;
       DocumentSnapshot<Map<String, dynamic>>? userDoc;
 
       // Nếu email là cuoc2004@gmail.com, tự động đảm bảo có document Lễ tân trên Firestore và gán userDoc luôn
