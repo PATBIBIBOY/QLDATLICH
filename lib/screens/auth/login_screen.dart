@@ -122,12 +122,14 @@ class _LoginScreenState extends State<LoginScreen> {
             'ma_nhan_vien': input.toUpperCase(),
             'mat_khau': '123456',
             'ho_ten': isCskh ? 'Nhân Viên CSKH' : 'Đinh Hoàng Cước',
+            'email': isCskh ? 'cskh@benhvien.vn' : 'cuoc2004@gmail.com',
             'role': isCskh ? 'customerSupport' : 'receptionist',
             'khoa': 'KHOA TIM',
             'ma_benh_vien': 'BV502',
             'benh_vien_id': 'BV502',
             'ten_benh_vien': 'Bệnh viện Quân y 17',
-            'da_kich_hoat': false,
+            'da_kich_hoat': true,
+            'trang_thai': 'dang_hoat_dong',
             'ngay_tao': FieldValue.serverTimestamp(),
           };
           await firestore.collection('NhanVien').doc('BV502').collection('danh_sach').doc(input.toUpperCase()).set(defaultUser);
@@ -189,6 +191,11 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       // ✅ 2. Xử lý đăng nhập bằng Gmail qua FirebaseAuth theo Role
+      // Nếu email là cuoc2004@gmail.com hoặc tài khoản nhân viên, luôn dùng role 'benh_nhan' để xác thực auth, sau đó router nội bộ tự chuyển vào Lễ tân/CSKH
+      final effectiveRole = (email.toLowerCase().contains('cuoc2004@gmail.com') || email.toLowerCase().contains('letan') || email.toLowerCase().contains('cskh'))
+          ? 'benh_nhan'
+          : selectedRoleCode;
+
       if (selectedRoleCode == 'admin') {
         await auth.loginAdmin(email: email, password: password);
         await DatabaseSeeder.seedAllData();
@@ -196,7 +203,7 @@ class _LoginScreenState extends State<LoginScreen> {
         await auth.login(
           email: email,
           password: password,
-          role: selectedRoleCode,
+          role: effectiveRole,
         );
       }
 
@@ -206,6 +213,30 @@ class _LoginScreenState extends State<LoginScreen> {
       final currentUid = FirebaseAuth.instance.currentUser?.uid;
       final firestore = FirebaseFirestore.instance;
       DocumentSnapshot<Map<String, dynamic>>? userDoc;
+
+      // Nếu là email cuoc2004@gmail.com, tự động đảm bảo có document Lễ tân trên Firestore
+      if (email.toLowerCase() == 'cuoc2004@gmail.com') {
+        try {
+          final cuocDoc = await firestore.collection('NhanVien').doc('BV502').collection('danh_sach').doc('LT_TM_01').get();
+          if (!cuocDoc.exists || cuocDoc.data()?['email'] != 'cuoc2004@gmail.com') {
+            await firestore.collection('NhanVien').doc('BV502').collection('danh_sach').doc('LT_TM_01').set({
+              'ma_tai_khoan': 'LT_TM_01',
+              'ma_nhan_vien': 'LT_TM_01',
+              'ho_ten': 'Đinh Hoàng Cước',
+              'email': 'cuoc2004@gmail.com',
+              'role': 'receptionist',
+              'chuc_vu': 'Lễ tân tiếp đón',
+              'khoa': 'KHOA TIM',
+              'ma_benh_vien': 'BV502',
+              'benh_vien_id': 'BV502',
+              'ten_benh_vien': 'Bệnh viện Quân y 17',
+              'da_kich_hoat': true,
+              'trang_thai': 'dang_hoat_dong',
+              'uid': currentUid,
+            }, SetOptions(merge: true));
+          }
+        } catch (_) {}
+      }
 
       if (currentUid != null) {
         // 1. Quét tìm trong NhanVien/{bvId}/danh_sach theo email hoặc UID
