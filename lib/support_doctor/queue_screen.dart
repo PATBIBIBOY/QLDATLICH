@@ -5,12 +5,105 @@ import 'room_session_store.dart';
 /// Một lượt đã qua: số thứ tự + có phải bệnh nhân xin đợi hay không.
 typedef PassedEntry = ({int number, bool deferred});
 
-/// Kết quả trả về từ màn hình chèn: số cần chèn + vị trí mới trong hàng chờ.
-typedef InsertResult = ({int number, int targetIndex});
+/// Một yêu cầu chèn từ màn hình chèn: số cần chèn + một số mốc BẤT KỲ mà
+/// số đó sẽ nằm NGAY SAU. Số mốc không nhất thiết đang có trong hàng chờ:
+/// nếu là số tương lai chưa được phát, yêu cầu được giữ lịch đến khi hàng
+/// chờ sinh tới số mốc. `afterNumber == null` là trường hợp đặc biệt đưa
+/// số lên đầu hàng chờ (người dùng nhập 0). Màn hình chèn trả về cả một
+/// `List<InsertResult>` để chèn nhiều số cùng một lần.
+typedef InsertResult = ({int number, int? afterNumber});
 
 /// Lựa chọn trong bảng "Đợi / Gọi lại": số được chọn + hành động áp dụng.
 /// hold = true  -> cho số đó qua lượt (đợi), hold = false -> gọi lại số đã khám.
 typedef QueueAction = ({int number, bool hold});
+
+/// `true` nếu số mốc của [insert] là một số TƯƠNG LAI chưa được phát
+/// (lớn hơn [lastIssued]). Những yêu cầu này chưa vào hàng chờ ngay mà
+/// được giữ lịch; khi _refillQueue() sinh tới đúng số mốc, số được chèn
+/// sẽ tự xuất hiện ngay phía sau số mốc.
+bool _isFutureScheduledInsert(InsertResult insert, int lastIssued) =>
+    insert.afterNumber != null && insert.afterNumber! > lastIssued;
+
+/// Gộp nhiều số đã cho qua vào [waiting], mỗi số nằm NGAY SAU số mốc của
+/// nó (hoặc ở đầu hàng khi `afterNumber` là `null`).
+///
+/// Hàm chỉ áp dụng các yêu cầu có thể xếp NGAY vào hàng chờ hiện tại;
+/// các số mốc tương lai (xem [_isFutureScheduledInsert]) phải được bên
+/// gọi tách ra giữ lịch trước. Cách xác định khe chèn trên hàng chờ GỐC:
+///  - số mốc đang nằm trong hàng chờ    -> ngay sau chính số mốc;
+///  - số mốc là [nextNumber]            -> đầu hàng chờ (ngay sau số
+///    tiếp theo trong thứ tự gọi);
+///  - số mốc đã được phát nhưng không  -> khe theo thứ tự số: ngay
+///    còn trong hàng chờ                 trước số đang đợi đầu tiên
+///                                         lớn hơn số mốc (cuối hàng
+///                                         nếu không có số nào lớn hơn).
+///
+/// Mọi số mốc đều được đối chiếu với hàng chờ GỐC (trước khi chèn), nên
+/// hàm dựng danh sách mới trong một lượt thay vì chèn lần lượt. Nhiều số
+/// cùng một số mốc sẽ xếp liên tiếp ngay sau số mốc đó theo đúng thứ tự
+/// xuất hiện trong [inserts]. Số nào vốn đã có mặt trong [waiting] (vd.
+/// trạng thái khôi phục từ phiên cũ) sẽ được rút ra trước rồi đặt lại
+/// theo số mốc mới, không bị trùng số.
+List<int> _waitingAfterInserts(
+  List<int> waiting,
+  List<InsertResult> inserts, {
+  int? nextNumber,
+}) {
+  if (inserts.isEmpty) return List<int>.of(waiting);
+  // Mỗi số chỉ chèn một lần (giữ yêu cầu đầu tiên nếu bị trùng).
+  final seen = <int>{};
+  final uniqueInserts = <InsertResult>[
+    for (final insert in inserts)
+      if (seen.add(insert.number)) insert,
+  ];
+  final inserting = uniqueInserts.map((insert) => insert.number).toSet();
+  // Hàng chờ nền: bỏ các số sắp (di)chuyển để không xuất hiện 2 lần.
+  final base = waiting.where((n) => !inserting.contains(n)).toList();
+  // Nhóm các số chèn theo khe nằm SAU số mốc, đã quy đổi khe đó sang chỉ
+  // số của [base] bằng cách trừ số phần tử bị rút ra ở phía trước khe.
+  final byIndex = <int, List<int>>{};
+  for (final insert in uniqueInserts) {
+    final afterNumber = insert.afterNumber;
+    final int originalTarget;
+    if (afterNumber == null) {
+      // Nhập 0: đưa lên đầu hàng chờ.
+      originalTarget = 0;
+    } else {
+      final afterIndex = waiting.indexOf(afterNumber);
+      if (afterIndex != -1) {
+        // Số mốc đang có trong hàng chờ: nằm ngay sau chính nó.
+        originalTarget = afterIndex + 1;
+      } else if (afterNumber == nextNumber) {
+        // Ngay sau "số tiếp theo" trong thứ tự gọi là đầu hàng chờ.
+        originalTarget = 0;
+      } else {
+        // Số mốc đã phát nhưng không còn trong hàng chờ: xếp theo thứ
+        // tự số, ngay trước số đang đợi đầu tiên lớn hơn số mốc.
+        final firstGreaterIndex = waiting.indexWhere((n) => n > afterNumber);
+        originalTarget = firstGreaterIndex == -1
+            ? waiting.length
+            : firstGreaterIndex;
+      }
+    }
+    var removedBefore = 0;
+    final scanEnd = originalTarget < waiting.length
+        ? originalTarget
+        : waiting.length;
+    for (var i = 0; i < scanEnd; i++) {
+      if (inserting.contains(waiting[i])) removedBefore++;
+    }
+    var index = originalTarget - removedBefore;
+    if (index < 0) index = 0;
+    if (index > base.length) index = base.length;
+    byIndex.putIfAbsent(index, () => <int>[]).add(insert.number);
+  }
+  final merged = <int>[];
+  for (var i = 0; i <= base.length; i++) {
+    merged.addAll(byIndex[i] ?? const <int>[]);
+    if (i < base.length) merged.add(base[i]);
+  }
+  return merged;
+}
 
 /// Bộ màu & hiệu ứng dùng chung cho toàn giao diện.
 abstract final class _Ui {
@@ -78,7 +171,6 @@ class QueueScreen extends StatefulWidget {
     this.roomId = 'PK3',
     this.staffId = 'NV-VNT',
     this.roomName = 'Phòng khám 3',
-    this.doctorName = 'BS. Vũ Nam Tuấn',
     this.departmentName = 'Khoa Tim',
     this.hospitalName = 'Bệnh viện Bạch Mai',
     this.initialCurrent = 1,
@@ -96,7 +188,6 @@ class QueueScreen extends StatefulWidget {
 
   /// Thông tin phòng/khoa được chọn ở màn hình trước.
   final String roomName;
-  final String doctorName;
   final String departmentName;
   final String hospitalName;
 
@@ -116,9 +207,10 @@ class _QueueScreenState extends State<QueueScreen> {
   late int current;
   late int next;
 
-  /// Hàng đợi: luôn là MỘT HÀNG số tăng dần, gọi theo thứ tự từ đầu hàng.
-  /// Mỗi lần một số rời hàng đợi, _refillQueue() tự sinh thêm số mới (+1)
-  /// ở cuối nên dải số tự chạy và không bao giờ cạn.
+  /// Hàng đợi: gọi theo thứ tự từ đầu hàng. Mỗi lần một số rời hàng đợi,
+  /// _refillQueue() tự sinh thêm số mới (+1) ở cuối nên dải số tự chạy và
+  /// không bao giờ cạn. Số được chèn lại từ "SỐ ĐÃ CHO QUA" có thể nằm ở
+  /// vị trí bất kỳ trong hàng, nên thứ tự có thể không tăng dần tuyệt đối.
   late List<int> waiting;
 
   /// Số lớn nhất đã phát ra, dùng để sinh số tiếp theo cho hàng đợi.
@@ -129,8 +221,35 @@ class _QueueScreenState extends State<QueueScreen> {
   ///  - deferred = true : bệnh nhân xin đợi (dùng cho "+ Chèn" để chèn lại).
   final List<PassedEntry> passed = <PassedEntry>[];
 
+  /// LỊCH SỬ các số đã từng bấm "Đợi" – lưu lại để dùng cho việc khác.
+  /// Không bị xoá khi số được gọi lại / chèn lại / xác nhận vắng mặt.
+  final List<int> _deferredHistory = <int>[];
+
+  /// Các số đã được chèn theo một số mốc TƯƠNG LAI chưa được phát.
+  /// Khi _refillQueue() sinh tới đúng số mốc, số tương ứng tự xuất hiện
+  /// ngay phía sau số mốc trong hàng chờ và lịch của nó được xoá.
+  final List<InsertResult> _scheduledFutureInserts = <InsertResult>[];
+
   /// Số ô hiển thị trong dải "SỐ ĐANG ĐỢI" và là mức tối thiểu của hàng chờ.
   static const int queueWindow = 5;
+
+  /// Chiều cao CỐ ĐỊNH của bảng trạng thái hàng chờ (thẻ chứa "SỐ ĐANG
+  /// ĐỢI" / "SỐ ĐÃ CHO QUA" / "SỐ CHỜ TỚI SỐ MỐC"). Bảng không đổi kích
+  /// thước khi các danh sách trống/có dữ liệu hay khi lịch chèn xuất
+  /// hiện/biến mất, nên hàng nút bên dưới không bao giờ bị dịch chuyển
+  /// trong lúc người dùng đang bấm (tránh bấm nhầm nút).
+  /// Hai mức dưới đây đã cộng đủ padding của thẻ, viền 1px của thẻ và
+  /// mọi ô/dòng có chiều cao cố định bên trong bảng.
+  static const double _queuePanelHeightCompact = 420;
+  static const double _queuePanelHeightRegular = 434;
+
+  /// Chiều cao cố định của từng dòng tiêu đề mục và dòng chữ chú thích
+  /// trong bảng trạng thái (chú thích tối đa 2 dòng).
+  static const double _queuePanelHeaderHeight = 22;
+  static const double _queuePanelHintHeight = 34;
+
+  /// Chiều cao cố định của dải chip lịch chèn theo số mốc tương lai.
+  static const double _scheduledChipStripHeight = 38;
 
   int? selected;
   bool paused = false;
@@ -160,6 +279,19 @@ class _QueueScreenState extends State<QueueScreen> {
         ..addAll(
           snapshot.deferredNumbers.map(
             (number) => (number: number, deferred: true),
+          ),
+        );
+      _deferredHistory
+        ..clear()
+        ..addAll(snapshot.deferredHistory);
+      _scheduledFutureInserts
+        ..clear()
+        ..addAll(
+          snapshot.scheduledFutureInserts.map(
+            (insert) => (
+              number: insert.number,
+              afterNumber: insert.afterNumber,
+            ),
           ),
         );
       paused = snapshot.paused;
@@ -200,6 +332,12 @@ class _QueueScreenState extends State<QueueScreen> {
       ..deferredNumbers = <int>[
         for (final entry in passed)
           if (entry.deferred) entry.number,
+      ]
+      ..deferredHistory = List<int>.of(_deferredHistory)
+      ..scheduledFutureInserts = <({int number, int afterNumber})>[
+        for (final insert in _scheduledFutureInserts)
+          if (insert.afterNumber != null)
+            (number: insert.number, afterNumber: insert.afterNumber!),
       ];
     store.refresh();
   }
@@ -224,9 +362,23 @@ class _QueueScreenState extends State<QueueScreen> {
   }
 
   /// Bù số mới (+1) vào cuối hàng đợi để dải số luôn đầy.
+  ///
+  /// Ngay khi một số mới sinh ra trùng với số mốc của các lượt chèn đã
+  /// lên lịch, những số chờ chèn đó được đặt NGAY PHÍA SAU số mốc vừa
+  /// sinh (theo đúng thứ tự đã lên lịch) rồi mới sinh tiếp số kế tiếp.
   void _refillQueue() {
     while (waiting.length < queueWindow) {
-      waiting.add(++lastIssued);
+      final issued = ++lastIssued;
+      waiting.add(issued);
+      final due = _scheduledFutureInserts
+          .where((insert) => insert.afterNumber == issued)
+          .toList();
+      if (due.isNotEmpty) {
+        _scheduledFutureInserts.removeWhere(
+          (insert) => insert.afterNumber == issued,
+        );
+        waiting.addAll(due.map((insert) => insert.number));
+      }
     }
   }
 
@@ -238,6 +390,10 @@ class _QueueScreenState extends State<QueueScreen> {
       .where((entry) => entry.deferred)
       .map((entry) => entry.number)
       .toList();
+
+  /// Cùng danh sách trên nhưng số MỚI NHẤT đứng đầu, để số vừa bấm "Đợi"
+  /// hiện ngay trong dải "SỐ ĐÃ CHO QUA" thay vì nằm cuối danh sách cuộn.
+  List<int> get newestDeferredNumbers => deferredNumbers.reversed.toList();
 
   /// Số của những bệnh nhân đã khám xong – dùng cho mục "Gọi lại số".
   List<int> get examinedNumbers => passed
@@ -254,6 +410,9 @@ class _QueueScreenState extends State<QueueScreen> {
     }
     setState(() {
       final finished = current;
+      // Số từng xin đợi nay đã khám xong: bỏ khỏi "SỐ ĐÃ CHO QUA" để không
+      // xuất hiện ở cả 2 danh sách cùng lúc.
+      passed.removeWhere((e) => e.number == finished && e.deferred);
       if (!_currentConfirmed) {
         // Xác nhận khám: ghi số hiện tại vào danh sách đã khám.
         passed.add((number: current, deferred: false));
@@ -287,7 +446,8 @@ class _QueueScreenState extends State<QueueScreen> {
           '• Số hiện tại: $start\n'
           '• Số tiếp theo: ${start + 1}\n'
           '• Hàng chờ: ${start + 2} → ${start + 1 + queueWindow}\n'
-          '• Xoá toàn bộ số đã đợi và số đã khám\n'
+          '• Xoá toàn bộ số đã đợi, số đã khám và lịch chèn theo '
+          'số mốc tương lai\n'
           '• Phòng trở về “Đang khám”\n\n'
           'Thao tác này không thể hoàn tác.',
         ),
@@ -312,6 +472,8 @@ class _QueueScreenState extends State<QueueScreen> {
       waiting = List<int>.generate(queueWindow, (index) => start + 2 + index);
       lastIssued = start + 1 + queueWindow;
       passed.clear();
+      _deferredHistory.clear();
+      _scheduledFutureInserts.clear();
       selected = null;
       paused = false;
       message =
@@ -330,7 +492,7 @@ class _QueueScreenState extends State<QueueScreen> {
   ///  2. Hỏi xác nhận rồi ghi nhận số được chọn là vắng mặt và bỏ số đó khỏi
   ///     danh sách chờ chèn lại.
   ///
-  /// Không đụng tới số đang khám, số kế tiếp hay các số còn trong hàng chờ.
+  /// Nếu số đó vẫn còn có lượt trong hàng chờ, số đó cũng bị bỏ khỏi hàng chờ.
   Future<void> markCurrentAbsent() async {
     if (paused) {
       notify('Vui lòng tiếp tục khám trước khi cập nhật lượt.');
@@ -371,13 +533,21 @@ class _QueueScreenState extends State<QueueScreen> {
     if (!mounted || confirmed != true) return;
 
     setState(() {
-      // Số đã xin đợi nay xác nhận vắng mặt: bỏ khỏi danh sách "SỐ ĐÃ CHO QUA".
+      // Số đã xin đợi nay xác nhận vắng mặt: bỏ khỏi "SỐ ĐÃ CHO QUA" và,
+      // nếu số đó đang có lượt trong hàng chờ, bỏ luôn khỏi hàng chờ.
       passed.removeWhere(
         (entry) => entry.deferred && entry.number == absentNumber,
       );
+      final wasInQueue = waiting.remove(absentNumber);
+      if (wasInQueue) {
+        _refillQueue();
+        if (selected == absentNumber) selected = null;
+      }
+      final queueNote = wasInQueue ? ' và khỏi hàng chờ' : '';
       message =
           'Đã ghi nhận bệnh nhân số $absentNumber vắng mặt.'
-          '\nSố $absentNumber đã được bỏ khỏi danh sách “SỐ ĐÃ CHO QUA”.';
+          '\nSố $absentNumber đã được bỏ khỏi danh sách “SỐ ĐÃ CHO QUA”'
+          '$queueNote.';
       _syncRoomState();
     });
   }
@@ -466,34 +636,75 @@ class _QueueScreenState extends State<QueueScreen> {
     ),
   );
 
-  /// Cho một số bất kỳ trong hàng chờ xin đợi (qua lượt): số đó rời hàng chờ và
-  /// được lưu lại để chèn lại sau; nếu là số kế tiếp thì số liền sau lên thay.
+  /// Cho một số xin đợi (qua lượt).
+  ///
+  /// Cả SỐ ĐANG KHÁM, SỐ TIẾP THEO lẫn các số đang chờ đều được xử lý như
+  /// nhau: số bị cho qua được ghi vào "SỐ ĐÃ CHO QUA" rồi rời khỏi lượt
+  /// gọi, KHÔNG tự xếp lại vào hàng chờ. Vị trí của số đó được nhường lại
+  /// ngay cho số kế tiếp trong lượt gọi:
+  ///  - số đang khám -> số tiếp theo lên khám, số đầu hàng chờ thành số
+  ///    tiếp theo;
+  ///  - số tiếp theo -> số đầu hàng chờ thế chân;
+  ///  - số đang chờ  -> bị rút khỏi hàng chờ.
+  ///
+  /// Khi bệnh nhân quay lại, bấm vào số đó trong dải "SỐ ĐÃ CHO QUA" hoặc
+  /// nút "+ Chèn" để đưa số đó trở lại hàng chờ tại vị trí mong muốn.
   void deferNumber(int number) {
     if (paused) {
       notify('Vui lòng tiếp tục khám trước khi đổi lượt.');
       return;
     }
+    final isCurrent = number == current;
     final isNext = number == next;
-    if (!isNext && !waiting.contains(number)) {
+    if (!isCurrent && !isNext && !waiting.contains(number)) {
       notify('Số $number không còn trong hàng chờ.');
       return;
     }
     setState(() {
-      passed.add((number: number, deferred: true));
-      if (isNext) {
+      // LƯU LỊCH SỬ: mọi số vừa bấm "Đợi" đều được ghi lại để dùng cho
+      // việc khác, dù sau đó số đó có được gọi lại hay xác nhận vắng mặt.
+      if (!_deferredHistory.contains(number)) {
+        _deferredHistory.add(number);
+      }
+      // Đảm bảo hàng chờ luôn có phần tử trước khi gọi removeAt(0)
+      // (phòng trường hợp dữ liệu khôi phục từ bộ nhớ bị thiếu).
+      _refillQueue();
+      // Nhường vị trí của số bị cho qua cho số kế tiếp trong lượt gọi.
+      if (isCurrent) {
+        // Bệnh nhân đang khám xin đợi: gọi số kế tiếp lên phòng khám.
+        current = next;
+        next = waiting.removeAt(0);
+      } else if (isNext) {
+        // Số tiếp theo xin đợi: số đầu hàng chờ thế chân.
         next = waiting.removeAt(0);
       } else {
+        // Số đang chờ xin đợi: rút khỏi hàng chờ.
         waiting.remove(number);
       }
+      // Ghi vào "SỐ ĐÃ CHO QUA" – điểm đến DUY NHẤT của mọi số bị cho qua,
+      // kể cả số vừa là số hiện tại / số tiếp theo. Xoá entry cũ cùng số
+      // (nếu còn sót) trước khi thêm để danh sách không bị trùng số.
+      passed.removeWhere((e) => e.number == number && e.deferred);
+      passed.add((number: number, deferred: true));
       _refillQueue();
-      if (selected != null && !waiting.contains(selected)) selected = null;
-      message = isNext
-          ? 'Bệnh nhân số $number xin đợi.\nSố $number đã được lưu lại; số $next được gọi tiếp theo.\n'
-                'Khi bệnh nhân quay lại, bấm “+ Chèn” để đưa số $number trở lại hàng chờ.'
-          : 'Bệnh nhân số $number xin đợi.\nSố $number đã được lưu lại.\n'
-                'Khi bệnh nhân quay lại, bấm “+ Chèn” để đưa số $number trở lại hàng chờ.';
+      if (selected == number ||
+          (selected != null && !waiting.contains(selected))) {
+        selected = null;
+      }
+      final queueUpdate = isCurrent
+          ? 'Bệnh nhân số $current đang khám; số $next là số tiếp theo.\n'
+          : isNext
+              ? 'Số $next trở thành số tiếp theo.\n'
+              : '';
+      message =
+          'Bệnh nhân số $number xin đợi.\n'
+          'Số $number đã được chuyển vào “SỐ ĐÃ CHO QUA” để lưu lại.\n'
+          '$queueUpdate'
+          'Khi bệnh nhân quay lại, bấm vào số đó hoặc “+ Chèn” để đưa số '
+          '$number trở lại hàng chờ.';
       _syncRoomState();
     });
+    notify('Số $number đã được chuyển vào “SỐ ĐÃ CHO QUA”.');
   }
 
   /// Gọi lại một bệnh nhân đã khám xong: đưa số đó vào "SỐ HIỆN TẠI" ngay,
@@ -509,7 +720,9 @@ class _QueueScreenState extends State<QueueScreen> {
       final previousNext = next;
       // Bệnh nhân vào phòng khám ngay: bỏ khỏi danh sách đã khám, sẽ được đưa
       // lại danh sách khi bác sĩ nhấn "Tiếp theo".
-      passed.removeWhere((entry) => entry.number == picked && !entry.deferred);
+      // Số được gọi lại đang khám -> không còn thuộc "ĐÃ KHÁM" hay
+      // "SỐ ĐÃ CHO QUA" nữa.
+      passed.removeWhere((entry) => entry.number == picked);
       current = picked;
       next = previousCurrent;
       waiting.insert(
@@ -526,11 +739,15 @@ class _QueueScreenState extends State<QueueScreen> {
   }
 
   /// Nút "Đợi / Gọi lại" (đã gộp 2 chức năng): mở bảng chọn số mong muốn.
-  ///  - Mục "Đang chờ": bấm một số bất kỳ (kể cả số kế tiếp) để cho qua lượt.
+  ///  - Mục "Đang khám / chờ": bấm số đang khám, số tiếp theo hoặc một số
+  ///    đang chờ để cho qua lượt. Mọi số bị cho qua đều chỉ vào
+  ///    "SỐ ĐÃ CHO QUA" và rời khỏi lượt gọi cho đến khi được chèn lại.
   ///  - Mục "Đã khám": bấm một số để gọi lại bệnh nhân đã khám xong.
   Future<void> openHoldOrRecallSheet() async {
     final recallable = examinedNumbers;
-    final holdable = <int>[next, ...waiting]; // số kế tiếp + các số đang chờ
+    // MỚI: thêm cả số đang khám. Dùng Set (LinkedHashSet) để vừa loại trùng
+    // vừa giữ đúng thứ tự: đang khám -> kế tiếp -> các số đang chờ.
+    final holdable = <int>{current, next, ...waiting}.toList();
     final picked = await showModalBottomSheet<QueueAction>(
       context: context,
       backgroundColor: Colors.white,
@@ -575,14 +792,16 @@ class _QueueScreenState extends State<QueueScreen> {
                   ),
                   const SizedBox(height: 20),
                   _SectionHeader(
-                    title: 'ĐANG CHỜ · CHỌN ĐỂ CHO QUA LƯỢT',
+                    title: 'ĐANG KHÁM / CHỜ · CHỌN ĐỂ CHO QUA LƯỢT',
                     count: holdable.length,
                     accent: _Ui.red,
                     accentSoft: const Color(0x1FFF534B),
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Bấm một số để bệnh nhân đó xin đợi. Số có viền vàng là số kế tiếp.',
+                    'Bấm một số để đưa vào “SỐ ĐÃ CHO QUA”. Viền xanh = số đang '
+                    'khám, viền vàng = số tiếp theo. Số bị cho qua rời khỏi '
+                    'lượt gọi và chỉ quay lại hàng chờ khi bấm “+ Chèn”.',
                     style: TextStyle(fontSize: 11.5, color: _Ui.textFaint),
                   ),
                   const SizedBox(height: 12),
@@ -593,6 +812,7 @@ class _QueueScreenState extends State<QueueScreen> {
                       for (final n in holdable)
                         _SheetWaitChip(
                           number: n,
+                          isCurrent: n == current,
                           isNext: n == next,
                           onTap: () => Navigator.of(
                             sheetContext,
@@ -649,42 +869,88 @@ class _QueueScreenState extends State<QueueScreen> {
   }
 
   /// Nhấn "+ Chèn" (hoặc bấm một số trong hàng "SỐ ĐÃ CHO QUA"): mở màn hình
-  /// chèn. Danh sách trong màn hình là những số đã bấm "Đợi"; chọn một số rồi
-  /// nhập vị trí để đưa số đó trở lại hàng chờ.
+  /// chèn. Danh sách trong màn hình là những số đã bấm "Đợi"; người dùng
+  /// nhập cho mỗi số một số mốc BẤT KỲ. Số mốc đã tới (đang trong hàng
+  /// chờ, là số tiếp theo, hoặc đã được phát) thì số được chèn vào ngay;
+  /// số mốc là một số TƯƠNG LAI chưa được phát thì yêu cầu được giữ lịch
+  /// và số được chèn sẽ tự xuất hiện ngay sau số mốc khi tới lượt số đó.
   Future<void> openInsertScreen({int? initialNumber}) async {
     if (deferredNumbers.isEmpty) {
       notify('Chưa có bệnh nhân nào bấm “Đợi” để chèn lại.');
       return;
     }
-    final result = await Navigator.of(context).push<InsertResult>(
+    final results = await Navigator.of(context).push<List<InsertResult>>(
       MaterialPageRoute(
         builder: (_) => InsertPositionScreen(
-          deferredNumbers: deferredNumbers,
+          deferredNumbers: newestDeferredNumbers,
           waiting: List<int>.of(waiting),
+          nextNumber: next,
+          lastIssued: lastIssued,
           initialNumber: initialNumber,
         ),
       ),
     );
-    if (!mounted || result == null) return;
+    if (!mounted || results == null || results.isEmpty) return;
     setState(() {
-      // Bệnh nhân đã quay lại: bỏ khỏi danh sách xin đợi và đưa về hàng chờ.
-      passed.removeWhere(
-        (entry) => entry.deferred && entry.number == result.number,
+      // Tách yêu cầu chèn ngay khỏi yêu cầu chờ số mốc tương lai, dựa trên
+      // [lastIssued] tại thời điểm đóng màn hình chèn.
+      final immediateResults = results
+          .where((r) => !_isFutureScheduledInsert(r, lastIssued))
+          .toList();
+      final futureResults = results
+          .where((r) => _isFutureScheduledInsert(r, lastIssued))
+          .toList();
+      final before = List<int>.of(waiting);
+      // Chèn ngay: dựng lại hàng chờ trong một lượt theo các số mốc gốc.
+      waiting = _waitingAfterInserts(
+        before,
+        immediateResults,
+        nextNumber: next,
       );
-      var index = result.targetIndex;
-      if (index < 0) index = 0;
-      if (index > waiting.length) index = waiting.length;
-      waiting.insert(index, result.number);
+      // Chờ mốc tương lai: giữ lịch; _refillQueue() sẽ tự đặt từng số
+      // ngay sau số mốc khi hàng chờ sinh tới số đó.
+      for (final insert in futureResults) {
+        _scheduledFutureInserts.removeWhere(
+          (scheduled) => scheduled.number == insert.number,
+        );
+        _scheduledFutureInserts.add(insert);
+      }
+      // Cả số chèn ngay lẫn số đã lên lịch đều rời danh sách xin đợi.
+      final insertedNumbers = results.map((r) => r.number).toSet();
+      passed.removeWhere(
+        (entry) => entry.deferred && insertedNumbers.contains(entry.number),
+      );
       _refillQueue();
-      selected = result.number;
-      message =
-          'Đã đưa số ${result.number} trở lại hàng chờ tại vị trí thứ ${index + 1}.';
+      selected = immediateResults.isEmpty
+          ? null
+          : immediateResults.first.number;
+      final immediateDetails = <String>[
+        for (final r in immediateResults)
+          r.afterNumber == null
+              ? 'số ${r.number} lên đầu hàng chờ'
+              : 'số ${r.number} ngay sau số ${r.afterNumber}',
+      ].join(', ');
+      final futureDetails = <String>[
+        for (final r in futureResults)
+          'số ${r.number} ngay sau số ${r.afterNumber} khi tới số đó',
+      ].join(', ');
+      final sentences = <String>[
+        if (immediateResults.isNotEmpty)
+          results.length == 1 && before.contains(results.first.number)
+              ? 'Đã dời $immediateDetails.'
+              : 'Đã chèn $immediateDetails.',
+        if (futureResults.isNotEmpty) 'Đã lên lịch $futureDetails.',
+      ];
+      message = sentences.join('\n');
       _syncRoomState();
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    // Tablet (chiều rộng màn hình từ 600dp): bỏ trần 620dp để giao diện
+    // dàn full màn hình thay vì bó thành một cột hẹp ở giữa.
+    final useFullWidth = MediaQuery.sizeOf(context).width >= 600;
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -697,17 +963,20 @@ class _QueueScreenState extends State<QueueScreen> {
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 620),
+              constraints: BoxConstraints(
+                maxWidth: useFullWidth ? double.infinity : 620,
+              ),
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final compact = constraints.maxWidth < 430;
-                  final gap = compact ? 10.0 : 14.0;
+                  final tablet = constraints.maxWidth >= 768;
+                  final gap = compact ? 10.0 : (tablet ? 18.0 : 14.0);
                   return SingleChildScrollView(
                     padding: EdgeInsets.fromLTRB(
-                      compact ? 16 : 22,
-                      20,
-                      compact ? 16 : 22,
-                      30,
+                      compact ? 16 : (tablet ? 28 : 22),
+                      tablet ? 24 : 20,
+                      compact ? 16 : (tablet ? 28 : 22),
+                      tablet ? 36 : 30,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -733,7 +1002,7 @@ class _QueueScreenState extends State<QueueScreen> {
                                   Text(
                                     '${widget.departmentName} - ${widget.hospitalName}',
                                     style: TextStyle(
-                                      fontSize: compact ? 16.5 : 19,
+                                      fontSize: compact ? 16.5 : (tablet ? 22 : 19),
                                       fontWeight: FontWeight.w800,
                                       color: _Ui.textPrimary,
                                       letterSpacing: -0.2,
@@ -746,7 +1015,7 @@ class _QueueScreenState extends State<QueueScreen> {
                                       const SizedBox(width: 6),
                                       Flexible(
                                         child: Text(
-                                          '${widget.roomName} · ${widget.doctorName}',
+                                          widget.roomName,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
@@ -792,97 +1061,195 @@ class _QueueScreenState extends State<QueueScreen> {
                           ],
                         ),
                         const SizedBox(height: 20),
-                        _SoftCard(
-                          padding: EdgeInsets.all(compact ? 16 : 20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _SectionHeader(
-                                title: 'SỐ ĐANG ĐỢI',
-                                count: waiting.length,
-                                accent: _Ui.red,
-                                accentSoft: const Color(0x1FFF534B),
-                              ),
-                              const SizedBox(height: 14),
-                              if (waiting.isEmpty)
-                                const _EmptyHint(
-                                  icon: Icons.people_outline_rounded,
-                                  text: 'Chưa có bệnh nhân đang đợi',
-                                )
-                              else
+                        // Bảng trạng thái hàng chờ: SizedBox khóa chiều cao
+                        // toàn bảng, còn từng mục bên trong dùng ô chiều
+                        // cao cố định (trống hay có dữ liệu đều như nhau,
+                        // danh sách dài cuộn ngang). Nhờ vậy các nút bấm
+                        // phía dưới không bao giờ dịch chuyển khi bấm.
+                        SizedBox(
+                          height: compact
+                              ? _queuePanelHeightCompact
+                              : _queuePanelHeightRegular,
+                          child: _SoftCard(
+                            padding: EdgeInsets.all(compact ? 16 : 20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SizedBox(
+                                  height: _queuePanelHeaderHeight,
+                                  child: _SectionHeader(
+                                    title: 'SỐ ĐANG ĐỢI',
+                                    count: waiting.length,
+                                    accent: _Ui.red,
+                                    accentSoft: const Color(0x1FFF534B),
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
                                 SizedBox(
                                   height: compact ? 52 : 58,
-                                  child: ListView.separated(
-                                    scrollDirection: Axis.horizontal,
-                                    padding: EdgeInsets.zero,
-                                    itemCount: waiting.length,
-                                    separatorBuilder: (_, _) =>
-                                        SizedBox(width: compact ? 9 : 13),
-                                    itemBuilder: (context, index) {
-                                      final number = waiting[index];
-                                      return _WaitingChip(
-                                        number: number,
-                                        selected: selected == number,
-                                        compact: compact,
-                                        onTap: () =>
-                                            setState(() => selected = number),
-                                      );
-                                    },
+                                  child: waiting.isEmpty
+                                      ? const Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: _EmptyHint(
+                                            icon: Icons
+                                                .people_outline_rounded,
+                                            text: 'Chưa có bệnh nhân đang đợi',
+                                          ),
+                                        )
+                                      : ListView.separated(
+                                          scrollDirection: Axis.horizontal,
+                                          padding: EdgeInsets.zero,
+                                          itemCount: waiting.length,
+                                          separatorBuilder: (_, _) => SizedBox(
+                                            width: compact ? 9 : 13,
+                                          ),
+                                          itemBuilder: (context, index) {
+                                            final number = waiting[index];
+                                            return _WaitingChip(
+                                              number: number,
+                                              selected: selected == number,
+                                              compact: compact,
+                                              onTap: () => setState(
+                                                () => selected = number,
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                ),
+                                const SizedBox(height: 18),
+                                const Divider(
+                                  height: 1,
+                                  thickness: 1,
+                                  color: _Ui.divider,
+                                ),
+                                const SizedBox(height: 16),
+                                SizedBox(
+                                  height: _queuePanelHeaderHeight,
+                                  child: _SectionHeader(
+                                    title: 'SỐ ĐÃ CHO QUA',
+                                    count: deferredNumbers.length,
+                                    accent: _Ui.amber,
+                                    accentSoft: const Color(0x24FFB300),
                                   ),
                                 ),
-                              const SizedBox(height: 18),
-                              const Divider(
-                                height: 1,
-                                thickness: 1,
-                                color: _Ui.divider,
-                              ),
-                              const SizedBox(height: 16),
-                              _SectionHeader(
-                                title: 'SỐ ĐÃ CHO QUA',
-                                count: deferredNumbers.length,
-                                accent: _Ui.amber,
-                                accentSoft: const Color(0x24FFB300),
-                              ),
-                              const SizedBox(height: 6),
-                              const Text(
-                                'Bấm vào số để chèn lại vào hàng chờ.',
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  color: _Ui.textFaint,
+                                const SizedBox(height: 6),
+                                const SizedBox(
+                                  height: _queuePanelHintHeight,
+                                  child: Align(
+                                    alignment: Alignment.topLeft,
+                                    child: Text(
+                                      'Số mới bấm “Đợi” hiện đầu dải. Bấm vào '
+                                      'số để chèn số đó trở lại hàng chờ.',
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        color: _Ui.textFaint,
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 12),
-                              if (deferredNumbers.isEmpty)
-                                const _EmptyHint(
-                                  icon: Icons.pause_circle_outline_rounded,
-                                  text: 'Chưa có số nào bị cho qua',
-                                )
-                              else
+                                const SizedBox(height: 12),
                                 SizedBox(
                                   height: 42,
-                                  child: ListView.separated(
-                                    scrollDirection: Axis.horizontal,
-                                    padding: EdgeInsets.zero,
-                                    itemCount: deferredNumbers.length,
-                                    separatorBuilder: (_, _) =>
-                                        const SizedBox(width: 9),
-                                    itemBuilder: (context, index) {
-                                      final number = deferredNumbers[index];
-                                      return _DeferredChip(
-                                        number: number,
-                                        onTap: () => openInsertScreen(
-                                          initialNumber: number,
+                                  child: deferredNumbers.isEmpty
+                                      ? const Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: _EmptyHint(
+                                            icon: Icons
+                                                .pause_circle_outline_rounded,
+                                            text: 'Chưa có số nào bị cho qua',
+                                          ),
+                                        )
+                                      : ListView.separated(
+                                          scrollDirection: Axis.horizontal,
+                                          padding: EdgeInsets.zero,
+                                          itemCount:
+                                              newestDeferredNumbers.length,
+                                          separatorBuilder: (_, _) =>
+                                              const SizedBox(width: 9),
+                                          itemBuilder: (context, index) {
+                                            final number =
+                                                newestDeferredNumbers[index];
+                                            return _DeferredChip(
+                                              number: number,
+                                              onTap: () => openInsertScreen(
+                                                initialNumber: number,
+                                              ),
+                                            );
+                                          },
                                         ),
-                                      );
-                                    },
+                                ),
+                                const SizedBox(height: 18),
+                                const Divider(
+                                  height: 1,
+                                  thickness: 1,
+                                  color: _Ui.divider,
+                                ),
+                                const SizedBox(height: 16),
+                                SizedBox(
+                                  height: _queuePanelHeaderHeight,
+                                  child: _SectionHeader(
+                                    title: 'SỐ CHỜ TỚI SỐ MỐC',
+                                    count: _scheduledFutureInserts.length,
+                                    accent: const Color(0xFF2D6BFF),
+                                    accentSoft: const Color(0x1F2D6BFF),
                                   ),
                                 ),
-                            ],
+                                const SizedBox(height: 6),
+                                const SizedBox(
+                                  height: _queuePanelHintHeight,
+                                  child: Align(
+                                    alignment: Alignment.topLeft,
+                                    child: Text(
+                                      'Chưa vào hàng chờ ngay; sẽ tự xuất '
+                                      'hiện ngay sau số mốc khi tới số đó.',
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        color: _Ui.textFaint,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  height: _scheduledChipStripHeight,
+                                  child: _scheduledFutureInserts.isEmpty
+                                      ? const Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: _EmptyHint(
+                                            icon: Icons.schedule_rounded,
+                                            text:
+                                                'Chưa có lịch chèn theo số mốc',
+                                          ),
+                                        )
+                                      : ListView.separated(
+                                          scrollDirection: Axis.horizontal,
+                                          padding: EdgeInsets.zero,
+                                          itemCount:
+                                              _scheduledFutureInserts.length,
+                                          separatorBuilder: (_, _) =>
+                                              const SizedBox(width: 9),
+                                          itemBuilder: (context, index) {
+                                            final insert =
+                                                _scheduledFutureInserts[index];
+                                            return _ScheduledInsertChip(
+                                              number: insert.number,
+                                              afterNumber:
+                                                  insert.afterNumber!,
+                                            );
+                                          },
+                                        ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(height: 20),
-                        // Hai nút chính: "+ Chèn" và "Đợi / Gọi lại" (đã gộp), cùng
-                        // nút "Tiếp theo" (đã gộp với "Xác nhận khám").
+                        // Các nút chính: "+ Chèn", "Đợi / Gọi lại" (mở bảng chọn
+                        // số) và "Tiếp theo" (gộp với "Xác nhận khám").
                         Row(
                           children: [
                             Expanded(
@@ -976,7 +1343,7 @@ class _QueueScreenState extends State<QueueScreen> {
                                   ? 'Bác sĩ đã nhấn nút “Tạm dừng khám”.\nViệc gọi số tiếp theo tạm thời bị dừng.\nVui lòng chờ đến khi bác sĩ tiếp tục khám.'
                                   : 'Bệnh nhân số $current đang khám.\nNhấn “Tiếp theo” để xác nhận khám xong và gọi số $next.'),
                           footer:
-                              '${widget.roomName} · ${widget.doctorName} · 08:42',
+                              '${widget.roomName} · ${widget.departmentName} · 08:42',
                         ),
                       ],
                     ),
@@ -991,21 +1358,34 @@ class _QueueScreenState extends State<QueueScreen> {
   }
 }
 
-/// Màn hình "Khoa - Số hàng chờ": chọn một số đã bấm "Đợi" và nhập vị trí để
-/// chèn số đó trở lại hàng chờ.
+/// Màn hình "Khoa - Số hàng chờ": nhập một số mốc BẤT KỲ cho một hoặc
+/// NHIỀU số đã bấm "Đợi". Mỗi số được chèn sẽ nằm NGAY SAU số mốc đã
+/// nhập; số mốc không cần đang có trong hàng chờ — nếu là số tương lai
+/// chưa được phát, yêu cầu được giữ lịch đến khi tới số đó. Ô nào để
+/// trống thì số đó chưa được chèn trong lần này.
 class InsertPositionScreen extends StatefulWidget {
   const InsertPositionScreen({
     super.key,
     required this.deferredNumbers,
     required this.waiting,
+    required this.nextNumber,
+    required this.lastIssued,
     this.initialNumber,
   });
 
   /// Số của những bệnh nhân đã bấm "Đợi" – danh sách để chọn chèn lại.
   final List<int> deferredNumbers;
 
-  /// Ảnh chụp hàng chờ hiện tại (đúng thứ tự sẽ gọi) – dùng để quy đổi vị trí.
+  /// Ảnh chụp hàng chờ hiện tại (đúng thứ tự sẽ gọi) – dùng để đối chiếu số mốc.
   final List<int> waiting;
+
+  /// Số tiếp theo hiện tại. Nhập đúng số này làm mốc nghĩa là chèn vào
+  /// đầu hàng chờ, ngay sau số tiếp theo trong thứ tự gọi.
+  final int nextNumber;
+
+  /// Số lớn nhất đã được phát khi mở màn hình. Số mốc lớn hơn giá trị
+  /// này là số tương lai: yêu cầu được giữ lịch đến khi tới số mốc.
+  final int lastIssued;
 
   /// Số được chọn sẵn khi mở màn hình (bấm từ hàng "SỐ ĐÃ CHO QUA").
   final int? initialNumber;
@@ -1049,14 +1429,13 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
   FocusNode _focusNodeFor(int number) =>
       focusNodes.putIfAbsent(number, () => FocusNode());
 
+  /// Đánh dấu dòng đang nhập (chỉ để làm nổi bật dòng đó). Chuyển sang dòng
+  /// khác KHÔNG xoá số mốc đã nhập ở các dòng còn lại, nên người dùng nhập
+  /// được số mốc cho nhiều số trước khi bấm chèn một lần.
   void select(int number) {
     if (selected == number) {
       _focusNodeFor(number).requestFocus();
       return;
-    }
-    // Chỉ một ô nhập được dùng tại một thời điểm.
-    for (final entry in controllers.entries) {
-      if (entry.key != number) entry.value.clear();
     }
     setState(() {
       selected = number;
@@ -1067,72 +1446,160 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
     });
   }
 
-  /// Tính trước kết quả chèn để hiển thị dòng preview / cảnh báo.
-  /// Vị trí được tính trong hàng chờ hiện tại:
-  ///  - Nhập một số đang có trong hàng chờ  -> chèn ngay TRƯỚC số đó.
-  ///  - Nhập vị trí thứ N (1, 2, 3…)        -> chèn vào vị trí thứ N;
-  ///    nếu lớn hơn độ dài hàng thì tự xếp vào cuối hàng.
-  ({String text, int? number, int? index}) _preview(int number) {
+  /// Chuyển ô nhập xuống dòng kế tiếp (nút "Tiếp" trên bàn phím); ở dòng
+  /// cuối thì đóng bàn phím để người dùng bấm nút chèn.
+  void _focusNext(int number) {
+    final index = widget.deferredNumbers.indexOf(number);
+    if (index >= 0 && index + 1 < widget.deferredNumbers.length) {
+      select(widget.deferredNumbers[index + 1]);
+    } else {
+      FocusScope.of(context).unfocus();
+    }
+  }
+
+  /// Đọc & kiểm tra ô số mốc của MỘT số.
+  ///
+  /// Số mốc có thể là BẤT KỲ số nào, không bị giới hạn ở các số đang có
+  /// trong hàng chờ:
+  ///  - để trống            -> chưa chèn số này trong lần này;
+  ///  - nhập 0              -> đưa lên đầu hàng chờ;
+  ///  - nhập một số bất kỳ  -> số được chèn nằm NGAY SAU số mốc đó. Nếu
+  ///    số mốc là một số tương lai chưa được phát, yêu cầu được giữ lịch
+  ///    và tự áp dụng khi hàng chờ sinh tới số mốc.
+  ({bool isEmpty, String? error, int? afterNumber, String description})
+  _parseRow(int number) {
     final raw = _controllerFor(number).text.trim();
     if (raw.isEmpty) {
       return (
-        text: 'Nhập vị trí chèn cho số $number.',
-        number: null,
-        index: null,
+        isEmpty: true,
+        error: null,
+        afterNumber: null,
+        description: 'Để trống nếu chưa muốn chèn số này.',
       );
     }
     final value = int.tryParse(raw);
-    if (value == null || value < 1) {
+    if (value == null || value < 0) {
       return (
-        text: 'Vị trí phải là số nguyên lớn hơn 0.',
-        number: null,
-        index: null,
+        isEmpty: false,
+        error: 'Hãy nhập một số nguyên không âm làm số mốc.',
+        afterNumber: null,
+        description: '',
       );
     }
-    final refIndex = widget.waiting.indexOf(value);
-    if (refIndex != -1) {
+    if (value == 0) {
       return (
-        text: 'Số $number sẽ được chèn ngay trước số $value trong hàng chờ.',
-        number: number,
-        index: refIndex,
+        isEmpty: false,
+        error: null,
+        afterNumber: null,
+        description: 'Sẽ đưa lên đầu hàng chờ, trước mọi số đang đợi.',
       );
     }
-    var index = value - 1;
-    if (index < 0) index = 0;
-    if (index > widget.waiting.length) index = widget.waiting.length;
+    if (value == number) {
+      return (
+        isEmpty: false,
+        error: 'Không thể chèn số $number sau chính số đó.',
+        afterNumber: null,
+        description: '',
+      );
+    }
+    final String description;
+    if (widget.waiting.contains(value)) {
+      description = 'Sẽ chèn ngay sau số $value trong hàng chờ.';
+    } else if (value == widget.nextNumber) {
+      description =
+          'Số $value là số tiếp theo; sẽ chèn vào đầu hàng chờ, '
+          'ngay sau số $value.';
+    } else if (value > widget.lastIssued) {
+      description =
+          'Số $value chưa được phát. Sẽ giữ lịch: khi hàng chờ sinh '
+          'tới số $value, số này sẽ nằm ngay sau số $value.';
+    } else {
+      final firstGreaterIndex = widget.waiting.indexWhere((n) => n > value);
+      description = firstGreaterIndex == -1
+          ? 'Số $value không có trong hàng chờ; sẽ xếp theo thứ tự số '
+                'ở cuối hàng chờ.'
+          : 'Số $value không có trong hàng chờ; sẽ xếp theo thứ tự số, '
+                'ngay trước số ${widget.waiting[firstGreaterIndex]}.';
+    }
     return (
-      text:
-          'Số $number sẽ được chèn vào vị trí thứ ${index + 1} trong hàng chờ.',
-      number: number,
-      index: index,
+      isEmpty: false,
+      error: null,
+      afterNumber: value,
+      description: description,
     );
   }
 
+  /// Gom mọi dòng đã nhập số mốc: danh sách yêu cầu chèn hợp lệ + các lỗi.
+  ({List<InsertResult> results, List<String> errors}) _draftInserts() {
+    final results = <InsertResult>[];
+    final errors = <String>[];
+    for (final number in widget.deferredNumbers) {
+      final row = _parseRow(number);
+      if (row.isEmpty) continue;
+      final error = row.error;
+      if (error != null) {
+        errors.add('Số $number: $error');
+      } else {
+        // afterNumber có thể là null một cách hợp lệ (nhập 0 = đầu hàng).
+        results.add((number: number, afterNumber: row.afterNumber));
+      }
+    }
+    return (results: results, errors: errors);
+  }
+
   void submit() {
-    final number = selected;
-    if (number == null) {
-      setState(() => submitError = 'Chọn một số trong danh sách trước đã.');
+    final draft = _draftInserts();
+    if (draft.errors.isNotEmpty) {
+      setState(() => submitError = draft.errors.join('\n'));
       return;
     }
-    final preview = _preview(number);
-    if (preview.number == null || preview.index == null) {
-      setState(() => submitError = preview.text);
+    if (draft.results.isEmpty) {
+      setState(
+        () => submitError = 'Nhập số mốc cho ít nhất một số cần chèn.',
+      );
       return;
     }
-    Navigator.of(
-      context,
-    ).pop<InsertResult>((number: preview.number!, targetIndex: preview.index!));
+    Navigator.of(context).pop<List<InsertResult>>(draft.results);
   }
 
   @override
   Widget build(BuildContext context) {
-    final number = selected;
-    final preview = number == null ? null : _preview(number);
-    final caption =
-        submitError ??
-        preview?.text ??
-        'Chọn số cần chèn, rồi nhập vị trí muốn chèn.';
+    // Tách các yêu cầu chèn ngay (xem trước được trong hàng chờ hiện tại)
+    // khỏi các yêu cầu chờ số mốc tương lai xuất hiện.
+    final draft = _draftInserts();
+    final immediateResults = draft.results
+        .where((r) => !_isFutureScheduledInsert(r, widget.lastIssued))
+        .toList();
+    final futureResults = draft.results
+        .where((r) => _isFutureScheduledInsert(r, widget.lastIssued))
+        .toList();
+    final mergedWaiting = _waitingAfterInserts(
+      widget.waiting,
+      immediateResults,
+      nextNumber: widget.nextNumber,
+    );
+    final insertedNumbers = immediateResults.map((r) => r.number).toSet();
+    final futureDetails = <String>[
+      for (final r in futureResults)
+        'số ${r.number} sau số ${r.afterNumber}',
+    ].join(' · ');
+    final summaryDetails = <String>[
+      for (final r in draft.results)
+        r.afterNumber == null
+            ? 'số ${r.number} → đầu hàng chờ'
+            : _isFutureScheduledInsert(r, widget.lastIssued)
+            ? 'số ${r.number} → chờ ngay sau số ${r.afterNumber} khi tới số đó'
+            : 'số ${r.number} → ngay sau số ${r.afterNumber}',
+    ].join(' · ');
+    final summary = draft.results.isEmpty
+        ? 'Nhập một số bất kỳ làm mốc cho một hoặc nhiều số rồi bấm '
+              '“Chèn”. Số mốc chưa tới sẽ được giữ lịch; nhập 0 để đưa '
+              'một số lên đầu hàng chờ.'
+        : 'Sẽ chèn ${draft.results.length} số: $summaryDetails.';
+    final caption = submitError ?? summary;
     final isError = submitError != null;
+    // Tablet (từ 600dp): bỏ trần 620dp, dàn full màn hình như màn chính.
+    final useFullWidth = MediaQuery.sizeOf(context).width >= 600;
 
     return Scaffold(
       body: Container(
@@ -1146,17 +1613,20 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 620),
+              constraints: BoxConstraints(
+                maxWidth: useFullWidth ? double.infinity : 620,
+              ),
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final compact = constraints.maxWidth < 430;
-                  final gap = compact ? 10.0 : 14.0;
+                  final tablet = constraints.maxWidth >= 768;
+                  final gap = compact ? 10.0 : (tablet ? 18.0 : 14.0);
                   return SingleChildScrollView(
                     padding: EdgeInsets.fromLTRB(
-                      compact ? 16 : 22,
-                      20,
-                      compact ? 16 : 22,
-                      30,
+                      compact ? 16 : (tablet ? 28 : 22),
+                      tablet ? 24 : 20,
+                      compact ? 16 : (tablet ? 28 : 22),
+                      tablet ? 36 : 30,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1173,7 +1643,7 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
                               child: Text(
                                 'Khoa - Số hàng chờ',
                                 style: TextStyle(
-                                  fontSize: compact ? 16.5 : 19,
+                                  fontSize: compact ? 16.5 : (tablet ? 22 : 19),
                                   fontWeight: FontWeight.w800,
                                   color: _Ui.textPrimary,
                                   letterSpacing: -0.2,
@@ -1184,7 +1654,8 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
                         ),
                         SizedBox(height: compact ? 14 : 18),
                         const Text(
-                          'Chọn số cần chèn, rồi nhập vị trí vào ô bên cạnh',
+                          'Nhập số mốc bất kỳ cho từng số cần chèn — '
+                          'số được chèn sẽ nằm ngay sau số mốc đó',
                           style: TextStyle(
                             fontSize: 13.5,
                             color: Color(0xFF6F7583),
@@ -1193,12 +1664,14 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
                         ),
                         const SizedBox(height: 4),
                         const Text(
-                          'Danh sách gồm những số đã bấm “Đợi” ở màn hình chính.',
+                          'Danh sách gồm những số đã bấm “Đợi”. Số mốc '
+                          'không cần đang có trong hàng chờ; để trống '
+                          'ô chưa chèn, nhập 0 để đưa lên đầu hàng.',
                           style: TextStyle(fontSize: 12, color: _Ui.textFaint),
                         ),
                         const SizedBox(height: 16),
                         _SoftCard(
-                          padding: EdgeInsets.all(compact ? 16 : 20),
+                          padding: EdgeInsets.all(compact ? 16 : (tablet ? 24 : 20)),
                           child: widget.deferredNumbers.isEmpty
                               ? const _EmptyHint(
                                   icon: Icons.pause_circle_outline_rounded,
@@ -1217,13 +1690,76 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
                                       .toList(),
                                 ),
                         ),
+                        const SizedBox(height: 16),
+                        // Xem trước thứ tự hàng chờ sau khi chèn tất cả các
+                        // số đã nhập số mốc (số sắp chèn được tô nổi bật).
+                        _SoftCard(
+                          padding: EdgeInsets.all(compact ? 16 : (tablet ? 24 : 20)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _SectionHeader(
+                                title: 'THỨ TỰ HÀNG CHỜ SAU KHI CHÈN',
+                                count: mergedWaiting.length,
+                                accent: _Ui.red,
+                                accentSoft: const Color(0x1FFF534B),
+                              ),
+                              const SizedBox(height: 6),
+                              const Text(
+                                'Ô tô màu là các số sắp được chèn. Nhiều số '
+                                'cùng một số mốc sẽ xếp liên tiếp ngay sau '
+                                'số mốc đó, theo thứ tự từ trên xuống.',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: _Ui.textFaint,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              if (mergedWaiting.isEmpty)
+                                const _EmptyHint(
+                                  icon: Icons.people_outline_rounded,
+                                  text: 'Hàng chờ đang trống',
+                                )
+                              else
+                                Wrap(
+                                  spacing: 9,
+                                  runSpacing: 9,
+                                  children: [
+                                    for (final n in mergedWaiting)
+                                      _QueuePreviewChip(
+                                        number: n,
+                                        highlighted: insertedNumbers.contains(
+                                          n,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              if (futureResults.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Chưa vào hàng chờ ngay: $futureDetails. '
+                                  'Khi lượt gọi sinh tới từng số mốc, các '
+                                  'số này sẽ tự xuất hiện ngay phía sau '
+                                  'số mốc của nó.',
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF2D6BFF),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
                         SizedBox(height: compact ? 18 : 22),
                         Row(
                           children: [
                             Expanded(
                               flex: 3,
                               child: _ActionButton(
-                                label: 'Chèn',
+                                label: draft.results.isEmpty
+                                    ? 'Chèn'
+                                    : 'Chèn ${draft.results.length} số',
                                 icon: Icons.playlist_add_check_rounded,
                                 iconLeading: true,
                                 primary: true,
@@ -1305,7 +1841,10 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
   }
 
   Widget _buildRow(int number, bool compact) {
-    final isSelected = selected == number;
+    final row = _parseRow(number);
+    final hasInput = !row.isEmpty;
+    // Tô nền khi dòng đang được nhập hoặc đã có số mốc (sẽ được chèn).
+    final isSelected = selected == number || hasInput;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => select(number),
@@ -1368,57 +1907,69 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
             ),
             const SizedBox(width: 14),
             Expanded(
-              child: IgnorePointer(
-                ignoring: !isSelected,
-                child: TextField(
-                  controller: _controllerFor(number),
-                  focusNode: _focusNodeFor(number),
-                  enabled: isSelected,
-                  keyboardType: TextInputType.number,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => submit(),
-                  onChanged: (_) => setState(() => submitError = null),
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: compact ? FontWeight.w600 : FontWeight.w700,
-                    color: _Ui.textPrimary,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Vị trí chèn',
-                    hintStyle: const TextStyle(
-                      color: Color(0xFFB6BCC9),
-                      fontWeight: FontWeight.w400,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: _controllerFor(number),
+                    focusNode: _focusNodeFor(number),
+                    keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.next,
+                    onTap: () => select(number),
+                    onSubmitted: (_) => _focusNext(number),
+                    onChanged: (_) => setState(() => submitError = null),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: compact ? FontWeight.w600 : FontWeight.w700,
+                      color: _Ui.textPrimary,
                     ),
-                    isDense: true,
-                    filled: true,
-                    fillColor: isSelected
-                        ? Colors.white
-                        : const Color(0xFFF6F8FC),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 13,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFFE3E7F0)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFFE3E7F0)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: Color(0xFF2A3242),
-                        width: 1.6,
+                    decoration: InputDecoration(
+                      hintText: 'Chèn sau số',
+                      hintStyle: const TextStyle(
+                        color: Color(0xFFB6BCC9),
+                        fontWeight: FontWeight.w400,
+                      ),
+                      isDense: true,
+                      filled: true,
+                      fillColor: isSelected
+                          ? Colors.white
+                          : const Color(0xFFF6F8FC),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 13,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE3E7F0)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE3E7F0)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF2A3242),
+                          width: 1.6,
+                        ),
                       ),
                     ),
-                    disabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFFE9ECF4)),
-                    ),
                   ),
-                ),
+                  // Dòng mô tả/lỗi riêng của số này ngay dưới ô nhập.
+                  if (hasInput) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      row.error ?? row.description,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: row.error != null
+                            ? const Color(0xFFD64545)
+                            : _Ui.textSecondary,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
@@ -1426,6 +1977,41 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
       ),
     );
   }
+}
+
+/// Ô số trong dải "THỨ TỰ HÀNG CHỜ SAU KHI CHÈN" ở màn hình chèn: số sắp
+/// được chèn tô gradient nổi bật, số vốn có trong hàng chờ để nền nhạt.
+class _QueuePreviewChip extends StatelessWidget {
+  const _QueuePreviewChip({required this.number, required this.highlighted});
+
+  final int number;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    constraints: const BoxConstraints(minWidth: 44),
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    decoration: BoxDecoration(
+      gradient: highlighted ? _Ui.redChip : null,
+      color: highlighted ? null : const Color(0xFFF4F6FB),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(
+        color: highlighted
+            ? const Color(0xFFFFCF00)
+            : const Color(0xFFE9ECF4),
+        width: highlighted ? 2 : 1,
+      ),
+    ),
+    child: Text(
+      '$number',
+      textAlign: TextAlign.center,
+      style: TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w800,
+        color: highlighted ? Colors.white : _Ui.textPrimary,
+      ),
+    ),
+  );
 }
 
 /// Thẻ trắng bo tròn có bóng mềm – khối nội dung chính của các màn hình.
@@ -1785,66 +2371,107 @@ class _WaitingChip extends StatelessWidget {
   );
 }
 
-/// Ô số trong bảng "Đợi / Gọi lại" (mục ĐANG CHỜ): bấm để cho số đó xin đợi.
-/// Số kế tiếp có viền vàng để phân biệt.
+/// Ô số trong bảng "Đợi / Gọi lại" (mục ĐANG KHÁM / CHỜ): bấm để cho số đó
+/// xin đợi. Viền xanh dương = số đang khám, viền vàng = số tiếp theo.
 class _SheetWaitChip extends StatelessWidget {
   const _SheetWaitChip({
     required this.number,
+    required this.isCurrent,
     required this.isNext,
     required this.onTap,
   });
 
   final int number;
+  final bool isCurrent;
   final bool isNext;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: isNext ? 'Cho số kế tiếp $number xin đợi' : 'Cho số $number xin đợi',
-    child: Container(
-      width: 74,
-      height: 58,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(
-          color: isNext ? const Color(0xFFFFD400) : Colors.transparent,
-          width: 3.5,
+  Widget build(BuildContext context) {
+    final highlighted = isCurrent || isNext;
+    final borderColor = isCurrent
+        ? const Color(0xFF2D6BFF)
+        : isNext
+            ? const Color(0xFFFFD400)
+            : Colors.transparent;
+    final shadowColor = isCurrent
+        ? const Color(0x592D6BFF)
+        : isNext
+            ? const Color(0x59FFB300)
+            : const Color(0x2EEE2F26);
+    return Semantics(
+      button: true,
+      label: isCurrent
+          ? 'Cho số đang khám $number xin đợi'
+          : isNext
+              ? 'Cho số kế tiếp $number xin đợi'
+              : 'Cho số $number xin đợi',
+      child: Container(
+        width: 74,
+        height: 58,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(17),
+          border: Border.all(color: borderColor, width: 3.5),
+          boxShadow: [
+            BoxShadow(
+              color: shadowColor,
+              blurRadius: highlighted ? 18 : 11,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: isNext ? const Color(0x59FFB300) : const Color(0x2EEE2F26),
-            blurRadius: isNext ? 18 : 11,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(13),
-        clipBehavior: Clip.antiAlias,
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: _Ui.redChip,
-            borderRadius: BorderRadius.circular(13),
-          ),
-          child: InkWell(
-            onTap: onTap,
-            child: Center(
-              child: Text(
-                '$number',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(13),
+          clipBehavior: Clip.antiAlias,
+          child: Ink(
+            decoration: BoxDecoration(
+              gradient: _Ui.redChip,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: InkWell(
+              onTap: onTap,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '$number',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (isCurrent)
+                      const Text(
+                        'ĐANG KHÁM',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 7.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    if (isNext)
+                      const Text(
+                        'KẾ TIẾP',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 7.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// Ô số trong bảng "Đợi / Gọi lại" (mục ĐÃ KHÁM): bấm để gọi lại bệnh nhân.
@@ -1956,6 +2583,49 @@ class _DeferredChip extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    ),
+  );
+}
+
+/// Ô hiển thị một lượt chèn đang chờ số mốc tương lai: "số → sau số mốc".
+class _ScheduledInsertChip extends StatelessWidget {
+  const _ScheduledInsertChip({
+    required this.number,
+    required this.afterNumber,
+  });
+
+  final int number;
+  final int afterNumber;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: 'Số $number sẽ được chèn ngay sau số $afterNumber khi tới số đó',
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF4FF),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFCBDCFF)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.schedule_rounded,
+            size: 16,
+            color: Color(0xFF2D6BFF),
+          ),
+          const SizedBox(width: 7),
+          Text(
+            '$number → sau $afterNumber',
+            style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF2D4A7A),
+            ),
+          ),
+        ],
       ),
     ),
   );
