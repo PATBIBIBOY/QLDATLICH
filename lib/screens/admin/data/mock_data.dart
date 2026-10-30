@@ -11,6 +11,11 @@ class Hospital {
   final Color avatarText;
   String? address;
   final String? code;
+  final List<String>? departments;
+  final int? totalReviews;
+  final String? phone;
+  final String? email;
+  final int? status;
 
   Hospital({
     required this.initials,
@@ -22,6 +27,11 @@ class Hospital {
     required this.avatarText,
     this.address,
     this.code,
+    this.departments,
+    this.totalReviews,
+    this.phone,
+    this.email,
+    this.status,
   });
 }
 

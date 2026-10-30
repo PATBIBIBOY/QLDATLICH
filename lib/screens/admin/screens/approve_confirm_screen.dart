@@ -3,88 +3,117 @@ import '../core/theme.dart';
 import '../data/admin_store.dart';
 import '../widgets/shared_widgets.dart';
 
-// ================= MÀN 8: XÁC NHẬN DUYỆT =================
+// ================= MÀN 8: XÁC NHẬN PHÊ DUYỆT BỆNH VIỆN =================
 class ApproveConfirmScreen extends StatelessWidget {
   final Map<String, String> hospital;
   const ApproveConfirmScreen({super.key, required this.hospital});
 
   @override
   Widget build(BuildContext context) {
+    final name = hospital['name'] ?? 'Bệnh viện';
+    final tag = hospital['tag'] ?? 'BV';
+    final type = hospital['type'] ?? 'Tư nhân';
+    final bs = hospital['bs'] ?? '15 Bác sĩ';
+    final code = hospital['code'] ?? 'BV-NEW';
+
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           child: Column(
             children: [
               const Row(
                 children: [
                   BackCircle(),
                   SizedBox(width: 12),
-                  Text('Xác nhận duyệt',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w800, fontSize: 16)),
+                  Text(
+                    'Phê Duyệt Hồ Sơ Hợp Tác',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                      color: kSlate900,
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
+
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(22),
+                padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20)),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: kBorder),
+                  boxShadow: kElevatedShadow,
+                ),
                 child: Column(
                   children: [
                     Container(
-                      width: 84,
-                      height: 84,
+                      width: 88,
+                      height: 88,
                       decoration: const BoxDecoration(
-                          color: kGreenBg, shape: BoxShape.circle),
-                      child:
-                          const Icon(Icons.check, color: kGreen, size: 44),
+                        color: kGreenLight,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.check_circle_rounded, color: kGreen, size: 54),
                     ),
-                    const SizedBox(height: 14),
-                    const Text('Xác nhận duyệt bệnh viện?',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w800, fontSize: 17)),
+                    const SizedBox(height: 18),
+                    const Text(
+                      'Xác nhận duyệt cơ sở y tế này?',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                        color: kSlate900,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     const Text(
-                        'Bệnh viện sẽ được thêm vào hệ thống\nvà cấp tài khoản để bắt đầu hoạt động.',
-                        textAlign: TextAlign.center,
-                        style:
-                            TextStyle(fontSize: 13, color: Colors.grey)),
-                    const SizedBox(height: 16),
+                      'Bệnh viện sẽ được cấp quyền hoạt động trên ứng dụng và đồng bộ dữ liệu trực tiếp lên Firebase.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, color: kSlate500, height: 1.4),
+                    ),
+                    const SizedBox(height: 20),
+
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(12)),
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: kBorder),
+                      ),
                       child: Row(
                         children: [
                           AvatarBox(
-                              text: hospital['tag']!,
-                              bg: const Color(0xFFDBEAFE),
-                              fg: kPrimary,
-                              size: 46),
-                          const SizedBox(width: 12),
+                            text: tag,
+                            bg: kPrimaryLight,
+                            fg: kPrimary,
+                            size: 48,
+                          ),
+                          const SizedBox(width: 14),
                           Expanded(
                             child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(hospital['name']!,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 14)),
                                 Text(
-                                    '${hospital['type']} · ${hospital['bs']}',
-                                    style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey)),
-                                Text('Mã số: ${hospital['code']}',
-                                    style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey)),
+                                  name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14.5,
+                                    color: kSlate900,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '$type · $bs',
+                                  style: const TextStyle(fontSize: 12, color: kSlate500),
+                                ),
+                                Text(
+                                  'Mã hồ sơ: $code',
+                                  style: const TextStyle(fontSize: 11.5, color: kSlate400),
+                                ),
                               ],
                             ),
                           ),
@@ -94,54 +123,50 @@ class ApproveConfirmScreen extends StatelessWidget {
                   ],
                 ),
               ),
+
               const Spacer(),
+
               Row(
                 children: [
                   Expanded(
                     child: SizedBox(
-                      height: 50,
+                      height: 48,
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.black87,
-                          side: const BorderSide(
-                              color: Color(0xFFE5E7EB)),
+                          foregroundColor: kSlate600,
+                          side: const BorderSide(color: kBorder),
                           backgroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Hủy',
-                            style:
-                                TextStyle(fontWeight: FontWeight.w700)),
+                        child: const Text('Hủy bỏ', style: TextStyle(fontWeight: FontWeight.w700)),
                       ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
+                    flex: 2,
                     child: SizedBox(
-                      height: 50,
-                      child: ElevatedButton(
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.check, size: 20),
+                        label: const Text('Xác nhận Duyệt ngay', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF22C55E),
+                          backgroundColor: kGreen,
                           foregroundColor: Colors.white,
                           elevation: 0,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         onPressed: () {
-                          AdminStore.instance
-                              .approveHospital(hospital);
-                          Navigator.pop(context);
+                          AdminStore.instance.approveHospital(hospital);
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                  content: Text(
-                                      'Đã duyệt ${hospital['name']} ✓'),
-                                  backgroundColor: kGreen));
+                            SnackBar(
+                              content: Text('Đã duyệt thành công $name trên Firebase ✓'),
+                              backgroundColor: kGreen,
+                            ),
+                          );
                         },
-                        child: const Text('✓ Xác nhận duyệt',
-                            style:
-                                TextStyle(fontWeight: FontWeight.w700)),
                       ),
                     ),
                   ),
