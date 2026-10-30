@@ -214,12 +214,13 @@ class _LoginScreenState extends State<LoginScreen> {
       final firestore = FirebaseFirestore.instance;
       DocumentSnapshot<Map<String, dynamic>>? userDoc;
 
-      // Nếu là email cuoc2004@gmail.com, tự động đảm bảo có document Lễ tân trên Firestore
+      // Nếu email là cuoc2004@gmail.com, tự động đảm bảo có document Lễ tân trên Firestore và gán userDoc luôn
       if (email.toLowerCase() == 'cuoc2004@gmail.com') {
         try {
-          final cuocDoc = await firestore.collection('NhanVien').doc('BV502').collection('danh_sach').doc('LT_TM_01').get();
-          if (!cuocDoc.exists || cuocDoc.data()?['email'] != 'cuoc2004@gmail.com') {
-            await firestore.collection('NhanVien').doc('BV502').collection('danh_sach').doc('LT_TM_01').set({
+          final cuocRef = firestore.collection('NhanVien').doc('BV502').collection('danh_sach').doc('LT_TM_01');
+          final cuocDoc = await cuocRef.get();
+          if (!cuocDoc.exists || cuocDoc.data()?['email'] != 'cuoc2004@gmail.com' || cuocDoc.data()?['uid'] != currentUid) {
+            await cuocRef.set({
               'ma_tai_khoan': 'LT_TM_01',
               'ma_nhan_vien': 'LT_TM_01',
               'ho_ten': 'Đinh Hoàng Cước',
@@ -234,6 +235,9 @@ class _LoginScreenState extends State<LoginScreen> {
               'trang_thai': 'dang_hoat_dong',
               'uid': currentUid,
             }, SetOptions(merge: true));
+            userDoc = await cuocRef.get();
+          } else {
+            userDoc = cuocDoc;
           }
         } catch (_) {}
       }
