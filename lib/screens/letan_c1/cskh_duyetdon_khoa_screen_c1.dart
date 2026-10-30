@@ -1284,7 +1284,6 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
                       final phong = dsPhong[index];
                       final tenPhong = (phong['tenPhong'] ?? phong['soPhong'] ?? 'Phòng').toString();
                       final soPhong = (phong['soPhong'] ?? '').toString();
-                      final bacSi = (phong['bacSi'] ?? 'BS. Trực ban').toString();
                       final trangThai = (phong['trangThai'] ?? 'san_sang').toString();
                       final bool isSanSang = trangThai == 'san_sang' || trangThai == 'dang_kham';
 
@@ -1358,28 +1357,6 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
                                             ),
                                           ),
                                         ],
-                                      ],
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.person_outline,
-                                          size: 13,
-                                          color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Expanded(
-                                          child: Text(
-                                            bacSi,
-                                            style: TextStyle(
-                                              color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-                                              fontSize: 12,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
                                       ],
                                     ),
                                   ],
@@ -1542,7 +1519,6 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
                         final phong = dsPhong[index];
                         final tenPhong = (phong['tenPhong'] ?? phong['soPhong'] ?? 'Phòng').toString();
                         final soPhong = (phong['soPhong'] ?? '').toString();
-                        final bacSi = (phong['bacSi'] ?? 'BS. Trực ban').toString();
                         final trangThai = (phong['trangThai'] ?? 'san_sang').toString();
                         final bool isSanSang = trangThai == 'san_sang' || trangThai == 'dang_kham';
 
@@ -1608,16 +1584,6 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
                                         color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
                                         fontSize: 13.5,
                                         fontWeight: FontWeight.w700,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      bacSi,
-                                      style: TextStyle(
-                                        color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-                                        fontSize: 11,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,

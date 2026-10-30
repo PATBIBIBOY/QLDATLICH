@@ -244,7 +244,6 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
 
               _buildRowInfo('Khoa khám:', ketQua.khoaKham ?? '', isBold: true),
               _buildRowInfo('Phòng khám:', ketQua.phongKham ?? '', isBold: true),
-              _buildRowInfo('Bác sĩ phụ trách:', ketQua.bacSi ?? '', isBold: true),
             ],
           ),
         ),

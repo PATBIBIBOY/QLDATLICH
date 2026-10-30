@@ -234,7 +234,7 @@ class _CskhChatChitietScreenC1State extends State<CskhChatChitietScreenC1> {
           ),
           const SizedBox(height: 3),
           Text(
-            'BHYT: ${widget.hoiThoai.maBhyt} • Lịch khám gần nhất: 18/09 • BS. Vũ Nam Tuấn',
+            'BHYT: ${widget.hoiThoai.maBhyt} • Lịch khám gần nhất: 18/09',
             style: TextStyle(
               color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF334155),
               fontSize: 11.5,
