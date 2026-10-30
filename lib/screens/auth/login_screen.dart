@@ -60,10 +60,12 @@ class _LoginScreenState extends State<LoginScreen> {
       final selectedRoleCode = _roles[_selectedRoleIndex]['code'] as String;
       final firestore = FirebaseFirestore.instance;
 
-      // ✅ 1. NẾU LÀ cuoc2004@gmail.com HOẶC EMAIL NHÂN VIÊN LỄ TÂN / CSKH
-      // XÁC THỰC THẲNG VÀ ĐIỀU HƯỚNG NGAY VÀO LỄ TÂN / CSKH, KHÔNG CHO QUA auth.login BỆNH VIỆN
-      final isCuoc = email.toLowerCase() == 'cuoc2004@gmail.com';
-      if (isCuoc) {
+      // ✅ 1. NẾU LÀ EMAIL NHÂN VIÊN (cuoc2004@gmail.com hoặc nhân viên khác)
+      // Tự động kiểm tra chính xác Role thực tế của tài khoản trên Firestore để vào Lễ tân HOẶC CSKH HOẶC Hỗ trợ bác sĩ
+      if (email.contains('@') && selectedRoleCode != 'admin') {
+        // Kiểm tra xem có phải tài khoản nhân viên hay không trước khi gọi auth.login
+        final isCuoc = email.toLowerCase() == 'cuoc2004@gmail.com';
+        
         // Đăng nhập Firebase Auth trước
         UserCredential? cred;
         try {
@@ -72,47 +74,112 @@ class _LoginScreenState extends State<LoginScreen> {
             password: password,
           );
         } catch (e) {
-          // Nếu sai pass hoặc lỗi auth thì quăng lỗi ra ngay
-          rethrow;
+          // Nếu không phải là tài khoản hợp lệ của Firebase Auth thì để luồng auth.login xử lý tiếp
         }
 
-        final currentUid = cred.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+        if (cred != null) {
+          final currentUid = cred.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+          DocumentSnapshot<Map<String, dynamic>>? staffDoc;
 
-        // Cập nhật/đảm bảo tài liệu nhân viên Lễ tân LT_TM_01 trên Firestore
-        try {
-          await firestore.collection('NhanVien').doc('BV502').collection('danh_sach').doc('LT_TM_01').set({
-            'ma_tai_khoan': 'LT_TM_01',
-            'ma_nhan_vien': 'LT_TM_01',
-            'ho_ten': 'Đinh Hoàng Cước',
-            'email': 'cuoc2004@gmail.com',
-            'role': 'receptionist',
-            'chuc_vu': 'Lễ tân tiếp đón',
-            'khoa': 'KHOA TIM',
-            'ma_benh_vien': 'BV502',
-            'benh_vien_id': 'BV502',
-            'ten_benh_vien': 'Bệnh viện Quân y 17',
-            'da_kich_hoat': true,
-            'trang_thai': 'dang_hoat_dong',
-            'uid': currentUid,
-          }, SetOptions(merge: true));
-        } catch (_) {}
+          // Tìm thông tin nhân viên theo UID hoặc Email trong collectionGroup('danh_sach') hoặc NhanVien
+          try {
+            final qEmail = await firestore
+                .collectionGroup('danh_sach')
+                .where('email', isEqualTo: email)
+                .limit(1)
+                .get();
+            if (qEmail.docs.isNotEmpty) {
+              staffDoc = qEmail.docs.first;
+            } else if (currentUid != null) {
+              final qUid = await firestore
+                  .collectionGroup('danh_sach')
+                  .where('uid', isEqualTo: currentUid)
+                  .limit(1)
+                  .get();
+              if (qUid.docs.isNotEmpty) {
+                staffDoc = qUid.docs.first;
+              }
+            }
+          } catch (_) {}
 
-        DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai.copyWith(
-          maNhanVien: 'LT_TM_01',
-          hoTen: 'Đinh Hoàng Cước',
-          chucVu: 'Lễ tân tiếp đón',
-          khoa: 'KHOA TIM',
-          email: 'cuoc2004@gmail.com',
-          benhVienId: 'BV502',
-          tenBenhVien: 'Bệnh viện Quân y 17',
-        );
+          // Nếu chưa có mà là cuoc2004@gmail.com, tự động tạo / lấy document
+          if ((staffDoc == null || !staffDoc.exists) && isCuoc) {
+            try {
+              final cuocRef = firestore.collection('NhanVien').doc('BV502').collection('danh_sach').doc('LT_TM_01');
+              await cuocRef.set({
+                'ma_tai_khoan': 'LT_TM_01',
+                'ma_nhan_vien': 'LT_TM_01',
+                'ho_ten': 'Đinh Hoàng Cước',
+                'email': 'cuoc2004@gmail.com',
+                'role': 'receptionist',
+                'chuc_vu': 'Lễ tân tiếp đón',
+                'khoa': 'KHOA TIM',
+                'ma_benh_vien': 'BV502',
+                'benh_vien_id': 'BV502',
+                'ten_benh_vien': 'Bệnh viện Quân y 17',
+                'da_kich_hoat': true,
+                'trang_thai': 'dang_hoat_dong',
+                'uid': currentUid,
+              }, SetOptions(merge: true));
+              staffDoc = await cuocRef.get();
+            } catch (_) {}
+          }
 
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()),
-        );
-        return;
+          if (staffDoc != null && staffDoc.exists) {
+            final data = staffDoc.data() ?? {};
+            final staffRole = (data['role'] ?? '').toString();
+            final bool daKichHoat = (data['da_kich_hoat'] == true) || (data['trang_thai'] == 'dang_hoat_dong');
+            final maNvThucTe = (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? currentUid ?? 'NV01').toString();
+            final bvId = (data['ma_benh_vien'] ?? data['benh_vien_id'] ?? 'BV502').toString();
+            final tenBv = (data['ten_benh_vien'] ?? 'Bệnh viện BV502').toString();
+
+            DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai.copyWith(
+              maNhanVien: maNvThucTe,
+              hoTen: (data['ho_ten'] ?? 'Nhân viên').toString(),
+              chucVu: (data['chuc_vu'] ?? (staffRole == 'customerSupport' || staffRole == 'cskh' || staffRole == 'cham_soc_khach_hang' ? 'Chăm sóc khách hàng' : 'Lễ tân tiếp đón')).toString(),
+              khoa: (data['khoa'] ?? (staffRole == 'customerSupport' || staffRole == 'cskh' || staffRole == 'cham_soc_khach_hang' ? 'Bộ Phận CSKH & Tiếp Nhận' : 'Khoa Khám Bệnh')).toString(),
+              email: (data['email'] ?? email).toString(),
+              benhVienId: bvId,
+              tenBenhVien: tenBv,
+            );
+
+            if (!mounted) return;
+
+            // Chưa kích hoạt -> Màn hình thiết lập thông tin
+            if (!daKichHoat) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => LetanThietlapThongtinScreenC1(
+                    maNhanVienMacDinh: maNvThucTe,
+                  ),
+                ),
+              );
+              return;
+            }
+
+            // Đã kích hoạt -> Điều hướng đúng 100% theo vai trò (Role)
+            if (staffRole == 'customerSupport' || staffRole == 'cskh' || staffRole == 'cham_soc_khach_hang') {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const CskhDuyetdonKhoaScreenC1()),
+              );
+              return;
+            } else if (staffRole == 'receptionist' || staffRole == 'le_tan') {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()),
+              );
+              return;
+            } else if (staffRole == 'doctorAssistant' || staffRole == 'ho_tro_bac_si' || staffRole == 'bac_si') {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const ClinicRoomPickerScreen()),
+              );
+              return;
+            }
+          }
+        }
       }
 
       // ✅ 2. Kiểm tra nếu người dùng đăng nhập bằng MÃ NHÂN VIÊN nội bộ (không chứa @)
