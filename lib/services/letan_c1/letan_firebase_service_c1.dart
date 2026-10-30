@@ -740,12 +740,18 @@ class FirebaseServiceC1 {
         if (!khopNgay) continue;
 
         // Chỉ xét các đơn đã được duyệt hoặc đã có số thứ tự
+        final String docStatusId = (data['trang_thai_id'] ?? '').toString();
+        final String docStatusStr = (data['trang_thai'] ?? data['trangThai'] ?? '').toString();
+        final bool daDuyet = docStatusId == '2' || docStatusId == '5' || docStatusStr == 'da_duyet' || docStatusStr == 'da_kham';
+
         final sttVal = data['so_thu_tu'] ?? data['stt'];
-        if (sttVal is num) {
-          if (sttVal.toInt() > maxStt) maxStt = sttVal.toInt();
-        } else if (sttVal is String) {
-          final parsed = int.tryParse(sttVal);
-          if (parsed != null && parsed > maxStt) maxStt = parsed;
+        if (daDuyet && sttVal != null) {
+          if (sttVal is num) {
+            if (sttVal.toInt() > maxStt) maxStt = sttVal.toInt();
+          } else if (sttVal is String) {
+            final parsed = int.tryParse(sttVal);
+            if (parsed != null && parsed > maxStt) maxStt = parsed;
+          }
         }
       }
 
@@ -757,12 +763,18 @@ class FirebaseServiceC1 {
       final groupSnap = await groupQuery.get();
       for (var d in groupSnap.docs) {
         final data = d.data();
+        final String docStatusId = (data['trang_thai_id'] ?? '').toString();
+        final String docStatusStr = (data['trang_thai'] ?? data['trangThai'] ?? '').toString();
+        final bool daDuyet = docStatusId == '2' || docStatusId == '5' || docStatusStr == 'da_duyet' || docStatusStr == 'da_kham';
+
         final sttVal = data['so_thu_tu'] ?? data['stt'];
-        if (sttVal is num) {
-          if (sttVal.toInt() > maxStt) maxStt = sttVal.toInt();
-        } else if (sttVal is String) {
-          final parsed = int.tryParse(sttVal);
-          if (parsed != null && parsed > maxStt) maxStt = parsed;
+        if (daDuyet && sttVal != null) {
+          if (sttVal is num) {
+            if (sttVal.toInt() > maxStt) maxStt = sttVal.toInt();
+          } else if (sttVal is String) {
+            final parsed = int.tryParse(sttVal);
+            if (parsed != null && parsed > maxStt) maxStt = parsed;
+          }
         }
       }
     } catch (_) {}
