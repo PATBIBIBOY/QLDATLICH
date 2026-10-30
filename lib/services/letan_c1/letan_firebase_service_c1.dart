@@ -798,18 +798,56 @@ class FirebaseServiceC1 {
     String? caId,
     DateTime? ngayChon,
   }) async {
+    // 1. Kiểm tra đơn hiện tại trên Firestore xem đã duyệt chưa
+    DocumentSnapshot<Map<String, dynamic>>? existingSnap;
+    final topDocRef = _firestore.collection('LichHen').doc(appointmentId);
+    final topSnap = await topDocRef.get();
+    if (topSnap.exists) {
+      existingSnap = topSnap;
+    } else if (docPath != null && docPath.isNotEmpty) {
+      final docSnap = await _firestore.doc(docPath).get();
+      if (docSnap.exists) existingSnap = docSnap;
+    } else {
+      final q = await _firestore.collectionGroup('lich_hen').where('id', isEqualTo: appointmentId).limit(1).get();
+      if (q.docs.isNotEmpty) existingSnap = q.docs.first;
+    }
+
+    final existingData = existingSnap?.data() ?? {};
+    final String currentStatusId = (existingData['trang_thai_id'] ?? '').toString();
+    final String currentStatusStr = (existingData['trang_thai'] ?? existingData['trangThai'] ?? '').toString();
+    final bool alreadyApproved = currentStatusId == '2' || currentStatusStr == 'da_duyet';
+    final existingStt = existingData['so_thu_tu'] ?? existingData['stt'];
+
+    // Nếu đơn này ĐÃ ĐƯỢC DUYỆT TỪ TRƯỚC và người dùng bấm duyệt lại:
+    // Giữ nguyên số thứ tự cũ (không được tự động tăng thêm)
+    if (trangThaiMoi == 'da_duyet' && alreadyApproved && existingStt != null) {
+      int? sttInt;
+      if (existingStt is num) sttInt = existingStt.toInt();
+      if (existingStt is String) sttInt = int.tryParse(existingStt);
+      if (sttInt != null && sttInt > 0) {
+        return sttInt;
+      }
+    }
+
     // Số 1: Chờ duyệt | Số 2: Đã xác nhận (TrangThai/2) | Số 4: Hủy / Không duyệt (TrangThai/4)
     final String newStatusId = trangThaiMoi == 'da_duyet' ? '2' : (trangThaiMoi == 'tu_choi' ? '4' : '1');
 
     int? capNhatStt = soThuTuChiDinh;
     if (trangThaiMoi == 'da_duyet' && capNhatStt == null) {
-      final bvid = benhVienId ?? DuLieuProfileMauC1.thongTinHienTai.benhVienId;
-      capNhatStt = await laySoThuTuTiepTheo(
-        benhVienId: bvid,
-        phongKhamId: phongKhamId,
-        caId: caId,
-        ngayChon: ngayChon,
-      );
+      // Nếu đã có stt sẵn thì tái sử dụng
+      if (existingStt is num && existingStt.toInt() > 0) {
+        capNhatStt = existingStt.toInt();
+      } else if (existingStt is String && int.tryParse(existingStt) != null && int.parse(existingStt) > 0) {
+        capNhatStt = int.parse(existingStt);
+      } else {
+        final bvid = benhVienId ?? DuLieuProfileMauC1.thongTinHienTai.benhVienId;
+        capNhatStt = await laySoThuTuTiepTheo(
+          benhVienId: bvid,
+          phongKhamId: phongKhamId,
+          caId: caId,
+          ngayChon: ngayChon,
+        );
+      }
     }
 
     final Map<String, dynamic> updateData = {
@@ -838,8 +876,6 @@ class FirebaseServiceC1 {
     }
 
     // 1. Cập nhật trực tiếp nếu là doc trong collection 'LichHen' cấp 1
-    final topDocRef = _firestore.collection('LichHen').doc(appointmentId);
-    final topSnap = await topDocRef.get();
     if (topSnap.exists) {
       await topDocRef.update(updateData);
       return capNhatStt;
