@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../mock/mock_c1/dulieu_mau_letan_c1.dart';
 import '../../models/letan_c1/letan_design_system_c1.dart';
-import '../../models/letan_c1/letan_model_c1.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../models/letan_c1/letan_qr_model_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
@@ -846,13 +845,13 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
                 soThuTu: int.tryParse(item['stt']?.toString() ?? '1') ?? 1,
                 gioKhamDuKien: '${item['gioKham']} - Hôm nay',
                 hoTen: hoTen.toUpperCase(),
-                maBenhNhan: (item['maBenhNhan'] ?? 'BN-2026').toString(),
-                namSinhGioiTinh: '${item['namSinh']} - ${item['gioiTinh']}',
-                cccd: (item['cccd'] ?? '001092008892').toString(),
-                bhyt: (item['bhyt'] ?? 'BHYT 100%').toString(),
-                khoaKham: (item['tenKhoa'] ?? 'Khoa Khám').toString(),
-                phongKham: (item['phongKham'] ?? 'Phòng 101').toString(),
-                bacSi: (item['bacSi'] ?? 'BS. Trực ban').toString(),
+                maBenhNhan: (item['maBenhNhan'] ?? '').toString(),
+                namSinhGioiTinh: [item['namSinh']?.toString() ?? '', item['gioiTinh']?.toString() ?? ''].where((s) => s.isNotEmpty).join(' - '),
+                cccd: (item['cccd'] ?? '').toString(),
+                bhyt: (item['bhyt'] ?? '').toString(),
+                khoaKham: (item['tenKhoa'] ?? '').toString(),
+                phongKham: (item['phongKham'] ?? '').toString(),
+                bacSi: (item['bacSi'] ?? '').toString(),
               ),
             ),
           ),
@@ -1169,11 +1168,10 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
     );
   }
 
-  // POPUP LISTVIEW CÁC THÔNG BÁO DÀNH CHO LỄ TÂN
+  // POPUP LISTVIEW CÁC THÔNG BÁO DÀNH CHO LỄ TÂN (Realtime từ Firestore /ThongBaoHeThong)
   void _showModalThongBao() {
     AppDesignSystemC1.hapticLight();
     final isDark = AppDesignSystemC1.laCheDoToi;
-    final tatCaThongBao = DuLieuMauLeTanC1.danhSachThongBao;
     String tabLocHienTai = 'tat_ca'; // 'tat_ca' hoặc 'chua_doc'
 
     showModalBottomSheet(
@@ -1186,292 +1184,340 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (modalContext, setModalState) {
-            final soLuongChuaDoc = tatCaThongBao.where((e) => !e.daDoc).length;
-            final danhSachHienThi = tabLocHienTai == 'chua_doc'
-                ? tatCaThongBao.where((e) => !e.daDoc).toList()
-                : tatCaThongBao;
+            return StreamBuilder<List<Map<String, dynamic>>>(
+              stream: FirebaseServiceC1.streamThongBaoRealtime(vaiTro: 'le_tan'),
+              builder: (context, snapshot) {
+                final dsRaw = snapshot.data ?? [];
+                final soLuongChuaDoc = dsRaw.where((e) => e['da_doc'] != true).length;
+                final danhSachHienThi = tabLocHienTai == 'chua_doc'
+                    ? dsRaw.where((e) => e['da_doc'] != true).toList()
+                    : dsRaw;
 
-            return SafeArea(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.8,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Thanh kéo nhẹ
-                    const SizedBox(height: 10),
-                    Container(
-                      width: 44,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                return SafeArea(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.8,
                     ),
-                    const SizedBox(height: 14),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Thanh kéo nhẹ
+                        const SizedBox(height: 10),
+                        Container(
+                          width: 44,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
 
-                    // Header Popup
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
+                        // Header Popup
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: const Icon(
-                                  Icons.notifications_active_rounded,
-                                  color: Color(0xFF0284C7),
-                                  size: 22,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              Row(
                                 children: [
-                                  Text(
-                                    'Thông Báo Lễ Tân',
-                                    style: TextStyle(
-                                      color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w700,
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(
+                                      Icons.notifications_active_rounded,
+                                      color: Color(0xFF0284C7),
+                                      size: 22,
                                     ),
                                   ),
-                                  Text(
-                                    '$soLuongChuaDoc thông báo chưa đọc',
-                                    style: TextStyle(
-                                      color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-                                      fontSize: 12,
-                                    ),
+                                  const SizedBox(width: 12),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Thông Báo Lễ Tân',
+                                        style: TextStyle(
+                                          color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      Text(
+                                        '$soLuongChuaDoc thông báo chưa đọc',
+                                        style: TextStyle(
+                                          color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
+                              ),
+                              IconButton(
+                                icon: Icon(
+                                  Icons.close,
+                                  color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                                ),
+                                onPressed: () => Navigator.pop(ctx),
                               ),
                             ],
                           ),
-                          IconButton(
-                            icon: Icon(
-                              Icons.close,
-                              color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-                            ),
-                            onPressed: () => Navigator.pop(ctx),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
+                        ),
+                        const SizedBox(height: 12),
 
-                    // 2 TAB CHUYỂN ĐỔI: "TẤT CẢ" VÀ "CHƯA ĐỌC"
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
+                        // 2 TAB CHUYỂN ĐỔI: "TẤT CẢ" VÀ "CHƯA ĐỌC"
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                // Tab 1: Tất cả
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () {
+                                      AppDesignSystemC1.hapticLight();
+                                      setModalState(() {
+                                        tabLocHienTai = 'tat_ca';
+                                      });
+                                    },
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 180),
+                                      padding: const EdgeInsets.symmetric(vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: tabLocHienTai == 'tat_ca'
+                                            ? (isDark ? AppDesignSystemC1.darkSurface : Colors.white)
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            'Tất cả',
+                                            style: TextStyle(
+                                              color: tabLocHienTai == 'tat_ca'
+                                                  ? (isDark ? Colors.white : AppDesignSystemC1.primary)
+                                                  : (isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B)),
+                                              fontSize: 13.5,
+                                              fontWeight: tabLocHienTai == 'tat_ca' ? FontWeight.w700 : FontWeight.w500,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                            decoration: BoxDecoration(
+                                              color: tabLocHienTai == 'tat_ca'
+                                                  ? (isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE))
+                                                  : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+                                              borderRadius: BorderRadius.circular(999),
+                                            ),
+                                            child: Text(
+                                              '${dsRaw.length}',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
+                                                color: tabLocHienTai == 'tat_ca'
+                                                    ? (isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7))
+                                                    : (isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B)),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+
+                                // Tab 2: Chưa đọc
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () {
+                                      AppDesignSystemC1.hapticLight();
+                                      setModalState(() {
+                                        tabLocHienTai = 'chua_doc';
+                                      });
+                                    },
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 180),
+                                      padding: const EdgeInsets.symmetric(vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: tabLocHienTai == 'chua_doc'
+                                            ? (isDark ? AppDesignSystemC1.darkSurface : Colors.white)
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            'Chưa đọc',
+                                            style: TextStyle(
+                                              color: tabLocHienTai == 'chua_doc'
+                                                  ? const Color(0xFFFF3B30)
+                                                  : (isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B)),
+                                              fontSize: 13.5,
+                                              fontWeight: tabLocHienTai == 'chua_doc' ? FontWeight.w700 : FontWeight.w500,
+                                            ),
+                                          ),
+                                          if (soLuongChuaDoc > 0) ...[
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFFF3B30),
+                                                borderRadius: BorderRadius.circular(999),
+                                              ),
+                                              child: Text(
+                                                '$soLuongChuaDoc',
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        child: Row(
-                          children: [
-                            // Tab 1: Tất cả
-                            Expanded(
-                              child: InkWell(
-                                onTap: () {
-                                  AppDesignSystemC1.hapticLight();
-                                  setModalState(() {
-                                    tabLocHienTai = 'tat_ca';
-                                  });
-                                },
-                                borderRadius: BorderRadius.circular(10),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 180),
-                                  padding: const EdgeInsets.symmetric(vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: tabLocHienTai == 'tat_ca'
-                                        ? (isDark ? AppDesignSystemC1.darkSurface : Colors.white)
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(10),
-                                    boxShadow: tabLocHienTai == 'tat_ca'
-                                        ? [
-                                            BoxShadow(
-                                              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                                              blurRadius: 4,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ]
-                                        : null,
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                        const SizedBox(height: 10),
+
+                        Divider(
+                          height: 1,
+                          color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFEDF2F7),
+                        ),
+
+                        // Danh sách thông báo dạng ListView theo bộ lọc từ Firestore
+                        Flexible(
+                          child: danhSachHienThi.isEmpty
+                              ? Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
+                                      Icon(
+                                        Icons.mark_email_read_outlined,
+                                        size: 48,
+                                        color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF94A3B8),
+                                      ),
+                                      const SizedBox(height: 12),
                                       Text(
-                                        'Tất cả',
+                                        'Không có thông báo nào',
                                         style: TextStyle(
-                                          color: tabLocHienTai == 'tat_ca'
-                                              ? (isDark ? Colors.white : AppDesignSystemC1.primary)
-                                              : (isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B)),
-                                          fontSize: 13.5,
-                                          fontWeight: tabLocHienTai == 'tat_ca' ? FontWeight.w700 : FontWeight.w500,
+                                          color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
                                         ),
                                       ),
-                                      const SizedBox(width: 6),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                    ],
+                                  ),
+                                )
+                              : ListView.separated(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  itemCount: danhSachHienThi.length,
+                                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                                  itemBuilder: (context, index) {
+                                    final item = danhSachHienThi[index];
+                                    final id = item['id']?.toString() ?? '';
+                                    final tieuDe = (item['tieu_de'] ?? item['tieuDe'] ?? 'Thông báo').toString();
+                                    final noiDung = (item['noi_dung'] ?? item['noiDung'] ?? '').toString();
+                                    final thoiGian = (item['thoi_gian_hien_thi'] ?? item['thoiGian'] ?? 'Vừa xong').toString();
+                                    final daDoc = item['da_doc'] == true;
+
+                                    return InkWell(
+                                      onTap: () {
+                                        if (id.isNotEmpty) {
+                                          FirebaseServiceC1.danhDauDaDocThongBao(id);
+                                        }
+                                        _showDialogChiTietThongBaoRaw(item);
+                                      },
+                                      borderRadius: BorderRadius.circular(14),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(14),
                                         decoration: BoxDecoration(
-                                          color: tabLocHienTai == 'tat_ca'
-                                              ? (isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE))
-                                              : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
-                                          borderRadius: BorderRadius.circular(999),
-                                        ),
-                                        child: Text(
-                                          '${tatCaThongBao.length}',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w700,
-                                            color: tabLocHienTai == 'tat_ca'
-                                                ? (isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7))
-                                                : (isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B)),
+                                          color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                                          borderRadius: BorderRadius.circular(14),
+                                          border: Border.all(
+                                            color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
                                           ),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    tieuDe,
+                                                    style: TextStyle(
+                                                      color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
+                                                      fontSize: 14.5,
+                                                      fontWeight: FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (!daDoc)
+                                                  Container(
+                                                    width: 8,
+                                                    height: 8,
+                                                    decoration: const BoxDecoration(
+                                                      color: Color(0xFF0284C7),
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              noiDung,
+                                              style: TextStyle(
+                                                color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                                                fontSize: 12.5,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              thoiGian,
+                                              style: TextStyle(
+                                                color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF94A3B8),
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ],
-                                  ),
+                                    );
+                                  },
                                 ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-
-                            // Tab 2: Chưa đọc
-                            Expanded(
-                              child: InkWell(
-                                onTap: () {
-                                  AppDesignSystemC1.hapticLight();
-                                  setModalState(() {
-                                    tabLocHienTai = 'chua_doc';
-                                  });
-                                },
-                                borderRadius: BorderRadius.circular(10),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 180),
-                                  padding: const EdgeInsets.symmetric(vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: tabLocHienTai == 'chua_doc'
-                                        ? (isDark ? AppDesignSystemC1.darkSurface : Colors.white)
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(10),
-                                    boxShadow: tabLocHienTai == 'chua_doc'
-                                        ? [
-                                            BoxShadow(
-                                              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                                              blurRadius: 4,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ]
-                                        : null,
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        'Chưa đọc',
-                                        style: TextStyle(
-                                          color: tabLocHienTai == 'chua_doc'
-                                              ? const Color(0xFFFF3B30)
-                                              : (isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B)),
-                                          fontSize: 13.5,
-                                          fontWeight: tabLocHienTai == 'chua_doc' ? FontWeight.w700 : FontWeight.w500,
-                                        ),
-                                      ),
-                                      if (soLuongChuaDoc > 0) ...[
-                                        const SizedBox(width: 6),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFFF3B30),
-                                            borderRadius: BorderRadius.circular(999),
-                                          ),
-                                          child: Text(
-                                            '$soLuongChuaDoc',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w700,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
                         ),
-                      ),
+                      ],
                     ),
-                    const SizedBox(height: 10),
-
-                    Divider(
-                      height: 1,
-                      color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFEDF2F7),
-                    ),
-
-                    // Danh sách thông báo dạng ListView theo bộ lọc
-                    Flexible(
-                      child: danhSachHienThi.isEmpty
-                          ? Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.mark_email_read_outlined,
-                                    size: 48,
-                                    color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF94A3B8),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    'Không có thông báo chưa đọc',
-                                    style: TextStyle(
-                                      color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Tất cả thông báo của ca trực lễ tân đều đã được xem.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-                                      fontSize: 12.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : ListView.separated(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              itemCount: danhSachHienThi.length,
-                              separatorBuilder: (_, _) => const SizedBox(height: 10),
-                              itemBuilder: (context, index) {
-                                final item = danhSachHienThi[index];
-                                return _buildItemThongBao(item, isDark);
-                              },
-                            ),
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             );
           },
         );
@@ -1479,149 +1525,13 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
     );
   }
 
-  // Từng item trong ListView thông báo
-  Widget _buildItemThongBao(ThongBaoLeTanC1 item, bool isDark) {
-    Color iconColor;
-    Color iconBg;
-    IconData iconData;
-
-    switch (item.loai) {
-      case 'khan_cap':
-        iconColor = const Color(0xFFEF4444);
-        iconBg = isDark ? const Color(0xFF7F1D1D).withValues(alpha: 0.35) : const Color(0xFFFEF2F2);
-        iconData = Icons.warning_amber_rounded;
-        break;
-      case 'lich_hen':
-        iconColor = const Color(0xFF0284C7);
-        iconBg = isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE);
-        iconData = Icons.event_available_rounded;
-        break;
-      case 'he_thong':
-        iconColor = const Color(0xFF10B981);
-        iconBg = isDark ? const Color(0xFF064E3B).withValues(alpha: 0.35) : const Color(0xFFECFDF5);
-        iconData = Icons.dns_rounded;
-        break;
-      default:
-        iconColor = const Color(0xFFFF9500);
-        iconBg = isDark ? const Color(0xFF451A03) : const Color(0xFFFFF5E6);
-        iconData = Icons.badge_outlined;
-    }
-
-    return InkWell(
-      onTap: () {
-        AppDesignSystemC1.hapticLight();
-        Navigator.pop(context); // Đóng modal danh sách
-        _showDialogChiTietThongBao(item); // Mở popup xem chi tiết
-      },
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
-          ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(iconData, color: iconColor, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          item.tieuDe,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      if (!item.daDoc)
-                        Container(
-                          width: 8,
-                          height: 8,
-                          margin: const EdgeInsets.only(left: 6),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF0284C7),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    item.noiDungNgan,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-                      fontSize: 12.5,
-                      height: 1.3,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        item.thoiGian,
-                        style: TextStyle(
-                          color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF94A3B8),
-                          fontSize: 11,
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          Text(
-                            'Xem chi tiết',
-                            style: TextStyle(
-                              color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(width: 2),
-                          Icon(
-                            Icons.arrow_forward_ios,
-                            size: 10,
-                            color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // DIALOG XEM CHI TIẾT THÔNG BÁO KHI ẤN VÀO
-  void _showDialogChiTietThongBao(ThongBaoLeTanC1 item) {
+  // DIALOG XEM CHI TIẾT THÔNG BÁO TỪ FIRESTORE
+  void _showDialogChiTietThongBaoRaw(Map<String, dynamic> item) {
     AppDesignSystemC1.hapticLight();
     final isDark = AppDesignSystemC1.laCheDoToi;
+    final tieuDe = (item['tieu_de'] ?? item['tieuDe'] ?? 'Thông báo').toString();
+    final noiDung = (item['noi_dung'] ?? item['noiDung'] ?? '').toString();
+    final thoiGian = (item['thoi_gian_hien_thi'] ?? item['thoiGian'] ?? 'Vừa xong').toString();
 
     showDialog(
       context: context,
@@ -1643,7 +1553,7 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    item.thoiGian,
+                    thoiGian,
                     style: TextStyle(
                       color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
                       fontSize: 11.5,
@@ -1663,49 +1573,36 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             Text(
-              item.tieuDe,
+              tieuDe,
               style: TextStyle(
                 color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
                 fontSize: 17,
-                fontWeight: FontWeight.w700,
-                height: 1.3,
+                fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(height: 12),
-            Divider(
-              height: 1,
-              color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFEDF2F7),
-            ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
             Text(
-              item.noiDungChiTiet,
+              noiDung,
               style: TextStyle(
-                color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF334155),
-                fontSize: 14,
-                height: 1.5,
+                color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF475569),
+                fontSize: 13.5,
+                height: 1.45,
               ),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
-              height: 46,
               child: ElevatedButton(
-                onPressed: () {
-                  AppDesignSystemC1.hapticLight();
-                  Navigator.pop(ctx);
-                },
+                onPressed: () => Navigator.pop(ctx),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppDesignSystemC1.primary,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                child: const Text(
-                  'Đã Hiểu',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                ),
+                child: const Text('Đã hiểu', style: TextStyle(fontWeight: FontWeight.w700)),
               ),
             ),
           ],

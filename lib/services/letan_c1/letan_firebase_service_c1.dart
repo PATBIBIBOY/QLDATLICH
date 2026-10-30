@@ -579,11 +579,16 @@ class FirebaseServiceC1 {
           gioHienThi = (data['gio_du_kien'] ?? data['gio_kham']).toString();
         }
 
+        final cccdVal = (data['cccd'] ?? data['so_cccd'] ?? bnData['cccd'] ?? bnData['so_cccd'] ?? '').toString();
+        final sdtVal = sdt.isNotEmpty ? sdt : (bnData['email'] ?? '').toString();
+        final namSinhVal = (data['nam_sinh'] ?? bnData['nam_sinh'] ?? data['ngay_sinh'] ?? bnData['ngay_sinh'] ?? '').toString();
+        final gioiTinhVal = (data['gioi_tinh'] ?? bnData['gioi_tinh'] ?? '').toString();
+
         ketQua.add({
           'id': doc.id,
           'docPath': docPath,
           'hoTen': hoTen,
-          'sdt': sdt.isNotEmpty ? sdt : (bnData['email'] ?? '0901 234 567'),
+          'sdt': sdtVal,
           'gioKham': gioHienThi,
           'tenKhoa': docKhoa.isNotEmpty ? docKhoa : 'Khoa Khám',
           'phongKham': docPhong.isNotEmpty ? docPhong : 'Phòng khám',
@@ -593,10 +598,10 @@ class FirebaseServiceC1 {
           'trangThaiId': rawTrangThaiId,
           'stt': (data['so_thu_tu'] ?? data['stt'] ?? 1).toString(),
           'maBenhNhan': (data['benh_nhan_id'] ?? data['ma_benh_nhan'] ?? 'BN-${doc.id.substring(0, 4).toUpperCase()}').toString(),
-          'cccd': (bnData['cccd'] ?? '001092008892').toString(),
-          'bhyt': (data['bhyt'] ?? bnData['bhyt'] ?? 'BHYT').toString(),
-          'namSinh': (bnData['nam_sinh'] ?? '1995').toString(),
-          'gioiTinh': (bnData['gioi_tinh'] ?? 'Nam').toString(),
+          'cccd': cccdVal,
+          'bhyt': (data['bhyt'] ?? data['so_bhyt'] ?? bnData['bhyt'] ?? bnData['so_bhyt'] ?? '').toString(),
+          'namSinh': namSinhVal,
+          'gioiTinh': gioiTinhVal,
           'lyDoTuChoi': data['ly_do_tu_choi'] ?? data['lyDoTuChoi'],
         });
       }
