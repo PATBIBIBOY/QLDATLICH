@@ -42,6 +42,8 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
             hoTen: (data['ho_ten'] ?? _thongTin.hoTen).toString(),
             chucVu: (data['chuc_vu'] ?? _thongTin.chucVu).toString(),
             khoa: widget.tenKhoaHienTai ?? (data['khoa'] ?? _thongTin.khoa).toString(),
+            tenBenhVien: (data['ten_benh_vien'] ?? data['tenBenhVien'] ?? _thongTin.tenBenhVien).toString(),
+            benhVienId: (data['benh_vien_id'] ?? data['ma_benh_vien'] ?? _thongTin.benhVienId).toString(),
           );
           DuLieuProfileMauC1.thongTinHienTai = _thongTin;
         });
@@ -252,6 +254,7 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
             ],
           ),
           Divider(height: 18, color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFF2F2F7)),
+          _buildItemInfo(Icons.local_hospital_rounded, 'Bệnh viện', _thongTin.tenBenhVien),
           _buildItemInfo(Icons.person_outline, 'Họ và tên', _thongTin.hoTen),
           _buildItemInfo(Icons.badge_outlined, 'Mã nhân viên', _thongTin.maNhanVien),
           _buildItemInfo(Icons.local_hospital_outlined, 'Thuộc khoa', _thongTin.khoa),

@@ -1181,6 +1181,29 @@ class FirebaseServiceC1 {
     try {
       final currentAuth = FirebaseAuth.instance.currentUser;
       
+      // 0. Quét trong subcollection NhanVien/{bvId}/danh_sach trước
+      final bvId = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
+      if (bvId.isNotEmpty) {
+        if (maNhanVien.isNotEmpty) {
+          final docInSub = await _firestore.collection('NhanVien').doc(bvId).collection('danh_sach').doc(maNhanVien).get();
+          if (docInSub.exists && docInSub.data() != null) return docInSub.data();
+        }
+        if (currentAuth?.email != null) {
+          final qEmailSub = await _firestore.collection('NhanVien').doc(bvId).collection('danh_sach').where('email', isEqualTo: currentAuth!.email).limit(1).get();
+          if (qEmailSub.docs.isNotEmpty) return qEmailSub.docs.first.data();
+        }
+      }
+
+      // Quét trong collectionGroup 'danh_sach'
+      if (maNhanVien.isNotEmpty) {
+        final qGroup = await _firestore.collectionGroup('danh_sach').where('ma_nhan_vien', isEqualTo: maNhanVien).limit(1).get();
+        if (qGroup.docs.isNotEmpty) return qGroup.docs.first.data();
+      }
+      if (currentAuth?.email != null) {
+        final qEmailGroup = await _firestore.collectionGroup('danh_sach').where('email', isEqualTo: currentAuth!.email).limit(1).get();
+        if (qEmailGroup.docs.isNotEmpty) return qEmailGroup.docs.first.data();
+      }
+
       // 1. Nếu có Auth UID đăng nhập, thử tìm theo doc UID trước
       if (currentAuth?.uid != null) {
         final docByUid = await _firestore.collection('NhanVien').doc(currentAuth!.uid).get();

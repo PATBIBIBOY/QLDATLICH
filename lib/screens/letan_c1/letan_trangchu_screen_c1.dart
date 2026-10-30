@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../mock/mock_c1/dulieu_mau_letan_c1.dart';
 import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../models/letan_c1/letan_model_c1.dart';
+import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../models/letan_c1/letan_qr_model_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
 import 'letan_baocaoloi_screen_c1.dart';
@@ -364,11 +365,29 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
                     children: [
                       Flexible(
                         child: Text(
+                          DuLieuProfileMauC1.thongTinHienTai.tenBenhVien.isNotEmpty
+                              ? DuLieuProfileMauC1.thongTinHienTai.tenBenhVien
+                              : 'Bệnh viện BV502',
+                          style: const TextStyle(
+                            color: Color(0xFFFF9500),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
                           'Xin chào, Lễ tân $_tenKhoaHienTai',
                           style: TextStyle(
                             color: subTextCol,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w400,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w500,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),

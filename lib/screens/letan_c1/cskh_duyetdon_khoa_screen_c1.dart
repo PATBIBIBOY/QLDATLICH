@@ -1692,15 +1692,30 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    Text(
-                      'Xin chào, Chuyên viên CSKH',
-                      style: TextStyle(
-                        color: subTextCol,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
+                    Expanded(
+                      child: Text(
+                        DuLieuProfileMauC1.thongTinHienTai.tenBenhVien.isNotEmpty
+                            ? DuLieuProfileMauC1.thongTinHienTai.tenBenhVien
+                            : 'Bệnh viện BV502',
+                        style: const TextStyle(
+                          color: Color(0xFF0284C7),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Xin chào, Chuyên viên CSKH',
+                  style: TextStyle(
+                    color: subTextCol,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 const SizedBox(height: 3),
                 Text(
