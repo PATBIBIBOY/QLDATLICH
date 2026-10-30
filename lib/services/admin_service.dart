@@ -19,24 +19,64 @@ class AdminService {
   /// Duyệt bệnh viện mới đăng ký
   Future<void> approveHospital(String hospitalId) async {
     await _db.collection('BenhVien').doc(hospitalId).update({
-      'trangThai': 'DA_DUYET', // Hoặc mã ID trạng thái tương ứng
+      'trangThai': 'DA_DUYET',
+      'trang_thai_hop_tac_id': 10,
+      'trang_thai': 'da_duyet',
+      'da_duyet': true,
       'ngayDuyet': FieldValue.serverTimestamp(),
+      'ngay_duyet': FieldValue.serverTimestamp(),
+      'ngay_hop_tac': FieldValue.serverTimestamp(),
     });
+
+    try {
+      final ycDoc = await _db.collection('YeuCauHopTac').doc(hospitalId).get();
+      if (ycDoc.exists) {
+        await _db.collection('YeuCauHopTac').doc(hospitalId).update({
+          'trang_thai_hop_tac_id': 10,
+          'trang_thai': 'da_duyet',
+          'da_duyet': true,
+          'ngay_duyet': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (_) {}
   }
 
   /// Từ chối hoặc Khóa bệnh viện vi phạm
   Future<void> updateHospitalStatus(String hospitalId, String status, {String? reason}) async {
+    final bool isReject = status == 'TU_CHOI';
+    final int statusId = isReject ? 4 : 8;
+
     await _db.collection('BenhVien').doc(hospitalId).update({
       'trangThai': status, // 'TU_CHOI', 'DA_KHOA', 'HOAT_DONG'
+      'trang_thai_hop_tac_id': statusId,
+      'da_duyet': false,
       if (reason != null) 'lyDoKhoa': reason,
+      if (reason != null) 'ly_do_tu_choi': reason,
       'capNhatLaoCuoi': FieldValue.serverTimestamp(),
     });
+
+    try {
+      final ycDoc = await _db.collection('YeuCauHopTac').doc(hospitalId).get();
+      if (ycDoc.exists) {
+        await _db.collection('YeuCauHopTac').doc(hospitalId).update({
+          'trang_thai_hop_tac_id': statusId,
+          'trang_thai': isReject ? 'tu_choi' : 'khoa',
+          'da_duyet': false,
+          if (reason != null) 'ly_do_tu_choi': reason,
+          'ngay_tu_choi': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (_) {}
   }
 
-  /// Thêm bệnh viện mới trực tiếp từ Admin
+  /// Thêm bệnh viện mới: Mặc định đưa vào CHỜ DUYỆT trước, khi duyệt xong mới sang Tổng BV
   Future<DocumentReference> addHospital(Map<String, dynamic> hospitalData) async {
     hospitalData['ngayTao'] = FieldValue.serverTimestamp();
-    hospitalData['trangThai'] = 'DA_DUYET';
+    hospitalData['ngay_tao'] = FieldValue.serverTimestamp();
+    hospitalData['trangThai'] = 'CHO_DUYET';
+    hospitalData['trang_thai_hop_tac_id'] = 1;
+    hospitalData['trang_thai'] = 'cho_duyet';
+    hospitalData['da_duyet'] = false;
     return await _db.collection('BenhVien').add(hospitalData);
   }
 
@@ -98,10 +138,15 @@ class AdminService {
 
   /// Lấy các chỉ số tổng quan cho Dashboard Admin
   Future<Map<String, int>> getAdminDashboardStats() async {
-    final hospitals = await _db.collection('BenhVien').count().get();
+    // Chỉ đếm bệnh viện đã duyệt hợp tác (ID: 10)
+    final hospitals = await _db
+        .collection('BenhVien')
+        .where('trang_thai_hop_tac_id', isEqualTo: 10)
+        .count()
+        .get();
     final pendingHospitals = await _db
         .collection('BenhVien')
-        .where('trangThai', isEqualTo: 'CHO_DUYET')
+        .where('trang_thai_hop_tac_id', isEqualTo: 1)
         .count()
         .get();
     final patients = await _db.collection('BenhNhan').count().get();
