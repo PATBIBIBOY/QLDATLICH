@@ -176,35 +176,31 @@ class AppRoutes {
         staffManagement: (_) => const StaffManagementScreen(),
         statistics: (_) => const StatisticsScreen(),
         adminDashboard: (_) => const AdminDashboard(),
+
+        hospitalDashboard: (context) {
+          final tabIndex = ModalRoute.of(context)?.settings.arguments as int? ?? 0;
+          return HomeHospitalScreen(initialTabIndex: tabIndex);
+        },
+        hospitalRequestCollaboration: (context) {
+          final args =
+              ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          return GuiYeuCauHopTacScreen(
+            initialTenBenhVien: args?['tenBenhVien'],
+            initialDiaChi: args?['diaChi'],
+          );
+        },
+        hospitalRequestSuccess: (context) {
+          final args =
+              ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          return GuiDonThanhCongScreen(
+            maHoSo: args?['maHoSo'] ?? '#HS-BV-202688',
+            tenBenhVien: args?['tenBenhVien'] ?? 'Bệnh viện Đa Khoa An Bình',
+            loaiHinh: args?['loaiHinh'] ?? 'Bệnh viện Tư lập',
+            coBhyt: args?['coBhyt'] ?? true,
+            extraData: args?['extraData'],
+          );
+        },
+        addClinic: (_) => ThemKhoaScreen(benhVienId: AppSession.benhVienId),
+        nhanSuScreen: (_) => const HomeHospitalScreen(initialTabIndex: 2),
       };
-
-
-    hospitalDashboard: (context) {
-      final tabIndex = ModalRoute.of(context)?.settings.arguments as int? ?? 0;
-      return HomeHospitalScreen(initialTabIndex: tabIndex);
-    },
-    hospitalRequestCollaboration: (context) {
-      final args =
-          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      return GuiYeuCauHopTacScreen(
-        initialTenBenhVien: args?['tenBenhVien'],
-        initialDiaChi: args?['diaChi'],
-      );
-    },
-    hospitalRequestSuccess: (context) {
-      final args =
-          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      return GuiDonThanhCongScreen(
-        maHoSo: args?['maHoSo'] ?? '#HS-BV-202688',
-        tenBenhVien: args?['tenBenhVien'] ?? 'Bệnh viện Đa Khoa An Bình',
-        loaiHinh: args?['loaiHinh'] ?? 'Bệnh viện Tư lập',
-        coBhyt: args?['coBhyt'] ?? true,
-        extraData: args?['extraData'],
-      );
-    },
-    addClinic: (_) => ThemKhoaScreen(benhVienId: AppSession.benhVienId),
- 
-    nhanSuScreen: (_) => const HomeHospitalScreen(initialTabIndex: 2),
-
-  };
 }

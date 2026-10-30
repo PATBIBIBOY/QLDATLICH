@@ -212,7 +212,8 @@ class _LoginScreenState extends State<LoginScreen> {
         AppSession.benhVienId = auth.hospital?.uid ??
             FirebaseAuth.instance.currentUser?.uid ??
             '';
-        route = AppRoutes.hospitalDashboard;
+        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.hospitalDashboard, (route) => false);
+        return;
       } 
 
       // Xử lý tài khoản người dùng / nhân viên

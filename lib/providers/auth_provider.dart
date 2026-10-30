@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-<<<<<<< HEAD
-=======
 import '../config/app_session.dart';
 import '../config/constants.dart';
->>>>>>> origin/benhvien
 import '../models/hospital_model.dart';
 import '../models/patient_model.dart';
 import '../services/auth_service.dart';
@@ -60,18 +57,12 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-<<<<<<< HEAD
-  Future<void> fetchCurrentUser() async {
-=======
   Future<void> fetchCurrentUser({String? preferredRole}) async {
->>>>>>> origin/benhvien
     _isLoading = true;
     notifyListeners();
     try {
       final currentUser = _authService.currentUser;
       if (currentUser != null) {
-<<<<<<< HEAD
-=======
         if (preferredRole == 'benh_vien') {
           var hospital = await _authService.getHospitalFromFirestore(
             currentUser.uid,
@@ -108,7 +99,6 @@ class AuthProvider extends ChangeNotifier {
           return;
         }
 
->>>>>>> origin/benhvien
         final patientModel = await _authService.getPatientFromFirestore(
           currentUser.uid,
         );
@@ -117,12 +107,9 @@ class AuthProvider extends ChangeNotifier {
           _hospital = await _authService.getHospitalFromFirestore(
             currentUser.uid,
           );
-<<<<<<< HEAD
-=======
           if (_hospital != null) {
             AppSession.benhVienId = _hospital!.uid ?? currentUser.uid;
           }
->>>>>>> origin/benhvien
         }
         _selectedRole = patientModel?.role ?? _hospital?.role;
       }
@@ -164,45 +151,6 @@ class AuthProvider extends ChangeNotifier {
     );
   }
 
-<<<<<<< HEAD
-  Future<void> login({required String email, required String password}) async {
-    _isLoading = true;
-    notifyListeners();
-    try {
-      await _authService.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      _admin = null;
-      await fetchCurrentUser();
-
-      // ✅ Kiểm tra nếu đăng nhập thành công nhưng chưa xác thực email
-      // Lưu ý: User đăng ký bằng SĐT (OTP) sẽ có daXacThucEmail = true, nên không bị chặn ở đây
-      final isEmailUnverified =
-          _user?.daXacThucEmail == false || _hospital?.daXacThucEmail == false;
-      if (isEmailUnverified) {
-        await _authService.signOut();
-        _user = null;
-        _hospital = null;
-        notifyListeners();
-        throw Exception('EMAIL_NOT_VERIFIED');
-      }
-    } catch (e) {
-      rethrow;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> resetPassword(String email) {
-    return _authService.resetPassword(email);
-  }
-
-  Future<void> registerWithEmail({
-    required String email,
-    required String password,
-=======
   Future<void> login({
     required String email,
     required String password,
@@ -244,7 +192,6 @@ class AuthProvider extends ChangeNotifier {
   Future<void> registerWithEmail({
     required String email,
     required String password,
->>>>>>> origin/benhvien
     required PatientModel user,
   }) async {
     _isLoading = true;
