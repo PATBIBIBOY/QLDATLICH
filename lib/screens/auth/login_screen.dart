@@ -202,26 +202,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      // ✅ 2. Điều hướng thông minh & Kiểm tra kích hoạt theo Role
-      if (selectedRoleCode == 'admin' && auth.admin != null) {
-        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.adminDashboard, (route) => false);
-        return;
-      }
-      
-      if (selectedRoleCode == 'benh_vien' || auth.hospital != null) {
-        AppSession.benhVienId = auth.hospital?.uid ??
-            FirebaseAuth.instance.currentUser?.uid ??
-            '';
-        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.hospitalDashboard, (route) => false);
-        return;
-      } 
-
-      // Xử lý tài khoản người dùng / nhân viên
+      // ✅ 2.1. ĐẶC BIỆT: KIỂM TRA TRƯỚC XEM EMAIL CÓ PHẢI NHÂN VIÊN Y TẾ HAY KHÔNG (Dù người dùng chọn role nào ở giao diện)
       final currentUid = FirebaseAuth.instance.currentUser?.uid;
-      if (currentUid != null) {
-        final firestore = FirebaseFirestore.instance;
-        DocumentSnapshot<Map<String, dynamic>>? userDoc;
+      final firestore = FirebaseFirestore.instance;
+      DocumentSnapshot<Map<String, dynamic>>? userDoc;
 
+      if (currentUid != null) {
         // 1. Quét tìm trong NhanVien/{bvId}/danh_sach theo email hoặc UID
         try {
           final groupQueryEmail = await firestore
@@ -254,36 +240,30 @@ class _LoginScreenState extends State<LoginScreen> {
               if (docGoc.exists) userDoc = docGoc;
             }
           } else {
-            final qUid = await firestore
+            final qEmail = await firestore
                 .collection('NhanVien')
-                .where('uid', isEqualTo: currentUid)
+                .where('email', isEqualTo: email)
                 .limit(1)
                 .get();
-            if (qUid.docs.isNotEmpty) {
-              userDoc = qUid.docs.first;
+            if (qEmail.docs.isNotEmpty) {
+              userDoc = qEmail.docs.first;
             } else {
-              final qEmail = await firestore
+              final qUid = await firestore
                   .collection('NhanVien')
-                  .where('email', isEqualTo: email)
+                  .where('uid', isEqualTo: currentUid)
                   .limit(1)
                   .get();
-              if (qEmail.docs.isNotEmpty) userDoc = qEmail.docs.first;
+              if (qUid.docs.isNotEmpty) userDoc = qUid.docs.first;
             }
           }
         }
 
-        // 3. Nếu vẫn không thấy, kiểm tra bảng users chung
-        if (userDoc == null || !userDoc.exists) {
-          final docUser = await firestore.collection('users').doc(currentUid).get();
-          if (docUser.exists) userDoc = docUser;
-        }
-
+        // 3. Nếu tìm thấy document nhân viên -> Điều hướng ngay vào role nhân viên tương ứng
         if (userDoc != null && userDoc.exists) {
           final data = userDoc.data() ?? {};
-          final role = (data['role'] ?? 'patient').toString();
+          final role = (data['role'] ?? '').toString();
           final bool daKichHoat = (data['da_kich_hoat'] == true) || (data['trang_thai'] == 'dang_hoat_dong');
 
-          // Nếu tài khoản có vai trò nhân viên y tế (lễ tân, CSKH, hỗ trợ bác sĩ)
           final bool laNhanVien = role == 'receptionist' ||
               role == 'le_tan' ||
               role == 'customerSupport' ||
@@ -296,7 +276,7 @@ class _LoginScreenState extends State<LoginScreen> {
           if (laNhanVien) {
             if (!mounted) return;
 
-            // 1. NẾU CHƯA KÍCH HOẠT -> SANG MÀN HÌNH ĐIỀN THÔNG TIN LẦN ĐẦU
+            // Chưa kích hoạt -> Vào thiết lập thông tin
             if (!daKichHoat) {
               Navigator.pushReplacement(
                 context,
@@ -309,7 +289,7 @@ class _LoginScreenState extends State<LoginScreen> {
               return;
             }
 
-            // 2. NẾU ĐÃ KÍCH HOẠT -> ĐỒNG BỘ PROFILE VÀ VÀO ĐÚNG ROLE NHÂN VIÊN
+            // Đã kích hoạt -> Nạp profile và vào đúng màn hình của Role
             final maNvThucTe = (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? currentUid).toString();
             final bvId = (data['ma_benh_vien'] ?? data['benh_vien_id'] ?? 'BV502').toString();
             final tenBv = (data['ten_benh_vien'] ?? 'Bệnh viện BV502').toString();
@@ -345,6 +325,20 @@ class _LoginScreenState extends State<LoginScreen> {
             }
           }
         }
+      }
+
+      // ✅ 2.2. Nếu không phải nhân viên, kiểm tra các role khác
+      if (selectedRoleCode == 'admin' && auth.admin != null) {
+        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.adminDashboard, (route) => false);
+        return;
+      }
+      
+      if (selectedRoleCode == 'benh_vien' && auth.hospital != null) {
+        AppSession.benhVienId = auth.hospital?.uid ??
+            FirebaseAuth.instance.currentUser?.uid ??
+            '';
+        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.hospitalDashboard, (route) => false);
+        return;
       }
 
       if (!mounted) return;
