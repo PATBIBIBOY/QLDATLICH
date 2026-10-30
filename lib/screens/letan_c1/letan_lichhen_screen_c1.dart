@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/letan_c1/letan_design_system_c1.dart';
+import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../models/letan_c1/letan_ui_components_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
 
@@ -87,6 +88,7 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
   @override
   Widget build(BuildContext context) {
     final isDark = AppDesignSystemC1.laCheDoToi;
+    final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
 
     final content = StreamBuilder<List<Map<String, dynamic>>>(
       stream: FirebaseServiceC1.streamDanhSachLichHen(
@@ -94,6 +96,7 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
         boLocTrangThai: _boLocHienTai,
         tuKhoa: _tuKhoa,
         ngayChon: _ngayChon,
+        benhVienId: bvid,
       ),
       builder: (context, snapshot) {
         final danhSach = snapshot.data ?? [];

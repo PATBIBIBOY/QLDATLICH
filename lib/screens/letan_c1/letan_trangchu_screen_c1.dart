@@ -565,11 +565,13 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
   Widget _buildThongKe() {
     final isDark = AppDesignSystemC1.laCheDoToi;
     final String ngayHienThi = '${_ngayChon.day.toString().padLeft(2, '0')}/${_ngayChon.month.toString().padLeft(2, '0')}/${_ngayChon.year}';
+    final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
 
     return StreamBuilder<Map<String, int>>(
       stream: FirebaseServiceC1.streamThongKeHomNay(
         tenKhoa: _tenKhoaHienTai,
         ngayChon: _ngayChon,
+        benhVienId: bvid,
       ),
       builder: (context, snapshot) {
         final thongKe = snapshot.data ?? {
@@ -727,12 +729,14 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
   // Danh sách đang chờ - Đọc Realtime từ Firestore theo khoa đã chọn hoặc Tổng
   Widget _buildDanhSachCho() {
     final isDark = AppDesignSystemC1.laCheDoToi;
+    final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
 
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: FirebaseServiceC1.streamDanhSachLichHen(
         tenKhoa: _tenKhoaHienTai,
         boLocTrangThai: 'Đang chờ',
         ngayChon: _ngayChon,
+        benhVienId: bvid,
       ),
       builder: (context, snapshot) {
         final danhSach = snapshot.data ?? [];
