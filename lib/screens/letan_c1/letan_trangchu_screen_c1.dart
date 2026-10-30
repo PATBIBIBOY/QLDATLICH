@@ -277,16 +277,28 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
     return ValueListenableBuilder<bool>(
       valueListenable: AppDesignSystemC1.isDarkMode,
       builder: (context, isDark, child) {
-        return Scaffold(
-          backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF2F2F7),
-          body: SafeArea(
-            child: Column(
-              children: [
-                Expanded(
-                  child: _buildCurrentBody(),
-                ),
-                _buildBottomNav(),
-              ],
+        return PopScope(
+          canPop: _currentIndex == 0,
+          onPopInvokedWithResult: (didPop, result) {
+            if (didPop) return;
+            // Nếu đang ở tab khác (Quét QR, Lịch hẹn, Profile), bấm back sẽ quay về Trang chủ tab 0
+            if (_currentIndex != 0) {
+              setState(() {
+                _currentIndex = 0;
+              });
+            }
+          },
+          child: Scaffold(
+            backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF2F2F7),
+            body: SafeArea(
+              child: Column(
+                children: [
+                  Expanded(
+                    child: _buildCurrentBody(),
+                  ),
+                  _buildBottomNav(),
+                ],
+              ),
             ),
           ),
         );

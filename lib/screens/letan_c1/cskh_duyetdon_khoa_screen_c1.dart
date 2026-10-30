@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../config/app_routes.dart';
 import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
@@ -7,6 +8,7 @@ import 'cskh_danhsach_don_khoa_screen_c1.dart';
 import 'cskh_danhsach_tinnhan_screen_c1.dart';
 import 'cskh_profile_tab_c1.dart';
 import 'letan_baocaoloi_screen_c1.dart';
+import 'letan_trangchu_screen_c1.dart';
 
 /// Model đại diện cho một chuyên khoa khám bệnh
 class KhoaKhamModelC1 {
@@ -608,22 +610,34 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
     return ValueListenableBuilder<bool>(
       valueListenable: AppDesignSystemC1.isDarkMode,
       builder: (context, isDark, child) {
-        return Scaffold(
-          backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF8FAFC),
-          body: SafeArea(
-            child: Column(
-              children: [
-                // 1. Header chuẩn cấu trúc giống Bàn Lễ Tân
-                _buildHeader(isDark),
+        return PopScope(
+          canPop: _currentBottomNavIndex == 0,
+          onPopInvokedWithResult: (didPop, result) {
+            if (didPop) return;
+            // Nếu đang ở tab khác (Duyệt đơn, CSKH, Profile), bấm back sẽ quay về Trang chủ tab 0 mượt mà
+            if (_currentBottomNavIndex != 0) {
+              setState(() {
+                _currentBottomNavIndex = 0;
+              });
+            }
+          },
+          child: Scaffold(
+            backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF8FAFC),
+            body: SafeArea(
+              child: Column(
+                children: [
+                  // 1. Header chuẩn cấu trúc giống Bàn Lễ Tân
+                  _buildHeader(isDark),
 
-                // 2. Nội dung chính theo Tab được chọn
-                Expanded(
-                  child: _buildBodyContent(isDark),
-                ),
+                  // 2. Nội dung chính theo Tab được chọn
+                  Expanded(
+                    child: _buildBodyContent(isDark),
+                  ),
 
-                // 3. Thanh Bottom Navigation Bar chuẩn Material 3
-                _buildBottomNav(isDark),
-              ],
+                  // 3. Thanh Bottom Navigation Bar chuẩn Material 3
+                  _buildBottomNav(isDark),
+                ],
+              ),
             ),
           ),
         );
@@ -647,11 +661,21 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
     if (_currentBottomNavIndex == 3) {
       return CskhProfileTabC1(
         onChuyenSangLeTan: () {
-          Navigator.pop(context);
+          if (Navigator.canPop(context)) {
+            Navigator.pop(context);
+          } else {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()),
+            );
+          }
         },
         onDangXuat: () {
-          // Khi đăng xuất sẽ pop trở về Bàn Lễ Tân
-          Navigator.pop(context);
+          if (Navigator.canPop(context)) {
+            Navigator.pop(context);
+          } else {
+            Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (route) => false);
+          }
         },
       );
     }

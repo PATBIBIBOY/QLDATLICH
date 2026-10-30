@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../mock/mock_c1/dulieu_mau_cskh_c1.dart';
 import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
+import 'cskh_duyetdon_khoa_screen_c1.dart';
 
 /// MÀN HÌNH 2: DANH SÁCH ĐƠN KHÁM CẦN DUYỆT (KHOA HOẶC TỔNG THỂ TOÀN VIỆN)
 /// Kết nối thời gian thực với Firestore, hỗ trợ duyệt/từ chối lưu trực tiếp lên database.
@@ -508,7 +509,16 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           InkWell(
-            onTap: () => Navigator.pop(context),
+            onTap: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CskhDuyetdonKhoaScreenC1()),
+                );
+              }
+            },
             borderRadius: BorderRadius.circular(12),
             child: Container(
               width: 38,

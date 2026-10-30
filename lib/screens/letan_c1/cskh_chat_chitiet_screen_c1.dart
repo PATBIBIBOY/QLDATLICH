@@ -5,6 +5,7 @@ import '../../models/letan_c1/cskh_model_c1.dart';
 import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
+import 'cskh_duyetdon_khoa_screen_c1.dart';
 
 /// MÀN HÌNH 4: CHI TIẾT ĐOẠN CHAT HỖ TRỢ BỆNH NHÂN (CSKH)
 /// Kết nối thời gian thực Firestore /HoiThoaiCskh/{benhVienId}/danh_sach/{hoiThoaiId}/tin_nhan
@@ -127,7 +128,16 @@ class _CskhChatChitietScreenC1State extends State<CskhChatChitietScreenC1> {
           IconButton(
             icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
             color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CskhDuyetdonKhoaScreenC1()),
+                );
+              }
+            },
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),
