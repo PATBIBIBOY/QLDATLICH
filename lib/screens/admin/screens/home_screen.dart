@@ -17,6 +17,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  bool _showAllViolations = false;
+
   @override
   void initState() {
     super.initState();
@@ -722,7 +724,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               // ============ CƠ SỞ VI PHẠM (NẾU CÓ) ============
               if (store.violations.isNotEmpty) ...[
-                const SizedBox(height: 14),
+                const SizedBox(height: 18),
                 Row(
                   children: [
                     const Icon(Icons.gavel_rounded, color: kRed, size: 18),
@@ -735,10 +737,81 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: kRed,
                       ),
                     ),
+                    const Spacer(),
+                    if (store.violations.length > 2)
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _showAllViolations = !_showAllViolations;
+                          });
+                        },
+                        child: Row(
+                          children: [
+                            Text(
+                              _showAllViolations ? 'Thu gọn' : 'Xem tất cả',
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                color: kRed,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(width: 2),
+                            Icon(
+                              _showAllViolations
+                                  ? Icons.keyboard_arrow_up_rounded
+                                  : Icons.keyboard_arrow_down_rounded,
+                              size: 18,
+                              color: kRed,
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 10),
-                ...store.violations.map(_buildViolationCard),
+                ...(_showAllViolations
+                        ? store.violations
+                        : store.violations.take(2))
+                    .map(_buildViolationCard),
+                if (store.violations.length > 2) ...[
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: OutlinedButton.icon(
+                      icon: Icon(
+                        _showAllViolations
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.visibility_rounded,
+                        size: 16,
+                        color: kRed,
+                      ),
+                      label: Text(
+                        _showAllViolations
+                            ? 'Thu gọn danh sách vi phạm'
+                            : 'Xem tất cả ${store.violations.length} hồ sơ vi phạm',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: kRed,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(
+                            color: Color(0xFFFECACA), width: 1.2),
+                        backgroundColor: const Color(0xFFFFF5F5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _showAllViolations = !_showAllViolations;
+                        });
+                      },
+                    ),
+                  ),
+                ],
               ],
             ],
           ),
