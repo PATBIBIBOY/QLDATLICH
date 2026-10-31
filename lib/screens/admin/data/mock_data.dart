@@ -16,6 +16,9 @@ class Hospital {
   final String? phone;
   final String? email;
   final int? status;
+  bool isBlocked;
+  bool isUnpartnered;
+  String? blockReason;
 
   Hospital({
     required this.initials,
@@ -32,6 +35,9 @@ class Hospital {
     this.phone,
     this.email,
     this.status,
+    this.isBlocked = false,
+    this.isUnpartnered = false,
+    this.blockReason,
   });
 }
 

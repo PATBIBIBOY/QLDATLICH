@@ -156,14 +156,20 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
                           style: const TextStyle(fontSize: 11, color: kSlate400),
                         ),
                       const Spacer(),
-                      const Icon(Icons.check_circle_rounded, size: 14, color: kGreen),
+                      Icon(
+                        h.isBlocked
+                            ? Icons.lock_person_rounded
+                            : Icons.check_circle_rounded,
+                        size: 14,
+                        color: h.isBlocked ? kRed : kGreen,
+                      ),
                       const SizedBox(width: 3),
-                      const Text(
-                        'Hoạt động',
+                      Text(
+                        h.isBlocked ? 'Bị chặn' : 'Hoạt động',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: kGreen,
+                          color: h.isBlocked ? kRed : kGreen,
                         ),
                       ),
                     ],
