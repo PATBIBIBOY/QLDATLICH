@@ -418,10 +418,19 @@ class AdminStore extends ChangeNotifier {
       final address = data['dia_chi']?.toString();
       final gender = data['gioi_tinh']?.toString();
       final verified = data['da_xac_thuc_email'] == true;
-      final statusId = data['trang_thai_id'] as int? ?? 7;
+      final rawStatus = data['trang_thai_id'];
+      int statusId = 7;
+      if (rawStatus is int) {
+        statusId = rawStatus;
+      } else if (rawStatus is String) {
+        statusId = int.tryParse(rawStatus) ?? 7;
+      }
+      final trangThaiStr = data['trang_thai']?.toString().toLowerCase();
       final isBlocked = data['chan_dang_nhap'] == true ||
           data['is_blocked'] == true ||
-          statusId == 8;
+          statusId == 8 ||
+          trangThaiStr == 'khoa' ||
+          trangThaiStr == 'chan_dang_nhap';
       final blockReason = data['ly_do_khoa']?.toString() ?? data['ly_do_chan']?.toString();
 
       DateTime? ngayTao;
@@ -1031,13 +1040,15 @@ class AdminStore extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _firestore.collection('BenhNhan').doc(p.uid).update({
+      await _firestore.collection('BenhNhan').doc(p.uid).set({
         'chan_dang_nhap': true,
         'is_blocked': true,
         'trang_thai_id': 8,
+        'trang_thai': 'khoa',
+        'trangThai': 'DA_KHOA',
         'ly_do_khoa': reason,
         'ngay_khoa': FieldValue.serverTimestamp(),
-      });
+      }, SetOptions(merge: true));
 
       // Gửi thông báo đến ThongBao cho bệnh nhân
       await _firestore.collection('ThongBao').add({
@@ -1070,6 +1081,11 @@ class AdminStore extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Lỗi chặn tài khoản bệnh nhân trên Firebase: $e');
+      p.isBlocked = false;
+      p.trangThaiId = 7;
+      p.blockReason = null;
+      notifyListeners();
+      rethrow;
     }
   }
 
@@ -1081,13 +1097,15 @@ class AdminStore extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _firestore.collection('BenhNhan').doc(p.uid).update({
+      await _firestore.collection('BenhNhan').doc(p.uid).set({
         'chan_dang_nhap': false,
         'is_blocked': false,
         'trang_thai_id': 7,
+        'trang_thai': 'hoat_dong',
+        'trangThai': 'HOAT_DONG',
         'ly_do_khoa': FieldValue.delete(),
         'ngay_mo_khoa': FieldValue.serverTimestamp(),
-      });
+      }, SetOptions(merge: true));
 
       // Gửi thông báo cho bệnh nhân
       await _firestore.collection('ThongBao').add({
@@ -1119,6 +1137,10 @@ class AdminStore extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Lỗi mở khóa tài khoản bệnh nhân trên Firebase: $e');
+      p.isBlocked = true;
+      p.trangThaiId = 8;
+      notifyListeners();
+      rethrow;
     }
   }
 
