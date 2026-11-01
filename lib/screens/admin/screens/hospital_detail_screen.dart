@@ -616,10 +616,13 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
               );
               nav.pop();
               if (mounted) setState(() {});
+              final emailNotice = widget.hospital.email != null && widget.hospital.email!.isNotEmpty
+                  ? ' và gửi email tới ${widget.hospital.email}'
+                  : '';
               messenger.showSnackBar(
                 SnackBar(
                   content: Text(
-                      'Đã chặn đăng nhập tài khoản ${widget.hospital.name} trên Firebase'),
+                      'Đã chặn đăng nhập tài khoản ${widget.hospital.name}$emailNotice.'),
                   backgroundColor: const Color(0xFFD97706),
                 ),
               );
@@ -669,10 +672,13 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
               await AdminStore.instance.unblockHospital(widget.hospital);
               nav.pop();
               if (mounted) setState(() {});
+              final emailNotice = widget.hospital.email != null && widget.hospital.email!.isNotEmpty
+                  ? ' và gửi email tới ${widget.hospital.email}'
+                  : '';
               messenger.showSnackBar(
                 SnackBar(
                   content: Text(
-                      'Đã mở khóa đăng nhập cho ${widget.hospital.name} thành công!'),
+                      'Đã mở khóa đăng nhập cho ${widget.hospital.name}$emailNotice!'),
                   backgroundColor: kGreen,
                 ),
               );
@@ -751,10 +757,13 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
               );
               nav.pop();
               parentNav.pop();
+              final emailNotice = widget.hospital.email != null && widget.hospital.email!.isNotEmpty
+                  ? ' và gửi email tới ${widget.hospital.email}'
+                  : '';
               messenger.showSnackBar(
                 SnackBar(
                   content: Text(
-                      'Đã hủy thỏa thuận hợp tác với ${widget.hospital.name}'),
+                      'Đã hủy thỏa thuận hợp tác với ${widget.hospital.name}$emailNotice.'),
                   backgroundColor: kSlate900,
                 ),
               );
@@ -802,13 +811,16 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
               final nav = Navigator.of(ctx);
               final parentNav = Navigator.of(context);
 
+              final emailNotice = widget.hospital.email != null && widget.hospital.email!.isNotEmpty
+                  ? ' và gửi email tới ${widget.hospital.email}'
+                  : '';
               await AdminStore.instance.deleteHospitalAccount(widget.hospital);
               nav.pop();
               parentNav.pop();
               messenger.showSnackBar(
                 SnackBar(
                   content: Text(
-                      'Đã xóa vĩnh viễn ${widget.hospital.name} khỏi Firebase.'),
+                      'Đã xóa vĩnh viễn ${widget.hospital.name}$emailNotice.'),
                   backgroundColor: const Color(0xFFDC2626),
                 ),
               );

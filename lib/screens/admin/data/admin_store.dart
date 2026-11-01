@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'mock_data.dart';
+import '../../../services/email_service.dart';
 
 // ===================================================
 // KHO DỮ LIỆU DÙNG CHUNG — Đồng bộ Realtime với Firebase Firestore
@@ -725,6 +726,16 @@ class AdminStore extends ChangeNotifier {
           'thoi_gian_hien_thi': 'Vừa xong',
           'ngay_tao': FieldValue.serverTimestamp(),
         });
+
+        // Gửi email thông báo tới email đăng ký của bệnh viện
+        if (h.email != null && h.email!.isNotEmpty) {
+          await EmailService.instance.sendAccountBlockedEmail(
+            toEmail: h.email!,
+            recipientName: h.name,
+            reason: reason,
+            isHospital: true,
+          );
+        }
       }
     } catch (e) {
       debugPrint('Lỗi chặn đăng nhập bệnh viện trên Firebase: $e');
@@ -780,6 +791,15 @@ class AdminStore extends ChangeNotifier {
           'thoi_gian_hien_thi': 'Vừa xong',
           'ngay_tao': FieldValue.serverTimestamp(),
         });
+
+        // Gửi email thông báo mở khóa tới bệnh viện
+        if (h.email != null && h.email!.isNotEmpty) {
+          await EmailService.instance.sendAccountUnblockedEmail(
+            toEmail: h.email!,
+            recipientName: h.name,
+            isHospital: true,
+          );
+        }
       }
     } catch (e) {
       debugPrint('Lỗi mở chặn đăng nhập bệnh viện trên Firebase: $e');
@@ -836,6 +856,15 @@ class AdminStore extends ChangeNotifier {
           'thoi_gian_hien_thi': 'Vừa xong',
           'ngay_tao': FieldValue.serverTimestamp(),
         });
+
+        // Gửi email thông báo ngừng hợp tác tới email đăng ký của bệnh viện
+        if (h.email != null && h.email!.isNotEmpty) {
+          await EmailService.instance.sendPartnershipCancelledEmail(
+            toEmail: h.email!,
+            hospitalName: h.name,
+            reason: reason,
+          );
+        }
       }
     } catch (e) {
       debugPrint('Lỗi hủy hợp tác bệnh viện trên Firebase: $e');
@@ -844,6 +873,8 @@ class AdminStore extends ChangeNotifier {
 
   /// XÓA VĨNH VIỄN TÀI KHOẢN BỆNH VIỆN TRÊN FIREBASE
   Future<void> deleteHospitalAccount(Hospital h) async {
+    final email = h.email;
+    final name = h.name;
     hospitals.remove(h);
     violations.removeWhere((v) => v['code'] == h.code || v['name'] == h.name);
     notifyListeners();
@@ -863,6 +894,15 @@ class AdminStore extends ChangeNotifier {
         try {
           await _firestore.collection('NhanVien').doc(code).delete();
         } catch (_) {}
+
+        // 4. Gửi email thông báo xóa tài khoản bệnh viện
+        if (email != null && email.isNotEmpty) {
+          await EmailService.instance.sendAccountDeletedEmail(
+            toEmail: email,
+            recipientName: name,
+            isHospital: true,
+          );
+        }
       }
     } catch (e) {
       debugPrint('Lỗi xóa vĩnh viễn bệnh viện trên Firebase: $e');
@@ -1018,6 +1058,16 @@ class AdminStore extends ChangeNotifier {
         'thoi_gian_hien_thi': 'Vừa xong',
         'ngay_tao': FieldValue.serverTimestamp(),
       });
+
+      // Gửi email thông báo tới email đăng ký của bệnh nhân
+      if (p.email != null && p.email!.isNotEmpty) {
+        await EmailService.instance.sendAccountBlockedEmail(
+          toEmail: p.email!,
+          recipientName: p.hoTen,
+          reason: reason,
+          isHospital: false,
+        );
+      }
     } catch (e) {
       debugPrint('Lỗi chặn tài khoản bệnh nhân trên Firebase: $e');
     }
@@ -1058,6 +1108,15 @@ class AdminStore extends ChangeNotifier {
         'thoi_gian_hien_thi': 'Vừa xong',
         'ngay_tao': FieldValue.serverTimestamp(),
       });
+
+      // Gửi email thông báo mở khóa tới bệnh nhân
+      if (p.email != null && p.email!.isNotEmpty) {
+        await EmailService.instance.sendAccountUnblockedEmail(
+          toEmail: p.email!,
+          recipientName: p.hoTen,
+          isHospital: false,
+        );
+      }
     } catch (e) {
       debugPrint('Lỗi mở khóa tài khoản bệnh nhân trên Firebase: $e');
     }
@@ -1065,6 +1124,8 @@ class AdminStore extends ChangeNotifier {
 
   /// XÓA VĨNH VIỄN TÀI KHOẢN BỆNH NHÂN
   Future<void> deletePatientAccount(AdminPatient p) async {
+    final email = p.email;
+    final name = p.hoTen;
     patients.removeWhere((item) => item.uid == p.uid);
     notifyListeners();
 
@@ -1079,6 +1140,15 @@ class AdminStore extends ChangeNotifier {
         'thoi_gian_hien_thi': 'Vừa xong',
         'ngay_tao': FieldValue.serverTimestamp(),
       });
+
+      // Gửi email thông báo xóa tài khoản tới bệnh nhân
+      if (email != null && email.isNotEmpty) {
+        await EmailService.instance.sendAccountDeletedEmail(
+          toEmail: email,
+          recipientName: name,
+          isHospital: false,
+        );
+      }
     } catch (e) {
       debugPrint('Lỗi xóa tài khoản bệnh nhân trên Firebase: $e');
     }

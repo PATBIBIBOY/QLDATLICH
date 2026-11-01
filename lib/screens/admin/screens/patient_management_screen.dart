@@ -149,9 +149,12 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
               final messenger = ScaffoldMessenger.of(context);
               Navigator.pop(ctx);
               await AdminStore.instance.blockPatient(patient, reason);
+              final emailNotice = patient.email != null && patient.email!.isNotEmpty
+                  ? ' và gửi email thông báo tới ${patient.email}'
+                  : '';
               messenger.showSnackBar(
                 SnackBar(
-                  content: Text('Đã khóa tài khoản bệnh nhân ${patient.hoTen} thành công.'),
+                  content: Text('Đã khóa tài khoản bệnh nhân ${patient.hoTen}$emailNotice.'),
                   backgroundColor: kRed,
                 ),
               );
@@ -194,9 +197,12 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
               final messenger = ScaffoldMessenger.of(context);
               Navigator.pop(ctx);
               await AdminStore.instance.unblockPatient(patient);
+              final emailNotice = patient.email != null && patient.email!.isNotEmpty
+                  ? ' và gửi email thông báo tới ${patient.email}'
+                  : '';
               messenger.showSnackBar(
                 SnackBar(
-                  content: Text('Đã mở khóa tài khoản cho ${patient.hoTen}'),
+                  content: Text('Đã mở khóa tài khoản cho ${patient.hoTen}$emailNotice.'),
                   backgroundColor: const Color(0xFF16A34A),
                 ),
               );
@@ -245,10 +251,13 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
             onPressed: () async {
               final messenger = ScaffoldMessenger.of(context);
               Navigator.pop(ctx);
+              final emailNotice = patient.email != null && patient.email!.isNotEmpty
+                  ? ' và gửi email thông báo tới ${patient.email}'
+                  : '';
               await AdminStore.instance.deletePatientAccount(patient);
               messenger.showSnackBar(
                 SnackBar(
-                  content: Text('Đã xóa tài khoản bệnh nhân ${patient.hoTen}'),
+                  content: Text('Đã xóa tài khoản bệnh nhân ${patient.hoTen}$emailNotice.'),
                   backgroundColor: kSlate900,
                 ),
               );
