@@ -608,13 +608,14 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
             onPressed: () async {
               final reason = reasonCtrl.text.trim();
               final messenger = ScaffoldMessenger.of(context);
-              final nav = Navigator.of(ctx);
+
+              // Đóng hộp thoại ngay lập tức
+              Navigator.pop(ctx);
 
               await AdminStore.instance.blockHospital(
                 widget.hospital,
                 reason.isEmpty ? 'Chặn đăng nhập bởi Quản trị viên' : reason,
               );
-              nav.pop();
               if (mounted) setState(() {});
               final emailNotice = widget.hospital.email != null && widget.hospital.email!.isNotEmpty
                   ? ' và gửi email tới ${widget.hospital.email}'
@@ -667,10 +668,11 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
             ),
             onPressed: () async {
               final messenger = ScaffoldMessenger.of(context);
-              final nav = Navigator.of(ctx);
+
+              // Đóng hộp thoại ngay lập tức
+              Navigator.pop(ctx);
 
               await AdminStore.instance.unblockHospital(widget.hospital);
-              nav.pop();
               if (mounted) setState(() {});
               final emailNotice = widget.hospital.email != null && widget.hospital.email!.isNotEmpty
                   ? ' và gửi email tới ${widget.hospital.email}'
@@ -748,15 +750,15 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
             onPressed: () async {
               final reason = reasonCtrl.text.trim();
               final messenger = ScaffoldMessenger.of(context);
-              final nav = Navigator.of(ctx);
-              final parentNav = Navigator.of(context);
+
+              // 1. Đóng hộp thoại dialog ngay lập tức
+              Navigator.pop(ctx);
 
               await AdminStore.instance.cancelHospitalPartnership(
                 widget.hospital,
                 reason.isEmpty ? 'Hủy hợp tác theo yêu cầu' : reason,
               );
-              nav.pop();
-              parentNav.pop();
+
               final emailNotice = widget.hospital.email != null && widget.hospital.email!.isNotEmpty
                   ? ' và gửi email tới ${widget.hospital.email}'
                   : '';
@@ -767,6 +769,11 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
                   backgroundColor: kSlate900,
                 ),
               );
+
+              // 2. Quay lại màn hình danh sách bệnh viện an toàn
+              if (mounted) {
+                Navigator.of(context).pop();
+              }
             },
             child: const Text('Xác nhận Hủy'),
           ),
@@ -808,15 +815,15 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
             ),
             onPressed: () async {
               final messenger = ScaffoldMessenger.of(context);
-              final nav = Navigator.of(ctx);
-              final parentNav = Navigator.of(context);
-
               final emailNotice = widget.hospital.email != null && widget.hospital.email!.isNotEmpty
                   ? ' và gửi email tới ${widget.hospital.email}'
                   : '';
+
+              // 1. Đóng hộp thoại dialog ngay lập tức
+              Navigator.pop(ctx);
+
               await AdminStore.instance.deleteHospitalAccount(widget.hospital);
-              nav.pop();
-              parentNav.pop();
+
               messenger.showSnackBar(
                 SnackBar(
                   content: Text(
@@ -824,6 +831,11 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
                   backgroundColor: const Color(0xFFDC2626),
                 ),
               );
+
+              // 2. Quay lại màn hình danh sách bệnh viện an toàn
+              if (mounted) {
+                Navigator.of(context).pop();
+              }
             },
             child: const Text('Xóa Vĩnh Viễn'),
           ),
