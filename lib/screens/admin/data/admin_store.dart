@@ -704,6 +704,27 @@ class AdminStore extends ChangeNotifier {
             });
           }
         } catch (_) {}
+
+        // Gửi thông báo đến ThongBao cho bệnh viện
+        await _firestore.collection('ThongBao').add({
+          'tieu_de': 'Tài khoản bệnh viện đã bị tạm khóa',
+          'noi_dung': 'Tài khoản bệnh viện/cơ sở y tế (${h.name}) đã bị quản trị viên tạm khóa. Lý do: $reason',
+          'nguoi_nhan_uid': code,
+          'benh_vien_id': code,
+          'loai': 'khoa_tai_khoan_benh_vien',
+          'da_doc': false,
+          'ngay_tao': FieldValue.serverTimestamp(),
+        });
+
+        // Gửi thông báo hệ thống
+        await _firestore.collection('ThongBaoHeThong').add({
+          'tieu_de': 'Khóa tài khoản bệnh viện',
+          'noi_dung': 'Quản trị viên đã khóa tài khoản bệnh viện: ${h.name} ($code). Lý do: $reason',
+          'loai': 'khoa_tai_khoan_bv',
+          'da_doc': false,
+          'thoi_gian_hien_thi': 'Vừa xong',
+          'ngay_tao': FieldValue.serverTimestamp(),
+        });
       }
     } catch (e) {
       debugPrint('Lỗi chặn đăng nhập bệnh viện trên Firebase: $e');
@@ -738,6 +759,27 @@ class AdminStore extends ChangeNotifier {
             });
           }
         } catch (_) {}
+
+        // Gửi thông báo đến ThongBao cho bệnh viện
+        await _firestore.collection('ThongBao').add({
+          'tieu_de': 'Tài khoản bệnh viện đã được mở khóa',
+          'noi_dung': 'Tài khoản bệnh viện/cơ sở y tế (${h.name}) đã được quản trị viên kích hoạt lại.',
+          'nguoi_nhan_uid': code,
+          'benh_vien_id': code,
+          'loai': 'mo_khoa_tai_khoan_benh_vien',
+          'da_doc': false,
+          'ngay_tao': FieldValue.serverTimestamp(),
+        });
+
+        // Gửi thông báo hệ thống
+        await _firestore.collection('ThongBaoHeThong').add({
+          'tieu_de': 'Mở khóa tài khoản bệnh viện',
+          'noi_dung': 'Quản trị viên đã kích hoạt lại tài khoản bệnh viện: ${h.name} ($code)',
+          'loai': 'mo_khoa_tai_khoan_bv',
+          'da_doc': false,
+          'thoi_gian_hien_thi': 'Vừa xong',
+          'ngay_tao': FieldValue.serverTimestamp(),
+        });
       }
     } catch (e) {
       debugPrint('Lỗi mở chặn đăng nhập bệnh viện trên Firebase: $e');
@@ -773,6 +815,27 @@ class AdminStore extends ChangeNotifier {
             });
           }
         } catch (_) {}
+
+        // Gửi thông báo đến ThongBao cho bệnh viện
+        await _firestore.collection('ThongBao').add({
+          'tieu_de': 'Tài khoản bệnh viện đã bị tạm khóa',
+          'noi_dung': 'Tài khoản bệnh viện/cơ sở y tế (${h.name}) đã bị quản trị viên tạm khóa. Lý do: $reason',
+          'nguoi_nhan_uid': code,
+          'benh_vien_id': code,
+          'loai': 'khoa_tai_khoan_benh_vien',
+          'da_doc': false,
+          'ngay_tao': FieldValue.serverTimestamp(),
+        });
+
+        // Gửi thông báo hệ thống
+        await _firestore.collection('ThongBaoHeThong').add({
+          'tieu_de': 'Khóa tài khoản bệnh viện',
+          'noi_dung': 'Quản trị viên đã khóa tài khoản bệnh viện: ${h.name} ($code). Lý do: $reason',
+          'loai': 'khoa_tai_khoan_bv',
+          'da_doc': false,
+          'thoi_gian_hien_thi': 'Vừa xong',
+          'ngay_tao': FieldValue.serverTimestamp(),
+        });
       }
     } catch (e) {
       debugPrint('Lỗi hủy hợp tác bệnh viện trên Firebase: $e');
