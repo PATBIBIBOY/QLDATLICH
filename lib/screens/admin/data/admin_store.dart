@@ -57,6 +57,7 @@ class AdminStore extends ChangeNotifier {
   // Khởi tạo rỗng, CHỈ hiển thị khi có báo cáo lỗi thực tế từ Firebase
   List<ErrorReport> reports = [];
   List<AdminPatient> patients = [];
+  List<Hospital> cancelledHospitals = [];
 
   int get totalBV => hospitals.length;
   int pendingTotal = 0;
@@ -144,6 +145,7 @@ class AdminStore extends ChangeNotifier {
   /// - Chỉ khi được duyệt (trang_thai_hop_tac_id == 10 / 2 / da_duyet == true) thì mới hiển thị qua "Tổng BV".
   void _recomputeData() {
     final List<Hospital> approvedList = [];
+    final List<Hospital> cancelledList = [];
     final List<Map<String, String>> viols = [];
     final Map<String, Map<String, String>> pendingMap = {};
     int idx = 0;
@@ -235,6 +237,37 @@ class AdminStore extends ChangeNotifier {
               'code': doc.id,
             });
           }
+        } else if (isHuyHopTac) {
+          // BỆNH VIỆN ĐÃ HỦY HỢP TÁC (LƯU TRỮ)
+          final depts = (data['ten_cac_khoa'] as List?)
+              ?.map((e) => e.toString())
+              .toList();
+          final doctorCount = depts != null && depts.isNotEmpty
+              ? (depts.length * 8)
+              : 35;
+          final palette = _avatarPalette[idx % _avatarPalette.length];
+          idx++;
+
+          final hospital = Hospital(
+            initials: getInitials(name),
+            name: name,
+            type: type,
+            rating: rating,
+            doctors: doctorCount,
+            avatarBg: palette[0],
+            avatarText: palette[1],
+            address: address,
+            code: doc.id,
+            departments: depts,
+            totalReviews: (data['tong_so_danh_gia'] as num?)?.toInt() ?? 0,
+            phone: data['so_dien_thoai']?.toString(),
+            email: data['email']?.toString(),
+            status: 8,
+            isBlocked: true,
+            isUnpartnered: true,
+            blockReason: blockReason ?? 'Đã ngừng hợp tác',
+          );
+          cancelledList.add(hospital);
         } else if (!chanDangNhap && !isHuyHopTac && !isRejected) {
           // BỆNH VIỆN MỚI THÊM TRÊN FIREBASE / CHƯA DUYỆT
           // -> Cho vào "CHỜ DUYỆT" trước, KHÔNG hiển thị ở Tổng BV!
@@ -315,6 +348,7 @@ class AdminStore extends ChangeNotifier {
 
     if (_hospitalsSnap != null) {
       hospitals = approvedList;
+      cancelledHospitals = cancelledList;
     }
     violations = viols;
     if (_pendingSnap != null || _hospitalsSnap != null) {
@@ -819,7 +853,11 @@ class AdminStore extends ChangeNotifier {
   Future<void> cancelHospitalPartnership(Hospital h, String reason) async {
     h.isUnpartnered = true;
     h.isBlocked = true;
+    h.blockReason = reason;
     hospitals.remove(h);
+    if (!cancelledHospitals.contains(h)) {
+      cancelledHospitals.insert(0, h);
+    }
     violations.removeWhere((v) => v['code'] == h.code || v['name'] == h.name);
     notifyListeners();
 
@@ -880,11 +918,81 @@ class AdminStore extends ChangeNotifier {
     }
   }
 
+  /// KHÔI PHỤC QUAN HỆ HỢP TÁC VỚI BỆNH VIỆN
+  Future<void> restoreHospitalPartnership(Hospital h) async {
+    h.isUnpartnered = false;
+    h.isBlocked = false;
+    h.blockReason = null;
+    cancelledHospitals.remove(h);
+    if (!hospitals.contains(h)) {
+      hospitals.insert(0, h);
+    }
+    notifyListeners();
+
+    try {
+      final code = h.code;
+      if (code != null && code.isNotEmpty) {
+        await _firestore.collection('BenhVien').doc(code).update({
+          'trang_thai_hop_tac_id': 10,
+          'trang_thai': 'da_duyet',
+          'trangThai': 'DA_DUYET',
+          'chan_dang_nhap': false,
+          'is_blocked': false,
+          'ly_do_huy': FieldValue.delete(),
+          'ly_do_khoa': FieldValue.delete(),
+          'ngay_khoi_phuc_hop_tac': FieldValue.serverTimestamp(),
+        });
+
+        try {
+          final nvDoc = await _firestore.collection('NhanVien').doc(code).get();
+          if (nvDoc.exists) {
+            await _firestore.collection('NhanVien').doc(code).update({
+              'trangThaiHoatDong': true,
+              'chan_dang_nhap': false,
+            });
+          }
+        } catch (_) {}
+
+        // Gửi thông báo đến ThongBao cho bệnh viện
+        await _firestore.collection('ThongBao').add({
+          'tieu_de': 'Hợp tác y tế đã được khôi phục',
+          'noi_dung': 'Thỏa thuận hợp tác của cơ sở y tế (${h.name}) đã được quản trị viên khôi phục thành công.',
+          'nguoi_nhan_uid': code,
+          'benh_vien_id': code,
+          'loai': 'khoi_phuc_hop_tac_benh_vien',
+          'da_doc': false,
+          'ngay_tao': FieldValue.serverTimestamp(),
+        });
+
+        // Gửi thông báo hệ thống
+        await _firestore.collection('ThongBaoHeThong').add({
+          'tieu_de': 'Khôi phục hợp tác bệnh viện',
+          'noi_dung': 'Quản trị viên đã khôi phục hợp tác với bệnh viện: ${h.name} ($code)',
+          'loai': 'khoi_phuc_hop_tac_bv',
+          'da_doc': false,
+          'thoi_gian_hien_thi': 'Vừa xong',
+          'ngay_tao': FieldValue.serverTimestamp(),
+        });
+
+        // Gửi email thông báo khôi phục hợp tác
+        if (h.email != null && h.email!.isNotEmpty) {
+          await EmailService.instance.sendPartnershipRestoredEmail(
+            toEmail: h.email!,
+            hospitalName: h.name,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Lỗi khôi phục hợp tác bệnh viện trên Firebase: $e');
+    }
+  }
+
   /// XÓA VĨNH VIỄN TÀI KHOẢN BỆNH VIỆN TRÊN FIREBASE
   Future<void> deleteHospitalAccount(Hospital h) async {
     final email = h.email;
     final name = h.name;
     hospitals.remove(h);
+    cancelledHospitals.remove(h);
     violations.removeWhere((v) => v['code'] == h.code || v['name'] == h.name);
     notifyListeners();
 

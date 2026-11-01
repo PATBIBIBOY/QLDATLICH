@@ -243,6 +243,61 @@ class EmailService {
     );
   }
 
+  /// Gửi email thông báo KHÔI PHỤC HỢP TÁC BỆNH VIỆN
+  Future<void> sendPartnershipRestoredEmail({
+    required String toEmail,
+    required String hospitalName,
+  }) async {
+    final subject = '[MediConnect] Thông báo khôi phục quan hệ hợp tác cơ sở y tế';
+
+    final htmlContent = '''
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #F8FAFC; margin: 0; padding: 20px; color: #1E293B; }
+    .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #E2E8F0; }
+    .header { background: linear-gradient(135deg, #059669, #10B981); padding: 30px 24px; text-align: center; color: #ffffff; }
+    .header h1 { margin: 0; font-size: 20px; font-weight: 800; }
+    .body { padding: 28px 24px; line-height: 1.6; }
+    .greeting { font-size: 16px; font-weight: 700; margin-bottom: 12px; color: #0F172A; }
+    .success-box { background: #D1FAE5; border-left: 4px solid #059669; padding: 14px 18px; border-radius: 8px; margin: 18px 0; color: #065F46; }
+    .footer { background: #F1F5F9; padding: 20px 24px; text-align: center; font-size: 12px; color: #64748B; border-top: 1px solid #E2E8F0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>HỆ THỐNG Y TẾ MEDICONNECT</h1>
+      <p>Chúc mừng tái ký kết hợp tác y tế</p>
+    </div>
+    <div class="body">
+      <div class="greeting">Kính gửi Ban Giám đốc: $hospitalName,</div>
+      <div class="success-box">
+        <strong>HỒ SƠ HỢP TÁC ĐÃ ĐƯỢC KHÔI PHỤC THÀNH CÔNG!</strong>
+        <p style="margin: 4px 0 0; font-size: 13.5px;">Quản trị viên đã kiểm tra và chấp thuận khôi phục thỏa thuận hợp tác y tế với cơ sở.</p>
+      </div>
+      <p>Cơ sở y tế đã được mở khóa đăng nhập và hiển thị trở lại trên cổng đặt lịch khám bệnh nhân của hệ thống MediConnect.</p>
+      <p>Chúc quý cơ sở y tế hoạt động hiệu quả và phục vụ người bệnh ngày một tốt hơn.</p>
+    </div>
+    <div class="footer">
+      <p>© 2026 MediConnect Healthcare System. Hotline: 1900 8888</p>
+    </div>
+  </div>
+</body>
+</html>
+''';
+
+    await _queueEmail(
+      toEmail: toEmail,
+      recipientName: hospitalName,
+      subject: subject,
+      htmlContent: htmlContent,
+      type: 'PARTNERSHIP_RESTORED',
+    );
+  }
+
   /// GHI VÀO FIRESTORE (Chuẩn Firebase Trigger Email Extension & EmailLog)
   Future<void> _queueEmail({
     required String toEmail,

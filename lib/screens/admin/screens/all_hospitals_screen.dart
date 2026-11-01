@@ -4,7 +4,7 @@ import '../data/mock_data.dart';
 import '../data/admin_store.dart';
 import '../widgets/shared_widgets.dart';
 import 'hospital_detail_screen.dart';
-import 'pending_approval_screen.dart';
+import 'operations_screen.dart';
 
 // ===================================================
 // MÀN 10: TẤT CẢ BỆNH VIỆN TRONG HỆ THỐNG
@@ -28,6 +28,7 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
   String _query = '';
   late int _sort;
   String _selectedType = 'all'; // 'all', 'Công lập', 'Tư nhân'
+  int _statusTab = 0; // 0: Đang hợp tác, 1: Bị tạm chặn, 2: Đã hủy hợp tác
 
   @override
   void initState() {
@@ -47,15 +48,163 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
     if (mounted) setState(() {});
   }
 
+  // ================= HỘP THOẠI KHÔI PHỤC HỢP TÁC =================
+  void _showRestoreDialog(BuildContext context, Hospital h) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.handshake_outlined, color: kGreen, size: 24),
+            SizedBox(width: 10),
+            Text('Khôi phục hợp tác?', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          ],
+        ),
+        content: Text(
+          'Bạn có chắc chắn muốn khôi phục thỏa thuận hợp tác với cơ sở y tế "${h.name}"? Bệnh viện sẽ được mở khóa tài khoản và hiển thị trở lại trên cổng đặt lịch của bệnh nhân.',
+          style: const TextStyle(color: kSlate600, fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy bỏ', style: TextStyle(color: kSlate600)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kGreen,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(ctx);
+              await AdminStore.instance.restoreHospitalPartnership(h);
+              final emailNotice = h.email != null && h.email!.isNotEmpty
+                  ? ' và gửi email tới ${h.email}'
+                  : '';
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text('Đã khôi phục hợp tác với ${h.name}$emailNotice!'),
+                  backgroundColor: kGreen,
+                ),
+              );
+            },
+            child: const Text('Khôi phục ngay'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================= HỘP THOẠI XÓA VĨNH VIỄN =================
+  void _showDeletePermanentDialog(BuildContext context, Hospital h) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_rounded, color: kRed, size: 24),
+            SizedBox(width: 10),
+            Text('Xóa vĩnh viễn hồ sơ?', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: kRed)),
+          ],
+        ),
+        content: Text(
+          'CẢNH BÁO: Hành động này sẽ XÓA VĨNH VIỄN toàn bộ hồ sơ của "${h.name}" khỏi cơ sở dữ liệu Firebase. Không thể khôi phục sau khi xóa!',
+          style: const TextStyle(color: kSlate600, fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy bỏ', style: TextStyle(color: kSlate600)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kRed,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(ctx);
+              final emailNotice = h.email != null && h.email!.isNotEmpty
+                  ? ' và gửi email tới ${h.email}'
+                  : '';
+              await AdminStore.instance.deleteHospitalAccount(h);
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text('Đã xóa vĩnh viễn hồ sơ ${h.name}$emailNotice.'),
+                  backgroundColor: const Color(0xFFDC2626),
+                ),
+              );
+            },
+            child: const Text('Xác nhận xóa'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusTab(int tabIndex, String label, int count, {bool isDanger = false}) {
+    final active = _statusTab == tabIndex;
+    final color = isDanger ? kRed : kPrimary;
+    return InkWell(
+      onTap: () => setState(() => _statusTab = tabIndex),
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: active ? (isDanger ? kRedBg : kPrimaryLight) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: active ? (isDanger ? kRed : kPrimary) : Colors.transparent,
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                color: active ? color : kSlate600,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+              decoration: BoxDecoration(
+                color: active ? color : kSlate200,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  color: active ? Colors.white : kSlate700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildFilterChip(String label, bool active, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: active ? kPrimary : Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: active ? kPrimary : kBorder,
             width: 1.2,
@@ -63,8 +212,8 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
           boxShadow: active
               ? [
                   BoxShadow(
-                    color: kPrimary.withValues(alpha: 0.3),
-                    blurRadius: 8,
+                    color: kPrimary.withValues(alpha: 0.25),
+                    blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
                 ]
@@ -73,7 +222,7 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 11.5,
             fontWeight: FontWeight.w700,
             color: active ? Colors.white : kSlate600,
           ),
@@ -83,6 +232,8 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
   }
 
   Widget _buildHospitalItem(BuildContext context, Hospital h) {
+    final isCancelled = h.isUnpartnered || _statusTab == 2;
+
     return InkWell(
       onTap: () => Navigator.push(
         context,
@@ -91,111 +242,198 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(14),
-        margin: const EdgeInsets.only(bottom: 10),
+        margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: kBorder),
+          border: Border.all(
+            color: isCancelled
+                ? kRed.withValues(alpha: 0.35)
+                : (h.isBlocked ? kAmber.withValues(alpha: 0.4) : kBorder),
+            width: (isCancelled || h.isBlocked) ? 1.4 : 1,
+          ),
           boxShadow: kCardShadow,
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AvatarBox(
-              text: h.initials,
-              bg: h.avatarBg,
-              fg: h.avatarText,
-              size: 46,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    h.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14.5,
-                      color: kSlate900,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
+            Row(
+              children: [
+                AvatarBox(
+                  text: h.initials,
+                  bg: isCancelled ? const Color(0xFFF1F5F9) : h.avatarBg,
+                  fg: isCancelled ? kSlate500 : h.avatarText,
+                  size: 46,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: h.type == 'Công lập' ? kPrimaryLight : kOrangeBg,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          h.type,
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            color: h.type == 'Công lập' ? kPrimary : kAmber,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.star_rounded, size: 15, color: Color(0xFFF59E0B)),
-                      const SizedBox(width: 2),
                       Text(
-                        h.rating.toStringAsFixed(1),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: kSlate800,
-                        ),
-                      ),
-                      if (h.totalReviews != null && h.totalReviews! > 0)
-                        Text(
-                          ' (${h.totalReviews})',
-                          style: const TextStyle(fontSize: 11, color: kSlate400),
-                        ),
-                      const Spacer(),
-                      Icon(
-                        h.isBlocked
-                            ? Icons.lock_person_rounded
-                            : Icons.check_circle_rounded,
-                        size: 14,
-                        color: h.isBlocked ? kRed : kGreen,
-                      ),
-                      const SizedBox(width: 3),
-                      Text(
-                        h.isBlocked ? 'Bị chặn' : 'Hoạt động',
+                        h.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: h.isBlocked ? kRed : kGreen,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14.5,
+                          color: isCancelled ? kSlate700 : kSlate900,
                         ),
                       ),
-                    ],
-                  ),
-                  if (h.address != null && h.address!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.location_on_outlined, size: 13, color: kSlate400),
-                        const SizedBox(width: 3),
-                        Expanded(
-                          child: Text(
-                            h.address!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11.5, color: kSlate500),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: h.type == 'Công lập' ? kPrimaryLight : kOrangeBg,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              h.type,
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: h.type == 'Công lập' ? kPrimary : kAmber,
+                              ),
+                            ),
                           ),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.star_rounded, size: 15, color: Color(0xFFF59E0B)),
+                          const SizedBox(width: 2),
+                          Text(
+                            h.rating.toStringAsFixed(1),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: kSlate800,
+                            ),
+                          ),
+                          const Spacer(),
+                          // Huy hiệu trạng thái
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                            decoration: BoxDecoration(
+                              color: isCancelled
+                                  ? kRedBg
+                                  : (h.isBlocked ? kOrangeBg : const Color(0xFFDCFCE7)),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  isCancelled
+                                      ? Icons.link_off_rounded
+                                      : (h.isBlocked ? Icons.lock_person_rounded : Icons.check_circle_rounded),
+                                  size: 12,
+                                  color: isCancelled
+                                      ? kRed
+                                      : (h.isBlocked ? kAmber : kGreen),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  isCancelled
+                                      ? 'Đã hủy hợp tác'
+                                      : (h.isBlocked ? 'Bị tạm chặn' : 'Đang hoạt động'),
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: isCancelled
+                                        ? kRed
+                                        : (h.isBlocked ? kAmber : kGreen),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (h.address != null && h.address!.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on_outlined, size: 13, color: kSlate400),
+                            const SizedBox(width: 3),
+                            Expanded(
+                              child: Text(
+                                h.address!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 11.5, color: kSlate500),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            // Banner lý do hủy hợp tác nếu có
+            if (isCancelled && h.blockReason != null && h.blockReason!.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: kRedBg,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: kRed.withValues(alpha: 0.2)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, size: 14, color: kRed),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Lý do ngừng: ${h.blockReason}',
+                        style: const TextStyle(fontSize: 11, color: kRed, fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
+                ),
+              ),
+            ],
+
+            // Hàng nút thao tác khi ở tab Đã hủy hợp tác
+            if (isCancelled) ...[
+              const SizedBox(height: 10),
+              const Divider(height: 1, color: kBorder),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.handshake_outlined, size: 15),
+                      label: const Text('Khôi phục hợp tác', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF16A34A),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
+                      onPressed: () => _showRestoreDialog(context, h),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.delete_forever_rounded, size: 15, color: kRed),
+                    label: const Text('Xóa hẳn', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kRed)),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: kRed),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    onPressed: () => _showDeletePermanentDialog(context, h),
+                  ),
                 ],
               ),
-            ),
-            const SizedBox(width: 8),
-            const Icon(Icons.chevron_right, color: kSlate400, size: 20),
+            ],
           ],
         ),
       ),
@@ -207,8 +445,18 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
     final store = AdminStore.instance;
     final q = _query.trim().toLowerCase();
 
-    // 1. Lọc theo từ khóa
-    List<Hospital> filtered = store.hospitals.where((h) {
+    // 1. Xác định tập nguồn bệnh viện theo Tab trạng thái
+    List<Hospital> sourceList;
+    if (_statusTab == 2) {
+      sourceList = store.cancelledHospitals;
+    } else if (_statusTab == 1) {
+      sourceList = store.hospitals.where((h) => h.isBlocked).toList();
+    } else {
+      sourceList = store.hospitals.where((h) => !h.isBlocked).toList();
+    }
+
+    // 2. Lọc theo từ khóa
+    List<Hospital> filtered = sourceList.where((h) {
       if (q.isEmpty) return true;
       final matchName = h.name.toLowerCase().contains(q);
       final matchInitials = h.initials.toLowerCase().contains(q);
@@ -217,17 +465,21 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
       return matchName || matchInitials || matchCode || matchAddress;
     }).toList();
 
-    // 2. Lọc theo loại hình
+    // 3. Lọc theo loại hình
     if (_selectedType != 'all') {
       filtered = filtered.where((h) => h.type.contains(_selectedType)).toList();
     }
 
-    // 3. Sắp xếp
+    // 4. Sắp xếp
     if (_sort == 1) {
       filtered.sort((a, b) => a.rating.compareTo(b.rating));
     } else if (_sort == 2) {
       filtered.sort((a, b) => b.rating.compareTo(a.rating));
     }
+
+    final activeCount = store.hospitals.where((h) => !h.isBlocked).length;
+    final blockedCount = store.hospitals.where((h) => h.isBlocked).length;
+    final cancelledCount = store.cancelledHospitals.length;
 
     return Scaffold(
       backgroundColor: kBg,
@@ -259,7 +511,7 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
                               ),
                             ),
                             Text(
-                              '${store.totalBV} cơ sở y tế đang kết nối Firebase',
+                              '${store.totalBV} cơ sở đang kết nối · $cancelledCount đã ngừng hợp tác',
                               style: const TextStyle(fontSize: 12, color: kSlate500),
                             ),
                           ],
@@ -272,11 +524,11 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
 
                   // Thanh tìm kiếm
                   Container(
-                    height: 46,
+                    height: 44,
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: kBorder),
                     ),
                     child: Row(
@@ -311,29 +563,45 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
 
                   const SizedBox(height: 10),
 
-                  // Chip bộ lọc
+                  // HÀNG 1: TABS TRẠNG THÁI HỢP TÁC
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        _buildFilterChip('Tất cả (${store.totalBV})', _selectedType == 'all', () {
+                        _buildStatusTab(0, 'Đang hợp tác', activeCount),
+                        const SizedBox(width: 6),
+                        _buildStatusTab(1, 'Bị tạm chặn', blockedCount),
+                        const SizedBox(width: 6),
+                        _buildStatusTab(2, 'Đã hủy hợp tác', cancelledCount, isDanger: true),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // HÀNG 2: BỘ LỌC LOẠI HÌNH & XẾP HẠNG
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildFilterChip('Tất cả', _selectedType == 'all', () {
                           setState(() => _selectedType = 'all');
                         }),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         _buildFilterChip('Công lập', _selectedType == 'Công lập', () {
                           setState(() => _selectedType = 'Công lập');
                         }),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         _buildFilterChip('Tư nhân', _selectedType == 'Tư nhân', () {
                           setState(() => _selectedType = 'Tư nhân');
                         }),
                         const SizedBox(width: 8),
-                        Container(width: 1, height: 20, color: kBorder),
+                        Container(width: 1, height: 18, color: kBorder),
                         const SizedBox(width: 8),
                         _buildFilterChip('★ Cao nhất', _sort == 2, () {
                           setState(() => _sort = (_sort == 2 ? 0 : 2));
                         }),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         _buildFilterChip('★ Thấp nhất', _sort == 1, () {
                           setState(() => _sort = (_sort == 1 ? 0 : 1));
                         }),
@@ -362,7 +630,7 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
                     GestureDetector(
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const PendingApprovalScreen()),
+                        MaterialPageRoute(builder: (_) => const OperationsScreen(initialTab: 0)),
                       ),
                       child: Row(
                         children: [
@@ -391,23 +659,29 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Container(
-                            width: 68,
-                            height: 68,
-                            decoration: BoxDecoration(
-                              color: kPrimaryLight,
+                            width: 64,
+                            height: 64,
+                            decoration: const BoxDecoration(
+                              color: kSlate100,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.search_off_rounded, size: 36, color: kPrimary),
+                            child: Icon(
+                              _statusTab == 2 ? Icons.link_off_rounded : Icons.search_off_rounded,
+                              size: 32,
+                              color: kSlate400,
+                            ),
                           ),
-                          const SizedBox(height: 14),
-                          const Text(
-                            'Không tìm thấy bệnh viện phù hợp',
-                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: kSlate900),
+                          const SizedBox(height: 12),
+                          Text(
+                            _statusTab == 2
+                                ? 'Không có bệnh viện nào đã hủy hợp tác'
+                                : 'Không tìm thấy bệnh viện phù hợp',
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: kSlate800),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 4),
                           const Text(
-                            'Hãy thử thay đổi từ khóa hoặc bộ lọc tìm kiếm',
-                            style: TextStyle(fontSize: 13, color: kSlate500),
+                            'Thử đổi bộ lọc hoặc từ khóa tìm kiếm',
+                            style: TextStyle(fontSize: 12.5, color: kSlate500),
                           ),
                         ],
                       ),
