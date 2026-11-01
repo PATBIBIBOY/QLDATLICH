@@ -509,53 +509,56 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
           children: [
             // Header
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: EdgeInsets.symmetric(
+                  horizontal: 16, vertical: widget.isEmbedded ? 8 : 14),
               color: Colors.white,
               child: Column(
                 children: [
-                  Row(
-                    children: [
-                      if (!widget.isEmbedded) ...[
+                  if (!widget.isEmbedded) ...[
+                    Row(
+                      children: [
                         const BackCircle(),
                         const SizedBox(width: 12),
-                      ],
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Báo Cáo Sự Cố & Khiếu Nại',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 18,
-                                color: kSlate900,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Báo Cáo Sự Cố & Khiếu Nại',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 18,
+                                  color: kSlate900,
+                                ),
                               ),
-                            ),
-                            Text(
-                              '${store.reports.length} sự cố đang chờ phản hồi trên Firebase',
-                              style: const TextStyle(fontSize: 12, color: kSlate500),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: kRedBg,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '${store.reports.length} Cần sửa',
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            color: kRed,
-                            fontWeight: FontWeight.w800,
+                              Text(
+                                '${store.reports.length} sự cố đang chờ phản hồi trên Firebase',
+                                style: const TextStyle(
+                                    fontSize: 12, color: kSlate500),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: kRedBg,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${store.reports.length} Cần sửa',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              color: kRed,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   Row(
                     children: [
                       _buildChip('Tất cả (${store.reports.length})', 0, Icons.list_alt_rounded),

@@ -4,9 +4,8 @@ import '../data/mock_data.dart';
 import '../data/admin_store.dart';
 import '../widgets/shared_widgets.dart';
 import 'hospital_detail_screen.dart';
-import 'pending_approval_screen.dart';
-import 'error_reports_screen.dart';
 import 'all_hospitals_screen.dart';
+import 'operations_screen.dart';
 
 // ================= MÀN 1: TRANG CHỦ QUẢN TRỊ VIÊN =================
 class HomeScreen extends StatefulWidget {
@@ -491,7 +490,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   InkWell(
                     onTap: () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const ErrorReportsScreen()),
+                      MaterialPageRoute(
+                          builder: (_) => const OperationsScreen(initialTab: 1)),
                     ),
                     child: BellButton(count: store.reports.length),
                   ),
@@ -584,7 +584,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         onPressed: () => Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const PendingApprovalScreen()),
+                          MaterialPageRoute(
+                              builder: (_) => const OperationsScreen(initialTab: 0)),
                         ),
                       ),
                     ),
@@ -619,7 +620,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     bgColor: kOrangeBg,
                     onTap: () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const PendingApprovalScreen()),
+                      MaterialPageRoute(
+                          builder: (_) => const OperationsScreen(initialTab: 0)),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -632,7 +634,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     bgColor: kRedBg,
                     onTap: () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const ErrorReportsScreen()),
+                      MaterialPageRoute(
+                          builder: (_) => const OperationsScreen(initialTab: 1)),
                     ),
                   ),
                 ],

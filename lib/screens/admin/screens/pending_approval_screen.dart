@@ -230,52 +230,51 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
         child: Column(
           children: [
             // Header
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              color: Colors.white,
-              child: Row(
-                children: [
-                  if (!widget.isEmbedded) ...[
+            if (!widget.isEmbedded)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                color: Colors.white,
+                child: Row(
+                  children: [
                     const BackCircle(),
                     const SizedBox(width: 12),
-                  ],
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Xét Duyệt Hồ Sơ Cơ Sở Y Tế',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 18,
-                            color: kSlate900,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Xét Duyệt Hồ Sơ Cơ Sở Y Tế',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 18,
+                              color: kSlate900,
+                            ),
                           ),
-                        ),
-                        Text(
-                          '${store.pendingTotal} đơn đăng ký đang chờ quản trị viên kiểm định',
-                          style: const TextStyle(fontSize: 12, color: kSlate500),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: kOrangeBg,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '${store.pendingTotal} Chờ',
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        color: kAmber,
-                        fontWeight: FontWeight.w800,
+                          Text(
+                            '${store.pendingTotal} đơn đăng ký đang chờ quản trị viên kiểm định',
+                            style: const TextStyle(fontSize: 12, color: kSlate500),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                ],
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: kOrangeBg,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${store.pendingTotal} Chờ',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: kAmber,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
 
             Expanded(
               child: store.pending.isEmpty
