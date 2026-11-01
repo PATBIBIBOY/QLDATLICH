@@ -497,13 +497,19 @@ class AdminBottomBar extends StatelessWidget {
               ),
               _buildItem(
                 index: 2,
+                label: 'Bệnh nhân',
+                icon: Icons.people_alt_outlined,
+                activeIcon: Icons.people_alt_rounded,
+              ),
+              _buildItem(
+                index: 3,
                 label: 'Xử lý yêu cầu',
                 icon: Icons.assignment_turned_in_outlined,
                 activeIcon: Icons.assignment_turned_in_rounded,
                 badgeCount: store.pendingTotal + store.reports.length,
               ),
               _buildItem(
-                index: 3,
+                index: 4,
                 label: 'Đăng xuất',
                 icon: Icons.logout_rounded,
                 activeIcon: Icons.logout_rounded,

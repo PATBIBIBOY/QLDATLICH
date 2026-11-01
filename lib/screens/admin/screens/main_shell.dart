@@ -4,9 +4,10 @@ import '../data/admin_store.dart';
 import '../widgets/shared_widgets.dart';
 import 'home_screen.dart';
 import 'all_hospitals_screen.dart';
+import 'patient_management_screen.dart';
 import 'operations_screen.dart';
 
-// Khung chính: Dashboard 3 Tabs + Đăng xuất
+// Khung chính: Dashboard 4 Tabs + Đăng xuất
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -37,11 +38,12 @@ class _MainShellState extends State<MainShell> {
   final List<Widget> _screens = const [
     HomeScreen(),
     AllHospitalsScreen(isEmbedded: true),
+    PatientManagementScreen(isEmbedded: true),
     OperationsScreen(isEmbedded: true),
   ];
 
   void _onTap(int i) {
-    if (i == 3) {
+    if (i == 4) {
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
@@ -93,7 +95,7 @@ class _MainShellState extends State<MainShell> {
     return Scaffold(
       backgroundColor: kBg,
       body: IndexedStack(
-        index: index.clamp(0, 2),
+        index: index.clamp(0, 3),
         children: _screens,
       ),
       bottomNavigationBar: AdminBottomBar(

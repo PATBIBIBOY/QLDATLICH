@@ -34,6 +34,7 @@ class AdminStore extends ChangeNotifier {
   StreamSubscription? _hospitalsSub;
   StreamSubscription? _pendingSub;
   StreamSubscription? _reportsSub;
+  StreamSubscription? _patientsSub;
 
   bool isSyncing = false;
   bool isConnected = true;
@@ -54,14 +55,17 @@ class AdminStore extends ChangeNotifier {
   ];
   // Khởi tạo rỗng, CHỈ hiển thị khi có báo cáo lỗi thực tế từ Firebase
   List<ErrorReport> reports = [];
+  List<AdminPatient> patients = [];
 
   int get totalBV => hospitals.length;
   int pendingTotal = 0;
   int errorTotal = 0;
+  int get totalPatients => patients.length;
 
   String get totalBVText => totalBV.toString().padLeft(2, '0');
   String get pendingText => pendingTotal.toString().padLeft(2, '0');
   String get errorText => reports.length.toString().padLeft(2, '0');
+  String get totalPatientsText => totalPatients.toString().padLeft(2, '0');
 
   static const List<List<Color>> _avatarPalette = [
     [Color(0xFFDBEAFE), Color(0xFF2563EB)], // Blue
@@ -117,6 +121,10 @@ class AdminStore extends ChangeNotifier {
       // 3. Tải BaoCaoLoi
       final bcSnap = await _firestore.collection('BaoCaoLoi').get();
       _processReportsSnapshot(bcSnap);
+
+      // 4. Tải BenhNhan
+      final bnSnap = await _firestore.collection('BenhNhan').get();
+      _processPatientsSnapshot(bnSnap);
 
       isConnected = true;
       lastSync = DateTime.now();
@@ -396,6 +404,80 @@ class AdminStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _processPatientsSnapshot(QuerySnapshot<Map<String, dynamic>> snapshot) {
+    final List<AdminPatient> list = [];
+    int idx = 0;
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final uid = data['uid']?.toString() ?? doc.id;
+      final maBenhNhan = data['ma_benh_nhan']?.toString() ?? 'BN${doc.id.length >= 4 ? doc.id.substring(0, 4) : doc.id}';
+      final hoTen = data['ho_ten']?.toString() ?? 'Bệnh nhân ${doc.id}';
+      final email = data['email']?.toString();
+      final phone = data['so_dien_thoai']?.toString();
+      final address = data['dia_chi']?.toString();
+      final gender = data['gioi_tinh']?.toString();
+      final verified = data['da_xac_thuc_email'] == true;
+      final statusId = data['trang_thai_id'] as int? ?? 7;
+      final isBlocked = data['chan_dang_nhap'] == true ||
+          data['is_blocked'] == true ||
+          statusId == 8;
+      final blockReason = data['ly_do_khoa']?.toString() ?? data['ly_do_chan']?.toString();
+
+      DateTime? ngayTao;
+      if (data['ngay_tao'] is Timestamp) {
+        ngayTao = (data['ngay_tao'] as Timestamp).toDate();
+      } else if (data['ngay_tao'] != null) {
+        try {
+          ngayTao = DateTime.parse(data['ngay_tao'].toString());
+        } catch (_) {}
+      }
+
+      DateTime? ngaySinh;
+      if (data['ngay_sinh'] is Timestamp) {
+        ngaySinh = (data['ngay_sinh'] as Timestamp).toDate();
+      } else if (data['ngay_sinh'] != null) {
+        try {
+          ngaySinh = DateTime.parse(data['ngay_sinh'].toString());
+        } catch (_) {}
+      }
+
+      DateTime? ngayKhoa;
+      if (data['ngay_khoa'] is Timestamp) {
+        ngayKhoa = (data['ngay_khoa'] as Timestamp).toDate();
+      } else if (data['ngay_khoa'] != null) {
+        try {
+          ngayKhoa = DateTime.parse(data['ngay_khoa'].toString());
+        } catch (_) {}
+      }
+
+      final palette = _avatarPalette[idx % _avatarPalette.length];
+      idx++;
+
+      list.add(AdminPatient(
+        uid: uid,
+        maBenhNhan: maBenhNhan,
+        hoTen: hoTen,
+        email: email,
+        soDienThoai: phone,
+        diaChi: address,
+        gioiTinh: gender,
+        ngaySinh: ngaySinh,
+        ngayTao: ngayTao,
+        daXacThucEmail: verified,
+        trangThaiId: statusId,
+        isBlocked: isBlocked,
+        blockReason: blockReason,
+        ngayKhoa: ngayKhoa,
+        avatarBg: palette[0],
+        avatarText: palette[1],
+      ));
+    }
+    patients = list;
+    lastSync = DateTime.now();
+    isConnected = true;
+    notifyListeners();
+  }
+
   void _initFirebaseSync() {
     try {
       // 1. Lắng nghe danh sách bệnh viện từ Firestore collection 'BenhVien'
@@ -431,6 +513,18 @@ class AdminStore extends ChangeNotifier {
         },
         onError: (e) {
           debugPrint('Lỗi realtime BaoCaoLoi: $e');
+          isConnected = false;
+          notifyListeners();
+        },
+      );
+
+      // 4. Lắng nghe danh sách bệnh nhân từ 'BenhNhan'
+      _patientsSub = _firestore.collection('BenhNhan').snapshots().listen(
+        (snapshot) {
+          _processPatientsSnapshot(snapshot);
+        },
+        onError: (e) {
+          debugPrint('Lỗi realtime BenhNhan: $e');
           isConnected = false;
           notifyListeners();
         },
@@ -821,11 +915,132 @@ class AdminStore extends ChangeNotifier {
     return List.of(reports);
   }
 
+  // ===================================================
+  // QUẢN LÝ TÀI KHOẢN BỆNH NHÂN (FIREBASE)
+  // ===================================================
+
+  /// CHẶN ĐĂNG NHẬP / KHÓA TÀI KHOẢN BỆNH NHÂN
+  Future<void> blockPatient(AdminPatient p, String reason) async {
+    p.isBlocked = true;
+    p.trangThaiId = 8;
+    p.blockReason = reason;
+    p.ngayKhoa = DateTime.now();
+    notifyListeners();
+
+    try {
+      await _firestore.collection('BenhNhan').doc(p.uid).update({
+        'chan_dang_nhap': true,
+        'is_blocked': true,
+        'trang_thai_id': 8,
+        'ly_do_khoa': reason,
+        'ngay_khoa': FieldValue.serverTimestamp(),
+      });
+
+      // Gửi thông báo đến ThongBao cho bệnh nhân
+      await _firestore.collection('ThongBao').add({
+        'tieu_de': 'Tài khoản đã bị tạm khóa',
+        'noi_dung': 'Tài khoản bệnh nhân (${p.hoTen} - ${p.maBenhNhan}) đã bị quản trị viên tạm khóa. Lý do: $reason',
+        'nguoi_nhan_uid': p.uid,
+        'loai': 'khoa_tai_khoan',
+        'da_doc': false,
+        'ngay_tao': FieldValue.serverTimestamp(),
+      });
+
+      // Gửi thông báo hệ thống
+      await _firestore.collection('ThongBaoHeThong').add({
+        'tieu_de': 'Khóa tài khoản bệnh nhân',
+        'noi_dung': 'Quản trị viên đã khóa tài khoản bệnh nhân: ${p.hoTen} (${p.maBenhNhan}). Lý do: $reason',
+        'loai': 'khoa_tai_khoan',
+        'da_doc': false,
+        'thoi_gian_hien_thi': 'Vừa xong',
+        'ngay_tao': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('Lỗi chặn tài khoản bệnh nhân trên Firebase: $e');
+    }
+  }
+
+  /// MỞ KHÓA TÀI KHOẢN BỆNH NHÂN
+  Future<void> unblockPatient(AdminPatient p) async {
+    p.isBlocked = false;
+    p.trangThaiId = 7;
+    p.blockReason = null;
+    notifyListeners();
+
+    try {
+      await _firestore.collection('BenhNhan').doc(p.uid).update({
+        'chan_dang_nhap': false,
+        'is_blocked': false,
+        'trang_thai_id': 7,
+        'ly_do_khoa': FieldValue.delete(),
+        'ngay_mo_khoa': FieldValue.serverTimestamp(),
+      });
+
+      // Gửi thông báo cho bệnh nhân
+      await _firestore.collection('ThongBao').add({
+        'tieu_de': 'Tài khoản đã được mở khóa',
+        'noi_dung': 'Tài khoản bệnh nhân của bạn đã được Quản trị viên kích hoạt lại.',
+        'nguoi_nhan_uid': p.uid,
+        'loai': 'mo_khoa_tai_khoan',
+        'da_doc': false,
+        'ngay_tao': FieldValue.serverTimestamp(),
+      });
+
+      // Gửi thông báo hệ thống
+      await _firestore.collection('ThongBaoHeThong').add({
+        'tieu_de': 'Mở khóa tài khoản bệnh nhân',
+        'noi_dung': 'Quản trị viên đã kích hoạt lại tài khoản bệnh nhân: ${p.hoTen} (${p.maBenhNhan})',
+        'loai': 'mo_khoa_tai_khoan',
+        'da_doc': false,
+        'thoi_gian_hien_thi': 'Vừa xong',
+        'ngay_tao': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('Lỗi mở khóa tài khoản bệnh nhân trên Firebase: $e');
+    }
+  }
+
+  /// XÓA VĨNH VIỄN TÀI KHOẢN BỆNH NHÂN
+  Future<void> deletePatientAccount(AdminPatient p) async {
+    patients.removeWhere((item) => item.uid == p.uid);
+    notifyListeners();
+
+    try {
+      await _firestore.collection('BenhNhan').doc(p.uid).delete();
+
+      await _firestore.collection('ThongBaoHeThong').add({
+        'tieu_de': 'Đã xóa tài khoản bệnh nhân',
+        'noi_dung': 'Quản trị viên đã xóa hoàn toàn tài khoản bệnh nhân: ${p.hoTen} (${p.maBenhNhan})',
+        'loai': 'xoa_tai_khoan',
+        'da_doc': false,
+        'thoi_gian_hien_thi': 'Vừa xong',
+        'ngay_tao': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('Lỗi xóa tài khoản bệnh nhân trên Firebase: $e');
+    }
+  }
+
+  /// LẤY LỊCH HẸN CỦA BỆNH NHÂN TỪ FIRESTORE
+  Future<List<Map<String, dynamic>>> getPatientAppointments(String patientId) async {
+    try {
+      final snap = await _firestore
+          .collection('LichHen')
+          .where('benh_nhan_id', isEqualTo: patientId)
+          .get();
+      return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+    } catch (e) {
+      debugPrint('Lỗi tải lịch hẹn bệnh nhân: $e');
+      return [];
+    }
+  }
+
   @override
   void dispose() {
     _hospitalsSub?.cancel();
     _pendingSub?.cancel();
     _reportsSub?.cancel();
+    _patientsSub?.cancel();
     super.dispose();
   }
 }

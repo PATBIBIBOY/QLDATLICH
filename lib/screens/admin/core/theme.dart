@@ -28,6 +28,9 @@ const kSlate700 = Color(0xFF334155);
 const kSlate600 = Color(0xFF475569);    // Chữ phụ
 const kSlate500 = Color(0xFF64748B);    // Chữ chú thích
 const kSlate400 = Color(0xFF94A3B8);    // Chữ mờ / icon placeholder
+const kSlate300 = Color(0xFFCBD5E1);
+const kSlate200 = Color(0xFFE2E8F0);
+const kSlate100 = Color(0xFFF1F5F9);
 
 // ============ HIỆU ỨNG ĐỔ BÓNG (SOFT SHADOWS) ============
 const kCardShadow = [

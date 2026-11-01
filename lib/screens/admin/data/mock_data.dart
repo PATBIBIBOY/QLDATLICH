@@ -41,6 +41,57 @@ class Hospital {
   });
 }
 
+// ============ MODEL BỆNH NHÂN CHO ADMIN ============
+class AdminPatient {
+  final String uid;
+  String maBenhNhan;
+  String hoTen;
+  String? email;
+  String? soDienThoai;
+  String? diaChi;
+  String? gioiTinh;
+  DateTime? ngaySinh;
+  DateTime? ngayTao;
+  bool daXacThucEmail;
+  int trangThaiId; // 7: Hoạt động, 8: Tạm khóa / chặn
+  bool isBlocked;
+  String? blockReason;
+  DateTime? ngayKhoa;
+  final Color avatarBg;
+  final Color avatarText;
+
+  AdminPatient({
+    required this.uid,
+    required this.maBenhNhan,
+    required this.hoTen,
+    this.email,
+    this.soDienThoai,
+    this.diaChi,
+    this.gioiTinh,
+    this.ngaySinh,
+    this.ngayTao,
+    this.daXacThucEmail = false,
+    this.trangThaiId = 7,
+    this.isBlocked = false,
+    this.blockReason,
+    this.ngayKhoa,
+    required this.avatarBg,
+    required this.avatarText,
+  });
+
+  String get initials {
+    final clean = hoTen.trim();
+    if (clean.isEmpty) return 'BN';
+    final parts = clean.split(RegExp(r'\s+'));
+    if (parts.length == 1) {
+      return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
+    }
+    return (parts[0][0] + parts.last[0]).toUpperCase();
+  }
+
+  bool get isActive => !isBlocked && trangThaiId != 8;
+}
+
 // ============ DỮ LIỆU GIẢ (sau này thay bằng API) ============
 final List<Hospital> verifiedHospitals = [
   Hospital(

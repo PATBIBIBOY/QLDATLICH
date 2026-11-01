@@ -5,6 +5,7 @@ import '../data/admin_store.dart';
 import '../widgets/shared_widgets.dart';
 import 'hospital_detail_screen.dart';
 import 'all_hospitals_screen.dart';
+import 'patient_management_screen.dart';
 import 'operations_screen.dart';
 
 // ================= MÀN 1: TRANG CHỦ QUẢN TRỊ VIÊN =================
@@ -560,7 +561,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Hệ thống đang quản lý ${store.totalBV} bệnh viện và tiếp nhận ${store.pendingTotal} hồ sơ chờ duyệt.',
+                      'Hệ thống đang quản lý ${store.totalBV} bệnh viện, ${store.totalPatients} bệnh nhân và tiếp nhận ${store.pendingTotal} hồ sơ chờ duyệt.',
                       style: const TextStyle(
                         fontSize: 12.5,
                         color: Colors.white70,
@@ -595,7 +596,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 18),
 
-              // ============ 3 THẺ THỐNG KÊ NHANH ============
+              // ============ 4 THẺ THỐNG KÊ HỆ THỐNG ============
               Row(
                 children: [
                   _buildStatCard(
@@ -611,6 +612,23 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
+                  _buildStatCard(
+                    count: store.totalPatientsText,
+                    label: 'Bệnh nhân',
+                    subtitle: 'Người dùng',
+                    icon: Icons.people_alt_rounded,
+                    color: const Color(0xFF0D9488),
+                    bgColor: const Color(0xFFCCFBF1),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PatientManagementScreen()),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
                   _buildStatCard(
                     count: store.pendingText,
                     label: 'Chờ duyệt',
