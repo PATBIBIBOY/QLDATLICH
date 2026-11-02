@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import 'department_room_picker.dart';
+import 'queue_screen.dart';
 
 /// Đọc danh sách khoa/phòng từ Cloud Firestore theo thời gian thực.
 ///
@@ -17,6 +18,14 @@ import 'department_room_picker.dart';
 ///                                         tenPhong: "NGT001",
 ///                                         tenKhoaGoc: "Khoa ...",
 ///                                         nhanVienId: "NV001" }
+/// BenhNhan/{patientId}                { ho_ten: "Nguyễn Văn A" }
+/// LichHen/{appointmentId}             { benh_vien_id: "BV001",
+///                                         benh_nhan_id: "BN001",
+///                                         ten_benh_nhan: "Nguyễn Văn A",
+///                                         phong_kham_id: "BV001_K001_NGT001",
+///                                         trang_thai_id: "2",
+///                                         so_thu_tu: "4",
+///                                         ngay_dat: "2026-11-01T00:00:00" }
 /// ```
 ///
 /// Khoa nằm trong subcollection `danh_sach` dưới document bệnh viện,
@@ -55,13 +64,47 @@ class ClinicFirestoreService {
   /// (PhongKham/{mã phòng}.hospitalId == mã bệnh viện đang tải).
   static const String roomHospitalField = 'hospitalId';
 
+  /// Collection lịch hẹn: LichHen/{mã lịch hẹn}. Đây là nguồn số thứ
+  /// tự (`so_thu_tu`) cho màn hình hàng chờ của từng phòng.
+  static const String appointmentsCollection = 'LichHen';
+
+  /// Collection hồ sơ bệnh nhân: BenhNhan/{benh_nhan_id}. Khi LichHen
+  /// không chép sẵn tên bệnh nhân, service tra document này bằng
+  /// `benh_nhan_id` để hiện `ho_ten` dưới STT tương ứng.
+  static const String patientsCollection = 'BenhNhan';
+
+  /// Mã trạng thái lịch hẹn được đưa vào hàng chờ: Đã xác nhận.
+  static const String confirmedStatusId = '2';
+
+  /// Mã trạng thái ghi ngược khi khám xong: Hoàn thành.
+  static const String completedStatusId = '5';
+
+  /// Mã trạng thái ghi ngược khi xác nhận vắng mặt: Vắng mặt.
+  static const String absentStatusId = '6';
+
+  /// Mã trạng thái ghi ngược khi nhân viên nhấn Đợi cho một số.
+  static const String deferredStatusId = '7';
+
   final FirebaseFirestore _firestore;
 
-  CollectionReference<Map<String, dynamic>> _departmentsOf(String hospitalId) =>
-      _firestore
-          .collection(departmentsCollection)
-          .doc(hospitalId)
-          .collection(listSubcollection);
+  CollectionReference<Map<String, dynamic>> _departmentsOf(
+    String hospitalId,
+  ) => _firestore
+      .collection(departmentsCollection)
+      .doc(hospitalId)
+      .collection(listSubcollection);
+
+  /// Chuẩn hoá dữ liệu lịch hẹn trước khi đưa cho các hàm ánh xạ thuần:
+  /// Timestamp ở tầng cao nhất được đổi thành chuỗi ISO để hàm thuần
+  /// không phải phụ thuộc vào kiểu của cloud_firestore.
+  Map<String, Object?> _appointmentData(Map<String, dynamic> data) =>
+      <String, Object?>{
+        for (final entry in data.entries)
+          entry.key: entry.value is Timestamp
+              ? (entry.value as Timestamp).toDate().toIso8601String()
+              : entry.value,
+      };
+
 
   Query<Map<String, dynamic>> _roomsOf(String hospitalId) => _firestore
       .collection(roomsCollection)
@@ -81,7 +124,7 @@ class ClinicFirestoreService {
     var hasDepartments = false;
     var hasRooms = false;
     StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
-    departmentSubscription;
+        departmentSubscription;
     StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? roomSubscription;
 
     late final StreamController<List<ClinicRoomData>> controller;
@@ -103,21 +146,27 @@ class ClinicFirestoreService {
 
     controller = StreamController<List<ClinicRoomData>>(
       onListen: () {
-        departmentSubscription = _departmentsOf(hospitalId).snapshots().listen((
-          snapshot,
-        ) {
-          departmentNames = {
-            for (final doc in snapshot.docs)
-              doc.id: clinicDepartmentName(doc.id, doc.data()),
-          };
-          hasDepartments = true;
-          emit();
-        }, onError: forwardError);
-        roomSubscription = _roomsOf(hospitalId).snapshots().listen((snapshot) {
-          rawRooms = [for (final doc in snapshot.docs) (doc.id, doc.data())];
-          hasRooms = true;
-          emit();
-        }, onError: forwardError);
+        departmentSubscription = _departmentsOf(hospitalId).snapshots().listen(
+          (snapshot) {
+            departmentNames = {
+              for (final doc in snapshot.docs)
+                doc.id: clinicDepartmentName(doc.id, doc.data()),
+            };
+            hasDepartments = true;
+            emit();
+          },
+          onError: forwardError,
+        );
+        roomSubscription = _roomsOf(hospitalId).snapshots().listen(
+          (snapshot) {
+            rawRooms = [
+              for (final doc in snapshot.docs) (doc.id, doc.data()),
+            ];
+            hasRooms = true;
+            emit();
+          },
+          onError: forwardError,
+        );
       },
       onCancel: () async {
         await departmentSubscription?.cancel();
@@ -143,6 +192,149 @@ class ClinicFirestoreService {
           return clinicHospitalName(data, fallback: fallback);
         });
   }
+
+  /// Theo dõi số thứ tự của một phòng từ các lịch hẹn đủ điều kiện
+  /// trong ngày [day] (mặc định là hôm nay theo giờ của thiết bị).
+  ///
+  /// Truy vấn chỉ lọc ở server theo `phong_kham_id` để không cần index
+  /// tổ hợp; bệnh viện, trạng thái và ngày được lọc ở máy khách bằng
+  /// [_clinicAppointmentQueueDraftFromFirestore]. Mặc định chỉ lịch hẹn
+  /// Đã xác nhận (`trang_thai_id == '2'`) mới vào hàng chờ.
+  ///
+  /// Tên bệnh nhân được lấy trực tiếp từ `ten_benh_nhan`/`ho_ten` trong
+  /// LichHen nếu có; nếu không, service nghe tiếp document
+  /// BenhNhan/{benh_nhan_id} và gắn `ho_ten` vào đúng STT theo thời
+  /// gian thực.
+  Stream<AppointmentQueueUpdate> watchAppointmentQueue({
+    required String hospitalId,
+    required String roomId,
+    DateTime? day,
+    Set<String> eligibleStatusIds = const <String>{confirmedStatusId},
+  }) {
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+        appointmentSubscription;
+    final profileSubscriptions =
+        <String, StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>>{};
+    final profileNamesById = <String, String>{};
+    _AppointmentQueueDraft? latestDraft;
+    var isCancelled = false;
+
+    late final StreamController<AppointmentQueueUpdate> controller;
+
+    void emit() {
+      final draft = latestDraft;
+      if (isCancelled || controller.isClosed || draft == null) return;
+      controller.add(
+        _appointmentQueueUpdateFromDraft(
+          draft,
+          patientNamesById: profileNamesById,
+        ),
+      );
+    }
+
+    void forwardError(Object error, StackTrace stackTrace) {
+      if (!isCancelled && !controller.isClosed) {
+        controller.addError(error, stackTrace);
+      }
+    }
+
+    void syncProfileSubscriptions(_AppointmentQueueDraft draft) {
+      final wantedPatientIds = <String>{
+        for (final entry in draft.patientIdByNumber.entries)
+          if (!draft.directPatientNameByNumber.containsKey(entry.key))
+            entry.value,
+      };
+
+      for (final patientId in profileSubscriptions.keys.toList()) {
+        if (!wantedPatientIds.contains(patientId)) {
+          unawaited(profileSubscriptions.remove(patientId)?.cancel());
+          profileNamesById.remove(patientId);
+        }
+      }
+
+      for (final patientId in wantedPatientIds) {
+        if (profileSubscriptions.containsKey(patientId)) continue;
+        profileSubscriptions[patientId] = _firestore
+            .collection(patientsCollection)
+            .doc(patientId)
+            .snapshots()
+            .listen(
+              (snapshot) {
+                if (isCancelled) return;
+                final data = snapshot.data();
+                final name = data == null
+                    ? ''
+                    : clinicPatientProfileName(data);
+                if (profileNamesById[patientId] == name) return;
+                if (name.isEmpty) {
+                  profileNamesById.remove(patientId);
+                } else {
+                  profileNamesById[patientId] = name;
+                }
+                emit();
+              },
+              onError: (Object _, StackTrace _) {
+                // Không đọc được hồ sơ thì STT vẫn hoạt động bình thường,
+                // chỉ không hiện dòng tên cho bệnh nhân đó.
+                final subscription = profileSubscriptions.remove(patientId);
+                if (subscription != null) unawaited(subscription.cancel());
+                if (profileNamesById.remove(patientId) != null) emit();
+              },
+            );
+      }
+    }
+
+    controller = StreamController<AppointmentQueueUpdate>(
+      onListen: () {
+        appointmentSubscription = _firestore
+            .collection(appointmentsCollection)
+            .where('phong_kham_id', isEqualTo: roomId)
+            .snapshots()
+            .listen(
+              (snapshot) {
+                latestDraft = _clinicAppointmentQueueDraftFromFirestore(
+                  appointments: <(String, Map<String, Object?>)>[
+                    for (final doc in snapshot.docs)
+                      (doc.id, _appointmentData(doc.data())),
+                  ],
+                  hospitalId: hospitalId,
+                  roomId: roomId,
+                  day: day ?? DateTime.now(),
+                  eligibleStatusIds: eligibleStatusIds,
+                );
+                syncProfileSubscriptions(latestDraft!);
+                emit();
+              },
+              onError: forwardError,
+            );
+      },
+      onCancel: () async {
+        isCancelled = true;
+        await appointmentSubscription?.cancel();
+        for (final subscription in profileSubscriptions.values) {
+          await subscription.cancel();
+        }
+        profileSubscriptions.clear();
+      },
+    );
+    return controller.stream;
+  }
+
+  /// Ghi trạng thái mới cho một lịch hẹn, đồng thời cập nhật
+  /// `ngay_cap_nhat` bằng timestamp của máy chủ Firestore.
+  Future<void> updateAppointmentStatus({
+    required String appointmentId,
+    required String statusId,
+  }) {
+    return _firestore
+        .collection(appointmentsCollection)
+        .doc(appointmentId)
+        .update(<String, dynamic>{
+          'trang_thai_id': statusId,
+          'ngay_cap_nhat': FieldValue.serverTimestamp(),
+        });
+  }
+
 }
 
 /// Màn hình chọn khoa/phòng lấy danh sách phòng từ Cloud Firestore theo
@@ -175,6 +367,11 @@ class FirestoreClinicRoomPickerScreen extends StatefulWidget {
   /// Nguồn dữ liệu Firestore; để trống thì dùng [ClinicFirestoreService]
   /// mặc định (FirebaseFirestore.instance).
   final ClinicFirestoreService? service;
+
+  /// Xử lý đăng xuất do app bao quanh cung cấp (app tự kết thúc phiên
+  /// và tự chuyển màn hình). Để `null` thì nút đăng xuất tự về
+  /// `LoginScreen` trong login_screen.dart. Cách nối với app
+  /// MEDICONNECT (AuthProvider + AppRoutes): xem FIREBASE_SETUP.md.
   final Future<void> Function()? onLogout;
 
   @override
@@ -206,12 +403,37 @@ class _FirestoreClinicRoomPickerScreenState
     });
   }
 
+  ClinicAppointmentFeed _appointmentFeedForRoom(ClinicRoomData room) => (
+    updates: _service.watchAppointmentQueue(
+      hospitalId: widget.hospitalId,
+      roomId: room.id,
+    ),
+    reportOutcome: (appointmentId, outcome) =>
+        _service.updateAppointmentStatus(
+          appointmentId: appointmentId,
+          statusId: switch (outcome) {
+            AppointmentOutcome.examined =>
+              ClinicFirestoreService.completedStatusId,
+            AppointmentOutcome.absent =>
+              ClinicFirestoreService.absentStatusId,
+            AppointmentOutcome.deferred =>
+              ClinicFirestoreService.deferredStatusId,
+            AppointmentOutcome.requeued =>
+              ClinicFirestoreService.confirmedStatusId,
+          },
+        ),
+  );
+
+
   Widget _roomsPicker(String hospitalName) =>
       StreamBuilder<List<ClinicRoomData>>(
         stream: _roomsStream,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return _FirestoreLoadError(error: snapshot.error!, onRetry: _retry);
+            return _FirestoreLoadError(
+              error: snapshot.error!,
+              onRetry: _retry,
+            );
           }
           if (snapshot.connectionState == ConnectionState.waiting ||
               !snapshot.hasData) {
@@ -222,6 +444,7 @@ class _FirestoreClinicRoomPickerScreenState
             initialDepartment: widget.initialDepartment,
             hospitalName: hospitalName,
             onLogout: widget.onLogout,
+            appointmentFeedFor: _appointmentFeedForRoom,
           );
         },
       );
@@ -358,6 +581,8 @@ String clinicRoomDepartmentId(Map<String, Object?> data) =>
 /// khoa. Phòng mới lấy từ Firestore luôn ở trạng thái đang khám và chưa
 /// có số liệu chờ/đã khám — phần trạng thái thật do RoomSessionStore phủ
 /// lên khi phòng đã được mở trong phiên app.
+/// Số hiện tại của phòng không suy ra từ document phòng; STT chỉ lấy
+/// từ danh sách LichHen và trạng thái phiên hàng chờ.
 ClinicRoomData clinicRoomFromFirestore({
   required String hospitalId,
   required String roomId,
@@ -369,13 +594,6 @@ ClinicRoomData clinicRoomFromFirestore({
       ? departmentName
       : (_firstStringField(data, const ['tenKhoaGoc', 'ten_khoa', 'tenKhoa']) ??
             departmentId);
-  Object? startingRaw;
-  for (final key in const ['so_bat_dau', 'startingNumber', 'soBatDau']) {
-    if (data[key] is num) {
-      startingRaw = data[key];
-      break;
-    }
-  }
   return ClinicRoomData(
     hospitalId: hospitalId,
     departmentId: departmentId,
@@ -402,9 +620,7 @@ ClinicRoomData clinicRoomFromFirestore({
         ]) ??
         '',
     status: ClinicRoomStatus.open,
-    currentNumber: startingRaw is num && startingRaw >= 1
-        ? startingRaw.toInt()
-        : 1,
+    currentNumber: null,
     waitingCount: 0,
     examinedCount: 0,
   );
@@ -453,4 +669,268 @@ int compareClinicRoomIds(String a, String b) {
 int? _trailingNumber(String value) {
   final match = RegExp(r'(\d+)$').firstMatch(value);
   return match == null ? null : int.parse(match.group(1)!);
+}
+
+/// Chuỗi đã cắt khoảng trắng hoặc số nguyên được chuyển thành chuỗi
+/// trong các [keys]; không có giá trị phù hợp thì trả về chuỗi rỗng.
+/// Dùng cho các mã trạng thái có thể được lưu dạng '2' hoặc 2.
+String _stringOrNumberField(Map<String, Object?> data, List<String> keys) {
+  for (final key in keys) {
+    final value = data[key];
+    if (value is String && value.trim().isNotEmpty) return value.trim();
+    if (value is num) {
+      return value == value.roundToDouble()
+          ? value.toInt().toString()
+          : value.toString();
+    }
+  }
+  return '';
+}
+
+/// Số thứ tự của một lịch hẹn (trường `so_thu_tu`, có thể lưu dạng
+/// chuỗi '4' hoặc số 4). Thiếu/không hợp lệ/không dương thì null.
+int? clinicAppointmentNumber(Map<String, Object?> data) {
+  for (final key in const ['so_thu_tu', 'soThuTu', 'stt', 'so_thu_tu_kham']) {
+    final value = data[key];
+    if (value is num) {
+      final number = value.toInt();
+      if (number > 0) return number;
+    } else if (value is String) {
+      final number = int.tryParse(value.trim());
+      if (number != null && number > 0) return number;
+    }
+  }
+  return null;
+}
+
+/// Mã trạng thái của lịch hẹn (trường `trang_thai_id`).
+String clinicAppointmentStatusId(Map<String, Object?> data) =>
+    _stringOrNumberField(data, const [
+      'trang_thai_id',
+      'trangThaiId',
+      'statusId',
+      'trang_thai',
+    ]);
+
+/// Mã bệnh nhân của lịch hẹn (trường `benh_nhan_id`); thiếu thì rỗng.
+String clinicAppointmentPatientId(Map<String, Object?> data) =>
+    _stringOrNumberField(data, const [
+      'benh_nhan_id',
+      'benhNhanId',
+      'patientId',
+      'benh_nhan_uid',
+      'patientUid',
+    ]);
+
+String _normalizePatientName(String? value) =>
+    (value ?? '').trim().replaceAll(RegExp(r'\s+'), ' ');
+
+/// Tên bệnh nhân chép sẵn ngay trong document lịch hẹn, nếu có.
+/// Trường chuẩn hiện tại là `ten_benh_nhan`/`ho_ten`; các tên còn lại là
+/// biến thể dự phòng để dữ liệu lệch chuẩn một chút vẫn đọc được.
+String clinicAppointmentPatientName(Map<String, Object?> data) =>
+    _normalizePatientName(
+      _firstStringField(data, const [
+        'ten_benh_nhan',
+        'tenBenhNhan',
+        'ho_ten_benh_nhan',
+        'hoTenBenhNhan',
+        'ho_ten',
+        'hoTen',
+        'ho_va_ten',
+        'hoVaTen',
+        'patientName',
+        'patient_name',
+        'fullName',
+        'displayName',
+        'name',
+        'ten',
+      ]),
+    );
+
+/// Tên bệnh nhân trong document hồ sơ BenhNhan/{benh_nhan_id}.
+/// Trường chuẩn hiện tại là `ho_ten`.
+String clinicPatientProfileName(Map<String, Object?> data) =>
+    _normalizePatientName(
+      _firstStringField(data, const [
+        'ho_ten',
+        'hoTen',
+        'ho_va_ten',
+        'hoVaTen',
+        'ten_benh_nhan',
+        'tenBenhNhan',
+        'fullName',
+        'displayName',
+        'patientName',
+        'patient_name',
+        'name',
+        'ten',
+      ]),
+    );
+
+/// Ngày hẹn (chỉ phần ngày, giờ địa phương) của một lịch hẹn.
+///
+/// Ưu tiên trường `ngay_dat` dạng chuỗi ISO/Timestamp đã được chuẩn
+/// hoá thành ISO; `...T17:00:00Z` của nửa đêm giờ Việt Nam sẽ quy về
+/// đúng ngày hôm sau khi thiết bị đặt múi giờ địa phương. Thiếu hoặc
+/// không đọc được trường này thì suy từ mã document dạng
+/// `LH_yyyyMMdd_xxxxx`.
+DateTime? clinicAppointmentDay(
+  String appointmentId,
+  Map<String, Object?> data,
+) {
+  final raw = _firstStringField(data, const [
+    'ngay_dat',
+    'ngayDat',
+    'ngay_hen',
+    'ngayHen',
+    'appointmentDate',
+  ]);
+  final parsed = raw == null ? null : DateTime.tryParse(raw);
+  if (parsed != null) {
+    final local = parsed.toLocal();
+    return DateTime(local.year, local.month, local.day);
+  }
+
+  final match = RegExp(r'(\d{4})(\d{2})(\d{2})').firstMatch(appointmentId);
+  if (match == null) return null;
+  final year = int.parse(match.group(1)!);
+  final month = int.parse(match.group(2)!);
+  final day = int.parse(match.group(3)!);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return DateTime(year, month, day);
+}
+
+/// Bản nháp nội bộ sau khi lọc LichHen: ngoài STT và mã lịch hẹn còn
+/// giữ mã bệnh nhân để service tra hồ sơ BenhNhan, cùng tên bệnh nhân
+/// đã chép sẵn trực tiếp trong LichHen (nếu có).
+typedef _AppointmentQueueDraft = ({
+  List<int> numbers,
+  Map<int, String> appointmentIdByNumber,
+  Map<int, String> patientIdByNumber,
+  Map<int, String> directPatientNameByNumber,
+});
+
+/// Lọc lịch hẹn thô thành bản nháp số thứ tự cho một phòng/ngày.
+///
+/// Chỉ giữ lịch hẹn đúng bệnh viện/phòng (khi document có các trường
+/// tương ứng), thuộc [day], có trạng thái trong [eligibleStatusIds]
+/// và có `so_thu_tu` hợp lệ. Với mỗi số được giữ, hàm đồng thời trả về
+/// mã lịch hẹn, `benh_nhan_id` và tên bệnh nhân chép sẵn trong LichHen
+/// của đúng document đó. Số trùng nhau chỉ giữ một lần; document thắng
+/// được chọn theo mã lịch hẹn tăng dần để kết quả ổn định.
+_AppointmentQueueDraft _clinicAppointmentQueueDraftFromFirestore({
+  required List<(String, Map<String, Object?>)> appointments,
+  required String hospitalId,
+  required String roomId,
+  required DateTime day,
+  Set<String> eligibleStatusIds = const <String>{'2'},
+}) {
+  final targetDay = DateTime(day.year, day.month, day.day);
+  final sortedAppointments =
+      List<(String, Map<String, Object?>)>.of(appointments)
+        ..sort((a, b) => a.$1.compareTo(b.$1));
+  final appointmentIdByNumber = <int, String>{};
+  final patientIdByNumber = <int, String>{};
+  final directPatientNameByNumber = <int, String>{};
+
+  for (final (appointmentId, data) in sortedAppointments) {
+    final roomField = _firstStringField(data, const [
+      'phong_kham_id',
+      'phongKhamId',
+      'roomId',
+    ]);
+    if (roomField != null && roomField != roomId) continue;
+
+    final hospitalField = _firstStringField(data, const [
+      'benh_vien_id',
+      'benhVienId',
+      'hospitalId',
+    ]);
+    if (hospitalField != null && hospitalField != hospitalId) continue;
+    if (!eligibleStatusIds.contains(clinicAppointmentStatusId(data))) {
+      continue;
+    }
+    if (clinicAppointmentDay(appointmentId, data) != targetDay) continue;
+
+    final number = clinicAppointmentNumber(data);
+    if (number == null || appointmentIdByNumber.containsKey(number)) {
+      continue;
+    }
+    appointmentIdByNumber[number] = appointmentId;
+    final patientId = clinicAppointmentPatientId(data);
+    if (patientId.isNotEmpty) patientIdByNumber[number] = patientId;
+    final directPatientName = clinicAppointmentPatientName(data);
+    if (directPatientName.isNotEmpty) {
+      directPatientNameByNumber[number] = directPatientName;
+    }
+  }
+
+  final numbers = appointmentIdByNumber.keys.toList()..sort();
+  return (
+    numbers: numbers,
+    appointmentIdByNumber: <int, String>{
+      for (final number in numbers) number: appointmentIdByNumber[number]!,
+    },
+    patientIdByNumber: <int, String>{
+      for (final number in numbers)
+        if (patientIdByNumber.containsKey(number))
+          number: patientIdByNumber[number]!,
+    },
+    directPatientNameByNumber: <int, String>{
+      for (final number in numbers)
+        if (directPatientNameByNumber.containsKey(number))
+          number: directPatientNameByNumber[number]!,
+    },
+  );
+}
+
+/// Ghép một bản nháp LichHen với tên đã tra từ hồ sơ BenhNhan thành đợt
+/// cập nhật cho QueueScreen. Tên chép sẵn trong LichHen được ưu tiên;
+/// nếu không có thì dùng [patientNamesById] theo `benh_nhan_id`.
+AppointmentQueueUpdate _appointmentQueueUpdateFromDraft(
+  _AppointmentQueueDraft draft, {
+  Map<String, String> patientNamesById = const <String, String>{},
+}) {
+  final patientNameByNumber = <int, String>{};
+  for (final number in draft.numbers) {
+    final patientId = draft.patientIdByNumber[number];
+    final name = _normalizePatientName(
+      draft.directPatientNameByNumber[number] ??
+          (patientId == null ? null : patientNamesById[patientId]),
+    );
+    if (name.isNotEmpty) patientNameByNumber[number] = name;
+  }
+  return (
+    numbers: draft.numbers,
+    appointmentIdByNumber: draft.appointmentIdByNumber,
+    patientNameByNumber: patientNameByNumber,
+  );
+}
+
+/// Lọc lịch hẹn thô thành đợt cập nhật số thứ tự cho một phòng/ngày.
+///
+/// Tên bệnh nhân chép sẵn trong LichHen được dùng ngay. Với lịch hẹn
+/// chỉ có `benh_nhan_id`, truyền [patientNamesById] đã tra từ hồ sơ
+/// BenhNhan để gắn đúng tên vào STT tương ứng; `watchAppointmentQueue`
+/// tự làm bước tra cứu này theo thời gian thực.
+AppointmentQueueUpdate clinicAppointmentQueueFromFirestore({
+  required List<(String, Map<String, Object?>)> appointments,
+  required String hospitalId,
+  required String roomId,
+  required DateTime day,
+  Set<String> eligibleStatusIds = const <String>{'2'},
+  Map<String, String> patientNamesById = const <String, String>{},
+}) {
+  final draft = _clinicAppointmentQueueDraftFromFirestore(
+    appointments: appointments,
+    hospitalId: hospitalId,
+    roomId: roomId,
+    day: day,
+    eligibleStatusIds: eligibleStatusIds,
+  );
+  return _appointmentQueueUpdateFromDraft(
+    draft,
+    patientNamesById: patientNamesById,
+  );
 }
