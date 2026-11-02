@@ -576,22 +576,31 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-              fontSize: 13.5,
-              fontWeight: FontWeight.w400,
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 130),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                fontSize: 13.5,
+                fontWeight: FontWeight.w400,
+              ),
             ),
           ),
-          Text(
-            isUpper ? value.toUpperCase() : value,
-            style: TextStyle(
-              color: colorValue ?? (isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A)),
-              fontSize: 13.5,
-              fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              isUpper ? value.toUpperCase() : value,
+              textAlign: TextAlign.right,
+              softWrap: true,
+              style: TextStyle(
+                color: colorValue ?? (isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A)),
+                fontSize: 13.5,
+                fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+              ),
             ),
           ),
         ],

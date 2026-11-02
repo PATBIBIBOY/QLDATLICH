@@ -887,14 +887,13 @@ class FirebaseServiceC1 {
       }
     }
 
-    final String statusStr = trangThaiMoi == 'da_duyet' ? 'da_duyet' : (trangThaiMoi == 'tu_choi' ? 'tu_choi' : 'cho_duyet');
-    final String labelStr = trangThaiMoi == 'da_duyet' ? 'Đã xác nhận' : (trangThaiMoi == 'tu_choi' ? 'Đã hủy' : 'Chờ duyệt');
-
+    // Chỉ lưu duy nhất trang_thai_id (dạng ID quy chuẩn từ bảng TrangThai: '2' đã duyệt, '4' từ chối, '1' chờ duyệt).
+    // Xóa sạch các trường dư thừa: 'trang_thai', 'trangThai', 'ten_trang_thai'.
     final Map<String, dynamic> updateData = {
       'trang_thai_id': newStatusId,
-      'trang_thai': statusStr,
-      'trangThai': statusStr,
-      'ten_trang_thai': labelStr,
+      'trang_thai': FieldValue.delete(),
+      'trangThai': FieldValue.delete(),
+      'ten_trang_thai': FieldValue.delete(),
       'ngay_cap_nhat': FieldValue.serverTimestamp(),
     };
 
