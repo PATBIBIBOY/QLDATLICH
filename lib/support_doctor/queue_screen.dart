@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'room_session_store.dart';
@@ -7,22 +9,49 @@ typedef PassedEntry = ({int number, bool deferred});
 
 /// Một yêu cầu chèn từ màn hình chèn: số cần chèn + một số mốc BẤT KỲ mà
 /// số đó sẽ nằm NGAY SAU. Số mốc không nhất thiết đang có trong hàng chờ:
-/// nếu là số tương lai chưa được phát, yêu cầu được giữ lịch đến khi hàng
-/// chờ sinh tới số mốc. `afterNumber == null` là trường hợp đặc biệt đưa
-/// số lên đầu hàng chờ (người dùng nhập 0). Màn hình chèn trả về cả một
-/// `List<InsertResult>` để chèn nhiều số cùng một lần.
+/// nếu chưa xuất hiện trong danh sách lịch hẹn đã xác nhận, yêu cầu được
+/// giữ lịch đến khi số mốc xuất hiện trong một đợt cập nhật sau.
+/// `afterNumber == null` là trường hợp đặc biệt đưa số lên đầu hàng chờ
+/// (người dùng nhập 0). Màn hình chèn trả về cả một `List<InsertResult>`
+/// để chèn nhiều số cùng một lần.
 typedef InsertResult = ({int number, int? afterNumber});
 
 /// Lựa chọn trong bảng "Đợi / Gọi lại": số được chọn + hành động áp dụng.
 /// hold = true  -> cho số đó qua lượt (đợi), hold = false -> gọi lại số đã khám.
 typedef QueueAction = ({int number, bool hold});
 
-/// `true` nếu số mốc của [insert] là một số TƯƠNG LAI chưa được phát
-/// (lớn hơn [lastIssued]). Những yêu cầu này chưa vào hàng chờ ngay mà
-/// được giữ lịch; khi _refillQueue() sinh tới đúng số mốc, số được chèn
-/// sẽ tự xuất hiện ngay phía sau số mốc.
-bool _isFutureScheduledInsert(InsertResult insert, int lastIssued) =>
-    insert.afterNumber != null && insert.afterNumber! > lastIssued;
+/// Kết quả cần báo về cho lịch hẹn gắn với một số thứ tự.
+enum AppointmentOutcome { examined, absent, deferred, requeued }
+
+/// Một đợt cập nhật số thứ tự lấy từ danh sách lịch hẹn đủ điều kiện.
+///
+/// [numbers] là các số thứ tự duy nhất đã sắp tăng dần;
+/// [appointmentIdByNumber] ánh xạ mỗi số sang mã lịch hẹn tương ứng để
+/// nơi cung cấp dữ liệu ghi ngược trạng thái khi khám xong/vắng mặt,
+/// xin đợi hoặc chèn lại vào hàng chờ.
+/// [patientNameByNumber] ánh xạ mỗi số sang tên bệnh nhân của đúng lịch
+/// hẹn đó để hiện tên ngay dưới STT tương ứng.
+typedef AppointmentQueueUpdate = ({
+  List<int> numbers,
+  Map<int, String> appointmentIdByNumber,
+  Map<int, String> patientNameByNumber,
+});
+
+/// Trạng thái hàng chờ sau một lần đồng bộ với danh sách lịch hẹn.
+typedef AppointmentSyncResult = ({
+  int current,
+  int next,
+  List<int> waiting,
+  List<InsertResult> scheduledInserts,
+  int lastIssued,
+});
+
+/// `true` nếu số mốc của [insert] lớn hơn STT lớn nhất đã biết từ
+/// danh sách lịch hẹn ([highestKnownNumber]). Những yêu cầu này chưa
+/// vào hàng chờ ngay mà được giữ lịch; khi số mốc xuất hiện trong một
+/// đợt cập nhật lịch hẹn sau, số được chèn sẽ nằm ngay phía sau số mốc.
+bool _isFutureScheduledInsert(InsertResult insert, int highestKnownNumber) =>
+    insert.afterNumber != null && insert.afterNumber! > highestKnownNumber;
 
 /// Gộp nhiều số đã cho qua vào [waiting], mỗi số nằm NGAY SAU số mốc của
 /// nó (hoặc ở đầu hàng khi `afterNumber` là `null`).
@@ -33,7 +62,7 @@ bool _isFutureScheduledInsert(InsertResult insert, int lastIssued) =>
 ///  - số mốc đang nằm trong hàng chờ    -> ngay sau chính số mốc;
 ///  - số mốc là [nextNumber]            -> đầu hàng chờ (ngay sau số
 ///    tiếp theo trong thứ tự gọi);
-///  - số mốc đã được phát nhưng không  -> khe theo thứ tự số: ngay
+///  - số mốc đã có trong danh sách nhưng không  -> khe theo thứ tự số: ngay
 ///    còn trong hàng chờ                 trước số đang đợi đầu tiên
 ///                                         lớn hơn số mốc (cuối hàng
 ///                                         nếu không có số nào lớn hơn).
@@ -77,7 +106,7 @@ List<int> _waitingAfterInserts(
         // Ngay sau "số tiếp theo" trong thứ tự gọi là đầu hàng chờ.
         originalTarget = 0;
       } else {
-        // Số mốc đã phát nhưng không còn trong hàng chờ: xếp theo thứ
+        // Số mốc đã có trong danh sách nhưng không còn trong hàng chờ: xếp theo thứ
         // tự số, ngay trước số đang đợi đầu tiên lớn hơn số mốc.
         final firstGreaterIndex = waiting.indexWhere((n) => n > afterNumber);
         originalTarget = firstGreaterIndex == -1
@@ -103,6 +132,132 @@ List<int> _waitingAfterInserts(
     if (i < base.length) merged.add(base[i]);
   }
   return merged;
+}
+
+/// Đồng bộ hàng chờ (chế độ lấy số từ lịch hẹn) với tập số đủ điều kiện
+/// mới nhất.
+///
+/// Quy tắc giữ nguyên thứ tự gọi đã hình thành trên màn hình:
+///  - số đang khám luôn được giữ, kể cả khi lịch hẹn của nó vừa đổi
+///    trạng thái ở nơi khác (bệnh nhân đang ở trong phòng);
+///  - số tiếp theo và các số đang đợi tự rời hàng nếu không còn đủ
+///    điều kiện;
+///  - số đủ điều kiện mới xuất hiện được nối vào CUỐI hàng chờ theo thứ
+///    tự số tăng dần, để bệnh nhân được xác nhận muộn không chen ngang
+///    trước những người đã có lượt;
+///  - các số đã qua lượt, đã xác nhận vắng mặt trên chính máy này và
+///    các số đang giữ lịch chèn không bị nạp lại lần hai.
+///
+/// Giá trị 0 ở [current]/[next] nghĩa là vị trí đó chưa có số. Hàm là
+/// hàm thuần để có thể kiểm thử độc lập với giao diện.
+AppointmentSyncResult _reconcileAppointmentQueue({
+  required List<int> eligibleNumbers,
+  required int current,
+  required int next,
+  required List<int> waiting,
+  required Set<int> passedNumbers,
+  required Set<int> suppressedNumbers,
+  required List<InsertResult> scheduledInserts,
+  required int lastIssued,
+}) {
+  final eligibleSorted = eligibleNumbers.where((n) => n > 0).toSet().toList()
+    ..sort();
+  final eligible = eligibleSorted.toSet();
+  var scheduled = List<InsertResult>.of(scheduledInserts);
+
+  final retainedNext = next > 0 && eligible.contains(next) ? next : 0;
+  final seenWaiting = <int>{};
+  final newWaiting = <int>[
+    for (final number in waiting)
+      if (number > 0 && eligible.contains(number) && seenWaiting.add(number))
+        number,
+  ];
+
+  final accounted = <int>{
+    if (current > 0) current,
+    if (retainedNext > 0) retainedNext,
+    ...newWaiting,
+    ...passedNumbers.where((n) => n > 0),
+    ...suppressedNumbers.where((n) => n > 0),
+    for (final insert in scheduled)
+      if (insert.number > 0) insert.number,
+  };
+  for (final number in eligibleSorted) {
+    if (accounted.add(number)) newWaiting.add(number);
+  }
+
+  // Đưa các số đã lên lịch vào ngay sau số mốc khi số mốc đã có mặt
+  // trong lượt gọi. Vòng lặp cho phép cả chuỗi lịch chèn nối tiếp nhau.
+  var progressed = true;
+  while (progressed) {
+    progressed = false;
+    final insertedAfterCounts = <int, int>{};
+    for (final insert in List<InsertResult>.of(scheduled)) {
+      if (!eligible.contains(insert.number) ||
+          suppressedNumbers.contains(insert.number)) {
+        continue;
+      }
+      final afterNumber = insert.afterNumber;
+      int? insertIndex;
+      if (afterNumber == null ||
+          (retainedNext > 0 && afterNumber == retainedNext)) {
+        final countKey = afterNumber ?? 0;
+        final insertedCount = insertedAfterCounts[countKey] ?? 0;
+        insertIndex = insertedCount;
+        insertedAfterCounts[countKey] = insertedCount + 1;
+      } else {
+        final afterIndex = newWaiting.indexOf(afterNumber);
+        if (afterIndex != -1) {
+          final insertedCount = insertedAfterCounts[afterNumber] ?? 0;
+          insertIndex = afterIndex + 1 + insertedCount;
+          insertedAfterCounts[afterNumber] = insertedCount + 1;
+        }
+      }
+      if (insertIndex == null) continue;
+      if (!newWaiting.contains(insert.number)) {
+        newWaiting.insert(insertIndex, insert.number);
+      }
+      scheduled.remove(insert);
+      progressed = true;
+    }
+  }
+
+  var synchronizedCurrent = current;
+  var synchronizedNext = retainedNext;
+  if (synchronizedCurrent <= 0 && synchronizedNext > 0) {
+    synchronizedCurrent = synchronizedNext;
+    synchronizedNext = 0;
+  }
+  if (synchronizedCurrent <= 0 && newWaiting.isNotEmpty) {
+    synchronizedCurrent = newWaiting.removeAt(0);
+  }
+  if (synchronizedCurrent > 0 &&
+      synchronizedNext <= 0 &&
+      newWaiting.isNotEmpty) {
+    synchronizedNext = newWaiting.removeAt(0);
+  }
+
+  var synchronizedLastIssued = lastIssued;
+  for (final number in <int>[
+    ...eligibleSorted,
+    synchronizedCurrent,
+    synchronizedNext,
+    ...newWaiting,
+    ...passedNumbers,
+    for (final insert in scheduled) insert.number,
+  ]) {
+    if (number > synchronizedLastIssued) {
+      synchronizedLastIssued = number;
+    }
+  }
+
+  return (
+    current: synchronizedCurrent,
+    next: synchronizedNext,
+    waiting: newWaiting,
+    scheduledInserts: scheduled,
+    lastIssued: synchronizedLastIssued,
+  );
 }
 
 /// Bộ màu & hiệu ứng dùng chung cho toàn giao diện.
@@ -173,8 +328,10 @@ class QueueScreen extends StatefulWidget {
     this.roomName = 'Phòng khám 3',
     this.departmentName = 'Khoa Tim',
     this.hospitalName = 'Bệnh viện Bạch Mai',
-    this.initialCurrent = 1,
-    this.startingNumber = 1,
+    this.initialCurrent = 0,
+    this.startingNumber = 0,
+    this.appointmentQueueStream,
+    this.onAppointmentOutcome,
   });
 
   /// Mã phiên khám – gom các lượt của cùng một buổi/ngày.
@@ -191,12 +348,29 @@ class QueueScreen extends StatefulWidget {
   final String departmentName;
   final String hospitalName;
 
-  /// Số hiện tại khi mở lại một phòng đang chạy.
+  /// Giữ lại để tương thích với mã gọi cũ; KHÔNG còn dùng để tạo số.
+  /// Hàng chờ chỉ hiện các STT có trong [appointmentQueueStream].
   final int initialCurrent;
 
-  /// Số bắt đầu của phiên – dùng cho nút “Đặt lại số”.
-  /// Mặc định là 1 (mọi phòng đều bắt đầu ở số 1).
+  /// Giữ lại để tương thích với mã gọi cũ; KHÔNG còn dùng để đặt lại
+  /// dãy số. Nút “Đặt lại số” nạp lại đúng danh sách lịch hẹn hiện có.
   final int startingNumber;
+
+  /// Luồng số thứ tự lấy từ danh sách lịch hẹn đã xác nhận của phòng.
+  ///
+  /// Đây là nguồn STT DUY NHẤT của màn hình: QueueScreen không tự sinh
+  /// thêm số ngoài những STT mà luồng này cung cấp. Nếu để `null`, màn
+  /// hình không tự tạo số nào; hàng chờ bắt đầu trống và chỉ có thể khôi
+  /// phục trạng thái phiên đã nạp từ một luồng lịch hẹn trước đó.
+  final Stream<AppointmentQueueUpdate>? appointmentQueueStream;
+
+  /// Báo kết quả khám xong/vắng mặt về nơi lưu lịch hẹn.
+  ///
+  /// Callback nhận mã lịch hẹn đã được ánh xạ từ số thứ tự trong các
+  /// đợt cập nhật của [appointmentQueueStream]. Lỗi của callback chỉ
+  /// hiện thông báo, không chặn thao tác gọi số trên màn hình.
+  final Future<void> Function(String appointmentId, AppointmentOutcome outcome)?
+  onAppointmentOutcome;
 
   @override
   State<QueueScreen> createState() => _QueueScreenState();
@@ -207,13 +381,15 @@ class _QueueScreenState extends State<QueueScreen> {
   late int current;
   late int next;
 
-  /// Hàng đợi: gọi theo thứ tự từ đầu hàng. Mỗi lần một số rời hàng đợi,
-  /// _refillQueue() tự sinh thêm số mới (+1) ở cuối nên dải số tự chạy và
-  /// không bao giờ cạn. Số được chèn lại từ "SỐ ĐÃ CHO QUA" có thể nằm ở
-  /// vị trí bất kỳ trong hàng, nên thứ tự có thể không tăng dần tuyệt đối.
+  /// Hàng đợi hữu hạn, chỉ chứa các STT đã nhận từ danh sách lịch hẹn.
+  /// Khi danh sách bệnh nhân đã hết, hàng đợi để trống thay vì tự sinh
+  /// thêm số mới. Số được chèn lại từ "SỐ ĐÃ CHO QUA" có thể nằm ở vị
+  /// trí bất kỳ trong hàng, nên thứ tự có thể không tăng dần tuyệt đối.
   late List<int> waiting;
 
-  /// Số lớn nhất đã phát ra, dùng để sinh số tiếp theo cho hàng đợi.
+  /// STT lớn nhất đã biết từ danh sách lịch hẹn/phiên hiện tại. Giá trị
+  /// này chỉ dùng để nhận biết số mốc chèn ở tương lai, không dùng để
+  /// tự sinh thêm STT.
   late int lastIssued;
 
   /// Các số đã qua lượt:
@@ -225,13 +401,35 @@ class _QueueScreenState extends State<QueueScreen> {
   /// Không bị xoá khi số được gọi lại / chèn lại / xác nhận vắng mặt.
   final List<int> _deferredHistory = <int>[];
 
-  /// Các số đã được chèn theo một số mốc TƯƠNG LAI chưa được phát.
-  /// Khi _refillQueue() sinh tới đúng số mốc, số tương ứng tự xuất hiện
-  /// ngay phía sau số mốc trong hàng chờ và lịch của nó được xoá.
+  /// Các số đã được chèn theo một số mốc chưa xuất hiện trong danh sách
+  /// lịch hẹn đã xác nhận. Khi số mốc xuất hiện trong đợt cập nhật sau,
+  /// số tương ứng tự nằm ngay phía sau số mốc và lịch của nó được xoá.
   final List<InsertResult> _scheduledFutureInserts = <InsertResult>[];
 
-  /// Số ô hiển thị trong dải "SỐ ĐANG ĐỢI" và là mức tối thiểu của hàng chờ.
-  static const int queueWindow = 5;
+  /// Đăng ký nghe luồng danh sách lịch hẹn của phòng.
+  StreamSubscription<AppointmentQueueUpdate>? _appointmentSubscription;
+
+  /// Tập số lịch hẹn đủ điều kiện trong lần đồng bộ gần nhất.
+  List<int> _eligibleAppointmentNumbers = <int>[];
+
+  /// Ánh xạ tích luỹ số thứ tự → mã lịch hẹn, dùng khi ghi ngược
+  /// các trạng thái khám xong/vắng mặt/xin đợi/chèn lại.
+  final Map<int, String> _appointmentIdByNumber = <int, String>{};
+
+  /// Ánh xạ tích luỹ số thứ tự → tên bệnh nhân của lịch hẹn tương ứng.
+  /// Chỉ nhận dữ liệu từ các lịch hẹn đã qua bộ lọc đúng phòng/bệnh
+  /// viện, đúng ngày hôm nay trên máy và đúng trạng thái đủ điều kiện.
+  final Map<int, String> _patientNameByNumber = <int, String>{};
+
+  /// Các số đã xác nhận vắng mặt trên máy này; không nạp lại từ luồng
+  /// lịch hẹn trong lúc Firebase chưa kịp đổi trạng thái.
+  final Set<int> _absentAppointmentNumbers = <int>{};
+
+  /// Các số đã xin đợi vừa được chèn lại trên máy này và đang chờ
+  /// Firebase đưa lịch hẹn về trạng thái đã xác nhận (`2`). Chúng được
+  /// giữ tạm trong hàng chờ để không bị đợt đồng bộ còn thấy trạng
+  /// thái `7` loại ra trước khi lần ghi về `2` được phản ánh.
+  final Set<int> _requeuedAppointmentNumbers = <int>{};
 
   /// Chiều cao CỐ ĐỊNH của bảng trạng thái hàng chờ (thẻ chứa "SỐ ĐANG
   /// ĐỢI" / "SỐ ĐÃ CHO QUA" / "SỐ CHỜ TỚI SỐ MỐC"). Bảng không đổi kích
@@ -288,29 +486,59 @@ class _QueueScreenState extends State<QueueScreen> {
         ..clear()
         ..addAll(
           snapshot.scheduledFutureInserts.map(
-            (insert) => (
-              number: insert.number,
-              afterNumber: insert.afterNumber,
-            ),
+            (insert) =>
+                (number: insert.number, afterNumber: insert.afterNumber),
           ),
         );
+      _absentAppointmentNumbers
+        ..clear()
+        ..addAll(snapshot.absentNumbers);
+      _requeuedAppointmentNumbers
+        ..clear()
+        ..addAll(snapshot.requeuedNumbers);
+      _appointmentIdByNumber
+        ..clear()
+        ..addAll(snapshot.appointmentIdByNumber);
+      _patientNameByNumber
+        ..clear()
+        ..addAll(snapshot.patientNameByNumber);
       paused = snapshot.paused;
     } else {
-      // Mở phòng lần đầu: bắt đầu từ số khởi tạo (mặc định 1).
-      final start = widget.initialCurrent;
-      current = start;
-      next = start + 1;
-      waiting = List<int>.generate(queueWindow, (index) => start + 2 + index);
-      lastIssued = start + 1 + queueWindow;
+      // Mở phòng lần đầu: hàng chờ bắt đầu trống cho tới khi nhận danh sách lịch hẹn.
+      current = 0;
+      next = 0;
+      waiting = <int>[];
+      lastIssued = 0;
       snapshot
         ..started = true
         ..paused = false;
     }
+    final appointmentStream = widget.appointmentQueueStream;
+    if (appointmentStream != null) {
+      _appointmentSubscription = appointmentStream.listen(
+        _applyAppointmentUpdate,
+        onError: (Object error, StackTrace stackTrace) {
+          if (mounted) {
+            notify(
+              'Không tải được số thứ tự từ lịch hẹn. '
+              'Kiểm tra kết nối Firebase.',
+            );
+          }
+        },
+      );
+    }
+
     // Đẩy trạng thái ra kho chung sau khi frame đầu vẽ xong, để trang chính
     // (màn hình chọn khoa/phòng) nhận đúng thông tin khi quay lại.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _syncRoomState();
     });
+  }
+
+  @override
+  void dispose() {
+    _appointmentSubscription?.cancel();
+    super.dispose();
   }
 
   /// Ghi trạng thái hiện tại của phòng vào [RoomSessionStore] và báo cho
@@ -324,6 +552,10 @@ class _QueueScreenState extends State<QueueScreen> {
       ..next = next
       ..waiting = List<int>.of(waiting)
       ..lastIssued = lastIssued
+      ..absentNumbers = _absentAppointmentNumbers.toList()
+      ..requeuedNumbers = _requeuedAppointmentNumbers.toList()
+      ..appointmentIdByNumber = Map<int, String>.of(_appointmentIdByNumber)
+      ..patientNameByNumber = Map<int, String>.of(_patientNameByNumber)
       ..paused = paused
       ..examinedNumbers = <int>[
         for (final entry in passed)
@@ -340,6 +572,162 @@ class _QueueScreenState extends State<QueueScreen> {
             (number: insert.number, afterNumber: insert.afterNumber!),
       ];
     store.refresh();
+  }
+
+  /// Áp một đợt cập nhật từ luồng lịch hẹn vào trạng thái hiện tại.
+  void _applyAppointmentUpdate(AppointmentQueueUpdate update) {
+    if (!mounted) return;
+    final newlyRequeuedNumbers = <int>[];
+    setState(() {
+      final wasEmpty = current <= 0;
+      _appointmentIdByNumber.addAll(update.appointmentIdByNumber);
+      for (final number in update.numbers) {
+        final patientName = update.patientNameByNumber[number]
+            ?.trim()
+            .replaceAll(RegExp(r'\s+'), ' ');
+        if (patientName == null || patientName.isEmpty) {
+          _patientNameByNumber.remove(number);
+        } else {
+          _patientNameByNumber[number] = patientName;
+        }
+      }
+      _eligibleAppointmentNumbers = List<int>.of(update.numbers);
+      final confirmedNumbers = update.numbers.toSet();
+      final passedNumbers = passed.map((entry) => entry.number).toSet();
+      _requeuedAppointmentNumbers.removeWhere(
+        (number) =>
+            confirmedNumbers.contains(number) ||
+            passedNumbers.contains(number) ||
+            _absentAppointmentNumbers.contains(number),
+      );
+      final scheduledBefore = List<InsertResult>.of(_scheduledFutureInserts);
+      // Số đang chờ Firebase chuyển về `2` và số đã lên lịch chèn được
+      // coi là đủ điều kiện cục bộ trong lần đồng bộ này. Nhờ vậy số
+      // đang ở trạng thái `7` vẫn được đặt ngay sau số mốc khi số mốc
+      // xuất hiện, nhưng không tự nối vào cuối hàng chờ trước thời điểm đó.
+      final effectiveEligibleNumbers = <int>{
+        ...update.numbers,
+        ..._requeuedAppointmentNumbers,
+        for (final insert in scheduledBefore) insert.number,
+      }.toList()..sort();
+      final result = _reconcileAppointmentQueue(
+        eligibleNumbers: effectiveEligibleNumbers,
+        current: current,
+        next: next,
+        waiting: waiting,
+        passedNumbers: passedNumbers,
+        suppressedNumbers: _absentAppointmentNumbers,
+        scheduledInserts: _scheduledFutureInserts,
+        lastIssued: lastIssued,
+      );
+      final remainingScheduledNumbers = result.scheduledInserts
+          .map((insert) => insert.number)
+          .toSet();
+      for (final insert in scheduledBefore) {
+        final number = insert.number;
+        final wasInserted =
+            !remainingScheduledNumbers.contains(number) &&
+            (result.current == number ||
+                result.next == number ||
+                result.waiting.contains(number));
+        if (wasInserted &&
+            !confirmedNumbers.contains(number) &&
+            _requeuedAppointmentNumbers.add(number)) {
+          newlyRequeuedNumbers.add(number);
+        }
+      }
+      current = result.current;
+      next = result.next;
+      waiting = result.waiting;
+      _scheduledFutureInserts
+        ..clear()
+        ..addAll(result.scheduledInserts);
+      lastIssued = result.lastIssued;
+      if (selected != null && !waiting.contains(selected)) selected = null;
+      if (wasEmpty && current > 0) {
+        message = next > 0
+            ? 'Đã nạp số thứ tự từ lịch hẹn đã xác nhận.\n'
+                  'Bệnh nhân số $current đang khám; số $next là số tiếp theo.'
+            : 'Đã nạp số thứ tự từ lịch hẹn đã xác nhận.\n'
+                  'Bệnh nhân số $current đang khám.';
+      }
+      _syncRoomState();
+    });
+    for (final number in newlyRequeuedNumbers) {
+      _reportAppointmentOutcome(number, AppointmentOutcome.requeued);
+    }
+  }
+
+  /// Báo kết quả của một số về lịch hẹn tương ứng, nếu có ánh xạ.
+  /// Việc ghi diễn ra nền; lỗi ghi chỉ hiện thông báo để không làm
+  /// gián đoạn thao tác gọi số của nhân viên.
+  void _reportAppointmentOutcome(int number, AppointmentOutcome outcome) {
+    final report = widget.onAppointmentOutcome;
+    if (report == null) return;
+    final appointmentId = _appointmentIdByNumber[number];
+    if (appointmentId == null) return;
+    unawaited(
+      report(appointmentId, outcome).catchError((Object error) {
+        if (mounted) {
+          notify(
+            'Không cập nhật được trạng thái lịch hẹn của số $number '
+            'lên Firebase.',
+          );
+        }
+      }),
+    );
+  }
+
+  /// Tên bệnh nhân gắn với một STT. Chỉ trả về giá trị khi số đó khớp
+  /// với `so_thu_tu` của lịch hẹn đủ điều kiện đã nạp.
+  String? _patientNameFor(int number) {
+    if (number <= 0) return null;
+    final patientName = _patientNameByNumber[number]?.trim().replaceAll(
+      RegExp(r'\s+'),
+      ' ',
+    );
+    return patientName == null || patientName.isEmpty ? null : patientName;
+  }
+
+  /// Dòng tên bệnh nhân hiện ngay dưới một STT. Chỉ trả về giá trị khi
+  /// số đó khớp với `so_thu_tu` của lịch hẹn đủ điều kiện đã nạp.
+  String? _patientNameSubtitle(int number) {
+    final patientName = _patientNameFor(number);
+    return patientName;
+  }
+
+  /// Điền số đang khám/số tiếp theo từ đầu hàng chờ khi một vị trí bị
+  /// trống. Giá trị 0 được giữ nguyên nếu không còn số nào.
+  void _promoteWaitingHeads() {
+    if (current <= 0 && next > 0) {
+      current = next;
+      next = 0;
+    }
+    if (current <= 0 && waiting.isNotEmpty) {
+      current = waiting.removeAt(0);
+    }
+    if (current > 0 && next <= 0 && waiting.isNotEmpty) {
+      next = waiting.removeAt(0);
+    }
+  }
+
+  String get _defaultStatusMessage {
+    if (paused) {
+      return 'Bác sĩ đã nhấn nút “Tạm dừng khám”.\n'
+          'Việc gọi số tiếp theo tạm thời bị dừng.\n'
+          'Vui lòng chờ đến khi bác sĩ tiếp tục khám.';
+    }
+    if (current <= 0) {
+      return 'Chưa có bệnh nhân nào trong danh sách lịch hẹn đã xác nhận '
+          'của phòng hôm nay.\n'
+          'STT chỉ xuất hiện khi lịch hẹn được cập nhật vào danh sách.';
+    }
+    if (next <= 0) {
+      return 'Bệnh nhân số $current đang khám.\n'
+          'Hiện chưa có số tiếp theo trong hàng chờ.';
+    }
+    return 'Bệnh nhân số $current đang khám.\n'
+        'Nhấn “Tiếp theo” để xác nhận khám xong và gọi số $next.';
   }
 
   void notify(String text) {
@@ -359,27 +747,6 @@ class _QueueScreenState extends State<QueueScreen> {
           margin: const EdgeInsets.fromLTRB(18, 0, 18, 16),
         ),
       );
-  }
-
-  /// Bù số mới (+1) vào cuối hàng đợi để dải số luôn đầy.
-  ///
-  /// Ngay khi một số mới sinh ra trùng với số mốc của các lượt chèn đã
-  /// lên lịch, những số chờ chèn đó được đặt NGAY PHÍA SAU số mốc vừa
-  /// sinh (theo đúng thứ tự đã lên lịch) rồi mới sinh tiếp số kế tiếp.
-  void _refillQueue() {
-    while (waiting.length < queueWindow) {
-      final issued = ++lastIssued;
-      waiting.add(issued);
-      final due = _scheduledFutureInserts
-          .where((insert) => insert.afterNumber == issued)
-          .toList();
-      if (due.isNotEmpty) {
-        _scheduledFutureInserts.removeWhere(
-          (insert) => insert.afterNumber == issued,
-        );
-        waiting.addAll(due.map((insert) => insert.number));
-      }
-    }
   }
 
   bool get _currentConfirmed =>
@@ -408,46 +775,57 @@ class _QueueScreenState extends State<QueueScreen> {
       notify('Vui lòng tiếp tục khám trước khi gọi số.');
       return;
     }
+    if (current <= 0) {
+      notify('Chưa có lịch hẹn đã xác nhận nào để gọi.');
+      return;
+    }
+    final finished = current;
+    var shouldReportExamined = false;
     setState(() {
-      final finished = current;
       // Số từng xin đợi nay đã khám xong: bỏ khỏi "SỐ ĐÃ CHO QUA" để không
       // xuất hiện ở cả 2 danh sách cùng lúc.
       passed.removeWhere((e) => e.number == finished && e.deferred);
       if (!_currentConfirmed) {
         // Xác nhận khám: ghi số hiện tại vào danh sách đã khám.
-        passed.add((number: current, deferred: false));
+        passed.add((number: finished, deferred: false));
+        _requeuedAppointmentNumbers.remove(finished);
+        shouldReportExamined = true;
       }
       current = next;
-      next = waiting.removeAt(
-        0,
-      ); // hàng đợi không bao giờ rỗng nhờ _refillQueue()
-      _refillQueue();
+      next = 0;
+      _promoteWaitingHeads();
       if (selected != null && !waiting.contains(selected)) selected = null;
-      message =
-          'Đã xác nhận bệnh nhân số $finished khám xong.\n'
-          'Đã gọi bệnh nhân số $current – vui lòng chờ bệnh nhân vào phòng khám.';
+      message = current > 0
+          ? 'Đã xác nhận bệnh nhân số $finished khám xong.\n'
+                'Đã gọi bệnh nhân số $current – vui lòng chờ bệnh nhân '
+                'vào phòng khám.'
+          : 'Đã xác nhận bệnh nhân số $finished khám xong.\n'
+                'Hiện không còn số nào trong hàng chờ — số sẽ tự xuất '
+                'hiện khi có lịch hẹn mới được xác nhận.';
       _syncRoomState();
     });
+    if (shouldReportExamined) {
+      _reportAppointmentOutcome(finished, AppointmentOutcome.examined);
+    }
   }
 
-  /// Nút “Đặt lại số”: đưa phòng về đúng trạng thái ban đầu – số hiện tại =
-  /// [QueueScreen.startingNumber], số tiếp theo = số đó + 1, hàng chờ là
-  /// [queueWindow] số kế tiếp, xoá toàn bộ số đã đợi/đã khám và phòng trở về
-  /// “Đang khám”. Có hộp thoại xác nhận vì thao tác này không thể hoàn tác.
-  Future<void> resetNumbers() async {
-    final start = widget.startingNumber;
-
+  /// “Đặt lại số” trong chế độ lịch hẹn: xoá trạng thái phiên trên máy
+  /// rồi nạp lại đúng các lịch hẹn đang đủ điều kiện gần nhất. Lịch đã
+  /// được ghi Hoàn thành/Vắng mặt trên Firebase sẽ không quay lại vì
+  /// không còn thuộc tập đủ điều kiện.
+  Future<void> _resetNumbersFromAppointments() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Đặt lại số'),
         content: Text(
-          'Đưa ${widget.roomName} về trạng thái ban đầu?\n\n'
-          '• Số hiện tại: $start\n'
-          '• Số tiếp theo: ${start + 1}\n'
-          '• Hàng chờ: ${start + 2} → ${start + 1 + queueWindow}\n'
-          '• Xoá toàn bộ số đã đợi, số đã khám và lịch chèn theo '
-          'số mốc tương lai\n'
+          'Đưa ${widget.roomName} về đúng danh sách lịch hẹn đã xác '
+          'nhận hôm nay?\n\n'
+          '• Xoá toàn bộ số đã đợi, số đã khám ghi trên máy này và '
+          'lịch chèn theo số mốc tương lai\n'
+          '• Nạp lại số thứ tự từ các lịch hẹn đang ở trạng thái '
+          'Đã xác nhận trên Firebase\n'
+          '• Lịch đã Hoàn thành, Vắng mặt hoặc Xin đợi (7) sẽ không quay lại\n'
           '• Phòng trở về “Đang khám”\n\n'
           'Thao tác này không thể hoàn tác.',
         ),
@@ -467,24 +845,40 @@ class _QueueScreenState extends State<QueueScreen> {
     if (!mounted || confirmed != true) return;
 
     setState(() {
-      current = start;
-      next = start + 1;
-      waiting = List<int>.generate(queueWindow, (index) => start + 2 + index);
-      lastIssued = start + 1 + queueWindow;
       passed.clear();
       _deferredHistory.clear();
       _scheduledFutureInserts.clear();
+      _absentAppointmentNumbers.clear();
+      _requeuedAppointmentNumbers.clear();
       selected = null;
       paused = false;
-      message =
-          'Đã đặt lại số: số hiện tại = $current, số tiếp theo = $next.\n'
-          'Hàng chờ bắt đầu lại từ số ${waiting.first}.';
-      // Ghi trạng thái mới ra kho chung để trang chính hiển thị đúng:
-      // số hiện tại = $start, 0 đang đợi, 0 đã khám, “Đang khám”.
+      final result = _reconcileAppointmentQueue(
+        eligibleNumbers: _eligibleAppointmentNumbers,
+        current: 0,
+        next: 0,
+        waiting: const <int>[],
+        passedNumbers: const <int>{},
+        suppressedNumbers: const <int>{},
+        scheduledInserts: const <InsertResult>[],
+        lastIssued: 0,
+      );
+      current = result.current;
+      next = result.next;
+      waiting = result.waiting;
+      lastIssued = result.lastIssued;
+      message = current > 0
+          ? 'Đã đặt lại hàng chờ theo lịch hẹn đã xác nhận: số hiện '
+                'tại = $current${next > 0 ? ', số tiếp theo = $next' : ''}.'
+          : 'Đã đặt lại hàng chờ. Hiện chưa có lịch hẹn đã xác nhận '
+                'nào cho phòng hôm nay.';
       _syncRoomState();
     });
-    notify('Đã đặt lại hàng chờ của ${widget.roomName}.');
+    notify('Đã đặt lại hàng chờ của ${widget.roomName} theo lịch hẹn.');
   }
+
+  /// Nút “Đặt lại số”: xoá trạng thái phiên trên máy rồi nạp lại đúng
+  /// các STT còn trong danh sách lịch hẹn đã xác nhận gần nhất.
+  Future<void> resetNumbers() => _resetNumbersFromAppointments();
 
   /// Nút "Xác nhận vắng mặt":
   ///  1. Mở bảng chọn số – CHỈ gồm những số đã bấm "Đợi" (danh sách
@@ -538,9 +932,13 @@ class _QueueScreenState extends State<QueueScreen> {
       passed.removeWhere(
         (entry) => entry.deferred && entry.number == absentNumber,
       );
+      _absentAppointmentNumbers.add(absentNumber);
+      _requeuedAppointmentNumbers.remove(absentNumber);
+      _scheduledFutureInserts.removeWhere(
+        (insert) => insert.number == absentNumber,
+      );
       final wasInQueue = waiting.remove(absentNumber);
       if (wasInQueue) {
-        _refillQueue();
         if (selected == absentNumber) selected = null;
       }
       final queueNote = wasInQueue ? ' và khỏi hàng chờ' : '';
@@ -550,6 +948,7 @@ class _QueueScreenState extends State<QueueScreen> {
           '$queueNote.';
       _syncRoomState();
     });
+    _reportAppointmentOutcome(absentNumber, AppointmentOutcome.absent);
   }
 
   /// Bảng chọn số cần ghi nhận vắng mặt – chỉ gồm các số đã bấm "Đợi".
@@ -647,13 +1046,16 @@ class _QueueScreenState extends State<QueueScreen> {
   ///  - số tiếp theo -> số đầu hàng chờ thế chân;
   ///  - số đang chờ  -> bị rút khỏi hàng chờ.
   ///
-  /// Khi bệnh nhân quay lại, bấm vào số đó trong dải "SỐ ĐÃ CHO QUA" hoặc
-  /// nút "+ Chèn" để đưa số đó trở lại hàng chờ tại vị trí mong muốn.
+  /// Lịch hẹn tương ứng được báo sang trạng thái xin đợi (`7`). Khi
+  /// bệnh nhân quay lại, bấm vào số đó trong dải "SỐ ĐÃ CHO QUA" hoặc
+  /// nút "+ Chèn" để đưa số đó trở lại hàng chờ tại vị trí mong muốn;
+  /// lúc số thực sự vào lại hàng chờ, lịch hẹn được báo về `2`.
   void deferNumber(int number) {
     if (paused) {
       notify('Vui lòng tiếp tục khám trước khi đổi lượt.');
       return;
     }
+    if (number <= 0) return;
     final isCurrent = number == current;
     final isNext = number == next;
     if (!isCurrent && !isNext && !waiting.contains(number)) {
@@ -666,17 +1068,15 @@ class _QueueScreenState extends State<QueueScreen> {
       if (!_deferredHistory.contains(number)) {
         _deferredHistory.add(number);
       }
-      // Đảm bảo hàng chờ luôn có phần tử trước khi gọi removeAt(0)
-      // (phòng trường hợp dữ liệu khôi phục từ bộ nhớ bị thiếu).
-      _refillQueue();
       // Nhường vị trí của số bị cho qua cho số kế tiếp trong lượt gọi.
       if (isCurrent) {
         // Bệnh nhân đang khám xin đợi: gọi số kế tiếp lên phòng khám.
         current = next;
-        next = waiting.removeAt(0);
+        next = 0;
       } else if (isNext) {
-        // Số tiếp theo xin đợi: số đầu hàng chờ thế chân.
-        next = waiting.removeAt(0);
+        // Số tiếp theo xin đợi: vị trí này tạm trống, sẽ được điền lại
+        // từ đầu hàng chờ ngay bên dưới nếu vẫn còn số.
+        next = 0;
       } else {
         // Số đang chờ xin đợi: rút khỏi hàng chờ.
         waiting.remove(number);
@@ -684,18 +1084,24 @@ class _QueueScreenState extends State<QueueScreen> {
       // Ghi vào "SỐ ĐÃ CHO QUA" – điểm đến DUY NHẤT của mọi số bị cho qua,
       // kể cả số vừa là số hiện tại / số tiếp theo. Xoá entry cũ cùng số
       // (nếu còn sót) trước khi thêm để danh sách không bị trùng số.
+      _requeuedAppointmentNumbers.remove(number);
       passed.removeWhere((e) => e.number == number && e.deferred);
       passed.add((number: number, deferred: true));
-      _refillQueue();
+      _promoteWaitingHeads();
       if (selected == number ||
           (selected != null && !waiting.contains(selected))) {
         selected = null;
       }
       final queueUpdate = isCurrent
-          ? 'Bệnh nhân số $current đang khám; số $next là số tiếp theo.\n'
+          ? (current > 0
+                ? 'Bệnh nhân số $current đang khám'
+                      '${next > 0 ? '; số $next là số tiếp theo' : ''}.\n'
+                : 'Hiện chưa có số tiếp theo trong hàng chờ.\n')
           : isNext
-              ? 'Số $next trở thành số tiếp theo.\n'
-              : '';
+          ? (next > 0
+                ? 'Số $next trở thành số tiếp theo.\n'
+                : 'Hiện chưa có số tiếp theo trong hàng chờ.\n')
+          : '';
       message =
           'Bệnh nhân số $number xin đợi.\n'
           'Số $number đã được chuyển vào “SỐ ĐÃ CHO QUA” để lưu lại.\n'
@@ -704,6 +1110,7 @@ class _QueueScreenState extends State<QueueScreen> {
           '$number trở lại hàng chờ.';
       _syncRoomState();
     });
+    _reportAppointmentOutcome(number, AppointmentOutcome.deferred);
     notify('Số $number đã được chuyển vào “SỐ ĐÃ CHO QUA”.');
   }
 
@@ -715,24 +1122,36 @@ class _QueueScreenState extends State<QueueScreen> {
       notify('Vui lòng tiếp tục khám trước khi gọi lại số.');
       return;
     }
+    if (picked <= 0) return;
+    final previousCurrent = current;
+    final previousNext = next;
     setState(() {
-      final previousCurrent = current;
-      final previousNext = next;
-      // Bệnh nhân vào phòng khám ngay: bỏ khỏi danh sách đã khám, sẽ được đưa
-      // lại danh sách khi bác sĩ nhấn "Tiếp theo".
+      // Bệnh nhân vào phòng khám ngay: bỏ khỏi danh sách đã khám, sẽ được
+      // đưa lại danh sách khi bác sĩ nhấn "Tiếp theo".
       // Số được gọi lại đang khám -> không còn thuộc "ĐÃ KHÁM" hay
       // "SỐ ĐÃ CHO QUA" nữa.
       passed.removeWhere((entry) => entry.number == picked);
       current = picked;
-      next = previousCurrent;
-      waiting.insert(
-        0,
-        previousNext,
-      ); // số kế tiếp cũ chưa gọi -> về đầu hàng chờ
+      if (previousCurrent > 0) {
+        next = previousCurrent;
+        if (previousNext > 0) {
+          waiting.insert(
+            0,
+            previousNext,
+          ); // số kế tiếp cũ chưa gọi -> về đầu hàng chờ
+        }
+        message =
+            'Đã gọi lại bệnh nhân số $picked – số $picked đang khám.\n'
+            'Số $previousCurrent trở thành số tiếp theo'
+            '${previousNext > 0 ? '; số $previousNext quay lại đầu hàng chờ.' : '.'}';
+      } else {
+        next = previousNext;
+        _promoteWaitingHeads();
+        message =
+            'Đã gọi lại bệnh nhân số $picked – số $picked đang khám.\n'
+            '${next > 0 ? 'Số $next là số tiếp theo.' : 'Hiện chưa có số tiếp theo trong hàng chờ.'}';
+      }
       if (selected != null && !waiting.contains(selected)) selected = null;
-      message =
-          'Đã gọi lại bệnh nhân số $picked – số $picked đang khám.\n'
-          'Số $previousCurrent trở thành số tiếp theo; số $previousNext quay lại đầu hàng chờ.';
       _syncRoomState();
     });
     notify('Mời bệnh nhân số $picked đến ${widget.roomName.toLowerCase()}.');
@@ -747,7 +1166,11 @@ class _QueueScreenState extends State<QueueScreen> {
     final recallable = examinedNumbers;
     // MỚI: thêm cả số đang khám. Dùng Set (LinkedHashSet) để vừa loại trùng
     // vừa giữ đúng thứ tự: đang khám -> kế tiếp -> các số đang chờ.
-    final holdable = <int>{current, next, ...waiting}.toList();
+    final holdable = <int>{
+      current,
+      next,
+      ...waiting,
+    }.where((number) => number > 0).toList();
     final picked = await showModalBottomSheet<QueueAction>(
       context: context,
       backgroundColor: Colors.white,
@@ -812,6 +1235,7 @@ class _QueueScreenState extends State<QueueScreen> {
                       for (final n in holdable)
                         _SheetWaitChip(
                           number: n,
+                          patientName: _patientNameFor(n),
                           isCurrent: n == current,
                           isNext: n == next,
                           onTap: () => Navigator.of(
@@ -870,10 +1294,9 @@ class _QueueScreenState extends State<QueueScreen> {
 
   /// Nhấn "+ Chèn" (hoặc bấm một số trong hàng "SỐ ĐÃ CHO QUA"): mở màn hình
   /// chèn. Danh sách trong màn hình là những số đã bấm "Đợi"; người dùng
-  /// nhập cho mỗi số một số mốc BẤT KỲ. Số mốc đã tới (đang trong hàng
-  /// chờ, là số tiếp theo, hoặc đã được phát) thì số được chèn vào ngay;
-  /// số mốc là một số TƯƠNG LAI chưa được phát thì yêu cầu được giữ lịch
-  /// và số được chèn sẽ tự xuất hiện ngay sau số mốc khi tới lượt số đó.
+  /// nhập cho mỗi số một số mốc BẤT KỲ. Số mốc đã biết từ danh sách lịch
+  /// hẹn thì số được chèn vào ngay; số mốc lớn hơn STT lớn nhất đã biết
+  /// được giữ lịch và tự áp dụng khi xuất hiện trong danh sách lịch hẹn.
   Future<void> openInsertScreen({int? initialNumber}) async {
     if (deferredNumbers.isEmpty) {
       notify('Chưa có bệnh nhân nào bấm “Đợi” để chèn lại.');
@@ -891,6 +1314,7 @@ class _QueueScreenState extends State<QueueScreen> {
       ),
     );
     if (!mounted || results == null || results.isEmpty) return;
+    final immediateNumbersToReport = <int>{};
     setState(() {
       // Tách yêu cầu chèn ngay khỏi yêu cầu chờ số mốc tương lai, dựa trên
       // [lastIssued] tại thời điểm đóng màn hình chèn.
@@ -907,8 +1331,8 @@ class _QueueScreenState extends State<QueueScreen> {
         immediateResults,
         nextNumber: next,
       );
-      // Chờ mốc tương lai: giữ lịch; _refillQueue() sẽ tự đặt từng số
-      // ngay sau số mốc khi hàng chờ sinh tới số đó.
+      // Chờ mốc tương lai: giữ lịch; đợt cập nhật lịch hẹn sau sẽ tự đặt
+      // từng số ngay sau số mốc khi số mốc xuất hiện trong danh sách.
       for (final insert in futureResults) {
         _scheduledFutureInserts.removeWhere(
           (scheduled) => scheduled.number == insert.number,
@@ -920,7 +1344,11 @@ class _QueueScreenState extends State<QueueScreen> {
       passed.removeWhere(
         (entry) => entry.deferred && insertedNumbers.contains(entry.number),
       );
-      _refillQueue();
+      // Số chèn ngay được giữ tạm trong hàng chờ và sẽ báo về trạng
+      // thái `2` ngay sau setState. Số chờ mốc tương lai vẫn giữ `7`
+      // cho tới khi thực sự được đặt vào hàng chờ ở một đợt đồng bộ sau.
+      _requeuedAppointmentNumbers.addAll(immediateResults.map((r) => r.number));
+      immediateNumbersToReport.addAll(immediateResults.map((r) => r.number));
       selected = immediateResults.isEmpty
           ? null
           : immediateResults.first.number;
@@ -944,6 +1372,9 @@ class _QueueScreenState extends State<QueueScreen> {
       message = sentences.join('\n');
       _syncRoomState();
     });
+    for (final number in immediateNumbersToReport) {
+      _reportAppointmentOutcome(number, AppointmentOutcome.requeued);
+    }
   }
 
   @override
@@ -1002,7 +1433,9 @@ class _QueueScreenState extends State<QueueScreen> {
                                   Text(
                                     '${widget.departmentName} - ${widget.hospitalName}',
                                     style: TextStyle(
-                                      fontSize: compact ? 16.5 : (tablet ? 22 : 19),
+                                      fontSize: compact
+                                          ? 16.5
+                                          : (tablet ? 22 : 19),
                                       fontWeight: FontWeight.w800,
                                       color: _Ui.textPrimary,
                                       letterSpacing: -0.2,
@@ -1038,7 +1471,8 @@ class _QueueScreenState extends State<QueueScreen> {
                             Expanded(
                               child: _NumberCard(
                                 label: 'SỐ HIỆN TẠI',
-                                value: '$current',
+                                value: current > 0 ? '$current' : '—',
+                                subtitle: _patientNameSubtitle(current),
                                 gradient: _Ui.greenCard,
                                 foreground: Colors.white,
                                 glow: const Color(0x4D1FA24C),
@@ -1050,7 +1484,8 @@ class _QueueScreenState extends State<QueueScreen> {
                             Expanded(
                               child: _NumberCard(
                                 label: 'SỐ TIẾP THEO',
-                                value: '$next',
+                                value: next > 0 ? '$next' : '—',
+                                subtitle: _patientNameSubtitle(next),
                                 gradient: _Ui.amberCard,
                                 foreground: const Color(0xFF3A2A00),
                                 glow: const Color(0x4DFF9A00),
@@ -1091,8 +1526,7 @@ class _QueueScreenState extends State<QueueScreen> {
                                       ? const Align(
                                           alignment: Alignment.centerLeft,
                                           child: _EmptyHint(
-                                            icon: Icons
-                                                .people_outline_rounded,
+                                            icon: Icons.people_outline_rounded,
                                             text: 'Chưa có bệnh nhân đang đợi',
                                           ),
                                         )
@@ -1100,13 +1534,15 @@ class _QueueScreenState extends State<QueueScreen> {
                                           scrollDirection: Axis.horizontal,
                                           padding: EdgeInsets.zero,
                                           itemCount: waiting.length,
-                                          separatorBuilder: (_, _) => SizedBox(
-                                            width: compact ? 9 : 13,
-                                          ),
+                                          separatorBuilder: (_, _) =>
+                                              SizedBox(width: compact ? 9 : 13),
                                           itemBuilder: (context, index) {
                                             final number = waiting[index];
                                             return _WaitingChip(
                                               number: number,
+                                              patientName: _patientNameFor(
+                                                number,
+                                              ),
                                               selected: selected == number,
                                               compact: compact,
                                               onTap: () => setState(
@@ -1203,7 +1639,7 @@ class _QueueScreenState extends State<QueueScreen> {
                                     alignment: Alignment.topLeft,
                                     child: Text(
                                       'Chưa vào hàng chờ ngay; sẽ tự xuất '
-                                      'hiện ngay sau số mốc khi tới số đó.',
+                                      'hiện sau số mốc khi số mốc có trong danh sách.',
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
@@ -1237,8 +1673,7 @@ class _QueueScreenState extends State<QueueScreen> {
                                                 _scheduledFutureInserts[index];
                                             return _ScheduledInsertChip(
                                               number: insert.number,
-                                              afterNumber:
-                                                  insert.afterNumber!,
+                                              afterNumber: insert.afterNumber!,
                                             );
                                           },
                                         ),
@@ -1337,11 +1772,7 @@ class _QueueScreenState extends State<QueueScreen> {
                         const SizedBox(height: 16),
                         _StatusBanner(
                           paused: paused,
-                          message:
-                              message ??
-                              (paused
-                                  ? 'Bác sĩ đã nhấn nút “Tạm dừng khám”.\nViệc gọi số tiếp theo tạm thời bị dừng.\nVui lòng chờ đến khi bác sĩ tiếp tục khám.'
-                                  : 'Bệnh nhân số $current đang khám.\nNhấn “Tiếp theo” để xác nhận khám xong và gọi số $next.'),
+                          message: message ?? _defaultStatusMessage,
                           footer:
                               '${widget.roomName} · ${widget.departmentName} · 08:42',
                         ),
@@ -1360,9 +1791,9 @@ class _QueueScreenState extends State<QueueScreen> {
 
 /// Màn hình "Khoa - Số hàng chờ": nhập một số mốc BẤT KỲ cho một hoặc
 /// NHIỀU số đã bấm "Đợi". Mỗi số được chèn sẽ nằm NGAY SAU số mốc đã
-/// nhập; số mốc không cần đang có trong hàng chờ — nếu là số tương lai
-/// chưa được phát, yêu cầu được giữ lịch đến khi tới số đó. Ô nào để
-/// trống thì số đó chưa được chèn trong lần này.
+/// nhập; số mốc không cần đang có trong hàng chờ — nếu chưa xuất hiện
+/// trong danh sách lịch hẹn đã xác nhận, yêu cầu được giữ lịch đến khi
+/// số mốc xuất hiện. Ô nào để trống thì số đó chưa được chèn lần này.
 class InsertPositionScreen extends StatefulWidget {
   const InsertPositionScreen({
     super.key,
@@ -1383,8 +1814,8 @@ class InsertPositionScreen extends StatefulWidget {
   /// đầu hàng chờ, ngay sau số tiếp theo trong thứ tự gọi.
   final int nextNumber;
 
-  /// Số lớn nhất đã được phát khi mở màn hình. Số mốc lớn hơn giá trị
-  /// này là số tương lai: yêu cầu được giữ lịch đến khi tới số mốc.
+  /// STT lớn nhất đã biết từ danh sách lịch hẹn khi mở màn hình. Số mốc
+  /// lớn hơn giá trị này được giữ lịch đến khi xuất hiện trong danh sách.
   final int lastIssued;
 
   /// Số được chọn sẵn khi mở màn hình (bấm từ hàng "SỐ ĐÃ CHO QUA").
@@ -1464,8 +1895,8 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
   ///  - để trống            -> chưa chèn số này trong lần này;
   ///  - nhập 0              -> đưa lên đầu hàng chờ;
   ///  - nhập một số bất kỳ  -> số được chèn nằm NGAY SAU số mốc đó. Nếu
-  ///    số mốc là một số tương lai chưa được phát, yêu cầu được giữ lịch
-  ///    và tự áp dụng khi hàng chờ sinh tới số mốc.
+  ///    số mốc chưa xuất hiện trong danh sách lịch hẹn đã xác nhận, yêu
+  ///    cầu được giữ lịch và tự áp dụng khi số mốc xuất hiện.
   ({bool isEmpty, String? error, int? afterNumber, String description})
   _parseRow(int number) {
     final raw = _controllerFor(number).text.trim();
@@ -1511,8 +1942,8 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
           'ngay sau số $value.';
     } else if (value > widget.lastIssued) {
       description =
-          'Số $value chưa được phát. Sẽ giữ lịch: khi hàng chờ sinh '
-          'tới số $value, số này sẽ nằm ngay sau số $value.';
+          'Số $value chưa có trong danh sách lịch hẹn hiện tại. Sẽ giữ '
+          'lịch: khi số $value xuất hiện, số này sẽ nằm ngay sau số $value.';
     } else {
       final firstGreaterIndex = widget.waiting.indexWhere((n) => n > value);
       description = firstGreaterIndex == -1
@@ -1554,9 +1985,7 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
       return;
     }
     if (draft.results.isEmpty) {
-      setState(
-        () => submitError = 'Nhập số mốc cho ít nhất một số cần chèn.',
-      );
+      setState(() => submitError = 'Nhập số mốc cho ít nhất một số cần chèn.');
       return;
     }
     Navigator.of(context).pop<List<InsertResult>>(draft.results);
@@ -1580,8 +2009,7 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
     );
     final insertedNumbers = immediateResults.map((r) => r.number).toSet();
     final futureDetails = <String>[
-      for (final r in futureResults)
-        'số ${r.number} sau số ${r.afterNumber}',
+      for (final r in futureResults) 'số ${r.number} sau số ${r.afterNumber}',
     ].join(' · ');
     final summaryDetails = <String>[
       for (final r in draft.results)
@@ -1671,7 +2099,9 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
                         ),
                         const SizedBox(height: 16),
                         _SoftCard(
-                          padding: EdgeInsets.all(compact ? 16 : (tablet ? 24 : 20)),
+                          padding: EdgeInsets.all(
+                            compact ? 16 : (tablet ? 24 : 20),
+                          ),
                           child: widget.deferredNumbers.isEmpty
                               ? const _EmptyHint(
                                   icon: Icons.pause_circle_outline_rounded,
@@ -1694,7 +2124,9 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
                         // Xem trước thứ tự hàng chờ sau khi chèn tất cả các
                         // số đã nhập số mốc (số sắp chèn được tô nổi bật).
                         _SoftCard(
-                          padding: EdgeInsets.all(compact ? 16 : (tablet ? 24 : 20)),
+                          padding: EdgeInsets.all(
+                            compact ? 16 : (tablet ? 24 : 20),
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1738,9 +2170,9 @@ class _InsertPositionScreenState extends State<InsertPositionScreen> {
                                 const SizedBox(height: 12),
                                 Text(
                                   'Chưa vào hàng chờ ngay: $futureDetails. '
-                                  'Khi lượt gọi sinh tới từng số mốc, các '
-                                  'số này sẽ tự xuất hiện ngay phía sau '
-                                  'số mốc của nó.',
+                                  'Khi từng số mốc xuất hiện trong danh '
+                                  'sách lịch hẹn đã xác nhận, các số này '
+                                  'sẽ tự nằm ngay phía sau số mốc của nó.',
                                   style: const TextStyle(
                                     fontSize: 11.5,
                                     fontWeight: FontWeight.w600,
@@ -1996,9 +2428,7 @@ class _QueuePreviewChip extends StatelessWidget {
       color: highlighted ? null : const Color(0xFFF4F6FB),
       borderRadius: BorderRadius.circular(12),
       border: Border.all(
-        color: highlighted
-            ? const Color(0xFFFFCF00)
-            : const Color(0xFFE9ECF4),
+        color: highlighted ? const Color(0xFFFFCF00) : const Color(0xFFE9ECF4),
         width: highlighted ? 2 : 1,
       ),
     ),
@@ -2177,10 +2607,16 @@ class _NumberCard extends StatelessWidget {
     required this.glow,
     required this.icon,
     required this.compact,
+    this.subtitle,
   });
 
   final String label;
   final String value;
+
+  /// Thông tin phụ hiện ngay dưới STT (ví dụ tên bệnh nhân của lịch
+  /// hẹn có `so_thu_tu` trùng với số trên thẻ). Vùng chữ luôn giữ
+  /// chiều cao cố định nên thẻ không đổi kích thước khi chưa có tên.
+  final String? subtitle;
   final LinearGradient gradient;
   final Color foreground;
   final Color glow;
@@ -2245,35 +2681,65 @@ class _NumberCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 320),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  layoutBuilder: (currentChild, previousChildren) => Stack(
-                    alignment: Alignment.centerLeft,
-                    children: [...previousChildren, ?currentChild],
-                  ),
-                  transitionBuilder: (child, animation) => FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.4),
-                        end: Offset.zero,
-                      ).animate(animation),
-                      child: child,
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 320),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      layoutBuilder: (currentChild, previousChildren) => Stack(
+                        alignment: Alignment.centerLeft,
+                        children: [...previousChildren, ?currentChild],
+                      ),
+                      transitionBuilder: (child, animation) => FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 0.4),
+                            end: Offset.zero,
+                          ).animate(animation),
+                          child: child,
+                        ),
+                      ),
+                      child: Text(
+                        value,
+                        key: ValueKey<String>('number-$value'),
+                        style: TextStyle(
+                          fontSize: compact ? 58 : 72,
+                          height: 1.05,
+                          fontWeight: FontWeight.w800,
+                          color: foreground,
+                          letterSpacing: -1.5,
+                        ),
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    value,
-                    key: ValueKey<String>('number-$value'),
-                    style: TextStyle(
-                      fontSize: compact ? 58 : 72,
-                      height: 1.05,
-                      fontWeight: FontWeight.w800,
-                      color: foreground,
-                      letterSpacing: -1.5,
+                    const SizedBox(height: 2),
+                    SizedBox(
+                      height: compact ? 13 : 15,
+                      child: subtitle == null
+                          ? const SizedBox.shrink()
+                          : Align(
+                              alignment: Alignment.centerLeft,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  subtitle!,
+                                  maxLines: 1,
+                                  softWrap: false,
+                                  style: TextStyle(
+                                    fontSize: compact ? 9 : 10,
+                                    height: 1.1,
+                                    fontWeight: FontWeight.w600,
+                                    color: labelColor,
+                                  ),
+                                ),
+                              ),
+                            ),
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),
@@ -2306,60 +2772,100 @@ class _WaitingChip extends StatelessWidget {
     required this.selected,
     required this.compact,
     required this.onTap,
+    this.patientName,
   });
 
   final int number;
+
+  /// Tên bệnh nhân của lịch hẹn có `so_thu_tu` trùng với [number].
+  final String? patientName;
   final bool selected;
   final bool compact;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    selected: selected,
-    button: true,
-    label: 'Bệnh nhân số $number',
-    child: AnimatedScale(
-      scale: selected ? 1.06 : 1,
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutBack,
-      child: AnimatedContainer(
+  Widget build(BuildContext context) {
+    final trimmedPatientName = patientName?.trim();
+    final hasPatientName =
+        trimmedPatientName != null && trimmedPatientName.isNotEmpty;
+    return Semantics(
+      selected: selected,
+      button: true,
+      label: hasPatientName
+          ? 'Bệnh nhân số $number, tên bệnh nhân $trimmedPatientName'
+          : 'Bệnh nhân số $number',
+      child: AnimatedScale(
+        scale: selected ? 1.06 : 1,
         duration: const Duration(milliseconds: 180),
-        width: compact ? 54 : 76,
-        height: compact ? 52 : 58,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(17),
-          border: Border.all(
-            color: selected ? const Color(0xFFFFD400) : Colors.transparent,
-            width: 3.5,
+        curve: Curves.easeOutBack,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: hasPatientName ? (compact ? 112 : 128) : (compact ? 54 : 76),
+          height: compact ? 52 : 58,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(17),
+            border: Border.all(
+              color: selected ? const Color(0xFFFFD400) : Colors.transparent,
+              width: 3.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: selected
+                    ? const Color(0x59FFB300)
+                    : const Color(0x33EE2F26),
+                blurRadius: selected ? 20 : 13,
+                offset: const Offset(0, 7),
+              ),
+            ],
           ),
-          boxShadow: [
-            BoxShadow(
-              color: selected
-                  ? const Color(0x59FFB300)
-                  : const Color(0x33EE2F26),
-              blurRadius: selected ? 20 : 13,
-              offset: const Offset(0, 7),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(13),
-          clipBehavior: Clip.antiAlias,
-          child: Ink(
-            decoration: BoxDecoration(
-              gradient: _Ui.redChip,
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: InkWell(
-              onTap: onTap,
-              child: Center(
-                child: Text(
-                  '$number',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 23,
-                    fontWeight: FontWeight.w800,
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(13),
+            clipBehavior: Clip.antiAlias,
+            child: Ink(
+              decoration: BoxDecoration(
+                gradient: _Ui.redChip,
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: InkWell(
+                onTap: onTap,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '$number',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: hasPatientName ? 19 : 23,
+                            height: 1,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        if (hasPatientName) ...[
+                          const SizedBox(height: 3),
+                          SizedBox(
+                            width: compact ? 100 : 116,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                trimmedPatientName,
+                                maxLines: 1,
+                                style: TextStyle(
+                                  color: const Color(0xE6FFFFFF),
+                                  fontSize: compact ? 6.5 : 7,
+                                  height: 1,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -2367,8 +2873,8 @@ class _WaitingChip extends StatelessWidget {
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// Ô số trong bảng "Đợi / Gọi lại" (mục ĐANG KHÁM / CHỜ): bấm để cho số đó
@@ -2379,9 +2885,13 @@ class _SheetWaitChip extends StatelessWidget {
     required this.isCurrent,
     required this.isNext,
     required this.onTap,
+    this.patientName,
   });
 
   final int number;
+
+  /// Tên bệnh nhân của lịch hẹn có `so_thu_tu` trùng với [number].
+  final String? patientName;
   final bool isCurrent;
   final bool isNext;
   final VoidCallback onTap;
@@ -2392,22 +2902,28 @@ class _SheetWaitChip extends StatelessWidget {
     final borderColor = isCurrent
         ? const Color(0xFF2D6BFF)
         : isNext
-            ? const Color(0xFFFFD400)
-            : Colors.transparent;
+        ? const Color(0xFFFFD400)
+        : Colors.transparent;
     final shadowColor = isCurrent
         ? const Color(0x592D6BFF)
         : isNext
-            ? const Color(0x59FFB300)
-            : const Color(0x2EEE2F26);
+        ? const Color(0x59FFB300)
+        : const Color(0x2EEE2F26);
+    final trimmedPatientName = patientName?.trim();
+    final hasPatientName =
+        trimmedPatientName != null && trimmedPatientName.isNotEmpty;
+    final baseLabel = isCurrent
+        ? 'Cho số đang khám $number xin đợi'
+        : isNext
+        ? 'Cho số kế tiếp $number xin đợi'
+        : 'Cho số $number xin đợi';
     return Semantics(
       button: true,
-      label: isCurrent
-          ? 'Cho số đang khám $number xin đợi'
-          : isNext
-              ? 'Cho số kế tiếp $number xin đợi'
-              : 'Cho số $number xin đợi',
+      label: hasPatientName
+          ? '$baseLabel, tên bệnh nhân $trimmedPatientName'
+          : baseLabel,
       child: Container(
-        width: 74,
+        width: hasPatientName ? 118 : 74,
         height: 58,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(17),
@@ -2461,6 +2977,24 @@ class _SheetWaitChip extends StatelessWidget {
                           fontSize: 7.5,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.2,
+                        ),
+                      ),
+                    if (hasPatientName)
+                      SizedBox(
+                        width: 104,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            trimmedPatientName,
+                            maxLines: 1,
+                            style: const TextStyle(
+                              color: Color(0xE6FFFFFF),
+                              fontSize: 6.5,
+                              height: 1,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
                         ),
                       ),
                   ],
@@ -2590,10 +3124,7 @@ class _DeferredChip extends StatelessWidget {
 
 /// Ô hiển thị một lượt chèn đang chờ số mốc tương lai: "số → sau số mốc".
 class _ScheduledInsertChip extends StatelessWidget {
-  const _ScheduledInsertChip({
-    required this.number,
-    required this.afterNumber,
-  });
+  const _ScheduledInsertChip({required this.number, required this.afterNumber});
 
   final int number;
   final int afterNumber;
