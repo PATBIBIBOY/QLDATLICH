@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_routes.dart';
 import '../../database_seeder.dart';
@@ -12,6 +11,7 @@ import '../letan_c1/letan_thietlap_thongtin_screen_c1.dart';
 import '../letan_c1/letan_trangchu_screen_c1.dart';
 import '../../support_doctor/department_room_picker.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
+import '../../services/letan_c1/letan_firebase_service_c1.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -58,267 +58,122 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final auth = context.read<AuthProvider>();
       final selectedRoleCode = _roles[_selectedRoleIndex]['code'] as String;
-      final firestore = FirebaseFirestore.instance;
 
-      // ✅ 1. NẾU LÀ EMAIL NHÂN VIÊN (cuoc2004@gmail.com hoặc nhân viên khác)
-      // Tự động kiểm tra chính xác Role thực tế của tài khoản trên Firestore để vào Lễ tân HOẶC CSKH HOẶC Hỗ trợ bác sĩ
-      if (email.contains('@') && selectedRoleCode != 'admin') {
-        // Kiểm tra xem có phải tài khoản nhân viên hay không trước khi gọi auth.login
-        final isCuoc = email.toLowerCase() == 'cuoc2004@gmail.com';
-        
-        // Đăng nhập Firebase Auth trước
-        UserCredential? cred;
+      // ✅ 1. ƯU TIÊN KIỂM TRA ĐĂNG NHẬP NHÂN VIÊN Y TẾ (DÙ NHẬP MÃ HAY GMAIL, DÙ CHỌN TAB NÀO)
+      if (selectedRoleCode != 'admin') {
+        Map<String, dynamic>? nhanVienData;
         try {
-          cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
-            email: email,
-            password: password,
+          nhanVienData = await FirebaseServiceC1.dangNhapNhanVien(
+            taiKhoanHoacEmail: email,
+            matKhau: password,
           );
         } catch (e) {
-          // Nếu không phải là tài khoản hợp lệ của Firebase Auth thì để luồng auth.login xử lý tiếp
+          // Nếu nhập mã nhân viên (không có @) mà sai hoặc không tìm thấy -> Ném lỗi trực tiếp ra UI
+          if (!email.contains('@')) {
+            rethrow;
+          }
+          // Nếu nhập email nhưng sai mật khẩu nhân viên -> Ném lỗi ra UI
+          final errStr = e.toString();
+          if (errStr.contains('Mật khẩu không chính xác') ||
+              errStr.contains('Mật khẩu cấp ban đầu không chính xác')) {
+            rethrow;
+          }
+          // Email không phải nhân viên -> Để trôi xuống luồng xác thực Bệnh nhân / Bệnh viện bên dưới
         }
 
-        if (cred != null) {
-          final currentUid = cred.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
-          DocumentSnapshot<Map<String, dynamic>>? staffDoc;
+        if (nhanVienData != null) {
+          final role = (nhanVienData['role'] ?? nhanVienData['vai_tro'] ?? '').toString();
+          final bool daKichHoat = (nhanVienData['da_kich_hoat'] == true) ||
+              (nhanVienData['trang_thai'] == 'dang_hoat_dong');
+          final maNvThucTe = (nhanVienData['ma_nhan_vien'] ??
+                  nhanVienData['ma_tai_khoan'] ??
+                  email)
+              .toString();
+          final bvId = (nhanVienData['ma_benh_vien'] ??
+                  nhanVienData['benh_vien_id'] ??
+                  'BV502')
+              .toString();
+          final tenBv = (nhanVienData['ten_benh_vien'] ?? 'Bệnh viện Quân y 17')
+              .toString();
 
-          // Tìm thông tin nhân viên theo UID hoặc Email trong collectionGroup('danh_sach') hoặc NhanVien
-          try {
-            final qEmail = await firestore
-                .collectionGroup('danh_sach')
-                .where('email', isEqualTo: email)
-                .limit(1)
-                .get();
-            if (qEmail.docs.isNotEmpty) {
-              staffDoc = qEmail.docs.first;
-            } else if (currentUid != null) {
-              final qUid = await firestore
-                  .collectionGroup('danh_sach')
-                  .where('uid', isEqualTo: currentUid)
-                  .limit(1)
-                  .get();
-              if (qUid.docs.isNotEmpty) {
-                staffDoc = qUid.docs.first;
-              }
-            }
-          } catch (_) {}
+          // Cập nhật thông tin profile nhân viên hiện tại
+          DuLieuProfileMauC1.thongTinHienTai =
+              DuLieuProfileMauC1.thongTinHienTai.copyWith(
+            maNhanVien: maNvThucTe,
+            hoTen: (nhanVienData['ho_ten'] ?? 'Nhân viên').toString(),
+            chucVu: (nhanVienData['chuc_vu'] ??
+                    (role.contains('cskh') ||
+                            role.contains('customer') ||
+                            role.contains('cham_soc')
+                        ? 'Chăm sóc khách hàng'
+                        : 'Lễ tân tiếp đón'))
+                .toString(),
+            khoa: (nhanVienData['khoa'] ??
+                    (role.contains('cskh') ||
+                            role.contains('customer') ||
+                            role.contains('cham_soc')
+                        ? 'Bộ Phận CSKH & Tiếp Nhận'
+                        : 'Khoa Khám Bệnh'))
+                .toString(),
+            email: (nhanVienData['email'] ?? email).toString(),
+            benhVienId: bvId,
+            tenBenhVien: tenBv,
+          );
 
-          // Nếu chưa có mà là cuoc2004@gmail.com, tự động tạo / lấy document
-          if ((staffDoc == null || !staffDoc.exists) && isCuoc) {
-            try {
-              final cuocRef = firestore.collection('NhanVien').doc('BV502').collection('danh_sach').doc('LT_TM_01');
-              await cuocRef.set({
-                'ma_tai_khoan': 'LT_TM_01',
-                'ma_nhan_vien': 'LT_TM_01',
-                'ho_ten': 'Đinh Hoàng Cước',
-                'email': 'cuoc2004@gmail.com',
-                'role': 'receptionist',
-                'chuc_vu': 'Lễ tân tiếp đón',
-                'khoa': 'KHOA TIM',
-                'ma_benh_vien': 'BV502',
-                'benh_vien_id': 'BV502',
-                'ten_benh_vien': 'Bệnh viện Quân y 17',
-                'da_kich_hoat': true,
-                'trang_thai': 'dang_hoat_dong',
-                'uid': currentUid,
-              }, SetOptions(merge: true));
-              staffDoc = await cuocRef.get();
-            } catch (_) {}
-          }
-
-          if (staffDoc != null && staffDoc.exists) {
-            final data = staffDoc.data() ?? {};
-            final staffRole = (data['role'] ?? '').toString();
-            final bool daKichHoat = (data['da_kich_hoat'] == true) || (data['trang_thai'] == 'dang_hoat_dong');
-            final maNvThucTe = (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? currentUid ?? 'NV01').toString();
-            final bvId = (data['ma_benh_vien'] ?? data['benh_vien_id'] ?? 'BV502').toString();
-            final tenBv = (data['ten_benh_vien'] ?? 'Bệnh viện BV502').toString();
-
-            DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai.copyWith(
-              maNhanVien: maNvThucTe,
-              hoTen: (data['ho_ten'] ?? 'Nhân viên').toString(),
-              chucVu: (data['chuc_vu'] ?? (staffRole == 'customerSupport' || staffRole == 'cskh' || staffRole == 'cham_soc_khach_hang' ? 'Chăm sóc khách hàng' : 'Lễ tân tiếp đón')).toString(),
-              khoa: (data['khoa'] ?? (staffRole == 'customerSupport' || staffRole == 'cskh' || staffRole == 'cham_soc_khach_hang' ? 'Bộ Phận CSKH & Tiếp Nhận' : 'Khoa Khám Bệnh')).toString(),
-              email: (data['email'] ?? email).toString(),
-              benhVienId: bvId,
-              tenBenhVien: tenBv,
-            );
-
-            if (!mounted) return;
-
-            // Chưa kích hoạt -> Màn hình thiết lập thông tin
-            if (!daKichHoat) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => LetanThietlapThongtinScreenC1(
-                    maNhanVienMacDinh: maNvThucTe,
-                  ),
-                ),
-              );
-              return;
-            }
-
-            // Đã kích hoạt -> Điều hướng đúng 100% theo vai trò (Role)
-            if (staffRole == 'customerSupport' || staffRole == 'cskh' || staffRole == 'cham_soc_khach_hang') {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const CskhDuyetdonKhoaScreenC1()),
-              );
-              return;
-            } else if (staffRole == 'receptionist' || staffRole == 'le_tan') {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()),
-              );
-              return;
-            } else if (staffRole == 'doctorAssistant' || staffRole == 'ho_tro_bac_si' || staffRole == 'bac_si') {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const ClinicRoomPickerScreen()),
-              );
-              return;
-            }
-          }
-        }
-      }
-
-      // ✅ 2. Kiểm tra nếu người dùng đăng nhập bằng MÃ NHÂN VIÊN nội bộ (không chứa @)
-      final input = email.trim();
-      if (!input.contains('@') && selectedRoleCode != 'admin') {
-        final firestore = FirebaseFirestore.instance;
-        DocumentSnapshot<Map<String, dynamic>>? nhanVienDoc;
-
-        // 1. Quét tìm trực tiếp theo doc id trong các bệnh viện phổ biến (như BV502) để tránh lỗi index/permission của collectionGroup trên Web
-        try {
-          final docBv502 = await firestore.collection('NhanVien').doc('BV502').collection('danh_sach').doc(input).get();
-          if (docBv502.exists) {
-            nhanVienDoc = docBv502;
-          }
-        } catch (_) {}
-
-        // 2. Tìm qua collectionGroup('danh_sach')
-        if (nhanVienDoc == null || !nhanVienDoc.exists) {
-          try {
-            final groupQuery = await firestore
-                .collectionGroup('danh_sach')
-                .where('ma_nhan_vien', isEqualTo: input)
-                .limit(1)
-                .get();
-            if (groupQuery.docs.isNotEmpty) {
-              nhanVienDoc = groupQuery.docs.first;
-            } else {
-              final groupQuery2 = await firestore
-                  .collectionGroup('danh_sach')
-                  .where('ma_tai_khoan', isEqualTo: input)
-                  .limit(1)
-                  .get();
-              if (groupQuery2.docs.isNotEmpty) {
-                nhanVienDoc = groupQuery2.docs.first;
-              }
-            }
-          } catch (_) {}
-        }
-
-        // 3. Fallback tìm ở collection NhanVien cấp 1
-        if (nhanVienDoc == null || !nhanVienDoc.exists) {
-          final doc = await firestore.collection('NhanVien').doc(input).get();
-          if (doc.exists) {
-            nhanVienDoc = doc;
-          } else {
-            final q = await firestore
-                .collection('NhanVien')
-                .where('ma_tai_khoan', isEqualTo: input)
-                .limit(1)
-                .get();
-            if (q.docs.isNotEmpty) nhanVienDoc = q.docs.first;
-          }
-        }
-
-        // Tự động khởi tạo tài khoản ban đầu nếu chưa có trên Firestore
-        if ((nhanVienDoc == null || !nhanVienDoc.exists) && (input.toUpperCase() == 'LT_TM_01' || input.toUpperCase() == 'CSKH_01')) {
-          if (password != '123456') {
-            throw Exception('Mật khẩu cấp ban đầu không chính xác! (Mặc định: 123456)');
-          }
-          final isCskh = input.toUpperCase().contains('CSKH');
-          final defaultUser = {
-            'ma_tai_khoan': input.toUpperCase(),
-            'ma_nhan_vien': input.toUpperCase(),
-            'mat_khau': '123456',
-            'ho_ten': isCskh ? 'Nhân Viên CSKH' : 'Đinh Hoàng Cước',
-            'email': isCskh ? 'cskh@benhvien.vn' : 'cuoc2004@gmail.com',
-            'role': isCskh ? 'customerSupport' : 'receptionist',
-            'khoa': 'KHOA TIM',
-            'ma_benh_vien': 'BV502',
-            'benh_vien_id': 'BV502',
-            'ten_benh_vien': 'Bệnh viện Quân y 17',
-            'da_kich_hoat': true,
-            'trang_thai': 'dang_hoat_dong',
-            'ngay_tao': FieldValue.serverTimestamp(),
-          };
-          await firestore.collection('NhanVien').doc('BV502').collection('danh_sach').doc(input.toUpperCase()).set(defaultUser);
-          nhanVienDoc = await firestore.collection('NhanVien').doc('BV502').collection('danh_sach').doc(input.toUpperCase()).get();
-        }
-
-        if (nhanVienDoc != null && nhanVienDoc.exists) {
-          final nvData = nhanVienDoc.data()!;
-          if (nvData['mat_khau'] != null && nvData['mat_khau'] != password) {
-            throw Exception('Mật khẩu không chính xác!');
-          }
+          // Tự động ghi nhớ phiên đăng nhập
+          await FirebaseServiceC1.luuPhienDangNhap(
+              taiKhoan: email, matKhau: password);
 
           if (!mounted) return;
-          final bool daKichHoat = (nvData['da_kich_hoat'] == true) || (nvData['trang_thai'] == 'dang_hoat_dong');
-          final role = (nvData['role'] ?? 'receptionist').toString();
 
-          // Chưa kích hoạt -> Chuyển sang Màn hình thiết lập thông tin
+          // Nếu chưa kích hoạt -> Màn hình thiết lập thông tin ban đầu
           if (!daKichHoat) {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
                 builder: (_) => LetanThietlapThongtinScreenC1(
-                  maNhanVienMacDinh: (nvData['ma_nhan_vien'] ?? nvData['ma_tai_khoan'] ?? input).toString(),
+                  maNhanVienMacDinh: maNvThucTe,
                 ),
               ),
             );
             return;
           }
 
-          // Đã kích hoạt -> Vào đúng Role
-          final maNvThucTe = (nvData['ma_nhan_vien'] ?? nvData['ma_tai_khoan'] ?? input).toString();
-          final bvId = (nvData['ma_benh_vien'] ?? nvData['benh_vien_id'] ?? 'BV502').toString();
-          final tenBv = (nvData['ten_benh_vien'] ?? 'Bệnh viện BV502').toString();
-
-          DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai.copyWith(
-            maNhanVien: maNvThucTe,
-            hoTen: (nvData['ho_ten'] ?? 'Nhân viên').toString(),
-            chucVu: (nvData['chuc_vu'] ?? (role == 'le_tan' || role == 'receptionist' ? 'Lễ tân tiếp đón' : 'Chăm sóc khách hàng')).toString(),
-            khoa: (nvData['khoa'] ?? 'Khoa Khám Bệnh').toString(),
-            email: (nvData['email'] ?? '').toString(),
-            benhVienId: bvId,
-            tenBenhVien: tenBv,
-          );
-
-          if (role == 'receptionist' || role == 'le_tan') {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()));
+          // Đã kích hoạt -> Điều hướng chính xác theo vai trò
+          if (role == 'customerSupport' ||
+              role == 'cskh' ||
+              role == 'cham_soc_khach_hang') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const CskhDuyetdonKhoaScreenC1()),
+            );
             return;
-          } else if (role == 'customerSupport' || role == 'cskh' || role == 'cham_soc_khach_hang') {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const CskhDuyetdonKhoaScreenC1()));
+          } else if (role == 'receptionist' || role == 'le_tan') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()),
+            );
             return;
-          } else if (role == 'doctorAssistant' || role == 'ho_tro_bac_si' || role == 'bac_si') {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ClinicRoomPickerScreen()));
+          } else if (role == 'doctorAssistant' ||
+              role == 'ho_tro_bac_si' ||
+              role == 'bac_si') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const ClinicRoomPickerScreen()),
+            );
+            return;
+          } else {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()),
+            );
             return;
           }
-        } else {
-          // Nếu nhập mã nhân viên nhưng không tìm thấy document, báo lỗi rõ ràng thay vì gọi auth.login() làm lỗi FirebaseAuth
-          throw Exception('Không tìm thấy nhân viên với mã: $input. Vui lòng kiểm tra lại!');
         }
       }
 
-      // ✅ 2. Xử lý đăng nhập bằng Gmail qua FirebaseAuth theo Role
-      // Nếu email là cuoc2004@gmail.com hoặc tài khoản nhân viên, luôn dùng role 'benh_nhan' để xác thực auth, sau đó router nội bộ tự chuyển vào Lễ tân/CSKH
-      final effectiveRole = (email.toLowerCase().contains('cuoc2004@gmail.com') || email.toLowerCase().contains('letan') || email.toLowerCase().contains('cskh'))
-          ? 'benh_nhan'
-          : selectedRoleCode;
-
+      // ✅ 2. NẾU KHÔNG PHẢI NHÂN VIÊN Y TẾ -> ĐĂNG NHẬP THEO VAI TRÒ CHỌN TRÊN GIAO DIỆN (BN / BV / ADMIN)
       if (selectedRoleCode == 'admin') {
         await auth.loginAdmin(email: email, password: password);
         await DatabaseSeeder.seedAllData();
@@ -326,164 +181,11 @@ class _LoginScreenState extends State<LoginScreen> {
         await auth.login(
           email: email,
           password: password,
-          role: effectiveRole,
+          role: selectedRoleCode,
         );
       }
 
       if (!mounted) return;
-
-      // ✅ 2.1. ĐẶC BIỆT: KIỂM TRA TRƯỚC XEM EMAIL CÓ PHẢI NHÂN VIÊN Y TẾ HAY KHÔNG (Dù người dùng chọn role nào ở giao diện)
-      final currentUid = FirebaseAuth.instance.currentUser?.uid;
-      DocumentSnapshot<Map<String, dynamic>>? userDoc;
-
-      // Nếu email là cuoc2004@gmail.com, tự động đảm bảo có document Lễ tân trên Firestore và gán userDoc luôn
-      if (email.toLowerCase() == 'cuoc2004@gmail.com') {
-        try {
-          final cuocRef = firestore.collection('NhanVien').doc('BV502').collection('danh_sach').doc('LT_TM_01');
-          final cuocDoc = await cuocRef.get();
-          if (!cuocDoc.exists || cuocDoc.data()?['email'] != 'cuoc2004@gmail.com' || cuocDoc.data()?['uid'] != currentUid) {
-            await cuocRef.set({
-              'ma_tai_khoan': 'LT_TM_01',
-              'ma_nhan_vien': 'LT_TM_01',
-              'ho_ten': 'Đinh Hoàng Cước',
-              'email': 'cuoc2004@gmail.com',
-              'role': 'receptionist',
-              'chuc_vu': 'Lễ tân tiếp đón',
-              'khoa': 'KHOA TIM',
-              'ma_benh_vien': 'BV502',
-              'benh_vien_id': 'BV502',
-              'ten_benh_vien': 'Bệnh viện Quân y 17',
-              'da_kich_hoat': true,
-              'trang_thai': 'dang_hoat_dong',
-              'uid': currentUid,
-            }, SetOptions(merge: true));
-            userDoc = await cuocRef.get();
-          } else {
-            userDoc = cuocDoc;
-          }
-        } catch (_) {}
-      }
-
-      if (currentUid != null) {
-        // 1. Quét tìm trong NhanVien/{bvId}/danh_sach theo email hoặc UID
-        try {
-          final groupQueryEmail = await firestore
-              .collectionGroup('danh_sach')
-              .where('email', isEqualTo: email)
-              .limit(1)
-              .get();
-          if (groupQueryEmail.docs.isNotEmpty) {
-            userDoc = groupQueryEmail.docs.first;
-          } else {
-            final groupQueryUid = await firestore
-                .collectionGroup('danh_sach')
-                .where('uid', isEqualTo: currentUid)
-                .limit(1)
-                .get();
-            if (groupQueryUid.docs.isNotEmpty) {
-              userDoc = groupQueryUid.docs.first;
-            }
-          }
-        } catch (_) {}
-
-        // 2. Nếu chưa thấy, tìm ở collection NhanVien cấp 1
-        if (userDoc == null || !userDoc.exists) {
-          final doc = await firestore.collection('NhanVien').doc(currentUid).get();
-          if (doc.exists) {
-            userDoc = doc;
-            final maNvGoc = doc.data()?['ma_nhan_vien'] ?? doc.data()?['ma_tai_khoan'];
-            if (maNvGoc != null && maNvGoc.toString().isNotEmpty && maNvGoc.toString() != currentUid) {
-              final docGoc = await firestore.collection('NhanVien').doc(maNvGoc.toString()).get();
-              if (docGoc.exists) userDoc = docGoc;
-            }
-          } else {
-            final qEmail = await firestore
-                .collection('NhanVien')
-                .where('email', isEqualTo: email)
-                .limit(1)
-                .get();
-            if (qEmail.docs.isNotEmpty) {
-              userDoc = qEmail.docs.first;
-            } else {
-              final qUid = await firestore
-                  .collection('NhanVien')
-                  .where('uid', isEqualTo: currentUid)
-                  .limit(1)
-                  .get();
-              if (qUid.docs.isNotEmpty) userDoc = qUid.docs.first;
-            }
-          }
-        }
-      }
-
-      // ✅ 2.2. Kiểm tra tài khoản Nhân Viên (bảo mật nghiêm ngặt: Nhân viên chỉ được vào role nhân viên, không được vào Bệnh nhân hay Bệnh viện)
-      if (userDoc != null && userDoc.exists) {
-        final data = userDoc.data() ?? {};
-        final role = (data['role'] ?? '').toString();
-        final bool daKichHoat = (data['da_kich_hoat'] == true) || (data['trang_thai'] == 'dang_hoat_dong');
-
-        final bool laNhanVien = role == 'receptionist' ||
-            role == 'le_tan' ||
-            role == 'customerSupport' ||
-            role == 'cskh' ||
-            role == 'cham_soc_khach_hang' ||
-            role == 'doctorAssistant' ||
-            role == 'ho_tro_bac_si' ||
-            role == 'bac_si';
-
-        if (laNhanVien) {
-          if (!mounted) return;
-
-          // Nếu người dùng cố tình chọn Role "Bệnh viện" hoặc "Admin" nhưng thực chất là tài khoản Nhân viên
-          // Ta vẫn tự động chuyển họ về đúng trang nghiệp vụ nhân viên của họ
-          if (!daKichHoat) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (_) => LetanThietlapThongtinScreenC1(
-                  maNhanVienMacDinh: (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? currentUid).toString(),
-                ),
-              ),
-            );
-            return;
-          }
-
-          // Đã kích hoạt -> Nạp profile và chuyển thẳng vào đúng Role nhân viên
-          final maNvThucTe = (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? currentUid).toString();
-          final bvId = (data['ma_benh_vien'] ?? data['benh_vien_id'] ?? 'BV502').toString();
-          final tenBv = (data['ten_benh_vien'] ?? 'Bệnh viện BV502').toString();
-
-          DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai.copyWith(
-            maNhanVien: maNvThucTe,
-            hoTen: (data['ho_ten'] ?? 'Nhân viên').toString(),
-            chucVu: (data['chuc_vu'] ?? (role == 'le_tan' || role == 'receptionist' ? 'Lễ tân tiếp đón' : 'Chăm sóc khách hàng')).toString(),
-            khoa: (data['khoa'] ?? 'Khoa Khám Bệnh').toString(),
-            email: (data['email'] ?? email).toString(),
-            benhVienId: bvId,
-            tenBenhVien: tenBv,
-          );
-
-          if (role == 'receptionist' || role == 'le_tan') {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()),
-            );
-            return;
-          } else if (role == 'customerSupport' || role == 'cskh' || role == 'cham_soc_khach_hang') {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const CskhDuyetdonKhoaScreenC1()),
-            );
-            return;
-          } else if (role == 'doctorAssistant' || role == 'ho_tro_bac_si' || role == 'bac_si') {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const ClinicRoomPickerScreen()),
-            );
-            return;
-          }
-        }
-      }
 
       // ✅ 2.3. Nếu chọn Bệnh viện nhưng KHÔNG PHẢI tài khoản Bệnh viện
       if (selectedRoleCode == 'benh_vien') {
@@ -491,10 +193,10 @@ class _LoginScreenState extends State<LoginScreen> {
           AppSession.benhVienId = auth.hospital?.uid ??
               FirebaseAuth.instance.currentUser?.uid ??
               '';
-          Navigator.pushNamedAndRemoveUntil(context, AppRoutes.hospitalDashboard, (route) => false);
+          Navigator.pushNamedAndRemoveUntil(
+              context, AppRoutes.hospitalDashboard, (route) => false);
           return;
         } else {
-          // Báo lỗi nếu tài khoản này không phải bệnh viện
           throw Exception('Tài khoản này không có quyền truy cập vai trò Bệnh viện!');
         }
       }
@@ -502,7 +204,8 @@ class _LoginScreenState extends State<LoginScreen> {
       // ✅ 2.4. Nếu chọn Admin
       if (selectedRoleCode == 'admin') {
         if (auth.admin != null) {
-          Navigator.pushNamedAndRemoveUntil(context, AppRoutes.adminDashboard, (route) => false);
+          Navigator.pushNamedAndRemoveUntil(
+              context, AppRoutes.adminDashboard, (route) => false);
           return;
         } else {
           throw Exception('Tài khoản này không có quyền truy cập Admin!');
@@ -512,7 +215,8 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       // ✅ 2.5. Nếu chọn Bệnh nhân: chỉ cho phép nếu tài khoản là bệnh nhân thật
       if (auth.user != null) {
-        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.patientHome, (route) => false);
+        Navigator.pushNamedAndRemoveUntil(
+            context, AppRoutes.patientHome, (route) => false);
         return;
       }
 

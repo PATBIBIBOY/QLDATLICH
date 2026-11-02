@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../models/letan_c1/letan_design_system_c1.dart';
+import '../../models/letan_c1/letan_profile_model_c1.dart';
+import '../../services/letan_c1/letan_firebase_service_c1.dart';
 import 'letan_baocao_thanhcong_screen_c1.dart';
 
 class LetanBaocaoloiScreenC1 extends StatefulWidget {
@@ -16,12 +18,14 @@ class LetanBaocaoloiScreenC1 extends StatefulWidget {
 }
 
 class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
+  final _tieuDeController = TextEditingController(text: 'Số thứ tự hiển thị sai');
   final _moTaController = TextEditingController(
     text: 'Số đang gọi trên màn hình là 11 nhưng bệnh nhân số 12 đã vào phòng...',
   );
   String _loaiLoiDuocChon = 'Số thứ tự hiển thị sai';
   String _mucDoUuTien = 'Cao'; // 'Cao', 'Trung bình', 'Thấp'
   bool _coDinhKemAnh = false;
+  bool _dangGui = false;
 
   final List<String> _danhSachLoaiLoi = [
     'Số thứ tự hiển thị sai',
@@ -34,30 +38,89 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
 
   @override
   void dispose() {
+    _tieuDeController.dispose();
     _moTaController.dispose();
     super.dispose();
   }
 
-  void _guiBaoCao() {
-    AppDesignSystemC1.hapticSuccess();
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => LetanBaocaoThanhcongScreenC1(
-          maBaoCao: '#ERR-0926',
-          loaiLoi: _loaiLoiDuocChon,
-          mucDoUuTien: _mucDoUuTien,
-          thoiGianGui: '08:45, 09/10/2026',
-          moTa: _moTaController.text.trim(),
-          coDinhKemAnh: _coDinhKemAnh,
+  Future<void> _guiBaoCao() async {
+    final tieuDe = _tieuDeController.text.trim();
+    final moTa = _moTaController.text.trim();
+
+    if (tieuDe.isEmpty) {
+      AppDesignSystemC1.hapticError();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng nhập tiêu đề sự cố!'),
+          backgroundColor: Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
         ),
-      ),
-    );
+      );
+      return;
+    }
+
+    if (moTa.isEmpty) {
+      AppDesignSystemC1.hapticError();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng nhập mô tả chi tiết lỗi!'),
+          backgroundColor: Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    AppDesignSystemC1.hapticLight();
+    setState(() => _dangGui = true);
+
+    try {
+      // 1. Gửi thông tin lên collection BaoCaoLoi trên Firebase
+      // Tự động đính kèm UID người gửi, trạng thái 'cho_sua'
+      final maBaoCao = await FirebaseServiceC1.guiBaoCaoLoi(
+        tieuDe: tieuDe,
+        moTa: moTa,
+        loaiLoi: _loaiLoiDuocChon,
+        mucDoUuTien: _mucDoUuTien,
+        coDinhKemAnh: _coDinhKemAnh,
+        tenKhoa: widget.tenKhoa,
+      );
+
+      if (!mounted) return;
+      AppDesignSystemC1.hapticSuccess();
+
+      // 2. Chuyển sang màn hình xác nhận báo cáo thành công với mã thật
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LetanBaocaoThanhcongScreenC1(
+            maBaoCao: maBaoCao,
+            loaiLoi: _loaiLoiDuocChon,
+            mucDoUuTien: _mucDoUuTien,
+            thoiGianGui: 'Vừa xong',
+            moTa: moTa,
+            coDinhKemAnh: _coDinhKemAnh,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _dangGui = false);
+      AppDesignSystemC1.hapticError();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi khi gửi báo cáo: $e'),
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = AppDesignSystemC1.laCheDoToi;
+    final profile = DuLieuProfileMauC1.thongTinHienTai;
 
     return Scaffold(
       backgroundColor: isDark ? AppDesignSystemC1.darkBackground : Colors.white,
@@ -85,6 +148,15 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
           ),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history_rounded, color: Color(0xFF0284C7)),
+            tooltip: 'Lịch sử báo cáo lỗi',
+            onPressed: () {
+              LetanBaocaoThanhcongScreenC1.moLichSuBaoCao(context);
+            },
+          ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -114,7 +186,7 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Báo cáo sẽ được gửi đến bộ phận kỹ thuật',
+                      'Báo cáo sẽ được gửi lên hệ thống và chuyển đến bộ phận kỹ thuật tiếp nhận.',
                       style: TextStyle(
                         color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
                         fontSize: 12,
@@ -125,7 +197,77 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+
+              // Thông tin người gửi (UID / Mã tài khoản & Trạng thái khởi tạo)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? AppDesignSystemC1.darkSurface : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.person_rounded, color: Color(0xFF0284C7), size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Người báo cáo: ${profile.hoTen}',
+                            style: TextStyle(
+                              color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            'Mã NV: ${profile.maNhanVien} • ${profile.khoa}',
+                            style: TextStyle(
+                              color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                              fontSize: 11.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppDesignSystemC1.warning.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.hourglass_top_rounded, size: 11, color: AppDesignSystemC1.warning),
+                          SizedBox(width: 4),
+                          Text(
+                            'Chờ sửa',
+                            style: TextStyle(
+                              color: AppDesignSystemC1.warning,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
 
               // 2. Loại lỗi
               Text(
@@ -168,15 +310,57 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
                       if (val != null) {
                         setState(() {
                           _loaiLoiDuocChon = val;
+                          if (_tieuDeController.text.isEmpty || _danhSachLoaiLoi.contains(_tieuDeController.text)) {
+                            _tieuDeController.text = val;
+                          }
                         });
                       }
                     },
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
-              // 3. Mô tả chi tiết
+              // 3. Tiêu đề sự cố
+              Text(
+                'Tiêu đề sự cố',
+                style: TextStyle(
+                  color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF3A3A3C),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Inter',
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: isDark ? AppDesignSystemC1.darkSurface : const Color(0xFFF2F2F7),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : Colors.transparent),
+                ),
+                child: TextField(
+                  controller: _tieuDeController,
+                  style: TextStyle(
+                    color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'Inter',
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Nhập tiêu đề tóm tắt lỗi...',
+                    hintStyle: TextStyle(
+                      color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFFAEAEB2),
+                      fontSize: 14,
+                      fontWeight: FontWeight.normal,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // 4. Mô tả chi tiết
               Text(
                 'Mô tả chi tiết',
                 style: TextStyle(
@@ -212,9 +396,9 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
-              // 4. Mức độ ưu tiên
+              // 5. Mức độ ưu tiên
               Text(
                 'Mức độ ưu tiên',
                 style: TextStyle(
@@ -234,9 +418,9 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
                   _buildMucDoItem('Thấp', const Color(0xFF34C759), isDark),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
-              // 5. Đính kèm ảnh (nếu có)
+              // 6. Đính kèm ảnh (nếu có)
               Text(
                 'Đính kèm ảnh (nếu có)',
                 style: TextStyle(
@@ -286,16 +470,16 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
                   ),
                 ),
               ),
-              const SizedBox(height: 36),
+              const SizedBox(height: 32),
 
-              // 6. Nút Gửi báo cáo lỗi
+              // 7. Nút Gửi báo cáo lỗi
               InkWell(
-                onTap: _guiBaoCao,
+                onTap: _dangGui ? null : _guiBaoCao,
                 borderRadius: BorderRadius.circular(14),
                 child: Container(
                   height: 52,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFF3B30),
+                    color: _dangGui ? const Color(0xFFFF3B30).withValues(alpha: 0.6) : const Color(0xFFFF3B30),
                     borderRadius: BorderRadius.circular(14),
                     boxShadow: [
                       BoxShadow(
@@ -306,20 +490,33 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> {
                     ],
                   ),
                   alignment: Alignment.center,
-                  child: const Text(
-                    'Gửi báo cáo lỗi',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'Inter',
-                    ),
-                  ),
+                  child: _dangGui
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                        )
+                      : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                            SizedBox(width: 8),
+                            Text(
+                              'Gửi báo cáo lỗi lên hệ thống',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: 'Inter',
+                              ),
+                            ),
+                          ],
+                        ),
                 ),
               ),
               const SizedBox(height: 14),
 
-              // 7. Nút Hủy
+              // 8. Nút Hủy
               InkWell(
                 onTap: () {
                   AppDesignSystemC1.hapticLight();

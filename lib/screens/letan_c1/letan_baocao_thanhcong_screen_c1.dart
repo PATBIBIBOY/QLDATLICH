@@ -1,6 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/letan_c1/letan_design_system_c1.dart';
+import '../../services/letan_c1/letan_firebase_service_c1.dart';
 
 /// MÀN HÌNH 2.1.38: GỬI BÁO CÁO THÀNH CÔNG (THEO ĐẶC TẢ TÀI LIỆU SDS MỤC 2.1.38, HÌNH 38)
 class LetanBaocaoThanhcongScreenC1 extends StatelessWidget {
@@ -33,33 +35,51 @@ class LetanBaocaoThanhcongScreenC1 extends StatelessWidget {
   }
 
   void _moLichSuBaoCao(BuildContext context) {
+    moLichSuBaoCao(context, maBaoCaoHienTai: maBaoCao);
+  }
+
+  static void moLichSuBaoCao(BuildContext context, {String? maBaoCaoHienTai}) {
     AppDesignSystemC1.hapticLight();
     final isDark = AppDesignSystemC1.laCheDoToi;
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
         return SafeArea(
-          child: Padding(
+          child: Container(
+            height: MediaQuery.of(context).size.height * 0.75,
             padding: const EdgeInsets.all(20),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Lịch Sử Báo Cáo Lỗi',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white : AppDesignSystemC1.textPrimary,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.history_rounded, color: Color(0xFF0284C7), size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Lịch Sử Báo Cáo Lỗi',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? Colors.white : AppDesignSystemC1.textPrimary,
+                          ),
+                        ),
+                      ],
                     ),
                     IconButton(
                       icon: Icon(
@@ -71,31 +91,68 @@ class LetanBaocaoThanhcongScreenC1 extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                _buildLichSuItem(
-                  ma: maBaoCao,
-                  loai: loaiLoi,
-                  thoiGian: 'Vừa xong',
-                  trangThai: 'Đang xử lý',
-                  isDark: isDark,
-                  isCurrent: true,
-                ),
-                const SizedBox(height: 10),
-                _buildLichSuItem(
-                  ma: '#ERR-0814',
-                  loai: 'Không quét được mã QR bệnh nhân',
-                  thoiGian: '14:20 - 08/10/2026',
-                  trangThai: 'Đã khắc phục',
-                  isDark: isDark,
-                  isCurrent: false,
-                ),
-                const SizedBox(height: 10),
-                _buildLichSuItem(
-                  ma: '#ERR-0731',
-                  loai: 'Lỗi kết nối máy in phiếu số',
-                  thoiGian: '09:10 - 05/10/2026',
-                  trangThai: 'Đã khắc phục',
-                  isDark: isDark,
-                  isCurrent: false,
+                Expanded(
+                  child: StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: FirebaseServiceC1.streamBaoCaoLoiCuaToi(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      final dsLoi = snapshot.data ?? [];
+                      if (dsLoi.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.inbox_rounded, size: 48, color: Colors.grey.withValues(alpha: 0.5)),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Bạn chưa gửi báo cáo lỗi nào.',
+                                style: TextStyle(
+                                  color: isDark ? AppDesignSystemC1.darkTextSecondary : AppDesignSystemC1.textSecondary,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return ListView.separated(
+                        itemCount: dsLoi.length,
+                        separatorBuilder: (context, index) => const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final item = dsLoi[index];
+                          final ma = (item['id'] ?? item['doc_id'] ?? '').toString();
+                          final tieuDe = (item['tieu_de'] ?? item['noi_dung'] ?? 'Sự cố hệ thống').toString();
+                          final loai = (item['loai'] ?? 'Khác').toString();
+                          final trangThaiRaw = (item['trang_thai'] ?? item['trang_thai_xu_ly'] ?? '').toString().toLowerCase();
+                          final laDaSua = trangThaiRaw == 'da_sua' || trangThaiRaw == 'da_giai_quyet';
+                          final phanHoi = item['phan_hoi_admin']?.toString();
+
+                          String thoiGian = (item['thoi_gian_hien_thi'] ?? '').toString();
+                          final ngayTao = item['ngay_tao'];
+                          if (ngayTao is Timestamp) {
+                            final d = ngayTao.toDate();
+                            thoiGian = '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')} - ${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+                          }
+                          if (thoiGian.isEmpty) thoiGian = 'Vừa xong';
+
+                          return _buildItemLichSuFirebase(
+                            context: ctx,
+                            ma: ma,
+                            tieuDe: tieuDe,
+                            loai: loai,
+                            thoiGian: thoiGian,
+                            laDaSua: laDaSua,
+                            phanHoiAdmin: phanHoi,
+                            isDark: isDark,
+                            isCurrent: ma == maBaoCaoHienTai,
+                          );
+                        },
+                      );
+                    },
+                  ),
                 ),
               ],
             ),
@@ -105,11 +162,14 @@ class LetanBaocaoThanhcongScreenC1 extends StatelessWidget {
     );
   }
 
-  Widget _buildLichSuItem({
+  static Widget _buildItemLichSuFirebase({
+    required BuildContext context,
     required String ma,
+    required String tieuDe,
     required String loai,
     required String thoiGian,
-    required String trangThai,
+    required bool laDaSua,
+    String? phanHoiAdmin,
     required bool isDark,
     required bool isCurrent,
   }) {
@@ -122,32 +182,33 @@ class LetanBaocaoThanhcongScreenC1 extends StatelessWidget {
           color: isCurrent
               ? AppDesignSystemC1.primary
               : (isDark ? AppDesignSystemC1.darkBorder : AppDesignSystemC1.border),
+          width: isCurrent ? 1.5 : 1.0,
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: isCurrent ? AppDesignSystemC1.primary.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              ma,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: isCurrent ? AppDesignSystemC1.primary : (isDark ? Colors.white70 : Colors.black87),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isCurrent ? AppDesignSystemC1.primary.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  ma,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isCurrent ? AppDesignSystemC1.primary : (isDark ? Colors.white70 : Colors.black87),
+                  ),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  loai,
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  tieuDe,
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -156,33 +217,70 @@ class LetanBaocaoThanhcongScreenC1 extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                Text(
-                  thoiGian,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: isDark ? AppDesignSystemC1.darkTextSecondary : AppDesignSystemC1.textSecondary,
-                  ),
+              ),
+              const SizedBox(width: 8),
+              // Badge trạng thái: "Chờ sửa" (cam) hoặc "Đã sửa" (xanh)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: laDaSua
+                      ? AppDesignSystemC1.success.withValues(alpha: 0.15)
+                      : AppDesignSystemC1.warning.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
                 ),
-              ],
-            ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      laDaSua ? Icons.check_circle_rounded : Icons.hourglass_top_rounded,
+                      size: 11,
+                      color: laDaSua ? AppDesignSystemC1.success : AppDesignSystemC1.warning,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      laDaSua ? 'Đã sửa' : 'Chờ sửa',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: laDaSua ? AppDesignSystemC1.success : AppDesignSystemC1.warning,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: trangThai == 'Đã khắc phục'
-                  ? AppDesignSystemC1.success.withValues(alpha: 0.15)
-                  : AppDesignSystemC1.warning.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              trangThai,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: trangThai == 'Đã khắc phục' ? AppDesignSystemC1.success : AppDesignSystemC1.warning,
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Loại: $loai • $thoiGian',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isDark ? AppDesignSystemC1.darkTextSecondary : AppDesignSystemC1.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          if (phanHoiAdmin != null && phanHoiAdmin.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.black26 : Colors.white,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '💬 Phản hồi: $phanHoiAdmin',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                  color: isDark ? Colors.white70 : const Color(0xFF334155),
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

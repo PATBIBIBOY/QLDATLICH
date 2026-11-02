@@ -5,9 +5,8 @@ import '../../models/letan_c1/letan_qr_model_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
 import 'letan_ketqua_qr_screen_c1.dart';
 
-/// MÀN HÌNH QUÉT MÃ QR TIẾP ĐÓN BỆNH NHÂN (HYBRID)
-/// - Chạy trên Phone: Mở trực tiếp Camera phần cứng quét mã QR thật (MobileScanner)
-/// - Hỗ trợ song song: Bật/Tắt Flash, Lật Camera Trước/Sau, và nút Giả lập Test nhanh khi demo
+/// MÀN HÌNH QUÉT MÃ QR TIẾP ĐÓN BỆNH NHÂN
+/// - Quét trực tiếp camera phần cứng (MobileScanner), tích hợp bật/tắt đèn Flash và đổi camera
 class LetanQuetQrCameraScreenC1 extends StatefulWidget {
   const LetanQuetQrCameraScreenC1({super.key});
 
@@ -19,7 +18,6 @@ class _LetanQuetQrCameraScreenC1State extends State<LetanQuetQrCameraScreenC1> {
   late final MobileScannerController _scannerController;
   bool _batDenFlash = false;
   bool _dangXuLyMa = false;
-  bool _hienThiCheDoCamera = true;
 
   @override
   void initState() {
@@ -164,34 +162,29 @@ class _LetanQuetQrCameraScreenC1State extends State<LetanQuetQrCameraScreenC1> {
                       alignment: Alignment.center,
                       children: [
                         // Viewfinder Camera thật từ thiết bị
-                        if (_hienThiCheDoCamera)
-                          MobileScanner(
-                            controller: _scannerController,
-                            onDetect: _xuLyKhiQuetDuocMa,
-                            errorBuilder: (context, error) {
-                              return Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.videocam_off_rounded, color: Color(0xFFEF4444), size: 36),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Không mở được camera (${error.errorCode.name})',
-                                        style: const TextStyle(color: Colors.white70, fontSize: 11),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
+                        MobileScanner(
+                          controller: _scannerController,
+                          onDetect: _xuLyKhiQuetDuocMa,
+                          errorBuilder: (context, error) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.videocam_off_rounded, color: Color(0xFFEF4444), size: 36),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Không mở được camera (${error.errorCode.name})',
+                                      style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
                                 ),
-                              );
-                            },
-                          )
-                        else
-                          const Center(
-                            child: Icon(Icons.qr_code_2, size: 140, color: Colors.white12),
-                          ),
+                              ),
+                            );
+                          },
+                        ),
 
                         // Khung tia quét trang trí & loading
                         if (_dangXuLyMa)
@@ -235,89 +228,28 @@ class _LetanQuetQrCameraScreenC1State extends State<LetanQuetQrCameraScreenC1> {
             ),
             const SizedBox(height: 12),
 
-            // NÚT CHUYỂN ĐỔI / GIẢ LẬP PHÒNG TRƯỜNG HỢP DEMO
+            // THANH HƯỚNG DẪN TIẾP ĐÓN CHUYÊN NGHIỆP
             Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: const BoxDecoration(
-                color: Color(0xFF1E293B),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E293B),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFF334155)),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              child: const Row(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'TÌNH HUỐNG TEST NHANH (DEMO):',
-                        style: TextStyle(
-                          color: Color(0xFF94A3B8),
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                        ),
+                  Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF38BDF8), size: 24),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Đặt mã QR của bệnh nhân vào giữa khung ngắm để hệ thống tự động nhận diện và tiếp đón.',
+                      style: TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 12.5,
+                        height: 1.4,
                       ),
-                      InkWell(
-                        onTap: () => setState(() => _hienThiCheDoCamera = !_hienThiCheDoCamera),
-                        child: Text(
-                          _hienThiCheDoCamera ? 'Tắt camera' : 'Bật camera',
-                          style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 12, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-
-                  Row(
-                    children: [
-                      // Test TH1
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => _moManHinhKetQua(DuLieuQuetQrMauC1.thanhCongMockup),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF10B981),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            elevation: 0,
-                          ),
-                          child: const Text('Hợp Lệ (STT: 14)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-
-                      // Test TH2A
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => _moManHinhKetQua(DuLieuQuetQrMauC1.daXacThucTruocDo),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFF59E0B),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            elevation: 0,
-                          ),
-                          child: const Text('Đã Tiếp Đón', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-
-                      // Test TH2B
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => _moManHinhKetQua(DuLieuQuetQrMauC1.maKhongHopLe),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFEF4444),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            elevation: 0,
-                          ),
-                          child: const Text('Sai Khoa / Lỗi', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
               ),

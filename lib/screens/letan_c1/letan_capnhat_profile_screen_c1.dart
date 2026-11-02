@@ -263,7 +263,10 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
         role: _roleDuocChon,
         vaiTroId: roleObj['vai_tro_id'] as int,
         khoa: _khoaDuocChon,
+        benhVienId: widget.thongTinHienTai.benhVienId,
       );
+      // Tự động dọn dẹp Document cấp 1 nếu có
+      await FirebaseServiceC1.donDepDocumentNhanVienCap1(maNv);
 
       final thongTinMoi = widget.thongTinHienTai.copyWith(
         hoTen: hoTenMoi,

@@ -95,6 +95,8 @@ class _LetanThietlapThongtinScreenC1State extends State<LetanThietlapThongtinScr
         gioiTinh: _gioiTinh,
         matKhauMoi: matKhauMoi,
       );
+      // Tự động lưu phiên đăng nhập bằng Gmail mới kích hoạt
+      await FirebaseServiceC1.luuPhienDangNhap(taiKhoan: emailMoi, matKhau: matKhauMoi);
     } catch (e) {
       // ignore: avoid_print
       print('Chế độ fallback mock do lỗi kết nối: $e');
