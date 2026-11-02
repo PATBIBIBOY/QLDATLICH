@@ -17,6 +17,9 @@ class HospitalModel {
   final String? email;
   final String? role;
   final bool daXacThucEmail;
+  final bool isBlocked;
+  final bool chanDangNhap;
+  final String? lyDoKhoa;
 
   HospitalModel({
     this.id,
@@ -35,6 +38,9 @@ class HospitalModel {
     this.email,
     this.role = 'benh_vien',
     this.daXacThucEmail = false,
+    this.isBlocked = false,
+    this.chanDangNhap = false,
+    this.lyDoKhoa,
   }) : ngayTao = ngayTao ?? DateTime.now();
 
   Map<String, dynamic> toMap() {
@@ -55,10 +61,20 @@ class HospitalModel {
       'email': email,
       'role': role,
       'da_xac_thuc_email': daXacThucEmail,
+      'is_blocked': isBlocked,
+      'chan_dang_nhap': chanDangNhap,
+      'ly_do_khoa': lyDoKhoa,
     };
   }
 
   factory HospitalModel.fromMap(Map<String, dynamic> map) {
+    final statusId = (map['trang_thai_hop_tac_id'] as num?)?.toInt() ?? TrangThaiId.choDuyet;
+    final chan = map['chan_dang_nhap'] == true;
+    final blocked = map['is_blocked'] == true ||
+        chan ||
+        statusId != 10 ||
+        map['trang_thai'] == 'huy_hop_tac';
+
     return HospitalModel(
       id: map['id'] is int ? map['id'] : (map['id'] as num?)?.toInt(),
       uid: map['uid'],
@@ -66,7 +82,7 @@ class HospitalModel {
       diaChi: map['dia_chi'],
       moTa: map['mo_ta'],
       hinhAnh: map['hinh_anh'],
-      trangThaiHopTacId: map['trang_thai_hop_tac_id'] ?? TrangThaiId.choDuyet,
+      trangThaiHopTacId: statusId,
       diemDanhGiaTb: (map['diem_danh_gia_tb'] as num?)?.toDouble() ?? 0.0,
       tongSoDanhGia: map['tong_so_danh_gia'] ?? 0,
       ngayHopTac: map['ngay_hop_tac'] != null
@@ -78,6 +94,11 @@ class HospitalModel {
       email: map['email'],
       role: map['role'] ?? 'benh_vien',
       daXacThucEmail: map['da_xac_thuc_email'] ?? false,
+      isBlocked: blocked,
+      chanDangNhap: chan,
+      lyDoKhoa: map['ly_do_khoa']?.toString() ??
+          map['ly_do_huy']?.toString() ??
+          map['ly_do_chan']?.toString(),
     );
   }
 
@@ -98,6 +119,9 @@ class HospitalModel {
     String? email,
     String? role,
     bool? daXacThucEmail,
+    bool? isBlocked,
+    bool? chanDangNhap,
+    String? lyDoKhoa,
   }) {
     return HospitalModel(
       id: id ?? this.id,
@@ -116,6 +140,9 @@ class HospitalModel {
       email: email ?? this.email,
       role: role ?? this.role,
       daXacThucEmail: daXacThucEmail ?? this.daXacThucEmail,
+      isBlocked: isBlocked ?? this.isBlocked,
+      chanDangNhap: chanDangNhap ?? this.chanDangNhap,
+      lyDoKhoa: lyDoKhoa ?? this.lyDoKhoa,
     );
   }
 

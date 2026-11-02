@@ -79,7 +79,37 @@ class _LoginScreenState extends State<LoginScreen> {
       
       String errorMessage = _loginErrorMessage(e);
       
-      // ✅ 3. Xử lý riêng trường hợp chưa xác thực email (chỉ áp dụng cho BN/BV)
+      // ✅ 3. Xử lý riêng trường hợp tài khoản bị khóa / ngừng hợp tác
+      if (errorMessage.contains('ACCOUNT_BLOCKED') || errorMessage.contains('HOSPITAL_BLOCKED')) {
+        final cleanMsg = errorMessage
+            .replaceAll('ACCOUNT_BLOCKED: ', '')
+            .replaceAll('HOSPITAL_BLOCKED: ', '')
+            .replaceAll('Exception: ', '');
+        showDialog(
+          context: context,
+          builder: (dCtx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.lock_outline_rounded, color: Colors.red, size: 28),
+                SizedBox(width: 8),
+                Text('Tài khoản bị khóa', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              ],
+            ),
+            content: Text(cleanMsg, style: const TextStyle(fontSize: 14)),
+            actions: [
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                onPressed: () => Navigator.pop(dCtx),
+                child: const Text('Đã hiểu'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      // ✅ 4. Xử lý riêng trường hợp chưa xác thực email (chỉ áp dụng cho BN/BV)
       if (errorMessage.contains('EMAIL_NOT_VERIFIED')) {
         Navigator.pushReplacementNamed(
           context,

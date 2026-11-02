@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 
 import 'package:qldatlich/config/firebase_options.dart';
+import 'package:qldatlich/config/app_routes.dart';
 import 'package:qldatlich/services/admin_provider.dart';
 import 'package:qldatlich/screens/admin/core/theme.dart';
 import 'package:qldatlich/screens/admin/screens/main_shell.dart';
@@ -30,9 +31,11 @@ class AdminApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: AppRoutes.navigatorKey,
       title: 'Admin - Quản trị bệnh viện',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
+      routes: AppRoutes.routes,
       home: const MainShell(),
     );
   }

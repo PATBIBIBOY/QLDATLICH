@@ -21,6 +21,8 @@ import '../screens/receptionist/check_in_screen.dart';
 import '../screens/receptionist/receptionist_home_screen.dart';
 
 class AppRoutes {
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
   static const String login = '/login';
   static const String register = '/register';
   static const String hospitalRegister = '/hospital-register';

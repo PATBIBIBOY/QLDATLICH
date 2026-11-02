@@ -1,11 +1,16 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../config/app_routes.dart';
+import '../config/constants.dart';
 import '../models/hospital_model.dart';
 import '../models/patient_model.dart';
 import '../services/auth_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _securityWatcherSub;
 
   PatientModel? _user;
   HospitalModel? _hospital;
@@ -71,6 +76,30 @@ class AuthProvider extends ChangeNotifier {
           );
         }
         _selectedRole = patientModel?.role ?? _hospital?.role;
+
+        // Kiểm tra nếu tài khoản đang bị khóa trong phiên đăng nhập
+        if (_user != null) {
+          final bool isBlocked = _user!.isBlocked ||
+              _user!.chanDangNhap ||
+              _user!.trangThaiId == TrangThaiId.khongHoatDong;
+          if (isBlocked) {
+            final reason = _user!.lyDoKhoa ?? 'Tài khoản bệnh nhân đã bị khóa';
+            await forceSignOut(reason: reason);
+            return;
+          }
+        } else if (_hospital != null) {
+          final bool isBlocked = _hospital!.isBlocked ||
+              _hospital!.chanDangNhap ||
+              _hospital!.trangThaiHopTacId != 10;
+          if (isBlocked) {
+            final reason = _hospital!.lyDoKhoa ?? 'Cơ sở y tế đã ngừng hợp tác hoặc bị chặn truy cập';
+            await forceSignOut(reason: reason);
+            return;
+          }
+        }
+
+        // Bắt đầu lắng nghe thời gian thực để đá văng ra ngay khi bị Admin khóa
+        _startSecurityWatcher(currentUser.uid, isHospital: _hospital != null);
       }
     } catch (e) {
       print('❌ Lỗi khi lấy thông tin user hiện tại: $e');
@@ -121,8 +150,7 @@ class AuthProvider extends ChangeNotifier {
       _admin = null;
       await fetchCurrentUser();
 
-      // ✅ Kiểm tra nếu đăng nhập thành công nhưng chưa xác thực email
-      // Lưu ý: User đăng ký bằng SĐT (OTP) sẽ có daXacThucEmail = true, nên không bị chặn ở đây
+      // ✅ 1. Kiểm tra nếu đăng nhập thành công nhưng chưa xác thực email
       final isEmailUnverified =
           _user?.daXacThucEmail == false || _hospital?.daXacThucEmail == false;
       if (isEmailUnverified) {
@@ -131,6 +159,40 @@ class AuthProvider extends ChangeNotifier {
         _hospital = null;
         notifyListeners();
         throw Exception('EMAIL_NOT_VERIFIED');
+      }
+
+      // ✅ 2. Kiểm tra nếu tài khoản bệnh nhân bị khóa
+      if (_user != null) {
+        final bool isBlocked = _user!.isBlocked ||
+            _user!.chanDangNhap ||
+            _user!.trangThaiId == TrangThaiId.khongHoatDong;
+        if (isBlocked) {
+          final reason = _user!.lyDoKhoa ?? 'Tài khoản đã bị quản trị viên khóa';
+          await _authService.signOut();
+          _user = null;
+          notifyListeners();
+          throw Exception('ACCOUNT_BLOCKED: $reason');
+        }
+      }
+
+      // ✅ 3. Kiểm tra nếu tài khoản bệnh viện bị ngừng hợp tác / khóa
+      if (_hospital != null) {
+        final bool isBlocked = _hospital!.isBlocked ||
+            _hospital!.chanDangNhap ||
+            _hospital!.trangThaiHopTacId != 10;
+        if (isBlocked) {
+          final reason = _hospital!.lyDoKhoa ?? 'Cơ sở y tế đã ngừng hợp tác hoặc bị chặn truy cập';
+          await _authService.signOut();
+          _hospital = null;
+          notifyListeners();
+          throw Exception('HOSPITAL_BLOCKED: $reason');
+        }
+      }
+
+      // ✅ 4. Kích hoạt Security Watcher
+      final curUid = _authService.currentUser?.uid;
+      if (curUid != null) {
+        _startSecurityWatcher(curUid, isHospital: _hospital != null);
       }
     } catch (e) {
       rethrow;
@@ -400,6 +462,8 @@ class AuthProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
+      _securityWatcherSub?.cancel();
+      _securityWatcherSub = null;
       await _authService.signOut();
       _user = null;
       _hospital = null;
@@ -414,5 +478,123 @@ class AuthProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  // =========================================================================
+  // BẢO MẬT THỜI GIAN THỰC (REALTIME SECURITY WATCHER)
+  // Tự động kiểm tra và ĐÁ VĂNG (Kick out) người dùng ngay lập tức khi bị Admin khóa
+  // =========================================================================
+  void _startSecurityWatcher(String uid, {required bool isHospital}) {
+    _securityWatcherSub?.cancel();
+    final collection = isHospital
+        ? AppConstants.hospitalsCollection
+        : AppConstants.patientsCollection;
+
+    _securityWatcherSub = FirebaseFirestore.instance
+        .collection(collection)
+        .doc(uid)
+        .snapshots()
+        .listen((snapshot) async {
+      if (!snapshot.exists) {
+        await forceSignOut(reason: 'Tài khoản của bạn đã bị xóa khỏi hệ thống.');
+        return;
+      }
+
+      final data = snapshot.data();
+      if (data == null) return;
+
+      bool shouldKick = false;
+      String kickReason = '';
+
+      if (isHospital) {
+        final statusId = (data['trang_thai_hop_tac_id'] as num?)?.toInt() ?? 1;
+        final chanDangNhap = data['chan_dang_nhap'] == true || data['is_blocked'] == true;
+        final isHuy = data['trang_thai'] == 'huy_hop_tac' || data['trangThai'] == 'HUY_HOP_TAC';
+        if (chanDangNhap || statusId != 10 || isHuy) {
+          shouldKick = true;
+          kickReason = data['ly_do_huy']?.toString() ??
+              data['ly_do_khoa']?.toString() ??
+              'Cơ sở y tế đã bị ngừng hợp tác hoặc khóa truy cập bởi Quản trị viên.';
+        }
+      } else {
+        final statusId = data['trang_thai_id'] as int? ?? TrangThaiId.hoatDong;
+        final chanDangNhap = data['chan_dang_nhap'] == true || data['is_blocked'] == true;
+        final isKhoa = statusId == TrangThaiId.khongHoatDong || data['trang_thai'] == 'khoa';
+        if (chanDangNhap || isKhoa) {
+          shouldKick = true;
+          kickReason = data['ly_do_khoa']?.toString() ??
+              data['ly_do_chan']?.toString() ??
+              'Tài khoản của bạn đã bị quản trị viên khóa.';
+        }
+      }
+
+      if (shouldKick) {
+        await forceSignOut(reason: kickReason);
+      }
+    });
+  }
+
+  /// Buộc đăng xuất ngay lập tức, chuyển về màn hình đăng nhập và cảnh báo
+  Future<void> forceSignOut({String? reason}) async {
+    _securityWatcherSub?.cancel();
+    _securityWatcherSub = null;
+    try {
+      await _authService.signOut();
+    } catch (_) {}
+
+    _user = null;
+    _hospital = null;
+    _admin = null;
+    _selectedRole = null;
+    notifyListeners();
+
+    // Chuyển hướng người dùng về màn hình đăng nhập
+    final nav = AppRoutes.navigatorKey.currentState;
+    if (nav != null) {
+      nav.pushNamedAndRemoveUntil(AppRoutes.login, (r) => false);
+    }
+
+    // Hiển thị hộp thoại cảnh báo tài khoản bị khóa
+    final ctx = AppRoutes.navigatorKey.currentContext;
+    if (ctx != null) {
+      showDialog(
+        context: ctx,
+        barrierDismissible: false,
+        builder: (dialogCtx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.lock_person_rounded, color: Colors.red, size: 28),
+              SizedBox(width: 8),
+              Text(
+                'Tài khoản bị khóa',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ],
+          ),
+          content: Text(
+            reason ?? 'Tài khoản của bạn đã bị khóa hoặc ngừng hợp tác bởi Quản trị viên. Phiên làm việc đã bị kết thúc.',
+            style: const TextStyle(fontSize: 14),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: const Text('Đã hiểu'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _securityWatcherSub?.cancel();
+    super.dispose();
   }
 }

@@ -14,6 +14,9 @@ class PatientModel {
   final DateTime? ngayTao;
   final String? role;
   final bool daXacThucEmail;
+  final bool isBlocked;
+  final bool chanDangNhap;
+  final String? lyDoKhoa;
 
   PatientModel({
     required this.uid,
@@ -29,6 +32,9 @@ class PatientModel {
     DateTime? ngayTao,
     this.role = 'benh_nhan',
     this.daXacThucEmail = false,
+    this.isBlocked = false,
+    this.chanDangNhap = false,
+    this.lyDoKhoa,
   }) : ngayTao = ngayTao ?? DateTime.now();
 
   Map<String, dynamic> toMap() {
@@ -46,10 +52,20 @@ class PatientModel {
       'ngay_tao': ngayTao?.toIso8601String(),
       'role': role,
       'da_xac_thuc_email': daXacThucEmail,
+      'is_blocked': isBlocked,
+      'chan_dang_nhap': chanDangNhap,
+      'ly_do_khoa': lyDoKhoa,
     };
   }
 
   factory PatientModel.fromMap(Map<String, dynamic> map) {
+    final statusId = map['trang_thai_id'] as int?;
+    final chan = map['chan_dang_nhap'] == true;
+    final blocked = map['is_blocked'] == true ||
+        chan ||
+        statusId == TrangThaiId.khongHoatDong ||
+        map['trang_thai'] == 'khoa';
+
     return PatientModel(
       uid: map['uid'] ?? '',
       maBenhNhan: map['ma_benh_nhan'],
@@ -62,12 +78,15 @@ class PatientModel {
           : null,
       gioiTinh: map['gioi_tinh'],
       diaChi: map['dia_chi'],
-      trangThaiId: (map['trang_thai_id'] ?? TrangThaiId.hoatDong) == 0
+      trangThaiId: (statusId ?? TrangThaiId.hoatDong) == 0
           ? TrangThaiId.hoatDong
-          : map['trang_thai_id'],
+          : (statusId ?? TrangThaiId.hoatDong),
       ngayTao: map['ngay_tao'] != null ? DateTime.parse(map['ngay_tao']) : null,
       role: map['role'] ?? 'benh_nhan',
       daXacThucEmail: map['da_xac_thuc_email'] ?? false,
+      isBlocked: blocked,
+      chanDangNhap: chan,
+      lyDoKhoa: map['ly_do_khoa']?.toString() ?? map['ly_do_chan']?.toString(),
     );
   }
 
@@ -85,6 +104,9 @@ class PatientModel {
     DateTime? ngayTao,
     String? role,
     bool? daXacThucEmail,
+    bool? isBlocked,
+    bool? chanDangNhap,
+    String? lyDoKhoa,
   }) {
     return PatientModel(
       uid: uid ?? this.uid,
@@ -100,6 +122,9 @@ class PatientModel {
       ngayTao: ngayTao ?? this.ngayTao,
       role: role ?? this.role,
       daXacThucEmail: daXacThucEmail ?? this.daXacThucEmail,
+      isBlocked: isBlocked ?? this.isBlocked,
+      chanDangNhap: chanDangNhap ?? this.chanDangNhap,
+      lyDoKhoa: lyDoKhoa ?? this.lyDoKhoa,
     );
   }
 
