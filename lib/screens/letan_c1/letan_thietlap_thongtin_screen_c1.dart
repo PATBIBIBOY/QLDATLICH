@@ -5,6 +5,7 @@ import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
 import 'cskh_duyetdon_khoa_screen_c1.dart';
 import 'letan_trangchu_screen_c1.dart';
+import '../../support_doctor/clinic_firestore_service.dart';
 import '../../support_doctor/department_room_picker.dart';
 
 /// MÀN HÌNH 3: THIẾT LẬP THÔNG TIN KHI LẦN ĐẦU ĐĂNG NHẬP (FIGMA C1)
@@ -137,7 +138,10 @@ class _LetanThietlapThongtinScreenC1State extends State<LetanThietlapThongtinScr
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => ClinicRoomPickerScreen(
+          builder: (_) => FirestoreClinicRoomPickerScreen(
+            hospitalId: DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty
+                ? DuLieuProfileMauC1.thongTinHienTai.benhVienId
+                : 'BV001',
             hospitalName: DuLieuProfileMauC1.thongTinHienTai.tenBenhVien,
           ),
         ),
