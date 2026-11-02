@@ -1,23 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:qldatlich/screens/auth/login_screen.dart';
 
-import '../screens/auth/login_screen.dart';
-import '../screens/auth/register_screen.dart';
 import 'queue_screen.dart';
 import 'room_session_store.dart';
-
-// -----------------------------------------------------------------------------
-// Ten route dung NOI BO trong file nay.
-//
-// Dart KHONG import bac cau: `import 'login_screen.dart'` chi mang vao day
-// LoginScreen / RegisterScreen / goToLoginScreen; no KHONG mang theo AppRoutes
-// neu class do nam o library khac (vd config/app_routes.dart). Do do khai bao
-// thang 3 hang so o day de file tu chua, tranh loi "Undefined name 'AppRoutes'".
-//
-// Neu du an cua ban dat ten route khac, sua 3 hang so nay cho khop.
-// -----------------------------------------------------------------------------
-const String _kRouteLogin = '/login';
-const String _kRouteRegister = '/register';
-const String _kRoutePatientHome = '/patient-home';
 
 /// Dua nguoi dung ve [LoginScreen] va xoa SACH stack dieu huong,
 /// de khong the bam Back quay lai man hinh vua dang xuat.
@@ -188,8 +173,9 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
       if (query.isEmpty) return true;
 
       // Chỉ tìm theo phòng (tên phòng và mã phòng), không tìm theo khoa.
-      final searchable = ('${widget.roomNameOf(room)} ${widget.roomIdOf(room)}')
-          .toLowerCase();
+      final searchable =
+          ('${widget.roomNameOf(room)} ${widget.roomIdOf(room)}')
+              .toLowerCase();
       return searchable.contains(query);
     }).toList();
   }
@@ -1270,222 +1256,20 @@ class ClinicRoomData {
   }
 }
 
-/// Dữ liệu mẫu trong bộ nhớ, khai báo dạng cây KHOA → PHÒNG ở
-/// [demoDepartments]: khoa gồm id + tên khoa, phòng là con của khoa gồm
-/// id phòng + tên phòng. Khi nối dữ liệu thật, truyền `rooms:` cho
-/// [ClinicRoomPickerScreen]/[ClinicRoomPickerApp], hoặc dùng sẵn đường
-/// nối Cloud Firestore ở clinic_firestore_service.dart (hướng dẫn trong
-/// FIREBASE_SETUP.md) — cấu trúc cây trên Firestore giống hệt danh sách
-/// mẫu này.
-///
-/// Tất cả phòng đều BẮT ĐẦU Ở SỐ 1: `currentNumber = 1`, chưa có ai đang
-/// đợi và chưa khám ai. Khi mở một phòng, màn hình hàng chờ sẽ hiển thị
-/// SỐ HIỆN TẠI = 1, SỐ TIẾP THEO = 2, và hàng chờ bắt đầu từ số 3.
-///
-/// Mọi phòng đều ở trạng thái “Đang khám”. Trạng thái “Tạm dừng” CHỈ xuất
-/// hiện sau khi bác sĩ nhấn nút “Tạm dừng khám” ở màn hình hàng chờ (xem
-/// [RoomSessionStore]) — không gán cứng ở đây.
-const int demoStartingNumber = 1;
-
-/// Id bệnh viện của dữ liệu mẫu (mọi khoa/phòng mẫu đều thuộc bệnh viện
-/// này).
-const String demoHospitalId = '10';
-
-/// Một khoa trong dữ liệu mẫu: mã khoa ([id]), tên khoa ([name]) và danh
-/// sách phòng trực thuộc ([rooms]). Muốn thêm khoa mới, cứ thêm một phần
-/// tử vào [demoDepartments].
-class DemoDepartment {
-  const DemoDepartment({
-    required this.id,
-    required this.name,
-    this.rooms = const <DemoRoom>[],
-  });
-
-  /// Mã khoa (ví dụ 'K001').
-  final String id;
-
-  /// Tên khoa (ví dụ 'Khoa Tim').
-  final String name;
-
-  /// Các phòng khám là "con" của khoa này.
-  final List<DemoRoom> rooms;
-}
-
-/// Một phòng khám trong dữ liệu mẫu, là "con" của [DemoDepartment].
-///
-/// Chỉ bắt buộc mã phòng ([id]) và tên phòng ([name]). Các thông tin còn
-/// lại đều không bắt buộc và có sẵn giá trị mặc định: chưa gán nhân viên,
-/// trạng thái “Đang khám”, bắt đầu ở [demoStartingNumber].
-class DemoRoom {
-  const DemoRoom({
-    required this.id,
-    required this.name,
-    this.staffId = '',
-    this.status = ClinicRoomStatus.open,
-    this.currentNumber = demoStartingNumber,
-  });
-
-  /// Mã phòng (ví dụ 'PK1').
-  final String id;
-
-  /// Tên phòng (ví dụ 'Phòng khám 1').
-  final String name;
-
-  /// Mã nhân viên phụ trách (không bắt buộc).
-  final String staffId;
-
-  /// Trạng thái mẫu của phòng (mặc định đang khám).
-  final ClinicRoomStatus status;
-
-  /// Số đang khám mẫu (mặc định bắt đầu ở số [demoStartingNumber]).
-  final int? currentNumber;
-}
-
-/// Dữ liệu mẫu dạng cây KHOA → PHÒNG: mỗi khoa gồm id + tên khoa, bên
-/// trong là các phòng con gồm id phòng + tên phòng. Thêm khoa/phòng bằng
-/// cách sửa trực tiếp danh sách này; màn hình chọn khoa/phòng dùng
-/// [demoClinicRooms] (được trải phẳng từ đây) nên sẽ tự cập nhật.
-const List<DemoDepartment> demoDepartments = <DemoDepartment>[
-  DemoDepartment(
-    id: 'K001',
-    name: 'Khoa Tim',
-    rooms: <DemoRoom>[
-      DemoRoom(id: 'PK1', name: 'Phòng khám 1', staffId: 'NV-LAN'),
-      DemoRoom(id: 'PK4', name: 'Phòng khám 4', staffId: 'NV-MAI'),
-    ],
-  ),
-  DemoDepartment(
-    id: 'K002',
-    name: 'Khoa Hô hấp',
-    rooms: <DemoRoom>[
-      DemoRoom(id: 'PK2', name: 'Phòng khám 2', staffId: 'NV-HUNG'),
-      DemoRoom(id: 'PK6', name: 'Phòng khám 6', staffId: 'NV-HUY'),
-    ],
-  ),
-  DemoDepartment(
-    id: 'K003',
-    name: 'Khoa Nhi',
-    rooms: <DemoRoom>[
-      DemoRoom(id: 'PK3', name: 'Phòng khám 3', staffId: 'NV-VNT'),
-      DemoRoom(id: 'PK5', name: 'Phòng khám 5', staffId: 'NV-DUNG'),
-    ],
-  ),
-  DemoDepartment(
-    id: 'K004',
-    name: 'Khoa Nội',
-    rooms: <DemoRoom>[
-      DemoRoom(id: 'PK7', name: 'Phòng khám 7', staffId: 'NV-BINH'),
-      DemoRoom(id: 'PK8', name: 'Phòng khám 8', staffId: 'NV-HA'),
-    ],
-  ),
-  DemoDepartment(
-    id: 'K005',
-    name: 'Khoa Ngoại',
-    rooms: <DemoRoom>[
-      DemoRoom(id: 'PK9', name: 'Phòng khám 9', staffId: 'NV-MTUAN'),
-      DemoRoom(id: 'PK10', name: 'Phòng khám 10', staffId: 'NV-LINH'),
-    ],
-  ),
-  DemoDepartment(
-    id: 'K006',
-    name: 'Khoa Sản',
-    rooms: <DemoRoom>[
-      DemoRoom(id: 'PK11', name: 'Phòng khám 11', staffId: 'NV-TRAM'),
-      DemoRoom(id: 'PK12', name: 'Phòng khám 12', staffId: 'NV-VAN'),
-      DemoRoom(id: 'PK13', name: 'Phòng khám 13', staffId: 'NV-PHUONG'),
-    ],
-  ),
-  DemoDepartment(
-    id: 'K007',
-    name: 'Khoa Mắt',
-    rooms: <DemoRoom>[
-      DemoRoom(id: 'PK14', name: 'Phòng khám 14', staffId: 'NV-THANG'),
-      DemoRoom(id: 'PK15', name: 'Phòng khám 15', staffId: 'NV-GIANG'),
-    ],
-  ),
-  DemoDepartment(
-    id: 'K008',
-    name: 'Khoa Tai Mũi Họng',
-    rooms: <DemoRoom>[
-      DemoRoom(id: 'PK16', name: 'Phòng khám 16', staffId: 'NV-DUC'),
-      DemoRoom(id: 'PK17', name: 'Phòng khám 17', staffId: 'NV-LY'),
-    ],
-  ),
-  DemoDepartment(
-    id: 'K009',
-    name: 'Khoa Răng Hàm Mặt',
-    rooms: <DemoRoom>[
-      DemoRoom(id: 'PK18', name: 'Phòng khám 18', staffId: 'NV-TANH'),
-      DemoRoom(id: 'PK19', name: 'Phòng khám 19', staffId: 'NV-NGOC'),
-    ],
-  ),
-  DemoDepartment(
-    id: 'K010',
-    name: 'Khoa Thần Kinh',
-    rooms: <DemoRoom>[
-      DemoRoom(id: 'PK20', name: 'Phòng khám 20', staffId: 'NV-CONG'),
-      DemoRoom(id: 'PK21', name: 'Phòng khám 21', staffId: 'NV-CHAU'),
-    ],
-  ),
-  DemoDepartment(
-    id: 'K011',
-    name: 'Khoa Tiêu Hoá',
-    rooms: <DemoRoom>[
-      DemoRoom(id: 'PK22', name: 'Phòng khám 22', staffId: 'NV-NGHIA'),
-      DemoRoom(id: 'PK23', name: 'Phòng khám 23', staffId: 'NV-LTA'),
-    ],
-  ),
-  DemoDepartment(
-    id: 'K012',
-    name: 'Khoa Da Liễu',
-    rooms: <DemoRoom>[
-      DemoRoom(id: 'PK24', name: 'Phòng khám 24', staffId: 'NV-THAO'),
-    ],
-  ),
-  DemoDepartment(
-    id: 'K013',
-    name: 'Khoa Chấn Thương Chỉnh Hình',
-    rooms: <DemoRoom>[
-      DemoRoom(id: 'PK25', name: 'Phòng khám 25', staffId: 'NV-TUNG'),
-      DemoRoom(id: 'PK26', name: 'Phòng khám 26', staffId: 'NV-NAM'),
-    ],
-  ),
-];
-
-/// Toàn bộ phòng mẫu ở dạng danh sách phẳng mà màn hình chọn khoa/phòng
-/// sử dụng: gộp các phòng con của mọi khoa trong [demoDepartments], gắn
-/// thêm mã/tên khoa của khoa chứa nó và bệnh viện [demoHospitalId].
-final List<ClinicRoomData> demoClinicRooms = <ClinicRoomData>[
-  for (final department in demoDepartments)
-    for (final room in department.rooms)
-      ClinicRoomData(
-        hospitalId: demoHospitalId,
-        departmentId: department.id,
-        id: room.id,
-        name: room.name,
-        department: department.name,
-        staffId: room.staffId,
-        status: room.status,
-        currentNumber: room.currentNumber,
-        waitingCount: 0,
-        examinedCount: 0,
-      ),
-];
-
 /// Màn hình chọn khoa/phòng đã kết nối với QueueScreen trong queue_screen.dart.
-/// Dữ liệu phòng lấy trực tiếp từ danh sách [rooms] (mặc định là dữ liệu mẫu
-/// trong bộ nhớ). Muốn lấy từ Cloud Firestore theo thời gian thực, dùng
+/// Dữ liệu phòng lấy trực tiếp từ danh sách [rooms] do bên gọi cung cấp.
+/// Để lấy từ Cloud Firestore theo thời gian thực, dùng
 /// FirestoreClinicRoomPickerScreen trong clinic_firestore_service.dart.
 class ClinicRoomPickerScreen extends StatelessWidget {
   const ClinicRoomPickerScreen({
     super.key,
-    this.rooms,
+    required this.rooms,
     this.initialDepartment = 'Khoa Tim',
     this.hospitalName = 'Bệnh viện Bạch Mai',
     this.onLogout,
   });
 
-  final List<ClinicRoomData>? rooms;
+  final List<ClinicRoomData> rooms;
   final String initialDepartment;
   final String hospitalName;
 
@@ -1493,6 +1277,7 @@ class ClinicRoomPickerScreen extends StatelessWidget {
   ///
   /// ```dart
   /// ClinicRoomPickerScreen(
+  ///   rooms: rooms,
   ///   onLogout: () async {
   ///     await AuthStore.instance.logout();      // xoá token/phiên đăng nhập
   ///     RoomSessionStore.instance.resetAll();   // (tuỳ chọn) dọn phiên phòng
@@ -1508,7 +1293,7 @@ class ClinicRoomPickerScreen extends StatelessWidget {
   /// Danh sách phòng kèm trạng thái/số liệu thật lấy từ [RoomSessionStore]
   /// (phòng chưa mở lần nào thì giữ nguyên dữ liệu ban đầu).
   List<ClinicRoomData> _liveRooms() => <ClinicRoomData>[
-    for (final room in rooms ?? demoClinicRooms)
+    for (final room in rooms)
       if (RoomSessionStore.instance.sessionOf(room.id) case final snapshot
           when snapshot.started)
         room.copyWith(
@@ -1559,63 +1344,12 @@ class ClinicRoomPickerScreen extends StatelessWidget {
                 roomName: room.name,
                 departmentName: room.department,
                 hospitalName: hospitalName,
-                initialCurrent: room.currentNumber ?? demoStartingNumber,
+                initialCurrent: room.currentNumber ?? 1,
                 // Nút “Đặt lại số” trong màn hình hàng chờ đưa phòng về số này.
-                startingNumber: demoStartingNumber,
+                startingNumber: room.currentNumber ?? 1,
               ),
             ),
           );
         },
       );
-}
-
-/// Điểm vào mẫu – chạy được ngay, không cần Firebase hay cấu hình CSDL nào.
-void main() => runApp(const ClinicRoomPickerApp());
-
-class ClinicRoomPickerApp extends StatelessWidget {
-  const ClinicRoomPickerApp({
-    super.key,
-    this.rooms,
-    this.hospitalName = 'Bệnh viện Bạch Mai',
-    this.onLogout,
-  });
-
-  /// Danh sách phòng do app cung cấp; để trống (null) thì dùng dữ liệu
-  /// mẫu [demoDepartments].
-  final List<ClinicRoomData>? rooms;
-  final String hospitalName;
-  final Future<void> Function()? onLogout;
-
-  @override
-  Widget build(BuildContext context) => MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: _pickerScreen(),
-    routes: <String, WidgetBuilder>{
-      _kRouteLogin: (_) => const LoginScreen(),
-      _kRouteRegister: (_) => const RegisterScreen(),
-      _kRoutePatientHome: (_) => _pickerScreen(),
-    },
-    // Du phong: neu AppRoutes trong du an ban dat ten route khac
-    // (vd '/patientHome', '/home'), route do van duoc xu ly thay vi bao loi
-    // "Could not find a generator for route".
-    onGenerateRoute: (RouteSettings settings) {
-      final name = (settings.name ?? '').toLowerCase();
-      final Widget page;
-      if (name.contains('login')) {
-        page = const LoginScreen();
-      } else if (name.contains('register') || name.contains('signup')) {
-        page = const RegisterScreen();
-      } else {
-        page = _pickerScreen();
-      }
-      return MaterialPageRoute<void>(settings: settings, builder: (_) => page);
-    },
-  );
-
-  /// Man hinh chon khoa/phong, dung cho ca `home` va cac route.
-  Widget _pickerScreen() => ClinicRoomPickerScreen(
-    rooms: rooms,
-    hospitalName: hospitalName,
-    onLogout: onLogout,
-  );
 }
