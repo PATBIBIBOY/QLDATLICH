@@ -276,7 +276,21 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        return Container(
+        return ListenableBuilder(
+          listenable: AdminStore.instance,
+          // Lấy patient mới nhất từ store mỗi khi store thay đổi
+          builder: (context, _) {
+            final updatedPatient = AdminStore.instance.patients
+                .firstWhere((p) => p.uid == patient.uid, orElse: () => patient);
+            return _buildPatientDetailSheet(ctx, updatedPatient);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildPatientDetailSheet(BuildContext ctx, AdminPatient patient) {
+    return Container(
           height: MediaQuery.of(ctx).size.height * 0.85,
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -648,8 +662,6 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
             ],
           ),
         );
-      },
-    );
   }
 
   Widget _buildSectionHeader(String title, IconData icon) {
