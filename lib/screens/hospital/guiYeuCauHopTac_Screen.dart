@@ -41,8 +41,8 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
   bool _dangLayViTri = false;
   String _viTriStatus = 'Chưa xác định tọa độ GPS';
 
-  String _loaiHinh = 'Bệnh viện Tư lập';
-  bool _coBhyt = true;
+  String _coSo = 'Tu_nhan'; // 'Cong_lap' hoặc 'Tu_nhan' theo collection CoSo
+  String _bhyt = 'Co_BHYT'; // 'Co_BHYT' hoặc 'Khong_BHYT' theo collection BHYT
   String _tenFileDinhKem = 'giay_phep_byt.pdf';
   String _dungLuongFile = '2.4 MB • Đã tải lên';
   Uint8List? _fileBytes;
@@ -66,6 +66,13 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     _maCoSoCtrl = TextEditingController(text: 'BV-79-102');
     _maSoThueCtrl = TextEditingController(text: '0312891201');
     _diaChiCtrl = TextEditingController(text: diaChi);
+
+    if (auth.hospital?.coSo == 'Cong_lap' || auth.hospital?.coSo == 'Tu_nhan') {
+      _coSo = auth.hospital!.coSo!;
+    }
+    if (auth.hospital?.bhyt == 'Co_BHYT' || auth.hospital?.bhyt == 'Khong_BHYT') {
+      _bhyt = auth.hospital!.bhyt!;
+    }
 
     // Lấy tọa độ có sẵn nếu tài khoản đã từng lưu
     _viDo = auth.hospital?.viDo;
@@ -500,6 +507,11 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
         }
       }
 
+      final coSo = _coSo;
+      final bhyt = _bhyt;
+      final bool coBhyt = (bhyt == 'Co_BHYT');
+      final String loaiHinh = coSo == 'Cong_lap' ? 'Công lập' : 'Tư nhân';
+
       final dataToSave = <String, dynamic>{
         'uid': hospitalUid,
         'benh_vien_id': hospitalUid,
@@ -510,14 +522,22 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
         'dia_chi': _diaChiCtrl.text.trim(),
         'vi_do': _viDo,
         'kinh_do': _kinhDo,
-        'loai_hinh': _loaiHinh,
-        'co_bhyt': _coBhyt,
+        'co_so': coSo, // ✅ Khớp collection CoSo: Cong_lap / Tu_nhan
+        'bhyt': bhyt,   // ✅ Khớp collection BHYT: Co_BHYT / Khong_BHYT
+        'co_bhyt': coBhyt,
+        'loai_hinh': loaiHinh,
+        'chuyen_khoa_ids': <String>[], // ✅ Khởi tạo mảng rỗng chuẩn, không để null
+        'ten_cac_khoa': <String>[],
         'file_giay_phep': _tenFileDinhKem,
         'ma_ho_so': maHoSo,
         'da_gui_don': true,
         'trang_thai_hop_tac_id': 1, // 1: Chờ duyệt
         'ngay_gui_don': FieldValue.serverTimestamp(),
         'thoi_gian_gui_str': DateTime.now().toIso8601String(),
+        'da_bi_tu_choi': false,
+        'da_gui_mail_tu_choi': false,
+        if (FirebaseAuth.instance.currentUser?.email != null)
+          'email': FirebaseAuth.instance.currentUser!.email,
       };
       if (fileDownloadUrl != null) {
         dataToSave['file_giay_phep_url'] = fileDownloadUrl;
@@ -551,8 +571,8 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
           builder: (_) => GuiDonThanhCongScreen(
             maHoSo: maHoSo,
             tenBenhVien: _tenBenhVienCtrl.text.trim(),
-            loaiHinh: _loaiHinh,
-            coBhyt: _coBhyt,
+            loaiHinh: loaiHinh,
+            coBhyt: coBhyt,
             hospitalUid: hospitalUid,
             extraData: dataToSave,
           ),
@@ -772,17 +792,17 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
                           _buildLocationCard(),
                           const SizedBox(height: 18),
 
-                          // 4. Loại hình bệnh viện (Spinner lựa chọn)
+                          // 4. Cơ sở y tế (Spinner lựa chọn theo collection CoSo)
                           _buildSectionHeaderWithNote(
-                            title: 'Loại hình bệnh viện',
-                            note: '(Tiêu chí duyệt Admin)',
+                            title: 'Cơ sở y tế (Loại hình)',
+                            note: '(Theo danh mục CoSo)',
                           ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            initialValue: _loaiHinh,
+                            initialValue: _coSo,
                             isExpanded: true,
                             decoration: _inputDecoration(
-                              hintText: 'Chọn loại hình bệnh viện',
+                              hintText: 'Chọn loại hình cơ sở',
                             ).copyWith(
                               prefixIcon: const Icon(
                                 Icons.business_outlined,
@@ -798,66 +818,44 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
                             borderRadius: BorderRadius.circular(12),
                             items: const [
                               DropdownMenuItem(
-                                value: 'Bệnh viện Công lập',
+                                value: 'Cong_lap',
                                 child: Text(
-                                  'Bệnh viện Công lập',
+                                  'Công lập (Bệnh viện Nhà nước)',
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: Color(0xFF1E293B),
-                                    fontWeight: FontWeight.w500,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ),
                               DropdownMenuItem(
-                                value: 'Bệnh viện Tư lập',
+                                value: 'Tu_nhan',
                                 child: Text(
-                                  'Bệnh viện Tư lập',
+                                  'Tư nhân (Bệnh viện / Phòng khám Tư)',
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: Color(0xFF1E293B),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Bệnh viện Quốc tế',
-                                child: Text(
-                                  'Bệnh viện Quốc tế',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Color(0xFF1E293B),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Phòng khám Đa khoa',
-                                child: Text(
-                                  'Phòng khám Đa khoa',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Color(0xFF1E293B),
-                                    fontWeight: FontWeight.w500,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ),
                             ],
                             onChanged: (val) {
                               if (val != null) {
-                                setState(() => _loaiHinh = val);
+                                setState(() => _coSo = val);
                               }
                             },
                           ),
                           const SizedBox(height: 18),
 
-                          // 5. Khám chữa bệnh BHYT (Spinner lựa chọn)
+                          // 5. Khám chữa bệnh BHYT (Spinner lựa chọn theo collection BHYT)
                           _buildSectionHeaderWithNote(
                             title: 'Khám chữa bệnh BHYT',
-                            note: '(Tiêu chí duyệt Admin)',
+                            note: '(Theo danh mục BHYT)',
                           ),
                           const SizedBox(height: 8),
-                          DropdownButtonFormField<bool>(
-                            initialValue: _coBhyt,
+                          DropdownButtonFormField<String>(
+                            initialValue: _bhyt,
                             isExpanded: true,
                             decoration: _inputDecoration(
                               hintText: 'Chọn chính sách BHYT',
@@ -876,7 +874,7 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
                             borderRadius: BorderRadius.circular(12),
                             items: const [
                               DropdownMenuItem(
-                                value: true,
+                                value: 'Co_BHYT',
                                 child: Row(
                                   children: [
                                     Text(
@@ -889,7 +887,7 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
                                     ),
                                     SizedBox(width: 8),
                                     Text(
-                                      '(Thông tuyến KCB)',
+                                      '(Tiếp nhận KCB BHYT)',
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: Color(0xFF16A34A),
@@ -900,7 +898,7 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
                                 ),
                               ),
                               DropdownMenuItem(
-                                value: false,
+                                value: 'Khong_BHYT',
                                 child: Row(
                                   children: [
                                     Text(
@@ -926,7 +924,7 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
                             ],
                             onChanged: (val) {
                               if (val != null) {
-                                setState(() => _coBhyt = val);
+                                setState(() => _bhyt = val);
                               }
                             },
                           ),

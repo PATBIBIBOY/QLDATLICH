@@ -223,8 +223,10 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       if (selectedRoleCode == 'benh_vien' || auth.hospital != null) {
-        AppSession.benhVienId =
+        final bvid =
             auth.hospital?.maBenhVien ?? auth.hospital?.uid ?? FirebaseAuth.instance.currentUser?.uid ?? '';
+        AppSession.benhVienId = bvid;
+        auth.chuanHoaBenhVienDaDangKy(bvid);
         Navigator.pushNamedAndRemoveUntil(
           context,
           AppRoutes.hospitalDashboard,

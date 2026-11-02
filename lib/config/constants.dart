@@ -22,8 +22,9 @@ enum TrangThai {
   vangMat, // Vắng mặt (ID: 6)
   hoatDong, // Hoạt động (ID: 7)
   khongHoatDong, // Không hoạt động (ID: 8)
-  hopTac, // Hợp tác (ID: 9)
-  khongHopTac, // Không hợp tác (ID: 10)
+  huyHopTac, // Hủy Hợp Tác (ID: 9) - Khớp Document 9 trên Firebase
+  hopTac, // Hợp tác (ID: 10) - Khớp Document 10 trên Firebase
+  khongHopTac, // Không hợp tác / Alias cho Hủy hợp tác (ID: 9)
 }
 
 class TrangThaiId {
@@ -35,8 +36,9 @@ class TrangThaiId {
   static const int vangMat = 6;
   static const int hoatDong = 7;
   static const int khongHoatDong = 8;
-  static const int hopTac = 9;
-  static const int khongHopTac = 10;
+  static const int huyHopTac = 9; // Hủy Hợp Tác (Doc 9 trên Firebase)
+  static const int hopTac = 10; // Hợp tác (Doc 10 trên Firebase)
+  static const int khongHopTac = 9; // Alias cho Hủy hợp tác
 }
 
 // ============================================
@@ -53,8 +55,8 @@ class TrangThaiHelper {
     TrangThaiId.vangMat: 'Vắng mặt',
     TrangThaiId.hoatDong: 'Hoạt động',
     TrangThaiId.khongHoatDong: 'Không hoạt động',
+    TrangThaiId.huyHopTac: 'Hủy Hợp Tác',
     TrangThaiId.hopTac: 'Hợp tác',
-    TrangThaiId.khongHopTac: 'Không hợp tác',
   };
 
   // Map từ ID sang mã màu (ARGB)
@@ -67,8 +69,8 @@ class TrangThaiHelper {
     TrangThaiId.vangMat: 0xFFAB47BC, // Tím - Vắng mặt
     TrangThaiId.hoatDong: 0xFF66BB6A, // Xanh lá - Hoạt động
     TrangThaiId.khongHoatDong: 0xFFEF5350, // Đỏ - Không hoạt động
-    TrangThaiId.hopTac: 0xFF29B6F6, // Xanh nhạt - Hợp tác
-    TrangThaiId.khongHopTac: 0xFFFF8A80, // Hồng - Không hợp tác
+    TrangThaiId.huyHopTac: 0xFFEF4444, // Đỏ - Hủy hợp tác
+    TrangThaiId.hopTac: 0xFF16A34A, // Xanh lá - Hợp tác
   };
 
   // Map từ ID sang tên icon (Material Icons)
@@ -81,8 +83,8 @@ class TrangThaiHelper {
     TrangThaiId.vangMat: 'person_off',
     TrangThaiId.hoatDong: 'check_circle',
     TrangThaiId.khongHoatDong: 'block',
+    TrangThaiId.huyHopTac: 'cancel_outlined',
     TrangThaiId.hopTac: 'handshake',
-    TrangThaiId.khongHopTac: 'not_interested',
   };
 
   // Lấy tên trạng thái từ ID
@@ -119,6 +121,8 @@ class TrangThaiHelper {
         return TrangThaiId.hoatDong;
       case TrangThai.khongHoatDong:
         return TrangThaiId.khongHoatDong;
+      case TrangThai.huyHopTac:
+        return TrangThaiId.huyHopTac;
       case TrangThai.hopTac:
         return TrangThaiId.hopTac;
       case TrangThai.khongHopTac:
@@ -145,10 +149,10 @@ class TrangThaiHelper {
         return TrangThai.hoatDong;
       case TrangThaiId.khongHoatDong:
         return TrangThai.khongHoatDong;
+      case TrangThaiId.huyHopTac:
+        return TrangThai.huyHopTac;
       case TrangThaiId.hopTac:
         return TrangThai.hopTac;
-      case TrangThaiId.khongHopTac:
-        return TrangThai.khongHopTac;
       default:
         return TrangThai.choDuyet;
     }
@@ -168,6 +172,9 @@ class AppConstants {
   static const String chatsCollection = 'chats';
   static const String rolesCollection = 'VaiTro';
   static const String statusCollection = 'TrangThai';
+  static const String emailLogCollection = 'EmailLog';
+  static const String thongBaoCollection = 'ThongBao';
+  static const String yeuCauHopTacCollection = 'YeuCauHopTac';
 
   // Role names mapping
   static const Map<Role, String> roleNames = {

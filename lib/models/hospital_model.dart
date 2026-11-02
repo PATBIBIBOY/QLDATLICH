@@ -68,15 +68,16 @@ class HospitalModel {
       'tong_so_danh_gia': tongSoDanhGia,
       'ngay_hop_tac': ngayHopTac?.toIso8601String(),
       'ngay_tao': ngayTao?.toIso8601String(),
-      'co_so': coSo,
-      'bhyt': bhyt,
+      'co_so': coSo ?? 'Tu_nhan',
+      'bhyt': bhyt ?? 'Co_BHYT',
+      'co_bhyt': (bhyt != null ? bhyt == 'Co_BHYT' : true),
       'email': email,
       'role': role,
       'da_xac_thuc_email': daXacThucEmail,
       'vi_do': viDo,    
       'kinh_do': kinhDo, 
-      'chuyen_khoa_ids': chuyenKhoaIds,
-      'ten_cac_khoa': tenCacKhoa,
+      'chuyen_khoa_ids': chuyenKhoaIds ?? <String>[],
+      'ten_cac_khoa': tenCacKhoa ?? <String>[],
     };
   }
 
@@ -128,8 +129,14 @@ class HospitalModel {
           ? DateTime.tryParse(map['ngay_hop_tac'].toString())
           : null,
       ngayTao: map['ngay_tao'] != null ? DateTime.tryParse(map['ngay_tao'].toString()) : null,
-      coSo: map['co_so'] ?? map['coSo'],
-      bhyt: map['bhyt']?.toString(),
+      coSo: map['co_so'] ??
+          map['coSo'] ??
+          (map['loai_hinh'] != null &&
+                  map['loai_hinh'].toString().toLowerCase().contains('công')
+              ? 'Cong_lap'
+              : 'Tu_nhan'),
+      bhyt: map['bhyt']?.toString() ??
+          (map['co_bhyt'] == false ? 'Khong_BHYT' : 'Co_BHYT'),
       email: map['email'],
       role: map['role'] ?? 'benh_vien',
       daXacThucEmail: map['da_xac_thuc_email'] ?? false,
@@ -137,10 +144,10 @@ class HospitalModel {
       kinhDo: (map['kinh_do'] as num?)?.toDouble(), 
       chuyenKhoaIds: map['chuyen_khoa_ids'] != null
           ? List<String>.from(map['chuyen_khoa_ids'])
-          : null,
+          : const [],
       tenCacKhoa: map['ten_cac_khoa'] != null
           ? List<String>.from(map['ten_cac_khoa'])
-          : null,
+          : const [],
     );
   }
 
@@ -214,6 +221,10 @@ class HospitalModel {
       diaChi: diaChi,
       trangThaiHopTacId: TrangThaiId.choDuyet,
       ngayTao: DateTime.now(),
+      coSo: 'Tu_nhan',
+      bhyt: 'Co_BHYT',
+      chuyenKhoaIds: const [],
+      tenCacKhoa: const [],
       role: role ?? 'benh_vien',
       daXacThucEmail: false,
     );

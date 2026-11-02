@@ -463,6 +463,15 @@ class AuthService {
       ...modelToSave.toMap(),
       'mat_khau': FieldValue.delete(),
     };
+    if (dataToSave['co_so'] == null) {
+      dataToSave['co_so'] = 'Tu_nhan';
+    }
+    if (dataToSave['bhyt'] == null) {
+      dataToSave['bhyt'] = 'Co_BHYT';
+    }
+    if (dataToSave['chuyen_khoa_ids'] == null) {
+      dataToSave['chuyen_khoa_ids'] = <String>[];
+    }
 
     // CHỈ LƯU DUY NHẤT 1 TÀI LIỆU VỚI ID LÀ MÃ BỆNH VIỆN BVxxx (ví dụ: BV502)
     // TUYỆT ĐỐI KHÔNG TẠO DOCUMENT VỚI ID TỰ SINH / AUTH UID
@@ -508,6 +517,123 @@ class AuthService {
     }
   }
 
+  /// Chuẩn hóa các tài khoản bệnh viện đã đăng ký hợp tác trên Firestore
+  /// (đảm bảo co_so, bhyt, chuyen_khoa_ids theo đúng collection Firebase CoSo & BHYT,
+  /// đồng thời đồng bộ 2 chiều trạng thái giữa YeuCauHopTac và BenhVien)
+  Future<void> chuanHoaBenhVienDaDangKyHopTac([String? specificMaBv]) async {
+    try {
+      // 1. Quét và đồng bộ 2 chiều trạng thái từ YeuCauHopTac sang BenhVien
+      final snapYeuCau = await _firestore.collection('YeuCauHopTac').get();
+      for (final doc in snapYeuCau.docs) {
+        final data = doc.data();
+        final rawStatus = data['trang_thai_hop_tac_id'];
+        if (rawStatus != null) {
+          final int statusId = rawStatus is int
+              ? rawStatus
+              : int.tryParse(rawStatus.toString()) ?? 1;
+
+          final bvDocRef = _firestore.collection(AppConstants.hospitalsCollection).doc(doc.id);
+          final bvSnap = await bvDocRef.get();
+          if (bvSnap.exists) {
+            final currentStatus = bvSnap.data()?['trang_thai_hop_tac_id'];
+            if (currentStatus != statusId) {
+              await bvDocRef.set({
+                'trang_thai_hop_tac_id': statusId,
+                'da_gui_don': statusId != TrangThaiId.huyHopTac,
+              }, SetOptions(merge: true));
+            }
+          }
+        }
+      }
+
+      // 2. Chuẩn hóa cho bệnh viện cụ thể nếu có
+      if (specificMaBv != null && specificMaBv.isNotEmpty) {
+        final doc = await _firestore
+            .collection(AppConstants.hospitalsCollection)
+            .doc(specificMaBv)
+            .get();
+        if (doc.exists) {
+          await _chuanHoaMotDocBenhVien(doc);
+        }
+      }
+
+      // 3. Chuẩn hóa co_so, bhyt, chuyen_khoa_ids cho tất cả các viện đã gửi đơn
+      final query = await _firestore
+          .collection(AppConstants.hospitalsCollection)
+          .where('da_gui_don', isEqualTo: true)
+          .get();
+      for (final doc in query.docs) {
+        await _chuanHoaMotDocBenhVien(doc);
+      }
+    } catch (e) {
+      print('⚠️ [AuthService] Lỗi chuẩn hóa dữ liệu bệnh viện: $e');
+    }
+  }
+
+  Future<void> _chuanHoaMotDocBenhVien(DocumentSnapshot<Map<String, dynamic>> doc) async {
+    final data = doc.data();
+    if (data == null) return;
+
+    // Kiểm tra trạng thái từ YeuCauHopTac để đảm bảo luôn đồng nhất
+    try {
+      final yDoc = await _firestore.collection('YeuCauHopTac').doc(doc.id).get();
+      if (yDoc.exists && yDoc.data()?['trang_thai_hop_tac_id'] != null) {
+        final rawYcStatus = yDoc.data()!['trang_thai_hop_tac_id'];
+        final int ycStatus = rawYcStatus is int
+            ? rawYcStatus
+            : int.tryParse(rawYcStatus.toString()) ?? 1;
+        if (data['trang_thai_hop_tac_id'] != ycStatus) {
+          await doc.reference.set({
+            'trang_thai_hop_tac_id': ycStatus,
+            'da_gui_don': ycStatus != TrangThaiId.huyHopTac,
+          }, SetOptions(merge: true));
+        }
+      }
+    } catch (_) {}
+
+    final bool canCapNhat = data['bhyt'] == null ||
+        data['co_so'] == null ||
+        data['chuyen_khoa_ids'] == null;
+    if (canCapNhat) {
+      final updates = <String, dynamic>{};
+      if (data['bhyt'] == null) {
+        final coBhyt = data['co_bhyt'];
+        updates['bhyt'] = (coBhyt == false) ? 'Khong_BHYT' : 'Co_BHYT';
+      }
+      if (data['co_so'] == null) {
+        final loaiHinh = (data['loai_hinh'] ?? '').toString().toLowerCase();
+        updates['co_so'] = (loaiHinh.contains('công') || loaiHinh.contains('cong'))
+            ? 'Cong_lap'
+            : 'Tu_nhan';
+      }
+      if (data['chuyen_khoa_ids'] == null) {
+        updates['chuyen_khoa_ids'] = <String>[];
+      }
+      await doc.reference.update(updates);
+      try {
+        await _firestore
+            .collection('YeuCauHopTac')
+            .doc(doc.id)
+            .set(updates, SetOptions(merge: true));
+      } catch (_) {}
+      print('✅ [AuthService] Đã chuẩn hóa co_so, bhyt, chuyen_khoa_ids cho bệnh viện: ${doc.id}');
+    }
+  }
+
+  Future<HospitalModel> _createHospitalModelWithRealtimeStatus(
+    DocumentSnapshot<Map<String, dynamic>> d,
+  ) async {
+    _chuanHoaMotDocBenhVien(d);
+    final mapData = Map<String, dynamic>.from(d.data() ?? {});
+    try {
+      final yc = await _firestore.collection('YeuCauHopTac').doc(d.id).get();
+      if (yc.exists && yc.data()?['trang_thai_hop_tac_id'] != null) {
+        mapData['trang_thai_hop_tac_id'] = yc.data()!['trang_thai_hop_tac_id'];
+      }
+    } catch (_) {}
+    return HospitalModel.fromMap(mapData, d.id);
+  }
+
   Future<HospitalModel?> getHospitalFromFirestore(String uid) async {
     try {
       // 1. Thử lấy trực tiếp theo Document ID (mã BVxxx hoặc Auth UID)
@@ -516,7 +642,7 @@ class AuthService {
           .doc(uid)
           .get();
       if (doc.exists && doc.data() != null) {
-        return HospitalModel.fromMap(doc.data()!, doc.id);
+        return await _createHospitalModelWithRealtimeStatus(doc);
       }
 
       // 2. Tìm theo auth_uid
@@ -526,8 +652,7 @@ class AuthService {
           .limit(1)
           .get();
       if (authQuery.docs.isNotEmpty) {
-        final d = authQuery.docs.first;
-        return HospitalModel.fromMap(d.data(), d.id);
+        return await _createHospitalModelWithRealtimeStatus(authQuery.docs.first);
       }
 
       // 3. Tìm theo ma_benh_vien
@@ -537,8 +662,7 @@ class AuthService {
           .limit(1)
           .get();
       if (maQuery.docs.isNotEmpty) {
-        final d = maQuery.docs.first;
-        return HospitalModel.fromMap(d.data(), d.id);
+        return await _createHospitalModelWithRealtimeStatus(maQuery.docs.first);
       }
 
       return null;

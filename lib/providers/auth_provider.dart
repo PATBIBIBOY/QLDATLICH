@@ -474,6 +474,12 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> chuanHoaBenhVienDaDangKy([String? maBv]) async {
+    try {
+      await _authService.chuanHoaBenhVienDaDangKyHopTac(maBv);
+    } catch (_) {}
+  }
+
   Future<void> logout() async {
     _isLoading = true;
     notifyListeners();

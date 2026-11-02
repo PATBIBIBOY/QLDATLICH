@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import '../../config/app_session.dart';
 import '../../config/constants.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/benhVien_service.dart';
+import '../../services/email_service.dart';
 import 'guiDonThanhCong_Screen.dart';
 import 'guiYeuCauHopTac_Screen.dart';
 import 'listKhoaDieuTri.dart';
@@ -36,6 +38,9 @@ class HomeHospitalScreen extends StatefulWidget {
 class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
   late int _currentBottomNavIndex;
   bool _dangGuiDon = false;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _yeuCauHopTacSub;
+  String? _currentListeningBvId;
+  int? _trangThaiTuYeuCauHopTac;
 
   @override
   void initState() {
@@ -46,7 +51,166 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
       if (auth.hospital == null) {
         auth.fetchCurrentUser(preferredRole: 'benh_vien');
       }
+      _quetVaChuanHoaBenhVienDaGuiDon();
     });
+  }
+
+  @override
+  void dispose() {
+    _yeuCauHopTacSub?.cancel();
+    super.dispose();
+  }
+
+  /// Lắng nghe realtime từ YeuCauHopTac: khi thay đổi trạng thái tại YeuCauHopTac (trên Firebase Console hoặc Admin)
+  /// thì cập nhật ngay lập tức vào state của bệnh viện và đồng bộ sang BenhVien/{bvid}
+  void _khoiTaoLangNgheYeuCauHopTac(String bvid) {
+    if (bvid.isEmpty) return;
+
+    _yeuCauHopTacSub?.cancel();
+    _yeuCauHopTacSub = FirebaseFirestore.instance
+        .collection('YeuCauHopTac')
+        .doc(bvid)
+        .snapshots()
+        .listen((snap) {
+          if (snap.exists && snap.data() != null) {
+            final data = snap.data()!;
+            final rawStatus = data['trang_thai_hop_tac_id'];
+            if (rawStatus != null) {
+              final int newStatus = rawStatus is int
+                  ? rawStatus
+                  : int.tryParse(rawStatus.toString()) ?? 1;
+
+              if (_trangThaiTuYeuCauHopTac != newStatus) {
+                if (mounted) {
+                  setState(() {
+                    _trangThaiTuYeuCauHopTac = newStatus;
+                  });
+                }
+              }
+
+              // Nếu trạng thái là 9 (Hủy / Từ chối) và chưa gửi mail thông báo
+              if (newStatus == TrangThaiId.huyHopTac) {
+                final bool daGuiMail = data['da_gui_mail_tu_choi'] == true;
+                if (!daGuiMail) {
+                  final String emailNhan = (data['email'] ??
+                          FirebaseAuth.instance.currentUser?.email ??
+                          '')
+                      .toString();
+                  final String tenBv =
+                      (data['ten_benh_vien'] ?? 'Bệnh viện').toString();
+                  if (emailNhan.isNotEmpty) {
+                    EmailService.guiEmailTuChoiHopTac(
+                      emailNguoiNhan: emailNhan,
+                      tenBenhVien: tenBv,
+                      maBenhVien: bvid,
+                      lyDo: data['ly_do_tu_choi']?.toString(),
+                    );
+                    snap.reference.set(
+                      {'da_gui_mail_tu_choi': true},
+                      SetOptions(merge: true),
+                    );
+                  }
+                }
+              }
+
+              // Tự động đồng bộ ngay sang BenhVien/{bvid} nếu khác nhau
+              FirebaseFirestore.instance
+                  .collection('BenhVien')
+                  .doc(bvid)
+                  .get()
+                  .then((bvDoc) {
+                    if (bvDoc.exists) {
+                      final currentBvStatus = bvDoc
+                          .data()?['trang_thai_hop_tac_id'];
+                      if (currentBvStatus != newStatus) {
+                        bvDoc.reference.set({
+                          'trang_thai_hop_tac_id': newStatus,
+                          'da_gui_don': newStatus != TrangThaiId.huyHopTac,
+                          if (newStatus == TrangThaiId.huyHopTac)
+                            'da_bi_tu_choi': true,
+                        }, SetOptions(merge: true));
+                      }
+                    }
+                  })
+                  .catchError((_) {});
+            }
+          }
+        });
+  }
+
+  void _chuanHoaDuLieuFirebaseNeuThieu(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data();
+    if (data == null) return;
+    final bool canCapNhat = data['bhyt'] == null ||
+        data['co_so'] == null ||
+        data['chuyen_khoa_ids'] == null;
+    if (canCapNhat) {
+      final updates = <String, dynamic>{};
+      if (data['bhyt'] == null) {
+        final coBhyt = data['co_bhyt'];
+        updates['bhyt'] = (coBhyt == false) ? 'Khong_BHYT' : 'Co_BHYT';
+      }
+      if (data['co_so'] == null) {
+        final loaiHinh = (data['loai_hinh'] ?? '').toString().toLowerCase();
+        updates['co_so'] =
+            (loaiHinh.contains('công') || loaiHinh.contains('cong'))
+                ? 'Cong_lap'
+                : 'Tu_nhan';
+      }
+      if (data['chuyen_khoa_ids'] == null) {
+        updates['chuyen_khoa_ids'] = <String>[];
+      }
+      doc.reference.update(updates).catchError((_) {});
+      try {
+        FirebaseFirestore.instance
+            .collection('YeuCauHopTac')
+            .doc(doc.id)
+            .set(updates, SetOptions(merge: true))
+            .catchError((_) {});
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _quetVaChuanHoaBenhVienDaGuiDon() async {
+    try {
+      final firestore = FirebaseFirestore.instance;
+
+      // 1. Quét và đồng bộ 2 chiều trạng thái giữa YeuCauHopTac và BenhVien
+      final snapYeuCau = await firestore.collection('YeuCauHopTac').get();
+      for (final doc in snapYeuCau.docs) {
+        final data = doc.data();
+        final rawStatus = data['trang_thai_hop_tac_id'];
+        if (rawStatus != null) {
+          final int statusId = rawStatus is int
+              ? rawStatus
+              : int.tryParse(rawStatus.toString()) ?? 1;
+
+          final targetId = doc.id;
+          final bvDocRef = firestore.collection('BenhVien').doc(targetId);
+          final bvSnap = await bvDocRef.get();
+          if (bvSnap.exists) {
+            final currentBvStatus = bvSnap.data()?['trang_thai_hop_tac_id'];
+            if (currentBvStatus != statusId) {
+              await bvDocRef.set({
+                'trang_thai_hop_tac_id': statusId,
+                'da_gui_don': statusId != TrangThaiId.huyHopTac,
+              }, SetOptions(merge: true));
+            }
+          }
+        }
+      }
+
+      // 2. Chuẩn hóa co_so, bhyt, chuyen_khoa_ids
+      final snapBv = await firestore
+          .collection('BenhVien')
+          .where('da_gui_don', isEqualTo: true)
+          .get();
+      for (final doc in snapBv.docs) {
+        _chuanHoaDuLieuFirebaseNeuThieu(doc);
+      }
+    } catch (_) {}
   }
 
   Stream<DocumentSnapshot<Map<String, dynamic>>?> _getHospitalStream(
@@ -357,6 +521,10 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
                                   'loai_hinh': loaiHinh,
                                   'co_bhyt': coBhyt,
                                   'da_gui_don': true,
+                                  'da_bi_tu_choi': false,
+                                  'da_gui_mail_tu_choi': false,
+                                  if (FirebaseAuth.instance.currentUser?.email != null)
+                                    'email': FirebaseAuth.instance.currentUser!.email,
                                   'ngay_gui_don': FieldValue.serverTimestamp(),
                                   'trang_thai_hop_tac_id': TrangThaiId.choDuyet,
                                 };
@@ -460,8 +628,18 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
         final data = snapshot.data?.data();
 
         final realId = snapshot.data?.id ?? hospitalUid;
-        if (realId.startsWith('BV') && AppSession.benhVienId != realId) {
-          AppSession.benhVienId = realId;
+        if (realId.startsWith('BV')) {
+          if (AppSession.benhVienId != realId) {
+            AppSession.benhVienId = realId;
+          }
+          if (_currentListeningBvId != realId) {
+            _currentListeningBvId = realId;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                _khoiTaoLangNgheYeuCauHopTac(realId);
+              }
+            });
+          }
         }
 
         // Tên bệnh viện động từ Firestore / AuthProvider / fallback
@@ -471,21 +649,36 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
             FirebaseAuth.instance.currentUser?.displayName ??
             'Bệnh viện';
 
-        // Trạng thái hợp tác: 1 = Chờ duyệt, 10 = Hợp tác (theo document 10 trên Firebase)
-        final rawTrangThaiId = data?['trang_thai_hop_tac_id'] ??
+        // Trạng thái hợp tác: 1 = Chờ duyệt, 9 = Hủy/Từ chối hợp tác, 10 = Hợp tác
+        final rawTrangThaiId = _trangThaiTuYeuCauHopTac ??
+            data?['trang_thai_hop_tac_id'] ??
             authProvider.hospital?.trangThaiHopTacId ??
             1;
         final int trangThaiId = (rawTrangThaiId is int)
             ? rawTrangThaiId
             : int.tryParse(rawTrangThaiId.toString()) ?? 1;
 
+        // Trạng thái 9: Bị từ chối hoặc hủy hợp tác
+        final bool isBiTuChoiHoacHuy = (trangThaiId == TrangThaiId.huyHopTac);
+
         // Bệnh viện đã gửi đơn hay chưa
-        final bool daGuiDon = (data?['da_gui_don'] == true) ||
-            (data?['so_giay_phep'] != null &&
-                data!['so_giay_phep'].toString().isNotEmpty);
+        // Khi hủy hoặc từ chối hợp tác (trạng thái 9) thì màn hình chính của bệnh viện LUÔN nằm ở phần gửi hợp tác lại từ đầu
+        final bool daGuiDon = !isBiTuChoiHoacHuy &&
+            ((_trangThaiTuYeuCauHopTac != null &&
+                    _trangThaiTuYeuCauHopTac != TrangThaiId.huyHopTac) ||
+                (data?['da_gui_don'] == true) ||
+                (data?['so_giay_phep'] != null &&
+                    data!['so_giay_phep'].toString().isNotEmpty));
 
         // Đã được Admin phê duyệt hợp tác hay chưa (10: Hợp tác theo Firebase, hoặc 2: Đã xác nhận)
-        final bool daXacThuc = trangThaiId == 10 || trangThaiId == 2;
+        final bool daXacThuc =
+            (trangThaiId == 10 || trangThaiId == 2) && !isBiTuChoiHoacHuy;
+
+        final String hospitalEmail = (data?['email'] ??
+                authProvider.hospital?.email ??
+                FirebaseAuth.instance.currentUser?.email ??
+                '')
+            .toString();
 
         return Scaffold(
           backgroundColor: const Color(0xFFF8FAFC),
@@ -501,6 +694,8 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
                       tenBenhVien: tenBenhVien,
                       daGuiDon: daGuiDon,
                       daXacThuc: daXacThuc,
+                      trangThaiId: trangThaiId,
+                      email: hospitalEmail,
                     ),
 
                     // Body: Nếu đã xác thực -> Hiện theo Tab được chọn; Nếu chưa -> Hiện màn hình Chào mừng & Gửi đơn
@@ -511,6 +706,7 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
                               hospitalUid: hospitalUid,
                               tenBenhVien: tenBenhVien,
                               daGuiDon: daGuiDon,
+                              trangThaiId: trangThaiId,
                               data: data,
                             ),
                     ),
@@ -527,13 +723,23 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
     );
   }
 
-  // ==================== GIAO DIỆN KHI CHƯA GỬI ĐƠN / CHỜ ADMIN DUYỆT ====================
+  // ==================== GIAO DIỆN KHI CHƯA GỬI ĐƠN / CHỜ ADMIN DUYỆT / BỊ TỪ CHỐI ====================
   Widget _buildUnverifiedBody({
     required String hospitalUid,
     required String tenBenhVien,
     required bool daGuiDon,
+    required int trangThaiId,
     Map<String, dynamic>? data,
   }) {
+    final bool isBiTuChoiHoacHuy = (trangThaiId == TrangThaiId.huyHopTac);
+    final String emailDangKy = (data?['email'] ??
+            FirebaseAuth.instance.currentUser?.email ??
+            '')
+        .toString();
+    final String lyDoTuChoi = (data?['ly_do_tu_choi'] ??
+            'Hồ sơ pháp lý chưa đầy đủ hoặc cơ sở y tế đã chấm dứt hợp tác.')
+        .toString();
+
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -541,55 +747,45 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
         children: [
           const SizedBox(height: 36),
 
-          // Icon tài liệu y tế
+          // Icon tài liệu / Cảnh báo hủy hợp tác
           Container(
             width: 88,
             height: 88,
             decoration: BoxDecoration(
-              color: const Color(0xFFF0F9FF),
+              color: isBiTuChoiHoacHuy
+                  ? const Color(0xFFFEF2F2)
+                  : const Color(0xFFF0F9FF),
               borderRadius: BorderRadius.circular(26),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                  color: (isBiTuChoiHoacHuy
+                          ? const Color(0xFFDC2626)
+                          : const Color(0xFF0284C7))
+                      .withValues(alpha: 0.12),
                   blurRadius: 28,
                   offset: const Offset(0, 10),
                 ),
               ],
             ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                const Icon(
-                  Icons.description_outlined,
-                  size: 48,
-                  color: Color(0xFF0284C7),
-                ),
-                Positioned(
-                  right: 25,
-                  bottom: 25,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFF0F9FF),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.add_rounded,
-                      size: 16,
-                      color: Color(0xFF0284C7),
-                    ),
-                  ),
-                ),
-              ],
+            child: Icon(
+              isBiTuChoiHoacHuy
+                  ? Icons.cancel_outlined
+                  : Icons.description_outlined,
+              size: 46,
+              color: isBiTuChoiHoacHuy
+                  ? const Color(0xFFDC2626)
+                  : const Color(0xFF0284C7),
             ),
           ),
           const SizedBox(height: 22),
 
-          // Tiêu đề chào mừng
-          const Text(
-            'Chào mừng Bệnh viện mới!',
+          // Tiêu đề
+          Text(
+            isBiTuChoiHoacHuy
+                ? 'Yêu Cầu Hợp Tác Bị Từ Chối / Đã Hủy'
+                : 'Chào mừng Bệnh viện mới!',
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 21,
               fontWeight: FontWeight.w800,
               color: Color(0xFF0F172A),
@@ -599,19 +795,80 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
           const SizedBox(height: 10),
 
           // Dòng mô tả
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Text(
-              'Trang chủ chưa có dữ liệu. Bệnh viện cần gửi\nđơn xác nhận hợp tác để kích hoạt các tính năng\nquản lý khoa và phân luồng tiếp đón.',
+              isBiTuChoiHoacHuy
+                  ? 'Yêu cầu hợp tác của bệnh viện đã bị từ chối hoặc hủy bỏ.\nThông báo chi tiết đã được gửi về email của người đăng ký.\nQuý viện có thể nộp lại đơn yêu cầu hợp tác mới từ đầu.'
+                  : 'Trang chủ chưa có dữ liệu. Bệnh viện cần gửi\nđơn xác nhận hợp tác để kích hoạt các tính năng\nquản lý khoa và phân luồng tiếp đón.',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 13.5,
                 color: Color(0xFF64748B),
                 height: 1.45,
               ),
             ),
           ),
-          const SizedBox(height: 28),
+
+          // Box thông báo gửi email khi bị từ chối / hủy
+          if (isBiTuChoiHoacHuy) ...[
+            const SizedBox(height: 18),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFFECACA)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.mark_email_read_rounded,
+                    color: Color(0xFFDC2626),
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Đã gửi thông báo giải thích về email:',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF991B1B),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (emailDangKy.isNotEmpty)
+                          Text(
+                            emailDangKy,
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              color: Color(0xFF7F1D1D),
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Lý do: $lyDoTuChoi',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFFB91C1C),
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 24),
 
           // Card Quy trình 3 bước kích hoạt
           Container(
@@ -643,15 +900,17 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
                 const SizedBox(height: 16),
                 _buildStepRow(
                   stepNumber: '1',
-                  title: 'Điền thông tin pháp lý & loại hình cơ sở',
+                  title: isBiTuChoiHoacHuy
+                      ? 'Điền lại thông tin pháp lý & gửi lại hồ sơ'
+                      : 'Điền thông tin pháp lý & loại hình cơ sở',
                   isActive: true,
-                  isDone: daGuiDon,
+                  isDone: daGuiDon && !isBiTuChoiHoacHuy,
                 ),
                 const SizedBox(height: 14),
                 _buildStepRow(
                   stepNumber: '2',
                   title: 'Admin đối soát giấy phép & phê duyệt',
-                  isActive: daGuiDon,
+                  isActive: daGuiDon && !isBiTuChoiHoacHuy,
                   isDone: false,
                 ),
                 const SizedBox(height: 14),
@@ -666,13 +925,13 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
           ),
           const SizedBox(height: 26),
 
-          // Nút Gửi đơn xác nhận hợp tác
+          // Nút Gửi đơn xác nhận hợp tác / Gửi lại từ đầu
           SizedBox(
             width: double.infinity,
             height: 52,
             child: ElevatedButton.icon(
               onPressed: () {
-                if (daGuiDon) {
+                if (daGuiDon && !isBiTuChoiHoacHuy) {
                   Navigator.push(
                     context,
                     MaterialPageRoute<void>(
@@ -699,22 +958,24 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
                 }
               },
               icon: Icon(
-                daGuiDon
+                (daGuiDon && !isBiTuChoiHoacHuy)
                     ? Icons.hourglass_top_rounded
                     : Icons.assignment_outlined,
                 size: 20,
               ),
               label: Text(
-                daGuiDon
-                    ? 'Đã Gửi Đơn - Chờ Admin Phê Duyệt'
-                    : 'Gửi Đơn Xác Nhận Hợp Tác',
+                isBiTuChoiHoacHuy
+                    ? 'Gửi Lại Yêu Cầu Hợp Tác Từ Đầu'
+                    : (daGuiDon
+                        ? 'Đã Gửi Đơn - Chờ Admin Phê Duyệt'
+                        : 'Gửi Đơn Xác Nhận Hợp Tác'),
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: daGuiDon
+                backgroundColor: (daGuiDon && !isBiTuChoiHoacHuy)
                     ? const Color(0xFFD97706)
                     : const Color(0xFF0284C7),
                 foregroundColor: Colors.white,
@@ -929,13 +1190,20 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
     required String tenBenhVien,
     required bool daGuiDon,
     required bool daXacThuc,
+    required int trangThaiId,
+    String? email,
   }) {
     String badgeText = 'Chưa xác thực';
     Color badgeBg = const Color(0xFFFFFBEB);
     Color badgeTextColor = const Color(0xFFD97706);
     Color badgeBorder = const Color(0xFFFDE68A);
 
-    if (daXacThuc) {
+    if (trangThaiId == TrangThaiId.huyHopTac) {
+      badgeText = 'Hủy / Từ chối hợp tác';
+      badgeBg = const Color(0xFFFEF2F2);
+      badgeTextColor = const Color(0xFFDC2626);
+      badgeBorder = const Color(0xFFFECACA);
+    } else if (daXacThuc) {
       badgeText = 'Đã hợp tác';
       badgeBg = const Color(0xFFECFDF5);
       badgeTextColor = const Color(0xFF059669);
@@ -1008,48 +1276,14 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
               ],
             ),
           ),
-          // Nút DEV: Tự duyệt / Khóa lại để chuyển đổi màn hình làm các chức năng khác
+          // Nút DEV: Mở menu đổi trạng thái (1 - Chờ duyệt, 9 - Hủy/Từ chối & Gửi Mail, 10 - Hợp tác)
           InkWell(
-            onTap: () async {
-              final newStatus = daXacThuc ? 1 : 10;
-              final targetId = AppSession.benhVienId.isNotEmpty
-                  ? AppSession.benhVienId
-                  : hospitalUid;
-              await FirebaseFirestore.instance
-                  .collection('BenhVien')
-                  .doc(targetId)
-                  .set({
-                'trang_thai_hop_tac_id': newStatus,
-                'da_gui_don': true,
-              }, SetOptions(merge: true));
-
-              if (hospitalUid != targetId) {
-                try {
-                  await FirebaseFirestore.instance
-                      .collection('BenhVien')
-                      .doc(hospitalUid)
-                      .set({
-                    'trang_thai_hop_tac_id': newStatus,
-                    'da_gui_don': true,
-                  }, SetOptions(merge: true));
-                } catch (_) {}
-              }
-
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    newStatus == 10
-                        ? '⚡ [DEV] Đã tự duyệt (10 - Hợp tác): Chuyển sang Dashboard đầy đủ!'
-                        : '⚡ [DEV] Đã chuyển về: 1 - Chờ duyệt!',
-                  ),
-                  backgroundColor: newStatus == 10
-                      ? const Color(0xFF16A34A)
-                      : const Color(0xFFD97706),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            },
+            onTap: () => _hienThiMenuDev(
+              context: context,
+              hospitalUid: hospitalUid,
+              tenBenhVien: tenBenhVien,
+              email: email ?? '',
+            ),
             borderRadius: BorderRadius.circular(10),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -1057,12 +1291,16 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
               decoration: BoxDecoration(
                 color: daXacThuc
                     ? const Color(0xFFF1F5F9)
-                    : const Color(0xFFDCFCE7),
+                    : (trangThaiId == TrangThaiId.huyHopTac
+                        ? const Color(0xFFFEF2F2)
+                        : const Color(0xFFDCFCE7)),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: daXacThuc
                       ? const Color(0xFFCBD5E1)
-                      : const Color(0xFF86EFAC),
+                      : (trangThaiId == TrangThaiId.huyHopTac
+                          ? const Color(0xFFFECACA)
+                          : const Color(0xFF86EFAC)),
                 ),
               ),
               child: Row(
@@ -1071,21 +1309,27 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
                   Icon(
                     daXacThuc
                         ? Icons.lock_open_rounded
-                        : Icons.bolt_rounded,
+                        : (trangThaiId == TrangThaiId.huyHopTac
+                            ? Icons.cancel_outlined
+                            : Icons.bolt_rounded),
                     size: 15,
                     color: daXacThuc
                         ? const Color(0xFF64748B)
-                        : const Color(0xFF16A34A),
+                        : (trangThaiId == TrangThaiId.huyHopTac
+                            ? const Color(0xFFDC2626)
+                            : const Color(0xFF16A34A)),
                   ),
                   const SizedBox(width: 3),
                   Text(
-                    daXacThuc ? 'Khóa lại' : 'Tự duyệt',
+                    'DEV ($trangThaiId)',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: daXacThuc
                           ? const Color(0xFF64748B)
-                          : const Color(0xFF16A34A),
+                          : (trangThaiId == TrangThaiId.huyHopTac
+                              ? const Color(0xFFDC2626)
+                              : const Color(0xFF16A34A)),
                     ),
                   ),
                 ],
@@ -1269,5 +1513,179 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
         ),
       ),
     );
+  }
+
+  void _hienThiMenuDev({
+    required BuildContext context,
+    required String hospitalUid,
+    required String tenBenhVien,
+    required String email,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '⚡ Bảng Điều Khiển DEV - Trạng Thái Hợp Tác',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Bệnh viện: $tenBenhVien | Email: ${email.isNotEmpty ? email : "Chưa có"}',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                ),
+                const Divider(height: 20),
+                ListTile(
+                  leading: const Icon(
+                    Icons.check_circle_rounded,
+                    color: Color(0xFF16A34A),
+                    size: 28,
+                  ),
+                  title: const Text('10 - Hợp Tác (Duyệt hồ sơ)'),
+                  subtitle: const Text('Mở khóa toàn bộ dashboard bệnh viện'),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    await _capNhatTrangThaiDev(10, hospitalUid, tenBenhVien, email);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.hourglass_top_rounded,
+                    color: Color(0xFFD97706),
+                    size: 28,
+                  ),
+                  title: const Text('1 - Chờ Duyệt'),
+                  subtitle: const Text('Hồ sơ đang chờ Admin xem xét'),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    await _capNhatTrangThaiDev(1, hospitalUid, tenBenhVien, email);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.cancel_rounded,
+                    color: Color(0xFFDC2626),
+                    size: 28,
+                  ),
+                  title: const Text('9 - Hủy / Từ Chối Hợp Tác'),
+                  subtitle: const Text('Gửi email thông báo & màn hình quay về gửi lại từ đầu'),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    await _capNhatTrangThaiDev(9, hospitalUid, tenBenhVien, email);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _capNhatTrangThaiDev(
+    int newStatus,
+    String hospitalUid,
+    String tenBenhVien,
+    String email,
+  ) async {
+    final targetId = AppSession.benhVienId.isNotEmpty
+        ? AppSession.benhVienId
+        : hospitalUid;
+
+    if (newStatus == TrangThaiId.huyHopTac) {
+      await EmailService.tuChoiHoacHuyHopTac(
+        benhVienId: targetId,
+        tenBenhVien: tenBenhVien,
+        email: email,
+        lyDo: 'Hồ sơ pháp lý chưa hợp lệ / Quyết định hủy hợp tác từ Quản trị viên.',
+      );
+
+      if (hospitalUid != targetId) {
+        try {
+          await EmailService.tuChoiHoacHuyHopTac(
+            benhVienId: hospitalUid,
+            tenBenhVien: tenBenhVien,
+            email: email,
+            lyDo: 'Hồ sơ pháp lý chưa hợp lệ / Quyết định hủy hợp tác từ Quản trị viên.',
+          );
+        } catch (_) {}
+      }
+
+      if (mounted) {
+        setState(() {
+          _trangThaiTuYeuCauHopTac = TrangThaiId.huyHopTac;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '❌ Đã chuyển sang Trạng thái 9 (Hủy Hợp Tác) & Gửi email thông báo về $email!',
+            ),
+            backgroundColor: const Color(0xFFDC2626),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+
+    final updateData = <String, dynamic>{
+      'trang_thai_hop_tac_id': newStatus,
+      'da_gui_don': true,
+      'da_bi_tu_choi': false,
+      'da_gui_mail_tu_choi': false,
+    };
+
+    await FirebaseFirestore.instance
+        .collection('BenhVien')
+        .doc(targetId)
+        .set(updateData, SetOptions(merge: true));
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('YeuCauHopTac')
+          .doc(targetId)
+          .set(updateData, SetOptions(merge: true));
+    } catch (_) {}
+
+    if (hospitalUid != targetId) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('BenhVien')
+            .doc(hospitalUid)
+            .set(updateData, SetOptions(merge: true));
+        await FirebaseFirestore.instance
+            .collection('YeuCauHopTac')
+            .doc(hospitalUid)
+            .set(updateData, SetOptions(merge: true));
+      } catch (_) {}
+    }
+
+    if (mounted) {
+      setState(() {
+        _trangThaiTuYeuCauHopTac = newStatus;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            newStatus == 10
+                ? '⚡ [DEV] Đã duyệt (10 - Hợp tác): Mở full Dashboard!'
+                : '⏳ [DEV] Đã chuyển về: 1 - Chờ duyệt!',
+          ),
+          backgroundColor: newStatus == 10
+              ? const Color(0xFF16A34A)
+              : const Color(0xFFD97706),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 }
