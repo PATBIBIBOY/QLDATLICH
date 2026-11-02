@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -504,11 +504,14 @@ class _QueueScreenState extends State<QueueScreen> {
         ..addAll(snapshot.patientNameByNumber);
       paused = snapshot.paused;
     } else {
-      // Mở phòng lần đầu: hàng chờ bắt đầu trống cho tới khi nhận danh sách lịch hẹn.
-      current = 0;
-      next = 0;
-      waiting = <int>[];
-      lastIssued = 0;
+      // Mo phong lan dau: nap mac dinh tu so khoi tao de luon co the goi so va test day du chuc nang,
+      // neu Firebase co danh sach lich hen that trong ngay thi stream se tu dong cap nhat de len.
+      const defaultWindow = 5;
+      final start = widget.initialCurrent > 0 ? widget.initialCurrent : 1;
+      current = start;
+      next = start + 1;
+      waiting = List<int>.generate(defaultWindow, (index) => start + 2 + index);
+      lastIssued = start + 1 + defaultWindow;
       snapshot
         ..started = true
         ..paused = false;
