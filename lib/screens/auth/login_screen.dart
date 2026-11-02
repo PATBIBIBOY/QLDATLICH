@@ -160,7 +160,13 @@ class _LoginScreenState extends State<LoginScreen> {
               role == 'bac_si') {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const ClinicRoomPickerScreen()),
+              MaterialPageRoute(
+                builder: (_) => ClinicRoomPickerScreen(
+                  hospitalName: tenBv.isNotEmpty
+                      ? tenBv
+                      : DuLieuProfileMauC1.thongTinHienTai.tenBenhVien,
+                ),
+              ),
             );
             return;
           } else {
