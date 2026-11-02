@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-import 'Queue_screen.dart';
+import '../screens/auth/login_screen.dart';
+import '../screens/letan_c1/letan_profile_tab_c1.dart';
+import 'queue_screen.dart';
 import 'room_session_store.dart';
 
 /// A reusable screen for choosing a department and then a clinic room.
@@ -17,7 +21,6 @@ class DepartmentRoomPicker<T> extends StatefulWidget {
     required this.departmentIdOf,
     required this.roomIdOf,
     required this.roomNameOf,
-    required this.doctorNameOf,
     required this.statusLabelOf,
     required this.isOpen,
     required this.isPaused,
@@ -29,6 +32,9 @@ class DepartmentRoomPicker<T> extends StatefulWidget {
     this.initialDepartment,
     this.hospitalName = 'Bệnh viện',
     this.title = 'Chọn phòng khám',
+    this.onLogout,
+    this.logoutLabel = 'Hồ sơ',
+    this.confirmLogout = false,
   });
 
   /// Room data supplied by the app.
@@ -40,7 +46,6 @@ class DepartmentRoomPicker<T> extends StatefulWidget {
   final String Function(T room) departmentIdOf;
   final String Function(T room) roomIdOf;
   final String Function(T room) roomNameOf;
-  final String Function(T room) doctorNameOf;
   final String Function(T room) statusLabelOf;
   final bool Function(T room) isOpen;
   final bool Function(T room) isPaused;
@@ -52,11 +57,27 @@ class DepartmentRoomPicker<T> extends StatefulWidget {
   /// Called when the user taps an available room.
   final ValueChanged<T> onRoomSelected;
 
-  /// The initial department. If it is not in [rooms], the first department is
-  /// selected automatically.
+  /// Khoa mặc định (giữ lại để tương thích với mã gọi cũ). Trang chọn nay
+  /// luôn mở ở bước chọn khoa nên giá trị này không còn tự đưa người dùng
+  /// vào thẳng danh sách phòng.
   final String? initialDepartment;
   final String hospitalName;
   final String title;
+
+  /// Xử lý đăng xuất của app bao quanh.
+  ///
+  /// Khi được cung cấp, callback chịu trách nhiệm TOÀN BỘ việc đăng xuất:
+  /// kết thúc phiên (ví dụ qua AuthProvider của app) VÀ chuyển màn hình
+  /// (thường về route đăng nhập) — widget không tự gọi Navigator nữa.
+  /// Để `null` thì nút đăng xuất tự chuyển thẳng về [LoginScreen]
+  /// và xoá toàn bộ stack.
+  final Future<void> Function()? onLogout;
+
+  /// Nhãn của nút đăng xuất (ẩn nhãn khi màn hình hẹp).
+  final String logoutLabel;
+
+  /// Có hỏi xác nhận trước khi đăng xuất hay không.
+  final bool confirmLogout;
 
   @override
   State<DepartmentRoomPicker<T>> createState() =>
@@ -65,6 +86,8 @@ class DepartmentRoomPicker<T> extends StatefulWidget {
 
 class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _departmentSearchController =
+      TextEditingController();
   String? _selectedDepartment;
   _RoomFilter _filter = _RoomFilter.all;
 
@@ -78,10 +101,55 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
     return values;
   }
 
-  List<T> get _departmentRooms => widget.rooms.where((room) {
+  /// Danh sách khoa sau khi lọc theo ô tìm khoa ở bước chọn khoa
+  /// (tìm theo tên khoa và mã khoa).
+  List<String> get _visibleDepartments {
+    final query = _departmentSearchController.text.trim().toLowerCase();
+    final departments = _departments;
+    if (query.isEmpty) return departments;
+    return departments.where((department) {
+      final roomsInDepartment = _roomsOfDepartment(department);
+      final departmentId = roomsInDepartment.isEmpty
+          ? ''
+          : widget.departmentIdOf(roomsInDepartment.first);
+      final searchable = ('$department $departmentId').toLowerCase();
+      return searchable.contains(query);
+    }).toList();
+  }
+
+  /// Các phòng của một khoa (so theo tên khoa đã cắt khoảng trắng).
+  List<T> _roomsOfDepartment(String department) => widget.rooms
+      .where((room) => widget.departmentOf(room).trim() == department)
+      .toList();
+
+  List<T> get _departmentRooms {
     final selected = _selectedDepartment;
-    return selected == null || widget.departmentOf(room).trim() == selected;
-  }).toList();
+    return selected == null
+        ? widget.rooms.toList()
+        : _roomsOfDepartment(selected);
+  }
+
+  /// Đang ở bước 1 (chọn khoa): chưa chọn khoa và dữ liệu có ít nhất một
+  /// khoa. Khi dữ liệu không có khoa nào, hiển thị thẳng bước chọn phòng
+  /// với toàn bộ phòng như trước đây.
+  bool get _choosingDepartment =>
+      _selectedDepartment == null && _departments.isNotEmpty;
+
+  void _chooseDepartment(String department) {
+    setState(() {
+      _selectedDepartment = department;
+      _filter = _RoomFilter.all;
+      _searchController.clear();
+    });
+  }
+
+  void _backToDepartments() {
+    setState(() {
+      _selectedDepartment = null;
+      _filter = _RoomFilter.all;
+      _searchController.clear();
+    });
+  }
 
   List<T> get _visibleRooms {
     final query = _searchController.text.trim().toLowerCase();
@@ -95,59 +163,29 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
       if (!matchesStatus) return false;
       if (query.isEmpty) return true;
 
-      final searchable =
-          ('${widget.hospitalIdOf(room)} '
-                  '${widget.departmentIdOf(room)} '
-                  '${widget.roomIdOf(room)} '
-                  '${widget.departmentOf(room)} '
-                  '${widget.roomNameOf(room)} '
-                  '${widget.doctorNameOf(room)}')
-              .toLowerCase();
+      // Chỉ tìm theo phòng (tên phòng và mã phòng), không tìm theo khoa.
+      final searchable = ('${widget.roomNameOf(room)} ${widget.roomIdOf(room)}')
+          .toLowerCase();
       return searchable.contains(query);
     }).toList();
-  }
-
-  int get _openCount =>
-      _departmentRooms.where((room) => widget.isOpen(room)).length;
-
-  int get _waitingTotal => _departmentRooms.fold<int>(
-    0,
-    (total, room) => total + widget.waitingCountOf(room),
-  );
-
-  int get _examinedTotal => _departmentRooms.fold<int>(
-    0,
-    (total, room) => total + widget.examinedCountOf(room),
-  );
-
-  @override
-  void initState() {
-    super.initState();
-    final departments = _departments;
-    final preferred = widget.initialDepartment?.trim();
-    if (preferred != null && departments.contains(preferred)) {
-      _selectedDepartment = preferred;
-    } else if (departments.isNotEmpty) {
-      _selectedDepartment = departments.first;
-    }
   }
 
   @override
   void didUpdateWidget(covariant DepartmentRoomPicker<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final departments = _departments;
-    if (_selectedDepartment == null ||
-        !departments.contains(_selectedDepartment)) {
-      final preferred = widget.initialDepartment?.trim();
-      _selectedDepartment = preferred != null && departments.contains(preferred)
-          ? preferred
-          : (departments.isEmpty ? null : departments.first);
+    // Khoa đang xem không còn phòng nào -> quay về bước chọn khoa.
+    final selected = _selectedDepartment;
+    if (selected != null && !_departments.contains(selected)) {
+      _selectedDepartment = null;
+      _filter = _RoomFilter.all;
+      _searchController.clear();
     }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _departmentSearchController.dispose();
     super.dispose();
   }
 
@@ -167,9 +205,41 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
       );
   }
 
+  /// Mở trang Hồ sơ cá nhân (thông tin nhân viên, đổi mật khẩu, đổi thông tin, đăng xuất)
+  void _handleOpenProfile() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(
+            title: const Text(
+              'Hồ Sơ Hỗ Trợ Bác Sĩ',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+            ),
+            centerTitle: true,
+            backgroundColor: Colors.white,
+            foregroundColor: const Color(0xFF0F172A),
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ),
+          body: LetanProfileTabC1(
+            tenKhoaHienTai: _selectedDepartment ?? widget.initialDepartment,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final rooms = _visibleRooms;
+    final departments = _departments;
+    final visibleDepartments = _visibleDepartments;
+    // Tablet (chiều rộng màn hình từ 600dp): bỏ trần 620dp để giao diện
+    // dàn full màn hình thay vì bó thành một cột hẹp ở giữa.
+    final useFullWidth = MediaQuery.sizeOf(context).width >= 600;
 
     return Scaffold(
       body: Container(
@@ -183,71 +253,138 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 620),
+              constraints: BoxConstraints(
+                maxWidth: useFullWidth ? double.infinity : 620,
+              ),
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final compact = constraints.maxWidth < 430;
-                  final horizontalPadding = compact ? 16.0 : 22.0;
+                  final tablet = constraints.maxWidth >= 768;
+                  final horizontalPadding = compact
+                      ? 16.0
+                      : tablet
+                      ? 28.0
+                      : 22.0;
                   return SingleChildScrollView(
                     padding: EdgeInsets.fromLTRB(
                       horizontalPadding,
-                      20,
+                      tablet ? 24 : 20,
                       horizontalPadding,
-                      30,
+                      tablet ? 36 : 30,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          widget.title,
-                          style: TextStyle(
-                            fontSize: compact ? 21 : 24,
-                            fontWeight: FontWeight.w800,
-                            color: _PickerUi.text,
-                            letterSpacing: -0.4,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const _PickerPulseDot(),
-                            const SizedBox(width: 7),
-                            Flexible(
-                              child: Text(
-                                '${_selectedDepartment ?? 'Tất cả khoa'} · '
-                                '${widget.hospitalName}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: _PickerUi.secondary,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.title,
+                                    style: TextStyle(
+                                      fontSize: compact
+                                          ? 21
+                                          : tablet
+                                          ? 28
+                                          : 24,
+                                      fontWeight: FontWeight.w800,
+                                      color: _PickerUi.text,
+                                      letterSpacing: -0.4,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      const _PickerPulseDot(),
+                                      const SizedBox(width: 7),
+                                      Flexible(
+                                        child: Text(
+                                          _selectedDepartment == null
+                                              ? widget.hospitalName
+                                              : '${_selectedDepartment!} · ${widget.hospitalName}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: _PickerUi.secondary,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
+                            ),
+                            const SizedBox(width: 10),
+                            _PickerLogoutButton(
+                              compact: compact,
+                              label: 'Hồ sơ',
+                              busy: false,
+                              onTap: _handleOpenProfile,
                             ),
                           ],
                         ),
                         SizedBox(height: compact ? 16 : 20),
-                        if (_departments.isNotEmpty) ...[
-                          _buildDepartmentSelector(),
-                          const SizedBox(height: 12),
-                        ],
-                        _buildStatsCard(compact),
-                        const SizedBox(height: 14),
-                        _buildSearchBox(),
-                        const SizedBox(height: 12),
-                        _buildStatusFilters(),
-                        const SizedBox(height: 16),
-                        if (rooms.isEmpty)
-                          _buildEmptyState()
-                        else
-                          for (var index = 0; index < rooms.length; index++)
-                            Padding(
-                              padding: EdgeInsets.only(
-                                top: index == 0 ? 0 : 12,
-                              ),
-                              child: _buildRoomCard(rooms[index], compact),
+                        if (_choosingDepartment) ...[
+                          const Text(
+                            'CHỌN KHOA',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.7,
+                              color: _PickerUi.faint,
                             ),
+                          ),
+                          const SizedBox(height: 10),
+                          _buildSearchBox(
+                            controller: _departmentSearchController,
+                            hintText: 'Tìm khoa…',
+                          ),
+                          const SizedBox(height: 12),
+                          if (visibleDepartments.isEmpty)
+                            _buildEmptyState('Không tìm thấy khoa phù hợp.')
+                          else
+                            for (
+                              var index = 0;
+                              index < visibleDepartments.length;
+                              index++
+                            )
+                              Padding(
+                                padding: EdgeInsets.only(
+                                  top: index == 0 ? 0 : 12,
+                                ),
+                                child: _buildDepartmentCard(
+                                  visibleDepartments[index],
+                                  compact,
+                                ),
+                              ),
+                        ] else ...[
+                          if (departments.isNotEmpty) ...[
+                            _buildBackToDepartmentsButton(),
+                            const SizedBox(height: 12),
+                          ],
+                          _buildSearchBox(
+                            controller: _searchController,
+                            hintText: 'Tìm phòng…',
+                          ),
+                          const SizedBox(height: 12),
+                          _buildStatusFilters(),
+                          const SizedBox(height: 16),
+                          if (rooms.isEmpty)
+                            _buildEmptyState()
+                          else
+                            for (var index = 0; index < rooms.length; index++)
+                              Padding(
+                                padding: EdgeInsets.only(
+                                  top: index == 0 ? 0 : 12,
+                                ),
+                                child: _buildRoomCard(rooms[index], compact),
+                              ),
+                        ],
                       ],
                     ),
                   );
@@ -260,122 +397,11 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
     );
   }
 
-  Widget _buildDepartmentSelector() => Container(
-    padding: const EdgeInsets.fromLTRB(12, 8, 10, 8),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: _PickerUi.border),
-      boxShadow: _PickerUi.quietShadow,
-    ),
-    child: Row(
-      children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: const Color(0x14107FE8),
-            borderRadius: BorderRadius.circular(13),
-          ),
-          child: const Icon(
-            Icons.local_hospital_rounded,
-            color: Color(0xFF107FE8),
-            size: 21,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'CHỌN KHOA',
-                style: TextStyle(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.7,
-                  color: _PickerUi.faint,
-                ),
-              ),
-              DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _selectedDepartment,
-                  isExpanded: true,
-                  isDense: true,
-                  icon: const Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    color: _PickerUi.secondary,
-                  ),
-                  items: _departments
-                      .map(
-                        (department) => DropdownMenuItem<String>(
-                          value: department,
-                          child: Text(
-                            department,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: _PickerUi.text,
-                            ),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (department) =>
-                      setState(() => _selectedDepartment = department),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
-
-  Widget _buildStatsCard(bool compact) => Container(
-    padding: EdgeInsets.symmetric(vertical: 16, horizontal: compact ? 6 : 12),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(22),
-      border: Border.all(color: _PickerUi.border),
-      boxShadow: _PickerUi.cardShadow,
-    ),
-    child: Row(
-      children: [
-        Expanded(
-          child: _PickerStat(
-            icon: Icons.meeting_room_rounded,
-            value: '$_openCount',
-            label: 'ĐANG KHÁM',
-            color: const Color(0xFF35B85A),
-          ),
-        ),
-        const _PickerStatDivider(),
-        Expanded(
-          child: _PickerStat(
-            icon: Icons.groups_rounded,
-            value: '$_waitingTotal',
-            label: 'ĐANG ĐỢI',
-            color: const Color(0xFFE94B45),
-          ),
-        ),
-        const _PickerStatDivider(),
-        Expanded(
-          child: _PickerStat(
-            icon: Icons.task_alt_rounded,
-            value: '$_examinedTotal',
-            label: 'ĐÃ KHÁM',
-            color: const Color(0xFF1E88E5),
-          ),
-        ),
-      ],
-    ),
-  );
-
-  Widget _buildSearchBox() => Container(
+  /// Ô tìm kiếm dùng chung cho cả hai bước (tìm khoa / tìm phòng).
+  Widget _buildSearchBox({
+    required TextEditingController controller,
+    required String hintText,
+  }) => Container(
     decoration: BoxDecoration(
       color: Colors.white,
       borderRadius: BorderRadius.circular(16),
@@ -383,7 +409,7 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
       boxShadow: _PickerUi.quietShadow,
     ),
     child: TextField(
-      controller: _searchController,
+      controller: controller,
       onChanged: (_) => setState(() {}),
       textInputAction: TextInputAction.search,
       style: const TextStyle(
@@ -392,7 +418,7 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
         color: _PickerUi.text,
       ),
       decoration: InputDecoration(
-        hintText: 'Tìm phòng hoặc bác sĩ…',
+        hintText: hintText,
         hintStyle: const TextStyle(
           fontSize: 13.5,
           color: Color(0xFFB6BCC9),
@@ -403,11 +429,11 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
           size: 20,
           color: _PickerUi.faint,
         ),
-        suffixIcon: _searchController.text.isEmpty
+        suffixIcon: controller.text.isEmpty
             ? null
             : IconButton(
                 onPressed: () {
-                  _searchController.clear();
+                  controller.clear();
                   setState(() {});
                 },
                 icon: const Icon(
@@ -461,7 +487,7 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
     );
   }
 
-  Widget _buildEmptyState() => Container(
+  Widget _buildEmptyState([String? message]) => Container(
     padding: const EdgeInsets.all(18),
     decoration: BoxDecoration(
       color: Colors.white,
@@ -475,15 +501,209 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
         const SizedBox(width: 9),
         Expanded(
           child: Text(
-            widget.rooms.isEmpty
-                ? 'Chưa có phòng khám.'
-                : 'Không tìm thấy phòng phù hợp.',
+            message ??
+                (widget.rooms.isEmpty
+                    ? 'Chưa có phòng khám.'
+                    : 'Không tìm thấy phòng phù hợp.'),
             style: const TextStyle(fontSize: 13, color: _PickerUi.secondary),
           ),
         ),
       ],
     ),
   );
+
+  /// Nút quay lại bước chọn khoa (hiện ở đầu bước chọn phòng).
+  Widget _buildBackToDepartmentsButton() => Align(
+    alignment: Alignment.centerLeft,
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(13),
+        onTap: _backToDepartments,
+        child: Container(
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: _PickerUi.border),
+            boxShadow: _PickerUi.quietShadow,
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.arrow_back_rounded,
+                size: 17,
+                color: _PickerUi.secondary,
+              ),
+              SizedBox(width: 7),
+              Text(
+                'Đổi khoa',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: _PickerUi.text,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  /// Thẻ khoa ở bước 1: bấm để sang bước chọn phòng của khoa đó. Dáng thẻ
+  /// giống thẻ phòng: ô mã khoa, tên khoa, số phòng/đang khám và mũi tên.
+  Widget _buildDepartmentCard(String department, bool compact) {
+    final roomsInDepartment = _roomsOfDepartment(department);
+    final openCount = roomsInDepartment.where(widget.isOpen).length;
+    final pausedCount = roomsInDepartment.where(widget.isPaused).length;
+    final departmentId = roomsInDepartment.isEmpty
+        ? ''
+        : widget.departmentIdOf(roomsInDepartment.first).trim();
+    final hospitalId = roomsInDepartment.isEmpty
+        ? ''
+        : widget.hospitalIdOf(roomsInDepartment.first).trim();
+    final codeLine = [
+      if (hospitalId.isNotEmpty) 'BV $hospitalId',
+      if (departmentId.isNotEmpty) 'Khoa $departmentId',
+    ].join('  ·  ');
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _PickerUi.border),
+        boxShadow: _PickerUi.cardShadow,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(22),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _chooseDepartment(department),
+          child: Padding(
+            padding: EdgeInsets.all(compact ? 14 : 16),
+            child: Row(
+              children: [
+                Container(
+                  width: compact ? 52 : 58,
+                  height: compact ? 52 : 58,
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF3D9BF0), Color(0xFF0F6CD6)],
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: departmentId.isEmpty
+                      ? const Icon(
+                          Icons.local_hospital_rounded,
+                          color: Colors.white,
+                          size: 26,
+                        )
+                      : FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            departmentId,
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(
+                              fontSize: compact ? 14 : 16,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                ),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              department,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: compact ? 14 : 15,
+                                fontWeight: FontWeight.w800,
+                                color: _PickerUi.text,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          _PickerRoomStatus(
+                            label: '${roomsInDepartment.length} phòng',
+                            foreground: const Color(0xFF107FE8),
+                            background: const Color(0x14107FE8),
+                          ),
+                        ],
+                      ),
+                      if (codeLine.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          codeLine,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: _PickerUi.faint,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 9),
+                      Wrap(
+                        spacing: 11,
+                        runSpacing: 6,
+                        children: [
+                          _PickerMeta(
+                            icon: Icons.meeting_room_rounded,
+                            text: '${roomsInDepartment.length} phòng khám',
+                          ),
+                          _PickerMeta(
+                            icon: Icons.check_circle_rounded,
+                            text: '$openCount đang khám',
+                          ),
+                          if (pausedCount > 0)
+                            _PickerMeta(
+                              icon: Icons.pause_circle_rounded,
+                              text: '$pausedCount tạm dừng',
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: const BoxDecoration(
+                    color: Color(0x14107FE8),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 18,
+                    color: Color(0xFF107FE8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildRoomCard(T room, bool compact) {
     final closed = widget.isClosed(room);
@@ -582,17 +802,6 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        widget.doctorNameOf(room),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: _PickerUi.secondary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
                         'BV ${widget.hospitalIdOf(room)}  ·  '
                         'Khoa ${widget.departmentIdOf(room)}',
                         maxLines: 1,
@@ -610,7 +819,7 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
                         children: [
                           _PickerMeta(
                             icon: Icons.person_rounded,
-                            text: widget.currentNumberOf(room) == null
+                            text: (widget.currentNumberOf(room) ?? 0) <= 0
                                 ? 'Chưa gọi số'
                                 : 'Số ${widget.currentNumberOf(room)}',
                           ),
@@ -686,58 +895,80 @@ class _PickerPulseDot extends StatelessWidget {
   );
 }
 
-class _PickerStat extends StatelessWidget {
-  const _PickerStat({
-    required this.icon,
-    required this.value,
+/// Nút đăng xuất ở góc phải phần tiêu đề. Ẩn nhãn chữ khi màn hình hẹp,
+/// hiện vòng xoay khi đang xử lý đăng xuất.
+class _PickerLogoutButton extends StatelessWidget {
+  const _PickerLogoutButton({
+    required this.compact,
     required this.label,
-    required this.color,
+    required this.busy,
+    required this.onTap,
   });
 
-  final IconData icon;
-  final String value;
+  final bool compact;
   final String label;
-  final Color color;
+  final bool busy;
+  final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 15, color: color),
-          const SizedBox(width: 5),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: color,
+  Widget build(BuildContext context) {
+    final button = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 160),
+          opacity: onTap == null ? 0.65 : 1,
+          child: Container(
+            height: 40,
+            padding: EdgeInsets.symmetric(horizontal: compact ? 11 : 13),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _PickerUi.border),
+              boxShadow: _PickerUi.quietShadow,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (busy)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xFFE94B45),
+                      ),
+                    ),
+                  )
+                else
+                  const Icon(
+                    Icons.account_circle_outlined,
+                    size: 18,
+                    color: Color(0xFF0284C7),
+                  ),
+                if (!compact) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0284C7),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-        ],
-      ),
-      const SizedBox(height: 3),
-      Text(
-        label,
-        style: const TextStyle(
-          fontSize: 9,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.35,
-          color: _PickerUi.faint,
         ),
       ),
-    ],
-  );
-}
+    );
 
-class _PickerStatDivider extends StatelessWidget {
-  const _PickerStatDivider();
-
-  @override
-  Widget build(BuildContext context) =>
-      Container(width: 1, height: 32, color: _PickerUi.border);
+    return compact ? Tooltip(message: label, child: button) : button;
+  }
 }
 
 class _PickerFilterChip extends StatelessWidget {
@@ -880,7 +1111,6 @@ class ClinicRoomData {
     required this.name,
     required this.department,
     required this.staffId,
-    required this.doctorName,
     required this.status,
     this.currentNumber,
     this.waitingCount = 0,
@@ -898,7 +1128,6 @@ class ClinicRoomData {
   final String name;
   final String department;
   final String staffId;
-  final String doctorName;
   final ClinicRoomStatus status;
   final int? currentNumber;
   final int waitingCount;
@@ -917,7 +1146,6 @@ class ClinicRoomData {
     name: name,
     department: department,
     staffId: staffId,
-    doctorName: doctorName,
     status: status ?? this.status,
     currentNumber: currentNumber ?? this.currentNumber,
     waitingCount: waitingCount ?? this.waitingCount,
@@ -934,100 +1162,56 @@ class ClinicRoomData {
   }
 }
 
-/// Dữ liệu demo trong bộ nhớ. Thay danh sách này bằng dữ liệu do app của bạn
-/// cung cấp (API nội bộ, mock, file JSON…). Không cần cơ sở dữ liệu/Firebase.
-///
-/// Tất cả phòng đều BẮT ĐẦU Ở SỐ 1: `currentNumber = 1`, chưa có ai đang đợi
-/// và chưa khám ai. Khi mở một phòng, màn hình hàng chờ sẽ hiển thị
-/// SỐ HIỆN TẠI = 1, SỐ TIẾP THEO = 2, và hàng chờ bắt đầu từ số 3.
-///
-/// Mọi phòng đều ở trạng thái "Đang khám". Trạng thái "Tạm dừng" CHỈ xuất hiện
-/// sau khi bác sĩ nhấn nút "Tạm dừng khám" ở màn hình hàng chờ (xem
-/// [RoomSessionStore]) — không gán cứng ở đây.
-const int demoStartingNumber = 1;
+/// Nguồn số thứ tự từ lịch hẹn cho một phòng: luồng cập nhật các số
+/// đủ điều kiện và hàm báo kết quả khám xong/vắng mặt về nơi lưu trữ.
+typedef ClinicAppointmentFeed = ({
+  Stream<AppointmentQueueUpdate> updates,
+  Future<void> Function(String appointmentId, AppointmentOutcome outcome)
+  reportOutcome,
+});
 
-const List<ClinicRoomData> demoClinicRooms = <ClinicRoomData>[
-  ClinicRoomData(
-    hospitalId: '10',
-    departmentId: 'K001',
-    id: 'PK1',
-    name: 'Phòng khám 1',
-    department: 'Khoa Tim',
-    staffId: 'NV-LAN',
-    doctorName: 'BS. Nguyễn Thị Lan',
-    status: ClinicRoomStatus.open,
-    currentNumber: demoStartingNumber,
-    waitingCount: 0,
-    examinedCount: 0,
-  ),
-  ClinicRoomData(
-    hospitalId: '10',
-    departmentId: 'K002',
-    id: 'PK2',
-    name: 'Phòng khám 2',
-    department: 'Khoa Hô hấp',
-    staffId: 'NV-HUNG',
-    doctorName: 'BS. Trần Quốc Hưng',
-    status: ClinicRoomStatus.open,
-    currentNumber: demoStartingNumber,
-    waitingCount: 0,
-    examinedCount: 0,
-  ),
-  ClinicRoomData(
-    hospitalId: '10',
-    departmentId: 'K003',
-    id: 'PK3',
-    name: 'Phòng khám 3',
-    department: 'Khoa Nhi',
-    staffId: 'NV-VNT',
-    doctorName: 'BS. Vũ Nam Tuấn',
-    status: ClinicRoomStatus.open,
-    currentNumber: demoStartingNumber,
-    waitingCount: 0,
-    examinedCount: 0,
-  ),
-  ClinicRoomData(
-    hospitalId: '10',
-    departmentId: 'K001',
-    id: 'PK4',
-    name: 'Phòng khám 4',
-    department: 'Khoa Tim',
-    staffId: 'NV-MAI',
-    doctorName: 'BS. Lê Thanh Mai',
-    status: ClinicRoomStatus.open,
-    currentNumber: demoStartingNumber,
-    waitingCount: 0,
-    examinedCount: 0,
-  ),
-  ClinicRoomData(
-    hospitalId: '10',
-    departmentId: 'K003',
-    id: 'PK5',
-    name: 'Phòng khám 5',
-    department: 'Khoa Nhi',
-    staffId: 'NV-DUNG',
-    doctorName: 'BS. Phạm Anh Dũng',
-    status: ClinicRoomStatus.open,
-    currentNumber: demoStartingNumber,
-    waitingCount: 0,
-    examinedCount: 0,
-  ),
-];
-
-/// Màn hình chọn khoa/phòng đã kết nối với QueueScreen trong Queue_screen.dart.
-/// Dữ liệu phòng lấy trực tiếp từ danh sách [rooms] (mặc định là dữ liệu demo
-/// trong bộ nhớ), không đọc/ghi Firestore hay SQLite.
+/// Màn hình chọn khoa/phòng đã kết nối với QueueScreen trong queue_screen.dart.
+/// Dữ liệu phòng lấy trực tiếp từ danh sách [rooms] do bên gọi cung cấp.
+/// Để lấy từ Cloud Firestore theo thời gian thực, dùng
+/// FirestoreClinicRoomPickerScreen trong clinic_firestore_service.dart.
 class ClinicRoomPickerScreen extends StatelessWidget {
   const ClinicRoomPickerScreen({
     super.key,
-    this.rooms = demoClinicRooms,
+    this.rooms = const <ClinicRoomData>[],
     this.initialDepartment = 'Khoa Tim',
     this.hospitalName = 'Bệnh viện Bạch Mai',
+    this.onLogout,
+    this.appointmentFeedFor,
   });
 
   final List<ClinicRoomData> rooms;
   final String initialDepartment;
   final String hospitalName;
+
+  /// Xử lý đăng xuất thật của app. Ví dụ:
+  ///
+  /// ```dart
+  /// ClinicRoomPickerScreen(
+  ///   rooms: rooms,
+  ///   onLogout: () async {
+  ///     await appAuth.logout();   // đăng xuất khỏi phiên của app
+  ///     navigator.pushNamedAndRemoveUntil('/login', (_) => false);
+  ///   },
+  /// )
+  /// ```
+  ///
+  /// (`appAuth`/`navigator` là của app bao quanh, lấy từ context nơi
+  /// tạo callback.) Khi có callback, widget KHÔNG tự chuyển màn hình —
+  /// đăng xuất và điều hướng do app đảm nhiệm. Để `null` thì nút đăng
+  /// xuất tự chuyển về [LoginScreen] và xoá toàn bộ stack điều hướng.
+  final Future<void> Function()? onLogout;
+
+  /// Nguồn số thứ tự từ lịch hẹn cho từng phòng khi mở màn hình hàng
+  /// chờ. Đây là nguồn STT duy nhất: để `null` (hoặc hàm trả về `null`
+  /// cho một phòng) thì QueueScreen không tự sinh số và không nạp thêm
+  /// bệnh nhân nào ngoài trạng thái phiên đã có trong cùng lần chạy app.
+  final ClinicAppointmentFeed? Function(ClinicRoomData room)?
+  appointmentFeedFor;
 
   /// Danh sách phòng kèm trạng thái/số liệu thật lấy từ [RoomSessionStore]
   /// (phòng chưa mở lần nào thì giữ nguyên dữ liệu ban đầu).
@@ -1060,12 +1244,12 @@ class ClinicRoomPickerScreen extends StatelessWidget {
         rooms: liveRooms,
         initialDepartment: initialDepartment,
         hospitalName: hospitalName,
+        onLogout: onLogout,
         departmentOf: (room) => room.department,
         hospitalIdOf: (room) => room.hospitalId,
         departmentIdOf: (room) => room.departmentId,
         roomIdOf: (room) => room.id,
         roomNameOf: (room) => room.name,
-        doctorNameOf: (room) => room.doctorName,
         statusLabelOf: (room) => room.status.label,
         isOpen: (room) => room.status == ClinicRoomStatus.open,
         isPaused: (room) => room.status == ClinicRoomStatus.paused,
@@ -1074,6 +1258,7 @@ class ClinicRoomPickerScreen extends StatelessWidget {
         waitingCountOf: (room) => room.waitingCount,
         examinedCountOf: (room) => room.examinedCount,
         onRoomSelected: (room) {
+          final appointmentFeed = appointmentFeedFor?.call(room);
           Navigator.of(context).push<void>(
             MaterialPageRoute<void>(
               builder: (_) => QueueScreen(
@@ -1081,36 +1266,13 @@ class ClinicRoomPickerScreen extends StatelessWidget {
                 roomId: room.id,
                 staffId: room.staffId,
                 roomName: room.name,
-                doctorName: room.doctorName,
                 departmentName: room.department,
                 hospitalName: hospitalName,
-                initialCurrent: room.currentNumber ?? demoStartingNumber,
-                // Nút “Đặt lại số” trong màn hình hàng chờ đưa phòng về số này.
-                startingNumber: demoStartingNumber,
+                appointmentQueueStream: appointmentFeed?.updates,
+                onAppointmentOutcome: appointmentFeed?.reportOutcome,
               ),
             ),
           );
         },
       );
-}
-
-/// Điểm vào mẫu – chạy được ngay, không cần Firebase hay cấu hình CSDL nào.
-void main() => runApp(const ClinicRoomPickerApp());
-
-class ClinicRoomPickerApp extends StatelessWidget {
-  const ClinicRoomPickerApp({
-    super.key,
-    this.rooms = demoClinicRooms,
-    this.hospitalName = 'Bệnh viện Bạch Mai',
-  });
-
-  /// Danh sách phòng do app cung cấp (mặc định: dữ liệu demo trong bộ nhớ).
-  final List<ClinicRoomData> rooms;
-  final String hospitalName;
-
-  @override
-  Widget build(BuildContext context) => MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: ClinicRoomPickerScreen(rooms: rooms, hospitalName: hospitalName),
-  );
 }
