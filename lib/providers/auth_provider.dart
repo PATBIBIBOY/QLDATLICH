@@ -517,9 +517,21 @@ class AuthProvider extends ChangeNotifier {
               'Cơ sở y tế đã bị ngừng hợp tác hoặc khóa truy cập bởi Quản trị viên.';
         }
       } else {
-        final statusId = data['trang_thai_id'] as int? ?? TrangThaiId.hoatDong;
+        // Bệnh nhân
+        final rawStatus = data['trang_thai_id'];
+        int statusId = TrangThaiId.hoatDong;
+        if (rawStatus is int) {
+          statusId = rawStatus;
+        } else if (rawStatus is num) {
+          statusId = rawStatus.toInt();
+        } else if (rawStatus is String) {
+          statusId = int.tryParse(rawStatus) ?? TrangThaiId.hoatDong;
+        }
         final chanDangNhap = data['chan_dang_nhap'] == true || data['is_blocked'] == true;
-        final isKhoa = statusId == TrangThaiId.khongHoatDong || data['trang_thai'] == 'khoa';
+        final trangThaiStr = data['trang_thai']?.toString().toLowerCase() ?? '';
+        final isKhoa = statusId == TrangThaiId.khongHoatDong ||
+            trangThaiStr == 'khoa' ||
+            trangThaiStr == 'chan_dang_nhap';
         if (chanDangNhap || isKhoa) {
           shouldKick = true;
           kickReason = data['ly_do_khoa']?.toString() ??
