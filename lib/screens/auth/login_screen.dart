@@ -1,9 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../config/app_routes.dart';
+import '../../providers/auth_provider.dart';
+import '../../support_doctor/auth_profile/doctor_initial_setup_screen.dart';
 import '../../support_doctor/department_room_picker.dart';
 
-/// MÀN HÌNH ĐĂNG NHẬP MỚI CHO HỖ TRỢ BÁC SĨ (CHUẨN GIAO DIỆN Y TẾ C1)
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -12,267 +16,405 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _taiKhoanCtrl = TextEditingController(text: 'HTBS_01');
-  final _matKhauCtrl = TextEditingController(text: '123456');
+  static const _primary = Color(0xFF1E78E0);
+  static const _danger = Color(0xFFE53935);
+  static const _grey = Color(0xFF64748B);
 
-  bool _anMatKhau = true;
-  bool _dangXuLy = false;
+  final _emailCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  int _selectedRoleIndex = 0; // 0: Bệnh nhân, 1: Hỗ trợ bác sĩ, 2: Bệnh viện
+
+  bool _obscure = true;
+
+  final List<Map<String, dynamic>> _roles = [
+    {'name': 'Bệnh nhân', 'icon': Icons.person_outline, 'code': 'benh_nhan'},
+    {'name': 'Hỗ trợ bác sĩ', 'icon': Icons.medical_services_outlined, 'code': 'doctor_assistant'},
+    {'name': 'Bệnh viện', 'icon': Icons.local_hospital, 'code': 'benh_vien'},
+  ];
 
   @override
   void dispose() {
-    _taiKhoanCtrl.dispose();
-    _matKhauCtrl.dispose();
+    _emailCtrl.dispose();
+    _passCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _xuLyDangNhap() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _dangXuLy = true);
+  Future<void> _login() async {
+    final email = _emailCtrl.text.trim();
+    final password = _passCtrl.text;
 
-    final input = _taiKhoanCtrl.text.trim();
-    final pass = _matKhauCtrl.text.trim();
+    if (email.isEmpty || password.isEmpty) {
+      _showError('Vui lòng nhập đầy đủ thông tin đăng nhập');
+      return;
+    }
+
+    final auth = context.read<AuthProvider>();
 
     try {
       final firestore = FirebaseFirestore.instance;
 
-      // 1. Tìm tài khoản trong Firestore
-      QuerySnapshot snap = await firestore
-          .collection('NhanVien')
-          .doc('BV502')
-          .collection('danh_sach')
-          .where('email', isEqualTo: input)
-          .limit(1)
-          .get();
+      // 1. KIỂM TRA ĐĂNG NHẬP NHÂN VIÊN Y TẾ / HỖ TRỢ BÁC SĨ QUA FIRESTORE
+      final isMedicalStaff = !email.contains('@') ||
+          _selectedRoleIndex == 1 ||
+          email.toLowerCase().contains('bs') ||
+          email.toLowerCase().contains('htbs');
 
-      if (snap.docs.isEmpty) {
-        snap = await firestore
+      if (isMedicalStaff) {
+        Map<String, dynamic>? nhanVienData;
+
+        // Tìm trong NhanVien/BV502/danh_sach hoặc collectionGroup 'danh_sach'
+        QuerySnapshot snap = await firestore
             .collection('NhanVien')
             .doc('BV502')
             .collection('danh_sach')
-            .where('ma_tai_khoan', isEqualTo: input)
+            .where('ma_tai_khoan', isEqualTo: email)
             .limit(1)
             .get();
-      }
 
-      if (snap.docs.isEmpty) {
-        snap = await firestore
-            .collection('NhanVien')
-            .doc('BV502')
-            .collection('danh_sach')
-            .where('ma_nhan_vien', isEqualTo: input)
-            .limit(1)
-            .get();
-      }
+        if (snap.docs.isEmpty) {
+          snap = await firestore
+              .collection('NhanVien')
+              .doc('BV502')
+              .collection('danh_sach')
+              .where('email', isEqualTo: email)
+              .limit(1)
+              .get();
+        }
 
-      if (snap.docs.isEmpty) {
-        snap = await firestore
-            .collectionGroup('danh_sach')
-            .where('email', isEqualTo: input)
-            .limit(1)
-            .get();
-      }
+        if (snap.docs.isEmpty) {
+          snap = await firestore
+              .collectionGroup('danh_sach')
+              .where('ma_tai_khoan', isEqualTo: email)
+              .limit(1)
+              .get();
+        }
 
-      if (snap.docs.isEmpty) {
-        snap = await firestore
-            .collectionGroup('danh_sach')
-            .where('ma_tai_khoan', isEqualTo: input)
-            .limit(1)
-            .get();
-      }
+        if (snap.docs.isEmpty) {
+          snap = await firestore
+              .collectionGroup('danh_sach')
+              .where('email', isEqualTo: email)
+              .limit(1)
+              .get();
+        }
 
-      if (snap.docs.isNotEmpty) {
-        final data = snap.docs.first.data() as Map<String, dynamic>;
-        final realPass = (data['mat_khau'] ?? data['matKhau'] ?? '').toString();
+        if (snap.docs.isNotEmpty) {
+          final data = snap.docs.first.data() as Map<String, dynamic>;
+          final realPass = (data['mat_khau'] ?? data['matKhau'] ?? '').toString();
+          if (realPass.isNotEmpty && realPass != password) {
+            _showError('Mật khẩu nhân viên không chính xác');
+            return;
+          }
+          nhanVienData = data;
+        }
 
-        if (realPass.isNotEmpty && realPass != pass) {
-          throw Exception('Mật khẩu không chính xác!');
+        if (nhanVienData != null) {
+          final bool daKichHoat = (nhanVienData['da_kich_hoat'] == true) ||
+              (nhanVienData['trang_thai'] == 'dang_hoat_dong');
+          final maNvThucTe = (nhanVienData['ma_nhan_vien'] ??
+                  nhanVienData['ma_tai_khoan'] ??
+                  email)
+              .toString();
+
+          if (!mounted) return;
+
+          // Nếu chưa kích hoạt -> Màn hình thiết lập thông tin ban đầu
+          if (!daKichHoat) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => DoctorInitialSetupScreen(
+                  maNhanVienMacDinh: maNvThucTe,
+                ),
+              ),
+            );
+            return;
+          }
+
+          // Đã kích hoạt -> Vào thẳng màn hình chọn phòng khám & gọi số
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const ClinicRoomPickerScreen()),
+          );
+          return;
         }
       }
 
-      if (!mounted) return;
-      setState(() => _dangXuLy = false);
+      // 2. NẾU ĐĂNG NHẬP QUA FIREBASE AUTH THƯỜNG (BỆNH NHÂN / BỆNH VIỆN)
+      await auth.login(email: email, password: password);
 
-      // Chuyển thẳng vào màn hình chọn phòng khám của bên Hỗ trợ bác sĩ
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const ClinicRoomPickerScreen()),
-      );
+      if (!mounted) return;
+      final selectedRoleCode = _roles[_selectedRoleIndex]['code'];
+      if (selectedRoleCode == 'benh_vien') {
+        Navigator.pushReplacementNamed(context, AppRoutes.hospitalDashboard);
+      } else {
+        Navigator.pushReplacementNamed(context, AppRoutes.patientHome);
+      }
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      _showError(_getAuthErrorMessage(e.code));
     } catch (e) {
       if (!mounted) return;
-      setState(() => _dangXuLy = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceAll('Exception: ', '')),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      _showError(e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: _danger,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  String _getAuthErrorMessage(String code) {
+    switch (code) {
+      case 'user-not-found':
+        return 'Không tìm thấy tài khoản với email này';
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Mật khẩu không chính xác';
+      case 'invalid-email':
+        return 'Địa chỉ email không hợp lệ';
+      case 'user-disabled':
+        return 'Tài khoản đã bị vô hiệu hóa';
+      case 'too-many-requests':
+        return 'Quá nhiều lần thử thất bại. Vui lòng thử lại sau';
+      default:
+        return 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin';
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isLoading = context.watch<AuthProvider>().isLoading;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Logo Y tế gradient
-                  Container(
-                    width: 76,
-                    height: 76,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF0284C7), Color(0xFF0369A1)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(22),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF0284C7).withValues(alpha: 0.3),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.medical_services_rounded,
-                      color: Colors.white,
-                      size: 40,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 12),
 
-                  const Text(
-                    'HỆ THỐNG Y TẾ',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0284C7),
-                      letterSpacing: 1.5,
-                    ),
+              // Hospital Logo / Icon
+              Center(
+                child: Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: _primary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Đăng Nhập Hỗ Trợ Bác Sĩ',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF0F172A),
-                    ),
+                  child: const Icon(
+                    Icons.local_hospital_rounded,
+                    size: 40,
+                    color: _primary,
                   ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Nhập mã nhân viên hoặc Gmail để bắt đầu ca trực',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13.5, color: Color(0xFF64748B)),
-                  ),
-                  const SizedBox(height: 28),
-
-                  // Ô Tài khoản / Mã nhân viên
-                  TextFormField(
-                    controller: _taiKhoanCtrl,
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Vui lòng nhập tài khoản'
-                        : null,
-                    decoration: InputDecoration(
-                      labelText: 'Tài khoản / Mã nhân viên / Gmail',
-                      hintText: 'VD: HTBS_01 hoặc email@gmail.com',
-                      prefixIcon: const Icon(Icons.person_outline,
-                          size: 20, color: Color(0xFF0284C7)),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Ô Mật khẩu
-                  TextFormField(
-                    controller: _matKhauCtrl,
-                    obscureText: _anMatKhau,
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Vui lòng nhập mật khẩu'
-                        : null,
-                    decoration: InputDecoration(
-                      labelText: 'Mật khẩu',
-                      prefixIcon: const Icon(Icons.lock_outline,
-                          size: 20, color: Color(0xFF0284C7)),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _anMatKhau ? Icons.visibility_off : Icons.visibility,
-                          color: const Color(0xFF94A3B8),
-                        ),
-                        onPressed: () =>
-                            setState(() => _anMatKhau = !_anMatKhau),
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Nút Đăng nhập
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: _dangXuLy ? null : _xuLyDangNhap,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0284C7),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        elevation: 3,
-                        shadowColor:
-                            const Color(0xFF0284C7).withValues(alpha: 0.35),
-                      ),
-                      child: _dangXuLy
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text(
-                              'ĐĂNG NHẬP',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(height: 16),
+
+              // Title
+              const Text(
+                'MEDICONNECT',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: _primary,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Hệ thống quản lý đặt lịch & khám bệnh',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13.5, color: _grey),
+              ),
+              const SizedBox(height: 28),
+
+              // Role Selector Chips (Bệnh nhân, Hỗ trợ bác sĩ, Bệnh viện)
+              const Text(
+                'VAI TRÒ ĐĂNG NHẬP',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: _grey,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: List.generate(_roles.length, (index) {
+                  final isSelected = _selectedRoleIndex == index;
+                  final role = _roles[index];
+                  return Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        left: index == 0 ? 0 : 4,
+                        right: index == _roles.length - 1 ? 0 : 4,
+                      ),
+                      child: InkWell(
+                        onTap: () => setState(() => _selectedRoleIndex = index),
+                        borderRadius: BorderRadius.circular(12),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: isSelected ? _primary : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected ? _primary : const Color(0xFFE2E8F0),
+                              width: 1.5,
+                            ),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: _primary.withValues(alpha: 0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                role['icon'] as IconData,
+                                size: 20,
+                                color: isSelected ? Colors.white : _grey,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                role['name'] as String,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: isSelected ? Colors.white : const Color(0xFF334155),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              const SizedBox(height: 24),
+
+              // Email / Account Input
+              TextFormField(
+                controller: _emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: _selectedRoleIndex == 1
+                      ? 'Mã nhân viên / Gmail bác sĩ'
+                      : 'Email / Mã tài khoản',
+                  hintText: _selectedRoleIndex == 1
+                      ? 'VD: HTBS_01 hoặc bacsi@gmail.com'
+                      : 'nhap_email@domain.com',
+                  prefixIcon: const Icon(Icons.person_outline, size: 20, color: _grey),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Password Input
+              TextFormField(
+                controller: _passCtrl,
+                obscureText: _obscure,
+                decoration: InputDecoration(
+                  labelText: 'Mật khẩu',
+                  prefixIcon: const Icon(Icons.lock_outline, size: 20, color: _grey),
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, color: _grey),
+                    onPressed: () => setState(() => _obscure = !_obscure),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Login Button
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: isLoading ? null : _login,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primary,
+                    foregroundColor: Colors.white,
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                        )
+                      : const Text(
+                          'Đăng nhập',
+                          style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Register Link
+              TextButton(
+                onPressed: () => Navigator.pushNamed(context, AppRoutes.register),
+                child: const Text(
+                  'Chưa có tài khoản? Đăng ký ngay',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _danger),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Support Hotline
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFDE8E8),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.phone, color: _danger, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'Hotline hỗ trợ 24/7: 1900 6868',
+                      style: TextStyle(color: _danger, fontWeight: FontWeight.w600, fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
