@@ -1277,7 +1277,7 @@ typedef ClinicAppointmentFeed = ({
 class ClinicRoomPickerScreen extends StatelessWidget {
   const ClinicRoomPickerScreen({
     super.key,
-    required this.rooms,
+    this.rooms = const <ClinicRoomData>[],
     this.initialDepartment = 'Khoa Tim',
     this.hospitalName = 'Bệnh viện Bạch Mai',
     this.onLogout,
