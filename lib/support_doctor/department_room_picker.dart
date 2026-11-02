@@ -1,6 +1,8 @@
-import 'package:flutter/material.dart';
-import 'package:qldatlich/screens/auth/login_screen.dart';
+import 'dart:async';
 
+import 'package:flutter/material.dart';
+
+import '../screens/auth/login_screen.dart';
 import 'queue_screen.dart';
 import 'room_session_store.dart';
 
@@ -74,11 +76,13 @@ class DepartmentRoomPicker<T> extends StatefulWidget {
   final String hospitalName;
   final String title;
 
-  /// Xử lý đăng xuất (xoá token/phiên đăng nhập, đóng socket…).
+  /// Xử lý đăng xuất của app bao quanh.
   ///
-  /// Widget LUÔN tự chuyển về [LoginScreen] sau khi callback này chạy xong,
-  /// nên callback chỉ cần dọn dữ liệu — không cần tự gọi Navigator.
-  /// Để `null` thì nút đăng xuất vẫn chuyển thẳng về [LoginScreen].
+  /// Khi được cung cấp, callback chịu trách nhiệm TOÀN BỘ việc đăng xuất:
+  /// kết thúc phiên (ví dụ qua AuthProvider của app) VÀ chuyển màn hình
+  /// (thường về route đăng nhập) — widget không tự gọi Navigator nữa.
+  /// Để `null` thì nút đăng xuất tự chuyển thẳng về [LoginScreen]
+  /// và xoá toàn bộ stack.
   final Future<void> Function()? onLogout;
 
   /// Nhãn của nút đăng xuất (ẩn nhãn khi màn hình hẹp).
@@ -173,9 +177,8 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
       if (query.isEmpty) return true;
 
       // Chỉ tìm theo phòng (tên phòng và mã phòng), không tìm theo khoa.
-      final searchable =
-          ('${widget.roomNameOf(room)} ${widget.roomIdOf(room)}')
-              .toLowerCase();
+      final searchable = ('${widget.roomNameOf(room)} ${widget.roomIdOf(room)}')
+          .toLowerCase();
       return searchable.contains(query);
     }).toList();
   }
@@ -311,11 +314,14 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
     try {
       final onLogout = widget.onLogout;
       if (onLogout != null) {
-        // Callback chi don token/phien; viec doi man hinh do widget dam nhiem.
+        // App bao quanh TU dang xuat va TU chuyen man hinh (thuong la ve
+        // route dang nhap cua app) - widget nay khong dung vao Navigator.
         await onLogout();
+        return;
       }
       if (mounted) _showMessage('Đã đăng xuất.');
-      // LUON ve LoginScreen, xoa sach stack (khong cho bam Back quay lai).
+      // Khong co callback: tu ve LoginScreen, xoa sach stack (khong cho
+      // bam Back quay lai).
       await _goToLoginScreen(navigator);
     } catch (_) {
       if (mounted) {
@@ -913,7 +919,7 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
                         children: [
                           _PickerMeta(
                             icon: Icons.person_rounded,
-                            text: widget.currentNumberOf(room) == null
+                            text: (widget.currentNumberOf(room) ?? 0) <= 0
                                 ? 'Chưa gọi số'
                                 : 'Số ${widget.currentNumberOf(room)}',
                           ),
@@ -1256,6 +1262,14 @@ class ClinicRoomData {
   }
 }
 
+/// Nguồn số thứ tự từ lịch hẹn cho một phòng: luồng cập nhật các số
+/// đủ điều kiện và hàm báo kết quả khám xong/vắng mặt về nơi lưu trữ.
+typedef ClinicAppointmentFeed = ({
+  Stream<AppointmentQueueUpdate> updates,
+  Future<void> Function(String appointmentId, AppointmentOutcome outcome)
+  reportOutcome,
+});
+
 /// Màn hình chọn khoa/phòng đã kết nối với QueueScreen trong queue_screen.dart.
 /// Dữ liệu phòng lấy trực tiếp từ danh sách [rooms] do bên gọi cung cấp.
 /// Để lấy từ Cloud Firestore theo thời gian thực, dùng
@@ -1267,28 +1281,37 @@ class ClinicRoomPickerScreen extends StatelessWidget {
     this.initialDepartment = 'Khoa Tim',
     this.hospitalName = 'Bệnh viện Bạch Mai',
     this.onLogout,
+    this.appointmentFeedFor,
   });
 
   final List<ClinicRoomData> rooms;
   final String initialDepartment;
   final String hospitalName;
 
-  /// Xử lý đăng xuất thật của app (chỉ cần dọn dữ liệu). Ví dụ:
+  /// Xử lý đăng xuất thật của app. Ví dụ:
   ///
   /// ```dart
   /// ClinicRoomPickerScreen(
   ///   rooms: rooms,
   ///   onLogout: () async {
-  ///     await AuthStore.instance.logout();      // xoá token/phiên đăng nhập
-  ///     RoomSessionStore.instance.resetAll();   // (tuỳ chọn) dọn phiên phòng
+  ///     await appAuth.logout();   // đăng xuất khỏi phiên của app
+  ///     navigator.pushNamedAndRemoveUntil('/login', (_) => false);
   ///   },
   /// )
   /// ```
   ///
-  /// Sau khi callback chạy xong, widget tự chuyển về [LoginScreen] và xoá
-  /// toàn bộ stack điều hướng — không cần gọi Navigator trong callback.
-  /// Để `null` thì nút đăng xuất vẫn chuyển về [LoginScreen].
+  /// (`appAuth`/`navigator` là của app bao quanh, lấy từ context nơi
+  /// tạo callback.) Khi có callback, widget KHÔNG tự chuyển màn hình —
+  /// đăng xuất và điều hướng do app đảm nhiệm. Để `null` thì nút đăng
+  /// xuất tự chuyển về [LoginScreen] và xoá toàn bộ stack điều hướng.
   final Future<void> Function()? onLogout;
+
+  /// Nguồn số thứ tự từ lịch hẹn cho từng phòng khi mở màn hình hàng
+  /// chờ. Đây là nguồn STT duy nhất: để `null` (hoặc hàm trả về `null`
+  /// cho một phòng) thì QueueScreen không tự sinh số và không nạp thêm
+  /// bệnh nhân nào ngoài trạng thái phiên đã có trong cùng lần chạy app.
+  final ClinicAppointmentFeed? Function(ClinicRoomData room)?
+  appointmentFeedFor;
 
   /// Danh sách phòng kèm trạng thái/số liệu thật lấy từ [RoomSessionStore]
   /// (phòng chưa mở lần nào thì giữ nguyên dữ liệu ban đầu).
@@ -1335,6 +1358,7 @@ class ClinicRoomPickerScreen extends StatelessWidget {
         waitingCountOf: (room) => room.waitingCount,
         examinedCountOf: (room) => room.examinedCount,
         onRoomSelected: (room) {
+          final appointmentFeed = appointmentFeedFor?.call(room);
           Navigator.of(context).push<void>(
             MaterialPageRoute<void>(
               builder: (_) => QueueScreen(
@@ -1344,9 +1368,8 @@ class ClinicRoomPickerScreen extends StatelessWidget {
                 roomName: room.name,
                 departmentName: room.department,
                 hospitalName: hospitalName,
-                initialCurrent: room.currentNumber ?? 1,
-                // Nút “Đặt lại số” trong màn hình hàng chờ đưa phòng về số này.
-                startingNumber: room.currentNumber ?? 1,
+                appointmentQueueStream: appointmentFeed?.updates,
+                onAppointmentOutcome: appointmentFeed?.reportOutcome,
               ),
             ),
           );
