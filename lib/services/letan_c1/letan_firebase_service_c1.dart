@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
+import '../../models/letan_c1/letan_qr_model_c1.dart';
 
 /// Service kết nối Firebase Firestore cho Module Lễ tân & CSKH C1 (Đinh Hoàng Cước)
 /// Tuân thủ nguyên tắc ghi_chu_c1.md:
@@ -1934,91 +1936,307 @@ class FirebaseServiceC1 {
   // ==========================================
 
   /// Giải mã mã QR quét được từ camera và trả về KetQuaQuetQrC1
+  /// Hỗ trợ định dạng JSON: {"type":"appointment_checkin","lich_hen_id":...,"ngay_dat":...} hoặc String mã
+  /// ĐỐI SOÁT VỚI DỮ LIỆU LỊCH HẸN THỰC TẾ TRÊN FIREBASE (CHẾ ĐỘ READ-ONLY)
+  /// Trả về 3 kết quả:
+  /// 1. Đúng ngày (Hôm nay == Ngày đặt)
+  /// 2. Chưa tới ngày (Hôm nay < Ngày đặt)
+  /// 3. Quá hạn hoặc Đã khám (Hôm nay > Ngày đặt HOẶC trang_thai_id == 5)
   static Future<Map<String, dynamic>> xuLyMaQrTiepNhan(String rawData) async {
     final code = rawData.trim();
     if (code.isEmpty) {
       return {
         'thanh_cong': false,
+        'trang_thai_ngay_kham': TrangThaiNgayKhamC1.khongXacDinh,
         'thong_bao': 'Mã QR rỗng!',
         'chi_tiet_loi': 'Không đọc được nội dung từ mã QR.',
       };
     }
 
-    // 2. Thử truy vấn Firestore từ collection LichHen hoặc BenhNhan
-    try {
-      final lhDoc = await _firestore.collection('LichHen').doc(code).get();
-      if (lhDoc.exists) {
-        final d = lhDoc.data()!;
-        final rawTrangThaiId = d['trang_thai_id']?.toString() ?? '1';
-        final rawTrangThaiStr = (d['trang_thai'] ?? d['trangThai'] ?? '').toString().toLowerCase();
-        final laChuaDuyet = rawTrangThaiId == '1' || rawTrangThaiStr.contains('cho_duyet') || rawTrangThaiStr.contains('pending');
+    Map<String, dynamic>? qrJson;
+    String targetLichHenId = code;
+    String? qrNgayDat;
+    String? qrBenhNhanId;
+    String? qrKhoaId;
+    String? qrPhongKhamId;
+    int? qrSoThuTu;
 
-        if (laChuaDuyet) {
-          final soDonChuaDuyet = await demSoDonChuaDuyet(benhVienId: d['benh_vien_id']?.toString());
-          return {
-            'thanh_cong': false,
-            'thong_bao': 'Đơn khám chưa được duyệt!',
-            'chi_tiet_loi': 'Lịch hẹn này đang chờ CSKH phê duyệt. Hiện còn $soDonChuaDuyet đơn chưa duyệt trong ngày.',
-            'ho_ten': (d['ho_ten'] ?? d['ten_benh_nhan'] ?? 'Bệnh nhân').toString().toUpperCase(),
-            'ma_benh_nhan': code,
-            'khoa': (d['ten_khoa'] ?? 'Khoa Khám Bệnh').toString(),
-            'la_chua_duyet': true,
-          };
+    // 1. Thử parse JSON nếu chuỗi quét được có dạng object JSON
+    if (code.startsWith('{') && code.endsWith('}')) {
+      try {
+        final parsed = jsonDecode(code);
+        if (parsed is Map<String, dynamic>) {
+          qrJson = parsed;
+          targetLichHenId = (parsed['lich_hen_id'] ?? parsed['id'] ?? '').toString().trim();
+          qrNgayDat = parsed['ngay_dat']?.toString().trim();
+          qrBenhNhanId = parsed['benh_nhan_id']?.toString().trim();
+          qrKhoaId = parsed['khoa_id']?.toString().trim();
+          qrPhongKhamId = parsed['phong_kham_id']?.toString().trim();
+          if (parsed['so_thu_tu'] != null) {
+            qrSoThuTu = int.tryParse(parsed['so_thu_tu'].toString());
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Chuẩn hóa ngày hôm nay để so sánh (chỉ lấy YYYY-MM-DD)
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    try {
+      DocumentSnapshot<Map<String, dynamic>>? lhDoc;
+
+      // Truy vấn tìm Document lịch hẹn trên Firestore
+      if (targetLichHenId.isNotEmpty) {
+        final docRef = _firestore.collection('LichHen').doc(targetLichHenId);
+        final docSnap = await docRef.get();
+        if (docSnap.exists) {
+          lhDoc = docSnap;
+        } else {
+          // Fallback tìm qua collectionGroup hoặc query
+          final q = await _firestore.collectionGroup('lich_hen').where(FieldPath.documentId, isEqualTo: targetLichHenId).limit(1).get();
+          if (q.docs.isNotEmpty) {
+            lhDoc = q.docs.first;
+          }
+        }
+      }
+
+      // Nếu tìm thấy lịch hẹn trên Firebase -> Ưu tiên đối soát dữ liệu thật trên Firebase
+      if (lhDoc != null && lhDoc.exists) {
+        final d = lhDoc.data()!;
+        final rawTrangThaiId = (d['trang_thai_id'] ?? qrJson?['trang_thai'] ?? '1').toString();
+        final rawTrangThaiStr = (d['trang_thai'] ?? d['trangThai'] ?? '').toString().toLowerCase();
+
+        // Lấy ngày hẹn khám thực tế
+        final String rawDateStr = (d['ngay_kham'] ?? d['ngay_dat'] ?? d['ngay_hen'] ?? qrNgayDat ?? '').toString().trim();
+        DateTime? appointmentDate;
+
+        if (rawDateStr.isNotEmpty) {
+          try {
+            appointmentDate = DateTime.tryParse(rawDateStr);
+            if (appointmentDate == null && rawDateStr.contains('/')) {
+              // Hỗ trợ dạng dd/MM/yyyy
+              final parts = rawDateStr.split('/');
+              if (parts.length == 3) {
+                appointmentDate = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+              }
+            }
+          } catch (_) {}
+        }
+
+        // Lấy thông tin bệnh nhân từ subcollection hoặc BenhNhan
+        final bnhanId = (d['benh_nhan_id'] ?? d['benhNhanId'] ?? qrBenhNhanId ?? '').toString();
+        Map<String, dynamic> bnhanData = {};
+        if (bnhanId.isNotEmpty) {
+          try {
+            final bDoc = await _firestore.collection('BenhNhan').doc(bnhanId).get();
+            if (bDoc.exists && bDoc.data() != null) {
+              bnhanData = bDoc.data()!;
+            }
+          } catch (_) {}
+        }
+
+        final hoTenBn = (d['ho_ten'] ?? d['ten_benh_nhan'] ?? bnhanData['ho_ten'] ?? bnhanData['name'] ?? 'Bệnh Nhân').toString().toUpperCase();
+        final cccd = (d['cccd'] ?? bnhanData['cccd'] ?? 'Đã xác minh').toString();
+        final bhyt = (d['bhyt'] ?? d['ma_bhyt'] ?? bnhanData['bhyt'] ?? 'BHYT Đúng tuyến').toString();
+        final namSinh = (d['nam_sinh'] ?? d['ngay_sinh'] ?? bnhanData['ngay_sinh'] ?? '1990').toString();
+        final tenKhoa = (d['ten_khoa'] ?? d['khoa'] ?? qrKhoaId ?? 'Khoa Khám Bệnh').toString();
+        final tenPhong = (d['ten_phong_kham'] ?? d['phong_kham'] ?? d['phong'] ?? qrPhongKhamId ?? 'Phòng Khám Tiếp Nhận').toString();
+        final stt = (d['so_thu_tu'] as num?)?.toInt() ?? qrSoThuTu ?? 1;
+        final gioKham = (d['gio_kham'] ?? d['khung_gio'] ?? (qrJson?['ca_id'] == 'ca_sang' ? '08:00 - 11:30' : '13:30 - 16:30')).toString();
+
+        final displayDate = appointmentDate != null
+            ? '${appointmentDate.day.toString().padLeft(2, '0')}/${appointmentDate.month.toString().padLeft(2, '0')}/${appointmentDate.year}'
+            : (rawDateStr.isNotEmpty ? rawDateStr : 'Hôm nay');
+
+        // KIỂM TRA 3 TRƯỜNG HỢP:
+        // Đã khám (trang_thai_id == '5' hoặc chứa da_kham)
+        final laDaKham = rawTrangThaiId == '5' || rawTrangThaiStr.contains('da_kham') || rawTrangThaiStr.contains('completed');
+
+        if (appointmentDate != null) {
+          final compareDate = DateTime(appointmentDate.year, appointmentDate.month, appointmentDate.day);
+
+          // TRƯỜNG HỢP 3: ĐÃ QUA NGÀY KHÁM (Hôm nay > Ngày khám) HOẶC ĐÃ KHÁM XONG
+          if (compareDate.isBefore(today) || laDaKham) {
+            return {
+              'thanh_cong': false,
+              'trang_thai_ngay_kham': TrangThaiNgayKhamC1.daQuaHan,
+              'thong_bao': laDaKham ? 'Lịch hẹn đã được khám!' : 'Lịch hẹn đã quá hạn khám!',
+              'chi_tiet_loi': laDaKham
+                  ? 'Lịch hẹn này đã hoàn tất thủ tục khám bệnh trước đó.'
+                  : 'Lịch hẹn ngày $displayDate đã quá hạn sử dụng. Vui lòng liên hệ quầy CSKH hoặc đặt lịch mới.',
+              'ma_lich_hen': targetLichHenId,
+              'ma_benh_nhan': bnhanId.isNotEmpty ? bnhanId : targetLichHenId,
+              'ho_ten': hoTenBn,
+              'ngay_kham': displayDate,
+              'khoa': tenKhoa,
+              'phong': tenPhong,
+              'cccd': cccd,
+              'bhyt': bhyt,
+              'nam_sinh': namSinh,
+              'so_thu_tu': stt,
+              'gio_kham': gioKham,
+            };
+          }
+
+          // TRƯỜNG HỢP 2: CHƯA TỚI NGÀY KHÁM (Hôm nay < Ngày khám)
+          if (compareDate.isAfter(today)) {
+            return {
+              'thanh_cong': false,
+              'trang_thai_ngay_kham': TrangThaiNgayKhamC1.chuaToiNgay,
+              'thong_bao': 'Lịch hẹn chưa tới ngày khám!',
+              'chi_tiet_loi': 'Lịch hẹn khám vào ngày $displayDate. Vui lòng quay lại đúng ngày đã đặt để được tiếp đón.',
+              'ma_lich_hen': targetLichHenId,
+              'ma_benh_nhan': bnhanId.isNotEmpty ? bnhanId : targetLichHenId,
+              'ho_ten': hoTenBn,
+              'ngay_kham': displayDate,
+              'khoa': tenKhoa,
+              'phong': tenPhong,
+              'cccd': cccd,
+              'bhyt': bhyt,
+              'nam_sinh': namSinh,
+              'so_thu_tu': stt,
+              'gio_kham': gioKham,
+            };
+          }
+        }
+
+        // TRƯỜNG HỢP 1: ĐÚNG NGÀY KHÁM (Hôm nay == Ngày khám)
+        return {
+          'thanh_cong': true,
+          'trang_thai_ngay_kham': TrangThaiNgayKhamC1.dungNgay,
+          'thong_bao': 'Xác thực QR lịch hẹn thành công',
+          'chi_tiet_loi': 'Lịch hẹn hợp lệ • Đúng ngày khám ($displayDate)',
+          'so_thu_tu': stt,
+          'gio_kham': gioKham,
+          'ngay_kham': displayDate,
+          'ho_ten': hoTenBn,
+          'ma_lich_hen': targetLichHenId,
+          'ma_benh_nhan': bnhanId.isNotEmpty ? bnhanId : targetLichHenId,
+          'nam_sinh': namSinh,
+          'cccd': cccd,
+          'bhyt': bhyt,
+          'khoa': tenKhoa,
+          'phong': tenPhong,
+        };
+      }
+
+      // 2. Nếu không tìm thấy document LichHen theo ID trên Firestore nhưng có dữ liệu từ chuỗi JSON QR
+      if (qrJson != null) {
+        final rawDateStr = qrNgayDat ?? '';
+        DateTime? appointmentDate;
+        if (rawDateStr.isNotEmpty) {
+          try {
+            appointmentDate = DateTime.tryParse(rawDateStr);
+          } catch (_) {}
+        }
+
+        final displayDate = appointmentDate != null
+            ? '${appointmentDate.day.toString().padLeft(2, '0')}/${appointmentDate.month.toString().padLeft(2, '0')}/${appointmentDate.year}'
+            : (rawDateStr.isNotEmpty ? rawDateStr : 'Hôm nay');
+
+        final hoTenBn = 'BỆNH NHÂN TIẾP NHẬN';
+        final stt = qrSoThuTu ?? 1;
+        final gioKham = qrJson['ca_id'] == 'ca_sang' ? '08:00 - 11:30' : '13:30 - 16:30';
+
+        if (appointmentDate != null) {
+          final compareDate = DateTime(appointmentDate.year, appointmentDate.month, appointmentDate.day);
+
+          if (compareDate.isBefore(today)) {
+            return {
+              'thanh_cong': false,
+              'trang_thai_ngay_kham': TrangThaiNgayKhamC1.daQuaHan,
+              'thong_bao': 'Lịch hẹn đã quá hạn khám!',
+              'chi_tiet_loi': 'Lịch hẹn ngày $displayDate đã quá hạn sử dụng. Vui lòng liên hệ quầy CSKH hoặc đặt lịch mới.',
+              'ma_lich_hen': targetLichHenId,
+              'ma_benh_nhan': qrBenhNhanId ?? targetLichHenId,
+              'ho_ten': hoTenBn,
+              'ngay_kham': displayDate,
+              'khoa': qrKhoaId ?? 'Khoa Khám Bệnh',
+              'phong': qrPhongKhamId ?? 'Phòng Khám Tiếp Nhận',
+              'cccd': 'Đã xác minh',
+              'bhyt': 'BHYT Đúng tuyến',
+              'nam_sinh': '1990',
+              'so_thu_tu': stt,
+              'gio_kham': gioKham,
+            };
+          }
+
+          if (compareDate.isAfter(today)) {
+            return {
+              'thanh_cong': false,
+              'trang_thai_ngay_kham': TrangThaiNgayKhamC1.chuaToiNgay,
+              'thong_bao': 'Lịch hẹn chưa tới ngày khám!',
+              'chi_tiet_loi': 'Lịch hẹn khám vào ngày $displayDate. Vui lòng quay lại đúng ngày đã đặt để được tiếp đón.',
+              'ma_lich_hen': targetLichHenId,
+              'ma_benh_nhan': qrBenhNhanId ?? targetLichHenId,
+              'ho_ten': hoTenBn,
+              'ngay_kham': displayDate,
+              'khoa': qrKhoaId ?? 'Khoa Khám Bệnh',
+              'phong': qrPhongKhamId ?? 'Phòng Khám Tiếp Nhận',
+              'cccd': 'Đã xác minh',
+              'bhyt': 'BHYT Đúng tuyến',
+              'nam_sinh': '1990',
+              'so_thu_tu': stt,
+              'gio_kham': gioKham,
+            };
+          }
         }
 
         return {
           'thanh_cong': true,
+          'trang_thai_ngay_kham': TrangThaiNgayKhamC1.dungNgay,
           'thong_bao': 'Xác thực QR lịch hẹn thành công',
-          'chi_tiet_loi': 'Lịch hẹn hợp lệ - Đã ghi nhận tiếp đón tại quầy',
-          'so_thu_tu': d['so_thu_tu'] ?? (DateTime.now().minute % 30) + 1,
-          'gio_kham': (d['gio_kham'] ?? d['khung_gio'] ?? 'Hôm nay').toString(),
-          'ho_ten': (d['ho_ten'] ?? d['ten_benh_nhan'] ?? 'Bệnh Nhân').toString().toUpperCase(),
-          'ma_benh_nhan': code,
-          'nam_sinh': (d['nam_sinh'] ?? d['ngay_sinh'] ?? '1990').toString(),
-          'cccd': (d['cccd'] ?? 'Đã xác minh').toString(),
-          'bhyt': (d['bhyt'] ?? 'BHYT Đúng tuyến').toString(),
-          'khoa': (d['ten_khoa'] ?? 'Khoa Khám Bệnh').toString(),
-          'phong': (d['ten_phong_kham'] ?? 'Phòng Khám Tiếp Nhận').toString(),
-          'bac_si': (d['bac_si'] ?? 'Bác sĩ trực ban').toString(),
+          'chi_tiet_loi': 'Lịch hẹn hợp lệ • Đúng ngày khám ($displayDate)',
+          'so_thu_tu': stt,
+          'gio_kham': gioKham,
+          'ngay_kham': displayDate,
+          'ho_ten': hoTenBn,
+          'ma_lich_hen': targetLichHenId,
+          'ma_benh_nhan': qrBenhNhanId ?? targetLichHenId,
+          'nam_sinh': '1990',
+          'cccd': 'Đã xác minh',
+          'bhyt': 'BHYT Đúng tuyến',
+          'khoa': qrKhoaId ?? 'Khoa Khám Bệnh',
+          'phong': qrPhongKhamId ?? 'Phòng Khám Tiếp Nhận',
         };
       }
 
+      // 3. Fallback kiểm tra collection BenhNhan
       final doc = await _firestore.collection('BenhNhan').doc(code).get();
       if (doc.exists) {
         final d = doc.data()!;
         return {
           'thanh_cong': true,
+          'trang_thai_ngay_kham': TrangThaiNgayKhamC1.dungNgay,
           'thong_bao': 'Xác thực QR bệnh nhân thành công',
           'chi_tiet_loi': 'Đã đối soát thông tin từ hệ thống bệnh viện',
-          'so_thu_tu': (DateTime.now().minute % 30) + 1,
+          'so_thu_tu': 1,
           'gio_kham': 'Hôm nay',
+          'ngay_kham': '${now.day}/${now.month}/${now.year}',
           'ho_ten': (d['ho_ten'] ?? d['name'] ?? 'Bệnh Nhân').toString().toUpperCase(),
+          'ma_lich_hen': code,
           'ma_benh_nhan': code,
           'nam_sinh': (d['ngay_sinh'] ?? d['nam_sinh'] ?? '1990').toString(),
           'cccd': (d['cccd'] ?? 'Đã xác minh').toString(),
           'bhyt': (d['bhyt'] ?? 'BHYT Đúng tuyến').toString(),
           'khoa': 'Khoa Khám Bệnh',
-          'phong': 'Phòng 102 - Tầng 1',
-          'bac_si': 'Bác sĩ trực ban',
+          'phong': 'Phòng Tiếp Nhận',
         };
       }
     } catch (_) {}
 
-    // 3. Nếu là chuỗi QR bất kỳ (ví dụ URL, chuỗi JSON, hay mã định danh) -> Chuyển thành hồ sơ tiếp nhận thực tế
+    // 4. Nếu không tìm thấy mã hợp lệ
     return {
-      'thanh_cong': true,
-      'thong_bao': 'Quét mã QR thành công!',
-      'chi_tiet_loi': 'Mã dữ liệu: $code',
-      'so_thu_tu': (DateTime.now().second % 40) + 1,
-      'gio_kham': '09:00 - 09:30',
-      'ho_ten': 'BỆNH NHÂN TIẾP NHẬN',
-      'ma_benh_nhan': code.length > 15 ? code.substring(0, 15) : code,
-      'nam_sinh': 'Nam',
-      'cccd': '079204001234',
-      'bhyt': 'BHYT 80%',
-      'khoa': 'Khoa Khám Bệnh',
-      'phong': 'Phòng Khám Tiếp Nhận',
-      'bac_si': 'Bác sĩ phụ trách',
+      'thanh_cong': false,
+      'trang_thai_ngay_kham': TrangThaiNgayKhamC1.khongXacDinh,
+      'thong_bao': 'Không tìm thấy lịch hẹn!',
+      'chi_tiet_loi': 'Mã QR không khớp với bất kỳ hồ sơ đặt lịch nào trên hệ thống: $code',
+      'ma_lich_hen': targetLichHenId,
+      'ho_ten': 'KHÔNG XÁC ĐỊNH',
+      'ngay_kham': 'Không rõ',
+      'khoa': 'Chưa xác định',
+      'phong': 'Chưa xác định',
     };
   }
 

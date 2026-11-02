@@ -54,16 +54,20 @@ class _LetanQuetQrCameraScreenC1State extends State<LetanQuetQrCameraScreenC1> {
         thanhCong: res['thanh_cong'] == true,
         thongBao: (res['thong_bao'] ?? 'Xác thực QR').toString(),
         chiTietLoi: (res['chi_tiet_loi'] ?? '').toString(),
+        trangThaiNgayKham: res['trang_thai_ngay_kham'] as TrangThaiNgayKhamC1? ??
+            (res['thanh_cong'] == true ? TrangThaiNgayKhamC1.dungNgay : TrangThaiNgayKhamC1.khongXacDinh),
         soThuTu: res['so_thu_tu'] as int?,
         gioKhamDuKien: res['gio_kham']?.toString(),
+        ngayKham: res['ngay_kham']?.toString(),
         hoTen: res['ho_ten']?.toString(),
+        maLichHen: res['ma_lich_hen']?.toString() ?? res['ma_benh_nhan']?.toString(),
         maBenhNhan: res['ma_benh_nhan']?.toString(),
         namSinhGioiTinh: res['nam_sinh']?.toString(),
         cccd: res['cccd']?.toString(),
         bhyt: res['bhyt']?.toString(),
         khoaKham: res['khoa']?.toString(),
         phongKham: res['phong']?.toString(),
-        bacSi: res['bac_si']?.toString(),
+        caKham: res['ca_kham']?.toString(),
       );
 
       if (!mounted) return;

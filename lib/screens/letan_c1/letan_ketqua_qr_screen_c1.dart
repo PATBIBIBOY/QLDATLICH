@@ -57,9 +57,7 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
-                child: ketQua.thanhCong
-                    ? _buildGiaoDienThanhCong(context)
-                    : _buildGiaoDienThatBai(context),
+                child: _buildBody(context),
               ),
             ),
             _buildBottomButtons(context),
@@ -69,8 +67,21 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
     );
   }
 
-  // TRƯỜNG HỢP 1: XÁC THỰC THÀNH CÔNG (THEO ĐÚNG MOCKUP)
-  Widget _buildGiaoDienThanhCong(BuildContext context) {
+  Widget _buildBody(BuildContext context) {
+    switch (ketQua.trangThaiNgayKham) {
+      case TrangThaiNgayKhamC1.dungNgay:
+        return _buildGiaoDienDungNgay(context);
+      case TrangThaiNgayKhamC1.chuaToiNgay:
+        return _buildGiaoDienChuaToiNgay(context);
+      case TrangThaiNgayKhamC1.daQuaHan:
+        return _buildGiaoDienDaQuaHan(context);
+      case TrangThaiNgayKhamC1.khongXacDinh:
+        return _buildGiaoDienThatBai(context);
+    }
+  }
+
+  // TRƯỜNG HỢP 1: ĐÚNG NGÀY KHÁM (XANH LÁ - HIỆN TOÀN BỘ THÔNG TIN & SỐ THỨ TỰ)
+  Widget _buildGiaoDienDungNgay(BuildContext context) {
     final isDark = AppDesignSystemC1.laCheDoToi;
 
     return Column(
@@ -93,7 +104,7 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
                   color: const Color(0xFF10B981),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.check, color: Colors.white, size: 24),
+                child: const Icon(Icons.check_circle_outline, color: Colors.white, size: 24),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -156,7 +167,7 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '${ketQua.soThuTu ?? 0}',
+                '${ketQua.soThuTu ?? 1}',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 48,
@@ -169,7 +180,7 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
                 text: TextSpan(
                   style: const TextStyle(color: Colors.white, fontSize: 13),
                   children: [
-                    const TextSpan(text: 'Ca sáng: Dự kiến khám lúc '),
+                    TextSpan(text: '${ketQua.caKham ?? 'Khung giờ'}: Dự kiến lúc '),
                     TextSpan(
                       text: ketQua.gioKhamDuKien ?? '',
                       style: const TextStyle(fontWeight: FontWeight.w700),
@@ -183,75 +194,271 @@ class LetanKetquaQrScreenC1 extends StatelessWidget {
         const SizedBox(height: 18),
 
         // Thẻ thông tin bệnh nhân chi tiết
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFEDF2F7)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header thẻ + badge BHYT
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Thông tin bệnh nhân',
-                    style: TextStyle(
-                      color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF0369A1).withValues(alpha: 0.3) : const Color(0xFFE0F2FE),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      ketQua.bhyt ?? 'BHYT',
-                      style: TextStyle(
-                        color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0369A1),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-
-              // Các dòng thông tin chi tiết
-              _buildRowInfo('Họ và tên:', ketQua.hoTen ?? '', isBold: true, isUpper: true),
-              _buildRowInfo('Mã bệnh nhân:', ketQua.maBenhNhan ?? '', colorValue: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7), isBold: true),
-              _buildRowInfo('Năm sinh / Giới tính:', ketQua.namSinhGioiTinh ?? '', isBold: true),
-              _buildRowInfo('CCCD:', ketQua.cccd ?? '', isBold: true),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Divider(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0), height: 1),
-              ),
-
-              _buildRowInfo('Khoa khám:', ketQua.khoaKham ?? '', isBold: true),
-              _buildRowInfo('Phòng khám:', ketQua.phongKham ?? '', isBold: true),
-            ],
-          ),
-        ),
+        _buildThongTinChiTietCard(isDark),
       ],
     );
   }
 
-  // TRƯỜNG HỢP 2: ĐÃ XÁC THỰC HOẶC MÃ QR KHÔNG HỢP LỆ
+  // TRƯỜNG HỢP 2: CHƯA TỚI NGÀY KHÁM (VÀNG CAM - NHẤN MẠNH CHƯA TỚI NGÀY KHÁM)
+  Widget _buildGiaoDienChuaToiNgay(BuildContext context) {
+    final isDark = AppDesignSystemC1.laCheDoToi;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Thẻ cảnh báo vàng cam
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF78350F).withValues(alpha: 0.35) : const Color(0xFFFEF3C7),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: isDark ? const Color(0xFFD97706) : const Color(0xFFFCD34D)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.event_busy, color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      ketQua.thongBao,
+                      style: TextStyle(
+                        color: isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      ketQua.chiTietLoi,
+                      style: TextStyle(
+                        color: isDark ? const Color(0xFFFCD34D) : const Color(0xFFB45309),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Dòng nhấn mạnh nổi bật
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFBEB),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFF59E0B), width: 1.2),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.priority_high, color: Color(0xFFD97706), size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'CHƯA TỚI NGÀY KHÁM • Ngày hẹn: ${ketQua.ngayKham ?? 'Theo lịch'}',
+                  style: const TextStyle(
+                    color: Color(0xFFD97706),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+
+        // Vẫn hiển thị đầy đủ thông tin cơ bản của lịch hẹn
+        _buildThongTinChiTietCard(isDark),
+      ],
+    );
+  }
+
+  // TRƯỜNG HỢP 3: ĐÃ QUA NGÀY HOẶC ĐÃ KHÁM (MÀU ĐỎ)
+  Widget _buildGiaoDienDaQuaHan(BuildContext context) {
+    final isDark = AppDesignSystemC1.laCheDoToi;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Thẻ thông báo đỏ lỗi
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF7F1D1D).withValues(alpha: 0.35) : const Color(0xFFFEF2F2),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: isDark ? const Color(0xFFB91C1C) : const Color(0xFFFECACA)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.history_toggle_off, color: Colors.white, size: 26),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      ketQua.thongBao,
+                      style: TextStyle(
+                        color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFF991B1B),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      ketQua.chiTietLoi,
+                      style: TextStyle(
+                        color: isDark ? const Color(0xFFF87171) : const Color(0xFFB91C1C),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Dòng nhấn mạnh cảnh báo quá hạn
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFFEF2F2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFEF4444), width: 1.2),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'LỊCH HẸN ĐÃ HẾT HẠN HOẶC ĐÃ HOÀN TẤT KHÁM',
+                  style: const TextStyle(
+                    color: Color(0xFFDC2626),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+
+        // Vẫn hiển thị mã lịch hẹn và thông tin cơ bản để nhân viên tra cứu đối chứng
+        _buildThongTinChiTietCard(isDark),
+      ],
+    );
+  }
+
+  // Thẻ thông tin bệnh nhân và lịch hẹn dùng chung cho cả 3 trường hợp
+  Widget _buildThongTinChiTietCard(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFEDF2F7)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header thẻ + badge BHYT
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Thông tin lịch hẹn & bệnh nhân',
+                style: TextStyle(
+                  color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (ketQua.bhyt != null && ketQua.bhyt!.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0369A1).withValues(alpha: 0.3) : const Color(0xFFE0F2FE),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    ketQua.bhyt!,
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0369A1),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Các dòng thông tin chi tiết
+          _buildRowInfo('Mã lịch hẹn:', ketQua.maLichHen ?? ketQua.maBenhNhan ?? '', colorValue: const Color(0xFF0284C7), isBold: true),
+          _buildRowInfo('Họ và tên:', ketQua.hoTen ?? 'Chưa rõ', isBold: true, isUpper: true),
+          if (ketQua.ngayKham != null)
+            _buildRowInfo('Ngày hẹn khám:', ketQua.ngayKham!, isBold: true),
+          if (ketQua.gioKhamDuKien != null)
+            _buildRowInfo('Khung giờ khám:', ketQua.gioKhamDuKien!, isBold: true),
+          if (ketQua.namSinhGioiTinh != null)
+            _buildRowInfo('Năm sinh / Giới tính:', ketQua.namSinhGioiTinh!, isBold: true),
+          if (ketQua.cccd != null)
+            _buildRowInfo('CCCD:', ketQua.cccd!, isBold: true),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Divider(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0), height: 1),
+          ),
+
+          _buildRowInfo('Khoa khám:', ketQua.khoaKham ?? '', isBold: true),
+          _buildRowInfo('Phòng khám:', ketQua.phongKham ?? '', isBold: true),
+        ],
+      ),
+    );
+  }
+
+  // TRƯỜNG HỢP 4: ĐÃ XÁC THỰC HOẶC MÃ QR KHÔNG HỢP LỆ
   Widget _buildGiaoDienThatBai(BuildContext context) {
     final isDark = AppDesignSystemC1.laCheDoToi;
 
