@@ -59,7 +59,10 @@ class CskhDepartmentSelectorCardC1 extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 6,
+                  runSpacing: 2,
                   children: [
                     Text(
                       label,
@@ -70,7 +73,6 @@ class CskhDepartmentSelectorCardC1 extends StatelessWidget {
                         letterSpacing: 0.4,
                       ),
                     ),
-                    const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
