@@ -169,8 +169,23 @@ class AdminStore extends ChangeNotifier {
         final trangThaiUpper = data['trangThai']?.toString().toUpperCase();
         final daDuyetBool = data['da_duyet'] == true;
 
+        // Kiểm tra hủy hợp tác:
+        // Khi hủy hợp tác, trang_thai_hop_tac_id chuyển về 1, nhưng có cờ huy_hop_tac hoặc is_unpartnered
+        final bool isHuyHopTac = trangThaiStr == 'huy_hop_tac' ||
+            trangThaiUpper == 'HUY_HOP_TAC' ||
+            data['is_unpartnered'] == true;
+
+        // Bị từ chối
+        final bool isRejected = statusId == 4 ||
+            trangThaiStr == 'tu_choi' ||
+            trangThaiUpper == 'TU_CHOI';
+
         // Trạng thái đã duyệt: 10 (đang hợp tác), 2 (đã xác nhận), 7 (hoạt động), hoặc cờ da_duyet / trangThai tương ứng
-        final bool isApproved = (statusId == 10 ||
+        // CHÚ Ý: Bệnh viện có statusId == 1 hoặc isHuyHopTac == true hoặc isRejected == true thì KHÔNG tính là đã duyệt
+        final bool isApproved = !isHuyHopTac &&
+            !isRejected &&
+            statusId != 1 &&
+            (statusId == 10 ||
                 statusId == 2 ||
                 statusId == 7 ||
                 daDuyetBool ||
@@ -178,20 +193,13 @@ class AdminStore extends ChangeNotifier {
                 trangThaiUpper == 'DA_DUYET' ||
                 trangThaiUpper == 'HOAT_DONG');
 
-        // Kiểm tra chặn đăng nhập và hủy hợp tác
+        // Kiểm tra chặn đăng nhập
         final bool chanDangNhap = data['chan_dang_nhap'] == true ||
             data['is_blocked'] == true ||
             (statusId == 8 && (trangThaiStr == 'chan_dang_nhap' || trangThaiStr == 'khoa'));
-        final bool isHuyHopTac = trangThaiStr == 'huy_hop_tac' ||
-            trangThaiUpper == 'HUY_HOP_TAC';
         final String? blockReason = data['ly_do_khoa']?.toString() ??
             data['ly_do_huy']?.toString() ??
             data['ly_do_chan']?.toString();
-
-        // Bị từ chối
-        final bool isRejected = statusId == 4 ||
-            trangThaiStr == 'tu_choi' ||
-            trangThaiUpper == 'TU_CHOI';
 
         if (isApproved && !isHuyHopTac && !isRejected) {
           // BỆNH VIỆN ĐÃ DUYỆT (Bao gồm cả đang hoạt động hoặc đang bị tạm chặn đăng nhập để quản lý)
@@ -262,7 +270,7 @@ class AdminStore extends ChangeNotifier {
             totalReviews: (data['tong_so_danh_gia'] as num?)?.toInt() ?? 0,
             phone: data['so_dien_thoai']?.toString(),
             email: data['email']?.toString(),
-            status: 8,
+            status: 1, // Trạng thái = 1 khi đã hủy hợp tác
             isBlocked: true,
             isUnpartnered: true,
             blockReason: blockReason ?? 'Đã ngừng hợp tác',
@@ -854,6 +862,7 @@ class AdminStore extends ChangeNotifier {
     h.isUnpartnered = true;
     h.isBlocked = true;
     h.blockReason = reason;
+    h.status = 1; // Chuyển trạng thái về 1 (Chờ duyệt / Hủy hợp tác)
     hospitals.remove(h);
     if (!cancelledHospitals.contains(h)) {
       cancelledHospitals.insert(0, h);
@@ -864,29 +873,68 @@ class AdminStore extends ChangeNotifier {
     try {
       final code = h.code;
       if (code != null && code.isNotEmpty) {
+        // Cập nhật trạng thái trên Firebase BenhVien:
+        // Chuyển trang_thai_hop_tac_id từ 10 (Hợp tác) về 1 (Chờ duyệt)
+        // và gắn cờ chan_dang_nhap, da_duyet = false để không thể đăng nhập
         await _firestore.collection('BenhVien').doc(code).update({
-          'trang_thai_hop_tac_id': 8,
+          'trang_thai_hop_tac_id': 1,
+          'da_duyet': false,
           'trang_thai': 'huy_hop_tac',
           'trangThai': 'HUY_HOP_TAC',
           'chan_dang_nhap': true,
+          'is_blocked': true,
+          'is_unpartnered': true,
           'ly_do_huy': reason,
           'ngay_ngung_hop_tac': FieldValue.serverTimestamp(),
         });
 
+        // Cập nhật đồng bộ trên YeuCauHopTac nếu có
+        try {
+          final ycDoc = await _firestore.collection('YeuCauHopTac').doc(code).get();
+          if (ycDoc.exists) {
+            await _firestore.collection('YeuCauHopTac').doc(code).update({
+              'trang_thai_hop_tac_id': 1,
+              'da_duyet': false,
+              'trang_thai': 'huy_hop_tac',
+              'trangThai': 'HUY_HOP_TAC',
+              'chan_dang_nhap': true,
+              'ly_do_huy': reason,
+            });
+          }
+        } catch (_) {}
+
+        // Chặn quyền đăng nhập trong collection NhanVien của bệnh viện này
         try {
           final nvDoc = await _firestore.collection('NhanVien').doc(code).get();
           if (nvDoc.exists) {
             await _firestore.collection('NhanVien').doc(code).update({
               'trangThaiHoatDong': false,
               'chan_dang_nhap': true,
+              'trang_thai_hop_tac_id': 1,
             });
+          }
+
+          final staffQueries = [
+            _firestore.collection('NhanVien').where('id_benh_vien', isEqualTo: code).get(),
+            _firestore.collection('NhanVien').where('benh_vien_id', isEqualTo: code).get(),
+            _firestore.collection('NhanVien').where('ma_benh_vien', isEqualTo: code).get(),
+          ];
+          final results = await Future.wait(staffQueries);
+          for (final snap in results) {
+            for (final doc in snap.docs) {
+              await doc.reference.update({
+                'trangThaiHoatDong': false,
+                'chan_dang_nhap': true,
+                'trang_thai_hop_tac_id': 1,
+              });
+            }
           }
         } catch (_) {}
 
         // Gửi thông báo đến ThongBao cho bệnh viện
         await _firestore.collection('ThongBao').add({
-          'tieu_de': 'Tài khoản bệnh viện đã bị tạm khóa',
-          'noi_dung': 'Tài khoản bệnh viện/cơ sở y tế (${h.name}) đã bị quản trị viên tạm khóa. Lý do: $reason',
+          'tieu_de': 'Tài khoản bệnh viện đã bị ngừng hợp tác',
+          'noi_dung': 'Tài khoản bệnh viện/cơ sở y tế (${h.name}) đã bị quản trị viên ngừng hợp tác. Lý do: $reason',
           'nguoi_nhan_uid': code,
           'benh_vien_id': code,
           'loai': 'khoa_tai_khoan_benh_vien',
@@ -896,9 +944,9 @@ class AdminStore extends ChangeNotifier {
 
         // Gửi thông báo hệ thống
         await _firestore.collection('ThongBaoHeThong').add({
-          'tieu_de': 'Khóa tài khoản bệnh viện',
-          'noi_dung': 'Quản trị viên đã khóa tài khoản bệnh viện: ${h.name} ($code). Lý do: $reason',
-          'loai': 'khoa_tai_khoan_bv',
+          'tieu_de': 'Hủy hợp tác bệnh viện',
+          'noi_dung': 'Quản trị viên đã hủy thỏa thuận hợp tác với bệnh viện: ${h.name} ($code). Lý do: $reason',
+          'loai': 'huy_hop_tac_bv',
           'da_doc': false,
           'thoi_gian_hien_thi': 'Vừa xong',
           'ngay_tao': FieldValue.serverTimestamp(),
@@ -923,6 +971,7 @@ class AdminStore extends ChangeNotifier {
     h.isUnpartnered = false;
     h.isBlocked = false;
     h.blockReason = null;
+    h.status = 10; // Trở lại trạng thái 10 (Hợp tác)
     cancelledHospitals.remove(h);
     if (!hospitals.contains(h)) {
       hospitals.insert(0, h);
@@ -932,24 +981,60 @@ class AdminStore extends ChangeNotifier {
     try {
       final code = h.code;
       if (code != null && code.isNotEmpty) {
+        // Cập nhật trạng thái trên Firebase BenhVien: Chuyển lại về 10 (Hợp tác)
         await _firestore.collection('BenhVien').doc(code).update({
           'trang_thai_hop_tac_id': 10,
+          'da_duyet': true,
           'trang_thai': 'da_duyet',
           'trangThai': 'DA_DUYET',
           'chan_dang_nhap': false,
           'is_blocked': false,
+          'is_unpartnered': false,
           'ly_do_huy': FieldValue.delete(),
           'ly_do_khoa': FieldValue.delete(),
           'ngay_khoi_phuc_hop_tac': FieldValue.serverTimestamp(),
         });
 
+        // Cập nhật lại YeuCauHopTac nếu có
+        try {
+          final ycDoc = await _firestore.collection('YeuCauHopTac').doc(code).get();
+          if (ycDoc.exists) {
+            await _firestore.collection('YeuCauHopTac').doc(code).update({
+              'trang_thai_hop_tac_id': 10,
+              'da_duyet': true,
+              'trang_thai': 'da_duyet',
+              'trangThai': 'DA_DUYET',
+              'chan_dang_nhap': false,
+              'ly_do_huy': FieldValue.delete(),
+            });
+          }
+        } catch (_) {}
+
+        // Mở khóa quyền đăng nhập tài khoản nhân viên / quản lý trong collection NhanVien
         try {
           final nvDoc = await _firestore.collection('NhanVien').doc(code).get();
           if (nvDoc.exists) {
             await _firestore.collection('NhanVien').doc(code).update({
               'trangThaiHoatDong': true,
               'chan_dang_nhap': false,
+              'trang_thai_hop_tac_id': 10,
             });
+          }
+
+          final staffQueries = [
+            _firestore.collection('NhanVien').where('id_benh_vien', isEqualTo: code).get(),
+            _firestore.collection('NhanVien').where('benh_vien_id', isEqualTo: code).get(),
+            _firestore.collection('NhanVien').where('ma_benh_vien', isEqualTo: code).get(),
+          ];
+          final results = await Future.wait(staffQueries);
+          for (final snap in results) {
+            for (final doc in snap.docs) {
+              await doc.reference.update({
+                'trangThaiHoatDong': true,
+                'chan_dang_nhap': false,
+                'trang_thai_hop_tac_id': 10,
+              });
+            }
           }
         } catch (_) {}
 

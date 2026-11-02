@@ -15,7 +15,7 @@ class Hospital {
   final int? totalReviews;
   final String? phone;
   final String? email;
-  final int? status;
+  int? status;
   bool isBlocked;
   bool isUnpartnered;
   String? blockReason;
