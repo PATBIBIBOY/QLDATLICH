@@ -28,7 +28,7 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
   String _query = '';
   late int _sort;
   String _selectedType = 'all'; // 'all', 'Công lập', 'Tư nhân'
-  int _statusTab = 0; // 0: Đang hợp tác, 1: Bị tạm chặn, 2: Đã hủy hợp tác
+  int _statusTab = 0; // 0: Đang hợp tác, 1: Đã hủy hợp tác
 
   @override
   void initState() {
@@ -232,7 +232,7 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
   }
 
   Widget _buildHospitalItem(BuildContext context, Hospital h) {
-    final isCancelled = h.isUnpartnered || _statusTab == 2;
+    final isCancelled = h.isUnpartnered || _statusTab == 1;
 
     return InkWell(
       onTap: () => Navigator.push(
@@ -249,8 +249,8 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
           border: Border.all(
             color: isCancelled
                 ? kRed.withValues(alpha: 0.35)
-                : (h.isBlocked ? kAmber.withValues(alpha: 0.4) : kBorder),
-            width: (isCancelled || h.isBlocked) ? 1.4 : 1,
+                : kBorder,
+            width: isCancelled ? 1.4 : 1,
           ),
           boxShadow: kCardShadow,
         ),
@@ -310,13 +310,13 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
                             ),
                           ),
                           const Spacer(),
-                          // Huy hiệu trạng thái
+                          // Huy hiệu trạng thái: Chỉ có Đang hợp tác hoặc Đã hủy hợp tác
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                             decoration: BoxDecoration(
                               color: isCancelled
                                   ? kRedBg
-                                  : (h.isBlocked ? kOrangeBg : const Color(0xFFDCFCE7)),
+                                  : const Color(0xFFDCFCE7),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Row(
@@ -325,23 +325,19 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
                                 Icon(
                                   isCancelled
                                       ? Icons.link_off_rounded
-                                      : (h.isBlocked ? Icons.lock_person_rounded : Icons.check_circle_rounded),
+                                      : Icons.check_circle_rounded,
                                   size: 12,
-                                  color: isCancelled
-                                      ? kRed
-                                      : (h.isBlocked ? kAmber : kGreen),
+                                  color: isCancelled ? kRed : kGreen,
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
                                   isCancelled
                                       ? 'Đã hủy hợp tác'
-                                      : (h.isBlocked ? 'Bị tạm chặn' : 'Đang hoạt động'),
+                                      : 'Đang hợp tác',
                                   style: TextStyle(
                                     fontSize: 10.5,
                                     fontWeight: FontWeight.w800,
-                                    color: isCancelled
-                                        ? kRed
-                                        : (h.isBlocked ? kAmber : kGreen),
+                                    color: isCancelled ? kRed : kGreen,
                                   ),
                                 ),
                               ],
@@ -445,15 +441,10 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
     final store = AdminStore.instance;
     final q = _query.trim().toLowerCase();
 
-    // 1. Xác định tập nguồn bệnh viện theo Tab trạng thái
-    List<Hospital> sourceList;
-    if (_statusTab == 2) {
-      sourceList = store.cancelledHospitals;
-    } else if (_statusTab == 1) {
-      sourceList = store.hospitals.where((h) => h.isBlocked).toList();
-    } else {
-      sourceList = store.hospitals.where((h) => !h.isBlocked).toList();
-    }
+    // 1. Xác định tập nguồn bệnh viện theo Tab trạng thái: 0: Đang hợp tác, 1: Đã hủy hợp tác
+    final List<Hospital> sourceList = _statusTab == 1
+        ? store.cancelledHospitals
+        : store.hospitals;
 
     // 2. Lọc theo từ khóa
     List<Hospital> filtered = sourceList.where((h) {
@@ -477,8 +468,7 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
       filtered.sort((a, b) => b.rating.compareTo(a.rating));
     }
 
-    final activeCount = store.hospitals.where((h) => !h.isBlocked).length;
-    final blockedCount = store.hospitals.where((h) => h.isBlocked).length;
+    final activeCount = store.hospitals.length;
     final cancelledCount = store.cancelledHospitals.length;
 
     return Scaffold(
@@ -563,16 +553,14 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
 
                   const SizedBox(height: 10),
 
-                  // HÀNG 1: TABS TRẠNG THÁI HỢP TÁC
+                  // HÀNG 1: TABS TRẠNG THÁI HỢP TÁC (CHỈ CÒN ĐANG HỢP TÁC VÀ ĐÃ HỦY HỢP TÁC)
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
                         _buildStatusTab(0, 'Đang hợp tác', activeCount),
-                        const SizedBox(width: 6),
-                        _buildStatusTab(1, 'Bị tạm chặn', blockedCount),
-                        const SizedBox(width: 6),
-                        _buildStatusTab(2, 'Đã hủy hợp tác', cancelledCount, isDanger: true),
+                        const SizedBox(width: 8),
+                        _buildStatusTab(1, 'Đã hủy hợp tác', cancelledCount, isDanger: true),
                       ],
                     ),
                   ),
@@ -666,14 +654,14 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
-                              _statusTab == 2 ? Icons.link_off_rounded : Icons.search_off_rounded,
+                              _statusTab == 1 ? Icons.link_off_rounded : Icons.search_off_rounded,
                               size: 32,
                               color: kSlate400,
                             ),
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            _statusTab == 2
+                            _statusTab == 1
                                 ? 'Không có bệnh viện nào đã hủy hợp tác'
                                 : 'Không tìm thấy bệnh viện phù hợp',
                             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: kSlate800),

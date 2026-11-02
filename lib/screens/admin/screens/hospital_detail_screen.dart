@@ -123,10 +123,10 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: hospital.isBlocked ? kRedBg : kGreenLight,
+                      color: hospital.isUnpartnered ? kRedBg : kGreenLight,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: hospital.isBlocked
+                        color: hospital.isUnpartnered
                             ? kRed.withValues(alpha: 0.3)
                             : kGreen.withValues(alpha: 0.3),
                       ),
@@ -134,18 +134,18 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
                     child: Row(
                       children: [
                         Icon(
-                          hospital.isBlocked
-                              ? Icons.lock_person_rounded
+                          hospital.isUnpartnered
+                              ? Icons.link_off_rounded
                               : Icons.check_circle_rounded,
                           size: 13,
-                          color: hospital.isBlocked ? kRed : kGreen,
+                          color: hospital.isUnpartnered ? kRed : kGreen,
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          hospital.isBlocked ? 'Đã chặn đăng nhập' : 'Đang hợp tác',
+                          hospital.isUnpartnered ? 'Đã hủy hợp tác' : 'Đang hợp tác',
                           style: TextStyle(
                             fontSize: 11.5,
-                            color: hospital.isBlocked ? kRed : kGreen,
+                            color: hospital.isUnpartnered ? kRed : kGreen,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -339,15 +339,15 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
 
               const SizedBox(height: 24),
 
-              // ============ PHẦN QUẢN LÝ TÀI KHOẢN BỆNH VIỆN ============
+              // ============ PHẦN QUẢN LÝ THỎA THUẬN HỢP TÁC ============
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
-                    color: hospital.isBlocked ? const Color(0xFFFECACA) : kBorder,
-                    width: hospital.isBlocked ? 1.5 : 1,
+                    color: hospital.isUnpartnered ? const Color(0xFFFECACA) : kBorder,
+                    width: hospital.isUnpartnered ? 1.5 : 1,
                   ),
                   boxShadow: kCardShadow,
                 ),
@@ -359,19 +359,21 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
                         Container(
                           padding: const EdgeInsets.all(7),
                           decoration: BoxDecoration(
-                            color: hospital.isBlocked ? kRedBg : kPrimaryLight,
+                            color: hospital.isUnpartnered ? kRedBg : kPrimaryLight,
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Icon(
-                            Icons.admin_panel_settings_rounded,
-                            color: hospital.isBlocked ? kRed : kPrimary,
+                            hospital.isUnpartnered
+                                ? Icons.link_off_rounded
+                                : Icons.handshake_outlined,
+                            color: hospital.isUnpartnered ? kRed : kPrimary,
                             size: 20,
                           ),
                         ),
                         const SizedBox(width: 10),
                         const Expanded(
                           child: Text(
-                            'QUẢN LÝ TÀI KHOẢN CƠ SỞ',
+                            'QUẢN LÝ THỎA THUẬN HỢP TÁC',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w900,
@@ -387,12 +389,12 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: hospital.isBlocked
+                        color: hospital.isUnpartnered
                             ? const Color(0xFFFFF1F2)
                             : const Color(0xFFF0FDF4),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: hospital.isBlocked
+                          color: hospital.isUnpartnered
                               ? const Color(0xFFFDA4AF)
                               : const Color(0xFFBBF7D0),
                         ),
@@ -401,11 +403,11 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Icon(
-                            hospital.isBlocked
-                                ? Icons.lock_rounded
+                            hospital.isUnpartnered
+                                ? Icons.link_off_rounded
                                 : Icons.check_circle_rounded,
                             size: 18,
-                            color: hospital.isBlocked ? kRed : kGreen,
+                            color: hospital.isUnpartnered ? kRed : kGreen,
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -413,26 +415,23 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  hospital.isBlocked
-                                      ? 'Trạng thái: BỊ CHẶN ĐĂNG NHẬP'
-                                      : 'Trạng thái: Đang hoạt động bình thường',
+                                  hospital.isUnpartnered
+                                      ? 'ĐÃ HỦY HỢP TÁC'
+                                      : 'Đang hợp tác với ứng dụng',
                                   style: TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 13,
-                                    color: hospital.isBlocked ? kRed : kGreen,
+                                    color: hospital.isUnpartnered ? kRed : kGreen,
                                   ),
                                 ),
                                 const SizedBox(height: 3),
                                 Text(
-                                  hospital.isBlocked
-                                      ? (hospital.blockReason != null &&
-                                              hospital.blockReason!.isNotEmpty
-                                          ? 'Lý do: ${hospital.blockReason}'
-                                          : 'Bệnh viện không thể đăng nhập hoặc nhận lịch khám mới.')
-                                      : 'Cơ sở được phép đăng nhập cổng quản trị và nhận lịch khám.',
+                                  hospital.isUnpartnered
+                                      ? 'Bệnh viện không còn trong danh sách đối tác và không thể nhận lịch khám mới.'
+                                      : 'Cơ sở đang hợp tác và có thể nhận lịch khám từ ứng dụng.',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: hospital.isBlocked
+                                    color: hospital.isUnpartnered
                                         ? const Color(0xFF9F1239)
                                         : const Color(0xFF166534),
                                     height: 1.3,
@@ -446,15 +445,15 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // NÚT 1: CHẶN HOẶC MỞ CHẶN ĐĂNG NHẬP
-                    if (hospital.isBlocked)
+                    // NÚT: HỦY HOẶC KHÔI PHỤC HỢP TÁC
+                    if (hospital.isUnpartnered)
                       SizedBox(
                         width: double.infinity,
                         height: 44,
                         child: ElevatedButton.icon(
-                          icon: const Icon(Icons.lock_open_rounded, size: 18),
+                          icon: const Icon(Icons.handshake_outlined, size: 18),
                           label: const Text(
-                            'Mở Chặn Đăng Nhập Cho Bệnh Viện',
+                            'Khôi Phục Thỏa Thuận Hợp Tác',
                             style: TextStyle(
                                 fontWeight: FontWeight.w800, fontSize: 13),
                           ),
@@ -465,7 +464,7 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12)),
                           ),
-                          onPressed: () => _showUnblockDialog(context),
+                          onPressed: () => _showRestoreDialog(context),
                         ),
                       )
                     else
@@ -473,52 +472,27 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
                         width: double.infinity,
                         height: 44,
                         child: OutlinedButton.icon(
-                          icon: const Icon(Icons.block_rounded, size: 18),
+                          icon: const Icon(Icons.link_off_rounded, size: 18),
                           label: const Text(
-                            'Chặn Đăng Nhập Bệnh Viện Này',
+                            'Hủy Thỏa Thuận Hợp Tác',
                             style: TextStyle(
                                 fontWeight: FontWeight.w800, fontSize: 13),
                           ),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFFD97706),
+                            foregroundColor: kRed,
                             side: const BorderSide(
-                                color: Color(0xFFFDE68A), width: 1.2),
-                            backgroundColor: const Color(0xFFFFFBEB),
+                                color: Color(0xFFFECACA), width: 1.2),
+                            backgroundColor: const Color(0xFFFFF5F5),
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12)),
                           ),
-                          onPressed: () => _showBlockDialog(context),
+                          onPressed: () => _showCancelPartnershipDialog(context),
                         ),
                       ),
 
                     const SizedBox(height: 10),
 
-                    // NÚT 2: HỦY HỢP TÁC
-                    SizedBox(
-                      width: double.infinity,
-                      height: 44,
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.link_off_rounded, size: 18),
-                        label: const Text(
-                          'Hủy Thỏa Thuận Hợp Tác',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w800, fontSize: 13),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: kRed,
-                          side: const BorderSide(
-                              color: Color(0xFFFECACA), width: 1.2),
-                          backgroundColor: const Color(0xFFFFF5F5),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                        onPressed: () => _showCancelPartnershipDialog(context),
-                      ),
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    // NÚT 3: XÓA VĨNH VIỄN TÀI KHOẢN VÀ DỮ LIỆU
+                    // NÚT: XÓA VĨNH VIỄN TÀI KHOẢN VÀ DỮ LIỆU
                     SizedBox(
                       width: double.infinity,
                       height: 44,
@@ -550,107 +524,22 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
     );
   }
 
-  // --- HỘP THOẠI CHẶN ĐĂNG NHẬP ---
-  void _showBlockDialog(BuildContext context) {
-    final reasonCtrl = TextEditingController(
-      text: 'Vi phạm quy định vận hành hoặc thông tin xác thực chưa hợp lệ.',
-    );
-
+  // --- HỘP THOẠI KHÔI PHỤC HỢP TÁC ---
+  void _showRestoreDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Row(
           children: [
-            Icon(Icons.lock_person_rounded, color: Color(0xFFD97706), size: 24),
+            Icon(Icons.handshake_outlined, color: kGreen, size: 24),
             SizedBox(width: 8),
-            Text('Chặn Đăng Nhập',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Tài khoản của ${widget.hospital.name} sẽ bị khóa và không thể đăng nhập vào ứng dụng:',
-              style: const TextStyle(color: kSlate600, fontSize: 13.5),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reasonCtrl,
-              maxLines: 3,
-              decoration: InputDecoration(
-                labelText: 'Lý do chặn đăng nhập',
-                labelStyle: const TextStyle(fontSize: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                filled: true,
-                fillColor: const Color(0xFFF8FAFC),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy bỏ',
-                style: TextStyle(color: kSlate600, fontWeight: FontWeight.w700)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFD97706),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: () async {
-              final reason = reasonCtrl.text.trim();
-              final messenger = ScaffoldMessenger.of(context);
-
-              // Đóng hộp thoại ngay lập tức
-              Navigator.pop(ctx);
-
-              await AdminStore.instance.blockHospital(
-                widget.hospital,
-                reason.isEmpty ? 'Chặn đăng nhập bởi Quản trị viên' : reason,
-              );
-              if (mounted) setState(() {});
-              final emailNotice = widget.hospital.email != null && widget.hospital.email!.isNotEmpty
-                  ? ' và gửi email tới ${widget.hospital.email}'
-                  : '';
-              messenger.showSnackBar(
-                SnackBar(
-                  content: Text(
-                      'Đã chặn đăng nhập tài khoản ${widget.hospital.name}$emailNotice.'),
-                  backgroundColor: const Color(0xFFD97706),
-                ),
-              );
-            },
-            child: const Text('Xác nhận Chặn'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- HỘP THOẠI MỞ CHẶN ĐĂNG NHẬP ---
-  void _showUnblockDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.lock_open_rounded, color: kGreen, size: 24),
-            SizedBox(width: 8),
-            Text('Mở Chặn Đăng Nhập',
+            Text('Khôi Phục Hợp Tác',
                 style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
           ],
         ),
         content: Text(
-          'Cho phép ${widget.hospital.name} đăng nhập lại hệ thống và tiếp nhận đặt khám bình thường?',
+          'Khôi phục thỏa thuận hợp tác với ${widget.hospital.name}? Bệnh viện sẽ có thể nhận lịch khám trở lại.',
           style: const TextStyle(color: kSlate600, fontSize: 13.5),
         ),
         actions: [
@@ -668,24 +557,18 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
             ),
             onPressed: () async {
               final messenger = ScaffoldMessenger.of(context);
-
-              // Đóng hộp thoại ngay lập tức
               Navigator.pop(ctx);
-
-              await AdminStore.instance.unblockHospital(widget.hospital);
+              await AdminStore.instance.restoreHospitalPartnership(widget.hospital);
               if (mounted) setState(() {});
-              final emailNotice = widget.hospital.email != null && widget.hospital.email!.isNotEmpty
-                  ? ' và gửi email tới ${widget.hospital.email}'
-                  : '';
               messenger.showSnackBar(
                 SnackBar(
                   content: Text(
-                      'Đã mở khóa đăng nhập cho ${widget.hospital.name}$emailNotice!'),
+                      'Đã khôi phục hợp tác với ${widget.hospital.name}.'),
                   backgroundColor: kGreen,
                 ),
               );
             },
-            child: const Text('Mở Khóa Ngay'),
+            child: const Text('Khôi Phục'),
           ),
         ],
       ),
