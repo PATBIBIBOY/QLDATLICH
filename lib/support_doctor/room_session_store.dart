@@ -12,13 +12,38 @@ class RoomSessionSnapshot {
   bool started = false;
 
   /// Số hiện tại và số kế tiếp đang hiển thị ở màn hình hàng chờ.
-  int current = 1;
-  int next = 2;
+  int current = 0;
+  int next = 0;
 
   /// Các số đang đợi (đúng thứ tự sẽ gọi).
   List<int> waiting = <int>[];
 
-  /// Số lớn nhất đã phát ra.
+  /// Các số đã xác nhận vắng mặt trong chế độ lấy số từ lịch hẹn.
+  /// Danh sách này ngăn số vừa ghi vắng mặt bị nạp lại vào hàng chờ
+  /// trong lúc trạng thái lịch hẹn trên Firebase chưa kịp đổi, hoặc
+  /// khi lần ghi trạng thái đó chưa thành công.
+  List<int> absentNumbers = <int>[];
+
+  /// Các số đã xin đợi vừa được chèn lại trong phiên và đang chờ
+  /// Firebase xác nhận lịch hẹn đã trở về trạng thái `2`. Danh sách
+  /// này giữ tạm số trong hàng chờ khi rời phòng rồi mở lại trong lúc
+  /// luồng lịch hẹn vẫn còn thấy trạng thái `7`, hoặc khi lần ghi về
+  /// `2` chưa thành công.
+  List<int> requeuedNumbers = <int>[];
+
+  /// Ánh xạ số thứ tự → mã document lịch hẹn trong phiên. Cần giữ lại
+  /// để khi rời phòng rồi mở lại vẫn ghi được trạng thái cho số đã xin
+  /// đợi (`7`), vì lúc đó luồng lịch hẹn trạng thái `2` không còn phát
+  /// document của số đó nữa.
+  Map<int, String> appointmentIdByNumber = <int, String>{};
+
+  /// Tên bệnh nhân gắn với từng số thứ tự lấy từ lịch hẹn trong phiên.
+  /// Dùng để màn hình hàng chờ hiện đúng tên dưới STT đang khám/số tiếp
+  /// theo, kể cả khi rời phòng rồi mở lại trong cùng phiên.
+  Map<int, String> patientNameByNumber = <int, String>{};
+
+  /// STT lớn nhất đã biết từ danh sách lịch hẹn/phiên; không dùng để
+  /// tự sinh thêm số bệnh nhân.
   int lastIssued = 0;
 
   /// Các số đã bấm "Đợi" (đang chờ chèn lại).
@@ -35,7 +60,7 @@ class RoomSessionSnapshot {
   /// Các lượt chèn đang chờ một số mốc TƯƠNG LAI xuất hiện trong hàng chờ.
   ///
   /// Mỗi phần tử là một số đã cho qua (`number`) cần nằm ngay sau số mốc
-  /// (`afterNumber`) khi hàng chờ sinh tới số mốc đó. Khi số mốc xuất
+  /// (`afterNumber`) khi số mốc xuất hiện trong danh sách lịch hẹn. Khi số mốc xuất
   /// hiện, màn hình hàng chờ chuyển số này vào [waiting] và xoá lịch.
   List<({int number, int afterNumber})> scheduledFutureInserts =
       <({int number, int afterNumber})>[];
@@ -56,7 +81,7 @@ class RoomSessionSnapshot {
   /// Số bệnh nhân đã khám xong.
   int get examinedCount => examinedNumbers.length;
 
-  /// Số hiện tại đang khám (1 nếu phòng chưa mở lần nào).
+  /// Số hiện tại đang khám (0 nếu chưa có bệnh nhân nào được nạp).
   int get currentNumber => current;
 }
 
