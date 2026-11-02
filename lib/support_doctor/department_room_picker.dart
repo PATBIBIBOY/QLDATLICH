@@ -3,21 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../screens/auth/login_screen.dart';
+import '../screens/letan_c1/letan_profile_tab_c1.dart';
 import 'queue_screen.dart';
 import 'room_session_store.dart';
-
-/// Dua nguoi dung ve [LoginScreen] va xoa SACH stack dieu huong,
-/// de khong the bam Back quay lai man hinh vua dang xuat.
-///
-/// Dat ngay trong file nay (thay vi goi tu login_screen.dart) de file chi
-/// can biet duy nhat widget `LoginScreen` — tranh loi
-/// "Undefined name 'goToLoginScreen'" khi ban dung file login_screen rieng.
-Future<void> _goToLoginScreen(NavigatorState navigator) async {
-  await navigator.pushAndRemoveUntil<void>(
-    MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
-    (route) => false,
-  );
-}
 
 /// A reusable screen for choosing a department and then a clinic room.
 ///
@@ -102,7 +90,6 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
       TextEditingController();
   String? _selectedDepartment;
   _RoomFilter _filter = _RoomFilter.all;
-  bool _loggingOut = false;
 
   List<String> get _departments {
     final values = widget.rooms
@@ -218,118 +205,23 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
       );
   }
 
-  /// Hỏi xác nhận (nếu bật), dọn phiên rồi chuyển về màn hình đăng nhập.
-  Future<void> _handleLogout() async {
-    if (_loggingOut) return;
-
-    if (widget.confirmLogout) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+  /// Mở màn hình Hồ sơ cá nhân của nhân viên y tế (đổi mật khẩu, xem thông tin)
+  void _handleOpenProfile() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(
+            title: const Text('Hồ Sơ Hỗ Trợ Bác Sĩ', style: TextStyle(fontWeight: FontWeight.bold)),
+            backgroundColor: Colors.white,
+            foregroundColor: const Color(0xFF0F172A),
+            elevation: 0,
           ),
-          title: Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: const Color(0x14E94B45),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.logout_rounded,
-                  size: 20,
-                  color: Color(0xFFE94B45),
-                ),
-              ),
-              const SizedBox(width: 11),
-              const Expanded(
-                child: Text(
-                  'Đăng xuất?',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: _PickerUi.text,
-                  ),
-                ),
-              ),
-            ],
+          body: LetanProfileTabC1(
+            tenKhoaHienTai: _selectedDepartment ?? widget.initialDepartment,
           ),
-          content: Text(
-            'Bạn sẽ thoát khỏi ${widget.hospitalName}. '
-            'Các phòng đang khám vẫn tiếp tục chạy trên hệ thống.',
-            style: const TextStyle(
-              fontSize: 13,
-              height: 1.45,
-              color: _PickerUi.secondary,
-            ),
-          ),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text(
-                'Huỷ',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: _PickerUi.secondary,
-                ),
-              ),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFE94B45),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 11,
-                ),
-              ),
-              child: Text(
-                widget.logoutLabel,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ],
         ),
-      );
-      if (confirmed != true) return;
-      if (!mounted) return;
-    }
-
-    // Lay Navigator TRUOC cac await de khong dung BuildContext qua async gap.
-    final navigator = Navigator.of(context);
-    setState(() => _loggingOut = true);
-    try {
-      final onLogout = widget.onLogout;
-      if (onLogout != null) {
-        // App bao quanh TU dang xuat va TU chuyen man hinh (thuong la ve
-        // route dang nhap cua app) - widget nay khong dung vao Navigator.
-        await onLogout();
-        return;
-      }
-      if (mounted) _showMessage('Đã đăng xuất.');
-      // Khong co callback: tu ve LoginScreen, xoa sach stack (khong cho
-      // bam Back quay lai).
-      await _goToLoginScreen(navigator);
-    } catch (_) {
-      if (mounted) {
-        _showMessage('Đăng xuất thất bại. Vui lòng thử lại.');
-      }
-    } finally {
-      if (mounted) setState(() => _loggingOut = false);
-    }
+      ),
+    );
   }
 
   @override
@@ -422,9 +314,9 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
                             const SizedBox(width: 10),
                             _PickerLogoutButton(
                               compact: compact,
-                              label: widget.logoutLabel,
-                              busy: _loggingOut,
-                              onTap: _loggingOut ? null : _handleLogout,
+                              label: 'Hồ sơ',
+                              busy: false,
+                              onTap: _handleOpenProfile,
                             ),
                           ],
                         ),
@@ -1045,9 +937,9 @@ class _PickerLogoutButton extends StatelessWidget {
                   )
                 else
                   const Icon(
-                    Icons.logout_rounded,
-                    size: 17,
-                    color: Color(0xFFE94B45),
+                    Icons.account_circle_outlined,
+                    size: 18,
+                    color: Color(0xFF0284C7),
                   ),
                 if (!compact) ...[
                   const SizedBox(width: 6),
@@ -1056,7 +948,7 @@ class _PickerLogoutButton extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFFE94B45),
+                      color: Color(0xFF0284C7),
                     ),
                   ),
                 ],
