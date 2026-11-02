@@ -38,59 +38,64 @@ class CskhBannerTienDoC1 extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              InkWell(
-                onTap: onSelectDate,
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFBAE6FD),
+          Expanded(
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                InkWell(
+                  onTap: onSelectDate,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFBAE6FD),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.calendar_month_rounded, size: 14, color: Color(0xFF0284C7)),
+                        const SizedBox(width: 4),
+                        Text(
+                          ngayHienThi,
+                          style: TextStyle(
+                            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0369A1),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        Icon(
+                          Icons.arrow_drop_down,
+                          size: 16,
+                          color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF0369A1),
+                        ),
+                      ],
                     ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.calendar_month_rounded, size: 14, color: Color(0xFF0284C7)),
-                      const SizedBox(width: 4),
-                      Text(
-                        ngayHienThi,
-                        style: TextStyle(
-                          color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0369A1),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(width: 2),
-                      Icon(
-                        Icons.arrow_drop_down,
-                        size: 16,
-                        color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF0369A1),
-                      ),
-                    ],
+                ),
+                Text(
+                  'Chờ: $choDuyet/$tong',
+                  style: TextStyle(
+                    color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0369A1),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'Chờ: $choDuyet/$tong',
-                style: TextStyle(
-                  color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0369A1),
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
+          const SizedBox(width: 6),
           Text(
             '✓ = Duyệt • ✕ = Từ chối',
             style: TextStyle(
               color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-              fontSize: 11.5,
+              fontSize: 11,
               fontWeight: FontWeight.w500,
             ),
           ),
