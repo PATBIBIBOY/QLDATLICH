@@ -137,7 +137,9 @@ class _LetanThietlapThongtinScreenC1State extends State<LetanThietlapThongtinScr
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const ClinicRoomPickerScreen(),
+          builder: (_) => ClinicRoomPickerScreen(
+            hospitalName: DuLieuProfileMauC1.thongTinHienTai.tenBenhVien,
+          ),
         ),
       );
     } else {
