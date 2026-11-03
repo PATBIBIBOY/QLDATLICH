@@ -21,7 +21,7 @@ class HospitalProvider with ChangeNotifier {
   int _currentFilteredCount = 0;
   int _fetchToken = 0;
   String? _locationMessage; // Thông báo vị trí đang dùng (GPS hoặc đã lưu)
-  
+
   // ✅ Danh sách ID chuyên khoa đang được chọn để lọc
   List<String> _selectedSpecialtyIds = [];
 
@@ -68,7 +68,7 @@ class HospitalProvider with ChangeNotifier {
   double get currentMaxRating => _currentMaxRating;
   double? get currentMinDistance => _currentMinDistance;
   double? get currentMaxDistance => _currentMaxDistance;
-  
+
   // ✅ Getter cho danh sách ID chuyên khoa
   List<String> get selectedSpecialtyIds => _selectedSpecialtyIds;
 
@@ -88,6 +88,7 @@ class HospitalProvider with ChangeNotifier {
       // 2. Lấy tổng số lượng bệnh viện đang hợp tác
       _totalHospitalCount = await _service.getFilteredHospitalCount() ?? 0;
       _currentFilteredCount = _totalHospitalCount;
+      debugPrint(_currentFilteredCount.toString());
 
       // 3. ✅ QUAN TRỌNG: Đặt về giá trị mặc định để hiển thị TẤT CẢ
       _selectedCoSoId = null;
@@ -113,71 +114,51 @@ class HospitalProvider with ChangeNotifier {
   // 6. HÀM TẢI VÀ LỌC DỮ LIỆU
   // ==========================================
   Future<void> fetchAndFilterHospitals({
-  String? coSoId,
-  String? bhytId,
-  double? minRating,
-  double? maxRating,
-  double? minDistance,
-  double? maxDistance,
-  List<String>? specialtyIds,
-}) async {
-  // Cập nhật bộ lọc nếu có giá trị mới truyền vào
-  if (coSoId != null) _selectedCoSoId = coSoId;
-  if (bhytId != null) _selectedBhytId = bhytId;
-  if (minRating != null) _currentMinRating = minRating;
-  if (maxRating != null) _currentMaxRating = maxRating;
-  if (minDistance != null) _currentMinDistance = minDistance;
-  if (maxDistance != null) _currentMaxDistance = maxDistance;
-  if (specialtyIds != null) _selectedSpecialtyIds = specialtyIds;
- 
-  // Mỗi lần gọi có 1 "số thứ tự". Kết quả của lần gọi cũ (về trễ) sẽ bị bỏ.
-  final token = ++_fetchToken;
- 
-  _isLoading = true;
-  _errorMessage = null;
-  _hospitals.clear();
-  _lastDocument = null;
-  _hasMore = true;
-  notifyListeners();
- 
-  try {
-    final minRatingArg = _currentMinRating > 0 ? _currentMinRating : null;
-    final maxRatingArg = _currentMaxRating < 5.0 ? _currentMaxRating : null;
- 
-    final hasDistanceFilter =
-        (_currentMinDistance ?? 0) > 0 || (_currentMaxDistance ?? 50) < 50;
- 
-    // ✅ Có bộ lọc nào đang bật không?
-    final hasAnyFilter = hasDistanceFilter ||
-        (_selectedCoSoId ?? '').isNotEmpty ||
-        (_selectedBhytId ?? '').isNotEmpty ||
-        minRatingArg != null ||
-        maxRatingArg != null ||
-        _selectedSpecialtyIds.isNotEmpty;
- 
-    // 1. Lấy trang đầu tiên
-    final first = await _service.getHospitalsPage(
-      coSoId: _selectedCoSoId,
-      bhytId: _selectedBhytId,
-      minRating: minRatingArg,
-      maxRating: maxRatingArg,
-      savedUserLocation: _userSavedLocation,
-      minDistance: _currentMinDistance,
-      maxDistance: _currentMaxDistance,
-      specialtyIds: _selectedSpecialtyIds,
-      lastDocument: null,
-    );
-    if (token != _fetchToken) return;
- 
-    final hospitals = List.of(first.hospitals);
-    var lastDoc = first.lastDocument;
-    var hasMore = first.hasMore;
-    _locationMessage = first.locationSourceMessage;
- 
-    // 2. ✅ Đang lọc -> tải hết các trang còn lại để hiện ĐỦ kết quả
-    var guard = 0; // chống lặp vô hạn
-    while (hasAnyFilter && hasMore && guard++ < 100) {
-      final next = await _service.getHospitalsPage(
+    String? coSoId,
+    String? bhytId,
+    double? minRating,
+    double? maxRating,
+    double? minDistance,
+    double? maxDistance,
+    List<String>? specialtyIds,
+  }) async {
+    // Cập nhật bộ lọc nếu có giá trị mới truyền vào
+    if (coSoId != null) _selectedCoSoId = coSoId;
+    if (bhytId != null) _selectedBhytId = bhytId;
+    if (minRating != null) _currentMinRating = minRating;
+    if (maxRating != null) _currentMaxRating = maxRating;
+    if (minDistance != null) _currentMinDistance = minDistance;
+    if (maxDistance != null) _currentMaxDistance = maxDistance;
+    if (specialtyIds != null) _selectedSpecialtyIds = specialtyIds;
+
+    // Mỗi lần gọi có 1 "số thứ tự". Kết quả của lần gọi cũ (về trễ) sẽ bị bỏ.
+    final token = ++_fetchToken;
+
+    _isLoading = true;
+    _errorMessage = null;
+    _hospitals.clear();
+    _lastDocument = null;
+    _hasMore = true;
+    notifyListeners();
+
+    try {
+      final minRatingArg = _currentMinRating > 0 ? _currentMinRating : null;
+      final maxRatingArg = _currentMaxRating < 5.0 ? _currentMaxRating : null;
+
+      final hasDistanceFilter =
+          (_currentMinDistance ?? 0) > 0 || (_currentMaxDistance ?? 50) < 50;
+
+      // ✅ Có bộ lọc nào đang bật không?
+      final hasAnyFilter =
+          hasDistanceFilter ||
+          (_selectedCoSoId ?? '').isNotEmpty ||
+          (_selectedBhytId ?? '').isNotEmpty ||
+          minRatingArg != null ||
+          maxRatingArg != null ||
+          _selectedSpecialtyIds.isNotEmpty;
+
+      // 1. Lấy trang đầu tiên
+      final first = await _service.getHospitalsPage(
         coSoId: _selectedCoSoId,
         bhytId: _selectedBhytId,
         minRating: minRatingArg,
@@ -186,50 +167,71 @@ class HospitalProvider with ChangeNotifier {
         minDistance: _currentMinDistance,
         maxDistance: _currentMaxDistance,
         specialtyIds: _selectedSpecialtyIds,
-        lastDocument: lastDoc,
+        lastDocument: null,
       );
       if (token != _fetchToken) return;
- 
-      hospitals.addAll(next.hospitals);
-      final noProgress = next.lastDocument == null || next.lastDocument == lastDoc;
-      lastDoc = next.lastDocument ?? lastDoc;
-      hasMore = next.hasMore && !noProgress;
-    }
- 
-    // 3. Tính tổng số
-    int total;
-    if (!hasMore) {
-      // Đã tải hết -> số lượng chính xác 100% (đúng cả khi lọc khoảng cách)
-      total = hospitals.length;
-    } else {
-      // Không lọc, còn trang sau -> hỏi server tổng số
-      final serverCount = await _service.getFilteredHospitalCount(
-        coSoId: _selectedCoSoId,
-        bhytId: _selectedBhytId,
-        minRating: minRatingArg,
-        maxRating: maxRatingArg,
-        specialtyIds:
-            _selectedSpecialtyIds.isNotEmpty ? _selectedSpecialtyIds : null,
-      );
-      if (token != _fetchToken) return;
-      total = (serverCount == null || serverCount < hospitals.length)
-          ? hospitals.length
-          : serverCount;
-    }
- 
-    _hospitals = hospitals;
-    _lastDocument = lastDoc;
-    _hasMore = hasMore;
-    _currentFilteredCount = total;
-  } catch (e) {
-    if (token == _fetchToken) _errorMessage = e.toString();
-  } finally {
-    if (token == _fetchToken) {
-      _isLoading = false;
-      notifyListeners();
+
+      final hospitals = List.of(first.hospitals);
+      var lastDoc = first.lastDocument;
+      var hasMore = first.hasMore;
+      _locationMessage = first.locationSourceMessage;
+
+      var guard = 0; // chống lặp vô hạn
+      while (hasAnyFilter && hasMore && guard++ < 100) {
+        final next = await _service.getHospitalsPage(
+          coSoId: _selectedCoSoId,
+          bhytId: _selectedBhytId,
+          minRating: minRatingArg,
+          maxRating: maxRatingArg,
+          savedUserLocation: _userSavedLocation,
+          minDistance: _currentMinDistance,
+          maxDistance: _currentMaxDistance,
+          specialtyIds: _selectedSpecialtyIds,
+          lastDocument: lastDoc,
+        );
+        if (token != _fetchToken) return;
+
+        hospitals.addAll(next.hospitals);
+        final noProgress =
+            next.lastDocument == null || next.lastDocument == lastDoc;
+        lastDoc = next.lastDocument ?? lastDoc;
+        hasMore = next.hasMore && !noProgress;
+      }
+
+      // 3. Tính tổng số
+      int total;
+      if (!hasMore) {
+        total = hospitals.length;
+      } else {
+        // Không lọc, còn trang sau -> hỏi server tổng số
+        final serverCount = await _service.getFilteredHospitalCount(
+          coSoId: _selectedCoSoId,
+          bhytId: _selectedBhytId,
+          minRating: minRatingArg,
+          maxRating: maxRatingArg,
+          specialtyIds: _selectedSpecialtyIds.isNotEmpty
+              ? _selectedSpecialtyIds
+              : null,
+        );
+        if (token != _fetchToken) return;
+        total = (serverCount == null || serverCount < hospitals.length)
+            ? hospitals.length
+            : serverCount;
+      }
+
+      _hospitals = hospitals;
+      _lastDocument = lastDoc;
+      _hasMore = hasMore;
+      _currentFilteredCount = total;
+    } catch (e) {
+      if (token == _fetchToken) _errorMessage = e.toString();
+    } finally {
+      if (token == _fetchToken) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
-}
 
   // ==========================================
   // 7. CÁC HÀM CẬP NHẬT TRẠNG THÁI (SETTERS)
@@ -295,7 +297,8 @@ class HospitalProvider with ChangeNotifier {
         savedUserLocation: _userSavedLocation,
         minDistance: _currentMinDistance,
         maxDistance: _currentMaxDistance,
-        specialtyIds: _selectedSpecialtyIds, // ✅ Giữ nguyên bộ lọc chuyên khoa khi load thêm
+        specialtyIds:
+            _selectedSpecialtyIds, // ✅ Giữ nguyên bộ lọc chuyên khoa khi load thêm
         lastDocument: _lastDocument,
       );
 

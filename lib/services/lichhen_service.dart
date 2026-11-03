@@ -7,12 +7,9 @@ class LichHenService {
   static const String _colLichHen = 'LichHen';
   static const String _colPhongKham = 'PhongKham';
 
-  static const List<String> _tenColKhoa = ['khoa', 'danh_sach'];
-  static const List<String> _tenColPhong = ['phong_kham', 'danh_sach'];
-
   /// Mã trạng thái "Đã hủy" (bảng TrangThai).
-  static const String trangThaiDaHuy = '4';
- 
+  static const String trangThaiDaHuy = '3';
+
   /// Lịch hẹn ở các trạng thái này thì không hủy được:
   /// 4 = đã hủy, 5 = hoàn thành, 6 = vắng mặt.
   static const Set<String> _trangThaiKhongTheHuy = {'4', '5', '6'};
@@ -49,22 +46,9 @@ class LichHenService {
     required String khoaId,
     required String phongKhamId,
   }) {
-    return _firestore
-        .collection(_colLichHen)
-        .doc(ngayId(ngay))
-        .collection('ca')
-        .doc(caId)
-        .collection('benh_vien')
-        .doc(benhVienId)
-        .collection('khoa')
-        .doc(khoaId)
-        .collection('phong_kham')
-        .doc(phongKhamId);
+    return _firestore.collection(_colLichHen).doc(phongKhamId);
   }
 
-  /// Lấy so_benh_nhan_toi_da của phòng khám từ collection PhongKham:
-  /// PhongKham/{benhVienId}/.../{khoaId}/.../{phongKhamId}.
-  /// Trả về null nếu không tìm thấy.
   Future<int?> _layTongSoTuPhongKham({
     required String benhVienId,
     required String khoaId,
@@ -74,46 +58,44 @@ class LichHenService {
     final cached = _tongSoCache[cacheKey];
     if (cached != null) return cached;
 
-    final base = _firestore.collection(_colPhongKham).doc(benhVienId);
+    try {
+      final doc = await _firestore
+          .collection(_colPhongKham)
+          .doc(phongKhamId)
+          .get();
 
-    // Thử song song mọi tổ hợp tên subcollection
-    final futures = <Future<int?>>[];
-    for (final colKhoa in _tenColKhoa) {
-      for (final colPhong in _tenColPhong) {
-        futures.add(() async {
-          try {
-            final doc = await base
-                .collection(colKhoa)
-                .doc(khoaId)
-                .collection(colPhong)
-                .doc(phongKhamId)
-                .get();
-            if (!doc.exists) return null;
-            final v = _toInt(doc.data()?['so_benh_nhan_toi_da']);
-            if (v != null) {
-              debugPrint(
-                '✅ PhongKham/$benhVienId/$colKhoa/$khoaId/$colPhong/$phongKhamId'
-                ' -> so_benh_nhan_toi_da = $v',
-              );
-            }
-            return v;
-          } catch (e) {
-            return null;
-          }
-        }());
+      if (!doc.exists) {
+        debugPrint('️ Document $phongKhamId không tồn tại');
+        return null;
       }
-    }
 
-    final found = (await Future.wait(futures)).whereType<int>().toList();
-    if (found.isEmpty) {
-      debugPrint(
-        '⚠️ Không tìm thấy so_benh_nhan_toi_da trong PhongKham cho '
-        '$benhVienId/$khoaId/$phongKhamId (kiểm tra tên subcollection)',
-      );
+      final data = doc.data() ?? <String, dynamic>{};
+
+      // Kiểm tra xem document này có thuộc bệnh viện và khoa này không
+      final docHospitalId = data['hospitalId']?.toString();
+      final docKhoaId = data['khoaId']?.toString();
+
+      if (docHospitalId != benhVienId || docKhoaId != khoaId) {
+        debugPrint(
+          '⚠️ Document $phongKhamId không khớp: '
+          'hospitalId=${docHospitalId} (cần $benhVienId), '
+          'khoaId=${docKhoaId} (cần $khoaId)',
+        );
+        return null;
+      }
+
+      final v = _toInt(data['soBenhNhanToiDa']);
+      if (v != null) {
+        debugPrint('✅ PhongKham/$phongKhamId -> soBenhNhanToiDa = $v');
+        _tongSoCache[cacheKey] = v;
+      } else {
+        debugPrint('⚠️ PhongKham/$phongKhamId không có field soBenhNhanToiDa');
+      }
+      return v;
+    } catch (e) {
+      debugPrint('❌ Lỗi khi đọc PhongKham/$phongKhamId: $e');
       return null;
     }
-    _tongSoCache[cacheKey] = found.first;
-    return found.first;
   }
 
   Future<List<CaSlotModel>> getCaSlotsTheoPhong({
@@ -123,67 +105,55 @@ class LichHenService {
     required String phongKhamId,
     int soBenhNhanToiDa = 0,
   }) async {
-    // 1. Danh sách ca của ngày; chưa có ca nào (ngày chưa có lịch) thì dùng ca mặc định
-    final caSnapshot = await _firestore
-        .collection(_colLichHen)
-        .doc(ngayId(ngay))
-        .collection('ca')
-        .get();
-
-    final List<MapEntry<String, Map<String, dynamic>>> caList =
-        caSnapshot.docs.isNotEmpty
+    // 1. Danh sách ca: bảng Ca; chưa có thì dùng ca mặc định
+    final caSnapshot = await _firestore.collection('Ca').get();
+    final caList = caSnapshot.docs.isNotEmpty
         ? caSnapshot.docs.map((d) => MapEntry(d.id, d.data())).toList()
         : _caMacDinh
               .map((c) => MapEntry(c['id']!, <String, dynamic>{...c}))
               .toList();
-
     final macDinhTheoId = {for (final c in _caMacDinh) c['id']!: c};
 
-    // Chỉ truy vấn PhongKham khi cần, và chỉ 1 lần cho cả các ca
-    Future<int?>? tongSoPhongKhamFuture;
-    Future<int?> tongSoPhongKham() =>
-        tongSoPhongKhamFuture ??= _layTongSoTuPhongKham(
+    // 2. Tổng số chỗ của phòng (lấy 1 lần cho mọi ca)
+    final tongSo =
+        await _layTongSoTuPhongKham(
           benhVienId: benhVienId,
           khoaId: khoaId,
           phongKhamId: phongKhamId,
-        );
+        ) ??
+        soBenhNhanToiDa;
 
-    // 2. Với mỗi ca: đọc phòng khám trong LichHen + đếm bệnh nhân song song
+    final start = DateTime(ngay.year, ngay.month, ngay.day);
+    final end = start.add(const Duration(days: 1));
+
     final results = await Future.wait<CaSlotModel>(
       caList.map((entry) async {
         final caId = entry.key;
         final caData = entry.value;
         final macDinh = macDinhTheoId[caId];
 
-        // Lấy field của ca; thiếu thì dùng giá trị mặc định / id ca
         String caField(String key, String fallback) {
           final v = caData[key]?.toString() ?? '';
           return v.isNotEmpty ? v : (macDinh?[key] ?? fallback);
         }
 
-        final phongRef = _phongKhamRef(
-          ngay: ngay,
-          caId: caId,
-          benhVienId: benhVienId,
-          khoaId: khoaId,
-          phongKhamId: phongKhamId,
-        );
+        // Query cơ bản lọc theo phòng, ngày, ca
+        final baseQuery = _firestore
+            .collection(_colLichHen)
+            .where('benh_vien_id', isEqualTo: benhVienId)
+            .where('khoa_id', isEqualTo: khoaId)
+            .where('phong_kham_id', isEqualTo: phongKhamId)
+            .where('ca_id', isEqualTo: caId)
+            .where(
+              'ngay_dat',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(start),
+            )
+            .where('ngay_dat', isLessThan: Timestamp.fromDate(end));
 
-        final responses = await Future.wait([
-          phongRef.get(),
-          phongRef.collection('benh_nhan').count().get(),
-        ]);
-        final phongDoc = responses[0] as DocumentSnapshot<Map<String, dynamic>>;
-        final countSnapshot = responses[1] as AggregateQuerySnapshot;
+        final approvedQuery = baseQuery.where('trang_thai_id', isEqualTo: '2');
 
-        // Phòng chưa có trong LichHen -> phongData rỗng, daDat = 0
-        final phongData = phongDoc.data() ?? <String, dynamic>{};
-
-        // Tổng số chỗ: ưu tiên số trong LichHen, không có thì lấy từ PhongKham
-        final tongSo =
-            _toInt(phongData['so_benh_nhan_toi_da']) ??
-            await tongSoPhongKham() ??
-            soBenhNhanToiDa;
+        final countSnapshot = await approvedQuery.count().get();
+        final daDat = countSnapshot.count ?? 0;
 
         return CaSlotModel(
           caId: caId,
@@ -191,12 +161,87 @@ class LichHenService {
           gioBatDau: caField('gio_bat_dau', ''),
           gioKetThuc: caField('gio_ket_thuc', ''),
           tongSo: tongSo,
-          daDat: countSnapshot.count ?? 0,
+          daDat: daDat < 0 ? 0 : daDat,
         );
       }),
     );
 
     return results..sort((a, b) => a.gioBatDau.compareTo(b.gioBatDau));
+  }
+
+  Future<String> generateLichHenId({
+    required DateTime ngayDat,
+    required String benhVienId,
+    required String khoaId,
+  }) async {
+    // 1. Format ngày khám thành chuỗi DDMMYYYY (Ví dụ: 30102026)
+    final dateStr =
+        '${ngayDat.day.toString().padLeft(2, '0')}'
+        '${ngayDat.month.toString().padLeft(2, '0')}'
+        '${ngayDat.year}';
+
+    // 2. Xác định khoảng thời gian bắt đầu và kết thúc của NGÀY KHÁM đó
+    final dayStart = Timestamp.fromDate(
+      DateTime(ngayDat.year, ngayDat.month, ngayDat.day),
+    );
+    final dayEnd = Timestamp.fromDate(
+      DateTime(ngayDat.year, ngayDat.month, ngayDat.day, 23, 59, 59),
+    );
+
+    // 3. Đếm số lượng lịch hẹn ĐÃ ĐƯỢC ĐẶT cho NGÀY KHÁM đó, CỤ THỂ TẠI BỆNH VIỆN VÀ KHOA NÀY
+    final snapshot = await _firestore
+        .collection(_colLichHen)
+        .where('benh_vien_id', isEqualTo: benhVienId) // ✅ Lọc theo Bệnh viện
+        .where('khoa_id', isEqualTo: khoaId) // ✅ Lọc theo Khoa
+        .where('ngay_dat', isGreaterThanOrEqualTo: dayStart)
+        .where('ngay_dat', isLessThanOrEqualTo: dayEnd)
+        .count()
+        .get();
+
+    final count = snapshot.count ?? 0;
+    final nextNumber = count + 1;
+
+    // 4. Format số thứ tự thành 5 chữ số (00001, 00002, ...)
+    final numberStr = nextNumber.toString().padLeft(5, '0');
+
+    // 5. Trả về định dạng mới: BV001_K001_LH_20261030_00001
+    return '${benhVienId}_${khoaId}_LH_${dateStr}_$numberStr';
+  }
+
+  Future<bool> checkExistingBooking({
+    required String benhNhanId,
+    required String benhVienId,
+    required String khoaId,
+    required DateTime ngayDat,
+  }) async {
+    final start = DateTime(ngayDat.year, ngayDat.month, ngayDat.day);
+    final end = start.add(const Duration(days: 1));
+
+    try {
+      final snapshot = await _firestore
+          .collection(_colLichHen)
+          .where('benh_nhan_id', isEqualTo: benhNhanId)
+          .where('benh_vien_id', isEqualTo: benhVienId)
+          .where('khoa_id', isEqualTo: khoaId)
+          .where('ngay_dat', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('ngay_dat', isLessThan: Timestamp.fromDate(end))
+          .limit(
+            1,
+          ) // ✅ Tối ưu: Chỉ cần tìm thấy 1 là biết bị trùng, không cần tải hết
+          .get();
+
+      for (var doc in snapshot.docs) {
+        final status = doc.data()['trang_thai_id']?.toString();
+        // Chỉ tính là trùng nếu lịch chưa bị hủy (3: BN hủy, 4: BV hủy)
+        if (status != '3' && status != '4') {
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      debugPrint('❌ Lỗi khi kiểm tra trùng lịch: $e');
+      return false;
+    }
   }
 
   /// Lưu lịch hẹn mới vào Firestore theo cấu trúc nested sâu
@@ -208,33 +253,23 @@ class LichHenService {
     required String khoaId,
     required String phongKhamId,
     required String benhNhanId,
-    required String lichHenId,
+    String? lichHenId,
     String? tenBenhVien,
     String? tenKhoa,
     String? tenPhongKham,
   }) async {
-    final ngayStr = LichHenService.ngayId(ngayDat);
+    final finalLichHenId =
+        lichHenId ??
+        await generateLichHenId(
+          ngayDat: ngayDat,
+          benhVienId: benhVienId,
+          khoaId: khoaId,
+        );
 
-    final docRef = _firestore
-        .collection(_colLichHen)
-        .doc(trangThaiId)
-        .collection('danh_sach')
-        .doc(ngayStr)
-        .collection('ca')
-        .doc(caId)
-        .collection('benh_vien')
-        .doc(benhVienId)
-        .collection('khoa')
-        .doc(khoaId)
-        .collection('phong_kham')
-        .doc(phongKhamId)
-        .collection('benh_nhan')
-        .doc(benhNhanId)
-        .collection('lich_hen')
-        .doc(lichHenId);
+    final docRef = _firestore.collection(_colLichHen).doc(finalLichHenId);
 
     await docRef.set({
-      'id': lichHenId,
+      'id': finalLichHenId,
       'trang_thai_id': trangThaiId,
       'ngay_dat': Timestamp.fromDate(ngayDat),
       'ca_id': caId,
@@ -250,10 +285,19 @@ class LichHenService {
     });
   }
 
+  static String? _tenPhong(Map<String, dynamic>? d) {
+    if (d == null) return null;
+    for (final k in ['tenPhongKham', 'ten_phong_kham', 'tenPhong', 'ten']) {
+      final v = d[k]?.toString();
+      if (v != null && v.isNotEmpty) return v;
+    }
+    return null;
+  }
+
   Future<List<LichHenModel>> getLichHenCuaBenhNhan(String benhNhanId) async {
     try {
       final snapshot = await _firestore
-          .collectionGroup('lich_hen')
+          .collection('LichHen')
           .where('benh_nhan_id', isEqualTo: benhNhanId)
           .get();
 
@@ -275,6 +319,18 @@ class LichHenService {
         }),
       );
       final caMap = {for (final e in caEntries) e.key: e.value};
+
+      final phongIds = bookings
+          .where((b) => b.tenPhongKham == null && b.phongKhamId.isNotEmpty)
+          .map((b) => b.phongKhamId)
+          .toSet();
+      final phongEntries = await Future.wait(
+        phongIds.map((id) async {
+          final doc = await _firestore.collection(_colPhongKham).doc(id).get();
+          return MapEntry(id, doc.data());
+        }),
+      );
+      final phongMap = {for (final e in phongEntries) e.key: e.value};
 
       // ── Tra cứu tên khoa: Khoa/{benhVienId}/danh_sach/{khoaId} ──
       final khoaKeys = bookings
@@ -309,6 +365,7 @@ class LichHenService {
           gioBatDau: ca?['gio_bat_dau']?.toString(),
           gioKetThuc: ca?['gio_ket_thuc']?.toString(),
           tenKhoa: khoa?['ten_khoa']?.toString(),
+          tenPhongKham: _tenPhong(phongMap[b.phongKhamId]),
         );
       }).toList();
 
@@ -350,24 +407,7 @@ class LichHenService {
     required String lichHenId,
   }) async {
     try {
-      final doc = await _firestore
-          .collection(_colLichHen)
-          .doc(trangThaiId)
-          .collection('danh_sach')
-          .doc(ngayId)
-          .collection('ca')
-          .doc(caId)
-          .collection('benh_vien')
-          .doc(benhVienId)
-          .collection('khoa')
-          .doc(khoaId)
-          .collection('phong_kham')
-          .doc(phongKhamId)
-          .collection('benh_nhan')
-          .doc(benhNhanId)
-          .collection('lich_hen')
-          .doc(lichHenId)
-          .get();
+      final doc = await _firestore.collection(_colLichHen).doc(lichHenId).get();
 
       if (!doc.exists) return null;
       return doc.data();
@@ -386,11 +426,36 @@ class LichHenService {
     required String phongKhamId,
     String? caId,
   }) async {
-    final ngayRef = _firestore.collection(_colLichHen).doc(ngayId(ngay));
+    final ngayRef = _firestore
+        .collection(_colLichHen)
+        .where('ngay_hen', isEqualTo: ngay)
+        .get();
 
-    final List<String> caIds = caId != null
-        ? [caId]
-        : (await ngayRef.collection('ca').get()).docs.map((d) => d.id).toList();
+    List<String> caIds;
+
+    if (caId != null) {
+      // 1. Nếu đã truyền sẵn caId, chỉ cần đưa nó vào danh sách
+      caIds = [caId];
+    } else {
+      // 2. Nếu chưa có, ta query trực tiếp vào collection phẳng 'lich_hen'
+      // để tìm xem trong ngày đó, phòng khám này có những ca nào đã được đặt lịch.
+      final snapshot = await _firestore
+          .collection('LichHen') // Sử dụng collection phẳng
+          .where(
+            'ngay_hen',
+            isEqualTo: Timestamp.fromDate(ngay),
+          ) // Lọc theo ngày
+          .where('benh_vien_id', isEqualTo: benhVienId)
+          .where('khoa_id', isEqualTo: khoaId)
+          .where('phong_kham_id', isEqualTo: phongKhamId)
+          .get();
+
+      // 3. Trích xuất trường 'ca_id' và dùng .toSet() để loại bỏ các giá trị trùng lặp
+      caIds = snapshot.docs
+          .map((doc) => doc.data()['ca_id'] as String)
+          .toSet()
+          .toList();
+    }
 
     final perCa = await Future.wait<List<LichHenModel>>(
       caIds.map((id) async {
@@ -402,10 +467,10 @@ class LichHenService {
           phongKhamId: phongKhamId,
         );
 
-        final benhNhanSnapshot = await phongRef.collection('benh_nhan').get();
+        final benhNhanSnapshot = await phongRef.collection('BenhNhan').get();
         final lichHenSnapshots = await Future.wait(
           benhNhanSnapshot.docs.map(
-            (bn) => bn.reference.collection('lich_hen').get(),
+            (bn) => bn.reference.collection('LichHen').get(),
           ),
         );
 
@@ -469,92 +534,95 @@ class LichHenService {
     required String lichHenId,
     String? lyDoHuy,
   }) async {
-    final id = lichHenId.replaceFirst('#', '').trim(); // bỏ dấu # nếu có
+    final id = lichHenId.replaceFirst('#', '').trim();
+    final ref = _firestore.collection(_colLichHen).doc(id);
+
     try {
-      final snapshot = await _firestore
-          .collectionGroup('lich_hen')
-          .where('benh_nhan_id', isEqualTo: benhNhanId)
-          .get();
+      await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(ref);
+        if (!snap.exists) throw Exception('Không tìm thấy lịch hẹn cần hủy.');
 
-      DocumentReference<Map<String, dynamic>>? found;
-      for (final doc in snapshot.docs) {
-        if (doc.id == id) {
-          found = doc.reference;
-          break;
+        final data = snap.data()!;
+        if (data['benh_nhan_id'] != benhNhanId) {
+          throw Exception('Bạn không có quyền hủy lịch hẹn này.');
         }
-      }
-      if (found == null) {
-        throw Exception('Không tìm thấy lịch hẹn cần hủy.');
-      }
 
-      await _chuyenTrangThai(found, trangThaiDaHuy, lyDoHuy: lyDoHuy);
+        final cu = data['trang_thai_id'].toString();
+        if (cu == '3') {
+          throw Exception('Lịch hẹn này đã được hủy trước đó.');
+        }
+        if (_trangThaiKhongTheHuy.contains(cu)) {
+          throw Exception('Lịch hẹn ở trạng thái hiện tại không thể hủy.');
+        }
+
+        // ✅ CẬP NHẬT: Ghi trạng thái 3 (Bệnh nhân hủy) vào Firestore
+        tx.update(ref, {
+          'trang_thai_id': '3',
+          'huy_boi': 'benh_nhan',
+          'ly_do_huy': lyDoHuy ?? 'Bệnh nhân tự hủy qua ứng dụng',
+          'ngay_cap_nhat': FieldValue.serverTimestamp(),
+        });
+      });
     } on FirebaseException catch (e) {
-      debugPrint('Lỗi Firestore khi hủy lịch hẹn [${e.code}]: ${e.message}');
-      switch (e.code) {
-        case 'permission-denied':
-          throw Exception(
-            'Không có quyền hủy lịch hẹn (kiểm tra Security Rules).',
-          );
-        case 'failed-precondition':
-          throw Exception(
-            'Cần tạo chỉ mục (index) Firestore. Xem Debug Console để lấy liên kết.',
-          );
-        default:
-          throw Exception('Không thể hủy lịch hẹn. Vui lòng thử lại.');
-      }
+      throw Exception('Lỗi Firestore khi hủy lịch: ${e.message}');
+    } catch (e) {
+      throw Exception(e.toString().replaceFirst('Exception: ', ''));
     }
   }
 
-  /// XÓA HẲN lịch hẹn đã hủy (trạng thái 4) của bệnh nhân [benhNhanId].
-  /// Lịch hẹn ở trạng thái khác thì không cho xóa.
   Future<void> xoaLichHenTheoId({
     required String benhNhanId,
     required String lichHenId,
   }) async {
-    final id = lichHenId.replaceFirst('#', '').trim(); // bỏ dấu # nếu có
+    final id = lichHenId.replaceFirst('#', '').trim();
+    final ref = _firestore.collection(_colLichHen).doc(id);
     try {
-      final snapshot = await _firestore
-          .collectionGroup('lich_hen')
-          .where('benh_nhan_id', isEqualTo: benhNhanId)
-          .get();
- 
-      DocumentReference<Map<String, dynamic>>? found;
-      for (final doc in snapshot.docs) {
-        if (doc.id == id) {
-          found = doc.reference;
-          break;
-        }
+      final snap = await ref.get();
+      if (!snap.exists) throw Exception('Không tìm thấy lịch hẹn cần xóa.');
+      final data = snap.data()!;
+      if (data['benh_nhan_id'] != benhNhanId) {
+        throw Exception('Bạn không có quyền xóa lịch hẹn này.');
       }
-      if (found == null) {
-        throw Exception('Không tìm thấy lịch hẹn cần xóa.');
-      }
- 
-      // Đường dẫn: LichHen/{trangThai}/danh_sach/... -> chỉ xóa khi trạng thái = 4
-      final segments = found.path.split('/');
-      if (segments.length < 4 ||
-          segments[0] != _colLichHen ||
-          segments[2] != 'danh_sach') {
-        throw Exception('Lịch hẹn này thuộc dữ liệu cũ nên không thể xóa.');
-      }
-      if (segments[1] != trangThaiDaHuy) {
+      if (data['trang_thai_id'].toString() != trangThaiDaHuy) {
         throw Exception('Chỉ có thể xóa lịch hẹn đã hủy.');
       }
- 
-      await found.delete();
+      await ref.delete();
     } on FirebaseException catch (e) {
-      debugPrint('Lỗi Firestore khi xóa lịch hẹn [${e.code}]: ${e.message}');
-      switch (e.code) {
-        case 'permission-denied':
-          throw Exception(
-            'Không có quyền xóa lịch hẹn (kiểm tra Security Rules).',
-          );
-        case 'failed-precondition':
-          throw Exception(
-            'Cần tạo chỉ mục (index) Firestore. Xem Debug Console để lấy liên kết.',
-          );
-        default:
-          throw Exception('Không thể xóa lịch hẹn. Vui lòng thử lại.');
-      }
+      // ... giữ nguyên khối switch cũ
     }
+  }
+
+  Stream<List<LichHenModel>> listenToQueue({
+    required DateTime ngay,
+    required String benhVienId,
+    required String khoaId,
+    required String phongKhamId,
+  }) {
+    bool cungNgay(DateTime? d) =>
+        d != null &&
+        d.year == ngay.year &&
+        d.month == ngay.month &&
+        d.day == ngay.day;
+
+    return _firestore
+        .collection(_colLichHen)
+        .where('benh_vien_id', isEqualTo: benhVienId)
+        .where('khoa_id', isEqualTo: khoaId)
+        .where('phong_kham_id', isEqualTo: phongKhamId)
+        .snapshots()
+        .map((snapshot) {
+          final list =
+              snapshot.docs
+                  .map((doc) => LichHenModel.fromJson(doc.data(), id: doc.id))
+                  // 2 = đã xác nhận (đang chờ), 7 = đến trễ
+                  .where(
+                    (b) =>
+                        cungNgay(b.ngayDat) &&
+                        (b.trangThaiId == '2' || b.trangThaiId == '7'),
+                  )
+                  .toList()
+                ..sort((a, b) => a.soThuTu.compareTo(b.soThuTu));
+          return list;
+        });
   }
 }

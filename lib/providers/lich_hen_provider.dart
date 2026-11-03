@@ -1,9 +1,8 @@
 import 'package:flutter/foundation.dart';
 import '../models/lichhen_model.dart';
 import '../services/lichhen_service.dart';
+import 'dart:async';
 
-/// Tầng giữa UI và LichHenService: giữ cache, trạng thái đang tải và lỗi
-/// theo từng (bệnh viện, khoa, phòng khám, ngày), nên UI tự cập nhật khi dữ liệu về.
 class LichHenProvider extends ChangeNotifier {
   final LichHenService _service = LichHenService();
 
@@ -16,13 +15,19 @@ class LichHenProvider extends ChangeNotifier {
   final Map<String, List<LichHenModel>> _lichHenCache = {};
   final Set<String> _loadingLichHenKeys = {};
   final Map<String, String> _lichHenErrors = {};
+  List<LichHenModel> _activeQueue = [];
+  bool _queueLoaded = false;
+  String? _queueError;
+
+  StreamSubscription<List<LichHenModel>>? _queueSubscription;
+  bool _isListeningToQueue = false;
 
   // ── Lịch hẹn của tôi ──
   List<LichHenModel> _myBookings = [];
-  
+
   bool _isLoadingMyBookings = false;
   String? _myBookingsError;
-  int _myBookingsToken = 0; // bỏ kết quả của lần tải cũ về trễ
+  int _myBookingsToken = 0;
 
   static const Set<String> _historyStatusIds = {'5', '6'};
 
@@ -96,6 +101,11 @@ class LichHenProvider extends ChangeNotifier {
   bool isLoadingLichHen(String key) => _loadingLichHenKeys.contains(key);
   String? lichHenErrorOf(String key) => _lichHenErrors[key];
 
+  @override
+  void dispose() {
+    stopListeningQueue(); // Dọn dẹp khi Provider bị hủy
+    super.dispose();
+  }
 
   Future<void> loadLichHenList({
     required DateTime ngay,
@@ -142,6 +152,10 @@ class LichHenProvider extends ChangeNotifier {
   List<LichHenModel> get myBookings => _myBookings;
   bool get isLoadingMyBookings => _isLoadingMyBookings;
   String? get myBookingsError => _myBookingsError;
+  List<LichHenModel> get activeQueue => _activeQueue;
+  bool get isListeningToQueue => _isListeningToQueue;
+  bool get queueLoaded => _queueLoaded;
+  String? get queueError => _queueError;
 
   /// Lịch hẹn đang theo dõi (Chờ duyệt, Đã xác nhận, Đã hủy...).
   List<LichHenModel> get activeBookings => _myBookings
@@ -175,7 +189,6 @@ class LichHenProvider extends ChangeNotifier {
     }
   }
 
- 
   Future<void> huyLichHen({
     required String benhNhanId,
     required String lichHenId,
@@ -186,7 +199,7 @@ class LichHenProvider extends ChangeNotifier {
       lichHenId: lichHenId,
       lyDoHuy: lyDoHuy,
     );
- 
+
     final token = ++_myBookingsToken;
     try {
       final result = await _service.getLichHenCuaBenhNhan(benhNhanId);
@@ -194,7 +207,7 @@ class LichHenProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('Không tải lại được lịch hẹn sau khi hủy: $e');
     }
- 
+
     clearCache(); // số chỗ của ca vừa hủy có thể thay đổi (đã notifyListeners)
   }
 
@@ -206,7 +219,7 @@ class LichHenProvider extends ChangeNotifier {
       benhNhanId: benhNhanId,
       lichHenId: lichHenId,
     );
- 
+
     final token = ++_myBookingsToken;
     try {
       final result = await _service.getLichHenCuaBenhNhan(benhNhanId);
@@ -216,7 +229,7 @@ class LichHenProvider extends ChangeNotifier {
     }
     notifyListeners();
   }
- 
+
   /// Gọi khi đăng xuất để không lộ lịch hẹn của tài khoản trước.
   void clearMyBookings() {
     _myBookingsToken++; // huỷ mọi lần tải đang chạy
@@ -232,6 +245,52 @@ class LichHenProvider extends ChangeNotifier {
     _lichHenCache.clear();
     _slotErrors.clear();
     _lichHenErrors.clear();
+    notifyListeners();
+  }
+
+  void startListeningQueue({
+    required DateTime ngay,
+    required String benhVienId,
+    required String khoaId,
+    required String phongKhamId,
+  }) {
+    _queueSubscription?.cancel(); // cho phép đổi sang phòng khác
+    _isListeningToQueue = true;
+    _queueLoaded = false;
+    _queueError = null;
+    _activeQueue = [];
+    notifyListeners();
+
+    _queueSubscription = _service
+        .listenToQueue(
+          ngay: ngay,
+          benhVienId: benhVienId,
+          khoaId: khoaId,
+          phongKhamId: phongKhamId,
+        )
+        .listen(
+          (queue) {
+            _activeQueue = queue;
+            _queueLoaded = true; // đã nhận dữ liệu thật từ Firestore
+            _queueError = null;
+            notifyListeners();
+          },
+          onError: (e) {
+            debugPrint('Lỗi khi lắng nghe hàng chờ: $e');
+            _queueError =
+                'Không tải được hàng chờ. Vui lòng kéo xuống để thử lại.';
+            notifyListeners();
+          },
+        );
+  }
+
+  void stopListeningQueue() {
+    _queueSubscription?.cancel();
+    _queueSubscription = null;
+    _isListeningToQueue = false;
+    _queueLoaded = false;
+    _queueError = null;
+    _activeQueue = [];
     notifyListeners();
   }
 }

@@ -9,6 +9,11 @@ import '../../providers/auth_provider.dart';
 import '../../providers/hospital_provider.dart';
 import '../../services/location_service.dart';
 
+/// Chỉnh độ trong suốt an toàn cho mọi phiên bản Flutter (thay withOpacity).
+extension _ColorX on Color {
+  Color o(double opacity) => withAlpha((opacity * 255).round().clamp(0, 255));
+}
+
 /// Màn hình danh sách bệnh viện: tìm kiếm, bộ lọc và đặt lịch khám.
 class HospitalFilterScreen extends StatefulWidget {
   const HospitalFilterScreen({super.key});
@@ -21,11 +26,17 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
   // ═══════════════════════════════════════════════════════════════
   // 1. HẰNG SỐ & TRẠNG THÁI
   // ═══════════════════════════════════════════════════════════════
-
-  static const _primary = Color(0xFF1E78E0);
-  static const _bgColor = Color(0xFFF5F7FA);
-  static const _textDark = Color(0xFF0F172A);
-  static const _textGrey = Color(0xFF64748B);
+  static const _primary = Color(0xFF0B63CE);
+  static const _primaryDark = Color(0xFF084A9E);
+  static const _primarySoft = Color(0xFFE8F1FC);
+  static const _accent = Color(0xFF0FA3A3);
+  static const _accentSoft = Color(0xFFE0F5F5);
+  static const _warm = Color(0xFFB45309);
+  static const _warmSoft = Color(0xFFFEF3C7);
+  static const _bgColor = Color(0xFFF3F7FB);
+  static const _textDark = Color(0xFF0B1F3A);
+  static const _textGrey = Color(0xFF5B6B80);
+  static const _border = Color(0xFFE3EAF2);
 
   final _searchCtrl = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
@@ -128,137 +139,99 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
     return true;
   }
 
+  /// _activeFilterCount(): số nhóm bộ lọc đang bật (hiện trên nút lọc).
+  int _activeFilterCount(HospitalProvider provider) {
+    var count = 0;
+    if (_distanceRange.start > 0 || _distanceRange.end < 50) count++;
+    if (_ratingRange.start > 0 || _ratingRange.end < 5) count++;
+    if (_selectedSpecialties.isNotEmpty) count++;
+    if (provider.selectedBhytId != null) count++;
+    if (provider.selectedCoSoId != null) count++;
+    return count;
+  }
+
   // ═══════════════════════════════════════════════════════════════
   // 4. GIAO DIỆN CHÍNH
   // ═══════════════════════════════════════════════════════════════
 
-  /// build(): khung màn hình: phần đầu (tìm kiếm, lọc) + danh sách bệnh viện.
+  /// build(): khung màn hình: phần đầu (chào, tìm kiếm) + bộ lọc + danh sách.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bgColor,
-      body: SafeArea(
-        child: Consumer<HospitalProvider>(
-          builder: (context, provider, child) {
-            return NotificationListener<ScrollNotification>(
-              onNotification: (info) => _onScroll(info, provider),
-              child: CustomScrollView(
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                slivers: [
-                  SliverToBoxAdapter(child: _buildTopSection(provider)),
-                  _buildHospitalList(provider),
-                  const SliverToBoxAdapter(child: SizedBox(height: 40)),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  /// _buildTopSection(): lời chào, ô tìm kiếm, bộ lọc và tiêu đề danh sách.
-  Widget _buildTopSection(HospitalProvider provider) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildHeader(),
-          const SizedBox(height: 24),
-          _buildSearchBar(),
-          const SizedBox(height: 24),
-          _buildFilterSection(provider),
-          const SizedBox(height: 24),
-          _buildListTitle(provider),
-          const SizedBox(height: 16),
-        ],
+      body: Consumer<HospitalProvider>(
+        builder: (context, provider, child) {
+          return NotificationListener<ScrollNotification>(
+            onNotification: (info) => _onScroll(info, provider),
+            child: CustomScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              slivers: [
+                SliverToBoxAdapter(child: _buildHeroHeader(provider)),
+                SliverToBoxAdapter(child: _buildFilterSection(provider)),
+                SliverToBoxAdapter(child: _buildListTitle(provider)),
+                _buildHospitalList(provider),
+                const SliverToBoxAdapter(child: SizedBox(height: 40)),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
 
   /// _buildListTitle(): tiêu đề "Danh sách bệnh viện" + số lượng kết quả.
   Widget _buildListTitle(HospitalProvider provider) {
-    return Row(
-      children: [
-        Container(
-          width: 5,
-          height: 22,
-          decoration: BoxDecoration(
-            color: _primary,
-            borderRadius: BorderRadius.circular(3),
-          ),
-        ),
-        const SizedBox(width: 10),
-        const Expanded(
-          child: Text(
-            'Danh sách bệnh viện',
-            style: TextStyle(
-              fontSize: 19,
-              fontWeight: FontWeight.w800,
-              color: _textDark,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 12),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Bệnh viện gần bạn',
+              style: TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+                color: _textDark,
+                letterSpacing: -0.2,
+              ),
             ),
           ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: _primary.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _primary.withOpacity(0.15)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.local_hospital_rounded,
-                size: 15,
-                color: _primary,
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            transitionBuilder: (child, animation) =>
+                FadeTransition(opacity: animation, child: child),
+            child: Container(
+              key: ValueKey(provider.currentFilteredCount),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: _primarySoft,
+                borderRadius: BorderRadius.circular(20),
               ),
-              const SizedBox(width: 6),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 250),
-                transitionBuilder: (child, animation) =>
-                    FadeTransition(opacity: animation, child: child),
-                child: Text.rich(
-                  TextSpan(
-                    text: '${provider.currentFilteredCount}',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: _primary,
-                    ),
-                    children: [
-                      TextSpan(
-                        text: ' bệnh viện',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: _primary.withOpacity(0.8),
-                        ),
-                      ),
-                    ],
-                  ),
-                  key: ValueKey(provider.currentFilteredCount),
+              child: Text(
+                '${provider.currentFilteredCount} kết quả',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: _primary,
                 ),
               ),
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   /// _buildHospitalList(): sliver danh sách (đang tải / lỗi / rỗng / có dữ liệu).
   Widget _buildHospitalList(HospitalProvider provider) {
     if (provider.isLoading) {
-      return const SliverToBoxAdapter(
-        child: Center(
-          child: Padding(
-            padding: EdgeInsets.all(40.0),
-            child: CircularProgressIndicator(color: _primary),
+      return SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) => const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 7),
+            child: _SkeletonCard(),
           ),
+          childCount: 3,
         ),
       );
     }
@@ -283,7 +256,13 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
     if (index == provider.hospitals.length) {
       return const Padding(
         padding: EdgeInsets.all(20.0),
-        child: Center(child: CircularProgressIndicator(color: _primary)),
+        child: Center(
+          child: SizedBox(
+            width: 26,
+            height: 26,
+            child: CircularProgressIndicator(strokeWidth: 3, color: _primary),
+          ),
+        ),
       );
     }
 
@@ -300,7 +279,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
     final isPublic = type == 'Công lập';
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
       child: _buildHospitalCard(
         hospitalData: hospital,
         id: hospital['id']?.toString() ?? '',
@@ -310,8 +289,8 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
         rating: ratingValue is num ? ratingValue.toDouble() : 0.0,
         reviewCount: reviewCountValue is num ? reviewCountValue.toInt() : 0,
         initials: _getInitials(name),
-        bgColor: isPublic ? const Color(0xFFDBEAFE) : const Color(0xFFFEF3C7),
-        textColor: isPublic ? _primary : const Color(0xFFD97706),
+        bgColor: isPublic ? _accentSoft : _warmSoft,
+        textColor: isPublic ? _accent : _warm,
         distance: _distanceTo(hospital),
       ),
     );
@@ -321,9 +300,81 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
   // 5. PHẦN ĐẦU: LỜI CHÀO & TÌM KIẾM
   // ═══════════════════════════════════════════════════════════════
 
-  /// _buildHeader(): ảnh chữ cái, lời chào theo giờ, tên và nút thông báo.
+  /// _buildHeroHeader(): nền gradient xanh bo cong chứa lời chào + ô tìm kiếm.
+  Widget _buildHeroHeader(HospitalProvider provider) {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_primaryDark, _primary, Color(0xFF1F8FE8)],
+        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+      ),
+      child: Stack(
+        children: [
+          // Vòng tròn trang trí mờ
+          Positioned(
+            right: -40,
+            top: -30,
+            child: Container(
+              width: 160,
+              height: 160,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.o(0.07),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 50,
+            bottom: -50,
+            child: Container(
+              width: 110,
+              height: 110,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.o(0.05),
+              ),
+            ),
+          ),
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 26),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: 22),
+                  const Text(
+                    'Tìm bệnh viện\nphù hợp với bạn',
+                    style: TextStyle(
+                      fontSize: 26,
+                      height: 1.2,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  _buildSearchRow(provider),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// _buildHeader(): nút quay lại, ảnh chữ cái, lời chào theo giờ, tên và nút thông báo.
   Widget _buildHeader() {
     final userName = context.watch<AuthProvider>().user?.hoTen ?? '';
+    final canPop = Navigator.of(
+      context,
+    ).canPop(); // có trang trước để quay lại?
 
     // Chữ cái đầu của từ cuối trong tên: "Nguyễn Văn A" -> "A"
     final words = userName.trim().split(' ');
@@ -340,38 +391,30 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
 
     return Row(
       children: [
+        // Nút quay lại (chỉ hiện khi có trang trước)
+        if (canPop) ...[_buildBackButton(), const SizedBox(width: 12)],
+
         // Ảnh đại diện chữ cái
         Container(
-          width: 52,
-          height: 52,
+          width: 46,
+          height: 46,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [_primary, _primary.withOpacity(0.65)],
-            ),
-            border: Border.all(color: Colors.white, width: 2.5),
-            boxShadow: [
-              BoxShadow(
-                color: _primary.withOpacity(0.25),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            color: Colors.white.o(0.18),
+            border: Border.all(color: Colors.white.o(0.7), width: 1.5),
           ),
           child: Center(
             child: Text(
               initial,
               style: const TextStyle(
-                fontSize: 22,
+                fontSize: 19,
                 fontWeight: FontWeight.w800,
                 color: Colors.white,
               ),
             ),
           ),
         ),
-        const SizedBox(width: 14),
+        const SizedBox(width: 12),
 
         // Lời chào + tên
         Expanded(
@@ -379,22 +422,22 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '$greeting 👋',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: _textGrey,
+                greeting,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: Colors.white.o(0.8),
                   fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
-                userName,
+                userName.isEmpty ? 'Bạn' : userName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 21,
-                  fontWeight: FontWeight.w800,
-                  color: _textDark,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
                 ),
               ),
             ],
@@ -407,50 +450,131 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
           clipBehavior: Clip.none,
           children: [
             Material(
-              color: Colors.white,
-              elevation: 0,
-              shadowColor: Colors.transparent,
+              color: Colors.white.o(0.16),
               borderRadius: BorderRadius.circular(14),
               child: InkWell(
                 borderRadius: BorderRadius.circular(14),
                 onTap: () {
                   // TODO: mở màn hình thông báo
                 },
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _primary.withOpacity(0.10),
-                        blurRadius: 14,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
+                child: const SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Icon(
                     Icons.notifications_none_rounded,
-                    color: _primary,
-                    size: 26,
+                    color: Colors.white,
+                    size: 24,
                   ),
                 ),
               ),
             ),
             Positioned(
-              top: 10,
-              right: 11,
+              top: 9,
+              right: 10,
               child: Container(
-                width: 11,
-                height: 11,
+                width: 10,
+                height: 10,
                 decoration: BoxDecoration(
-                  color: Colors.redAccent,
+                  color: const Color(0xFFFF5A5F),
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
+                  border: Border.all(color: _primary, width: 2),
                 ),
               ),
             ),
           ],
+        ),
+      ],
+    );
+  }
+
+  /// _buildBackButton(): nút quay lại trang trước, cùng kiểu với nút thông báo.
+  Widget _buildBackButton() {
+    return Tooltip(
+      message: 'Quay lại',
+      child: Material(
+        color: Colors.white.o(0.16),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => Navigator.maybePop(context),
+          child: const SizedBox(
+            width: 44,
+            height: 44,
+            child: Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: Colors.white,
+              size: 19,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// _buildSearchRow(): ô tìm kiếm + nút mở bộ lọc (có số bộ lọc đang bật).
+  Widget _buildSearchRow(HospitalProvider provider) {
+    final activeCount = _activeFilterCount(provider);
+
+    return Row(
+      children: [
+        Expanded(child: _buildSearchBar()),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: () => setState(() => _isFilterExpanded = !_isFilterExpanded),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: _isFilterExpanded ? _textDark : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.o(0.12),
+                  blurRadius: 14,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                Icon(
+                  Icons.tune_rounded,
+                  size: 24,
+                  color: _isFilterExpanded ? Colors.white : _primary,
+                ),
+                if (activeCount > 0)
+                  Positioned(
+                    top: -5,
+                    right: -5,
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        minWidth: 20,
+                        minHeight: 20,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
+                      decoration: BoxDecoration(
+                        color: _accent,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '$activeCount',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ],
     );
@@ -463,9 +587,9 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: _primary.withOpacity(0.10),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+            color: Colors.black.o(0.12),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
@@ -499,14 +623,16 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
               _searchFocus.unfocus();
             },
             decoration: InputDecoration(
-              hintText: 'Tìm tên bệnh viện, địa chỉ...',
-              hintStyle: const TextStyle(color: _textGrey, fontSize: 14),
+              hintText: 'Tên bệnh viện, địa chỉ...',
+              hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
               filled: true,
               fillColor: Colors.white,
+              isDense: true,
               contentPadding: const EdgeInsets.symmetric(vertical: 16),
-              prefixIcon: const Padding(
-                padding: EdgeInsets.only(left: 6),
-                child: Icon(Icons.search_rounded, color: _primary, size: 24),
+              prefixIcon: const Icon(
+                Icons.search_rounded,
+                color: _primary,
+                size: 24,
               ),
               suffixIcon: hasText
                   ? IconButton(
@@ -540,7 +666,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: _primary, width: 1.5),
+                borderSide: const BorderSide(color: _accent, width: 1.5),
               ),
             ),
           );
@@ -553,127 +679,84 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
   // 6. BỘ LỌC
   // ═══════════════════════════════════════════════════════════════
 
-  /// _buildFilterSection(): khung bộ lọc có thể thu gọn / mở rộng.
+  /// _buildFilterSection(): bảng bộ lọc, trượt mở / thu gọn.
   Widget _buildFilterSection(HospitalProvider provider) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: _primary.withOpacity(0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildFilterHeader(),
-          AnimatedCrossFade(
-            firstChild: const SizedBox(width: double.infinity),
-            secondChild: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Divider(height: 1, color: Colors.grey.shade200),
-                  const SizedBox(height: 18),
-                  _buildDistanceFilter(provider),
-                  const SizedBox(height: 20),
-                  _buildSpecialtyFilter(provider),
-                  const SizedBox(height: 20),
-                  _buildRatingFilter(provider),
-                  const SizedBox(height: 12),
-                  Divider(height: 1, color: Colors.grey.shade200),
-                  const SizedBox(height: 18),
-                  _buildBhytFilter(provider),
-                  const SizedBox(height: 20),
-                  _buildCoSoFilter(provider),
-                ],
-              ),
-            ),
-            crossFadeState: _isFilterExpanded
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 300),
-            sizeCurve: Curves.easeInOut,
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// _buildFilterHeader(): hàng tiêu đề bộ lọc: nút "Đặt lại" và mũi tên mở rộng.
-  Widget _buildFilterHeader() {
-    return InkWell(
-      borderRadius: BorderRadius.circular(20),
-      onTap: () => setState(() => _isFilterExpanded = !_isFilterExpanded),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(9),
-              decoration: BoxDecoration(
-                color: _primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.tune_rounded, color: _primary, size: 22),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Text(
-                'Bộ lọc',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: _textDark,
-                ),
-              ),
-            ),
-            InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: _resetFilters,
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      alignment: Alignment.topCenter,
+      child: _isFilterExpanded
+          ? Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
-                ),
+                padding: const EdgeInsets.fromLTRB(18, 8, 18, 20),
                 decoration: BoxDecoration(
-                  color: _primary.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.refresh_rounded, size: 16, color: _primary),
-                    SizedBox(width: 4),
-                    Text(
-                      'Đặt lại',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: _primary,
-                      ),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: _border),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _primary.o(0.06),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildFilterHeader(),
+                    const Divider(height: 1, color: _border),
+                    const SizedBox(height: 18),
+                    _buildSpecialtyFilter(provider),
+                    const SizedBox(height: 22),
+                    _buildDistanceFilter(provider),
+                    const SizedBox(height: 14),
+                    _buildRatingFilter(provider),
+                    const SizedBox(height: 12),
+                    const Divider(height: 1, color: _border),
+                    const SizedBox(height: 18),
+                    _buildBhytFilter(provider),
+                    const SizedBox(height: 20),
+                    _buildCoSoFilter(provider),
+                  ],
+                ),
+              ),
+            )
+          : const SizedBox(width: double.infinity),
+    );
+  }
+
+  /// _buildFilterHeader(): tiêu đề bảng lọc + nút "Đặt lại".
+  Widget _buildFilterHeader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Bộ lọc',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: _textDark,
               ),
             ),
-            const SizedBox(width: 4),
-            AnimatedRotation(
-              turns: _isFilterExpanded ? 0.5 : 0,
-              duration: const Duration(milliseconds: 250),
-              child: const Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: _primary,
-                size: 28,
-              ),
+          ),
+          TextButton.icon(
+            onPressed: _resetFilters,
+            icon: const Icon(Icons.refresh_rounded, size: 17),
+            label: const Text(
+              'Đặt lại',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             ),
-          ],
-        ),
+            style: TextButton.styleFrom(
+              foregroundColor: _primary,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -717,8 +800,8 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
             margin: const EdgeInsets.only(top: 4),
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: _primary.withOpacity(0.07),
-              borderRadius: BorderRadius.circular(10),
+              color: _primarySoft,
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               children: [
@@ -730,7 +813,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                     style: const TextStyle(
                       fontSize: 12,
                       color: _primary,
-                      fontStyle: FontStyle.italic,
+                      height: 1.3,
                     ),
                   ),
                 ),
@@ -756,13 +839,9 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: BoxDecoration(
-              color: hasSelection
-                  ? _primary.withOpacity(0.06)
-                  : const Color(0xFFF8FAFC),
+              color: hasSelection ? _primarySoft : const Color(0xFFF8FAFC),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: hasSelection ? _primary : Colors.grey.shade300,
-              ),
+              border: Border.all(color: hasSelection ? _primary : _border),
             ),
             child: Row(
               children: [
@@ -839,7 +918,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle(Icons.verified_user_outlined, 'BHYT'),
+        _buildSectionTitle(Icons.verified_user_outlined, 'Bảo hiểm y tế'),
         const SizedBox(height: 10),
         Wrap(
           spacing: 8,
@@ -874,7 +953,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle(Icons.apartment_rounded, 'Cơ sở'),
+        _buildSectionTitle(Icons.apartment_rounded, 'Loại hình cơ sở'),
         const SizedBox(height: 10),
         Wrap(
           spacing: 8,
@@ -901,13 +980,20 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
   Widget _buildSectionTitle(IconData icon, String title, {Widget? trailing}) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: _primary),
-        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: _primarySoft,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Icon(icon, size: 16, color: _primary),
+        ),
+        const SizedBox(width: 10),
         Expanded(
           child: Text(
             title,
             style: const TextStyle(
-              fontSize: 15,
+              fontSize: 14.5,
               fontWeight: FontWeight.w700,
               color: _textDark,
             ),
@@ -923,13 +1009,13 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: _primary.withOpacity(0.1),
+        color: _primarySoft,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         text,
         style: const TextStyle(
-          fontSize: 13,
+          fontSize: 12.5,
           fontWeight: FontWeight.w700,
           color: _primary,
         ),
@@ -940,12 +1026,12 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
   /// _sliderTheme(): kiểu dáng thanh trượt (thanh mỏng, nút tròn).
   SliderThemeData _sliderTheme() {
     return SliderTheme.of(context).copyWith(
-      trackHeight: 5,
+      trackHeight: 4,
       activeTrackColor: _primary,
-      inactiveTrackColor: _primary.withOpacity(0.15),
+      inactiveTrackColor: _primary.o(0.14),
       rangeThumbShape: const RoundRangeSliderThumbShape(enabledThumbRadius: 10),
-      thumbColor: _primary,
-      overlayColor: _primary.withOpacity(0.12),
+      thumbColor: Colors.white,
+      overlayColor: _primary.o(0.12),
       activeTickMarkColor: Colors.transparent,
       inactiveTickMarkColor: Colors.transparent,
       valueIndicatorColor: _primary,
@@ -970,16 +1056,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
         decoration: BoxDecoration(
           color: selected ? _primary : Colors.white,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: selected ? _primary : Colors.grey.shade300),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: _primary.withOpacity(0.25),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ]
-              : null,
+          border: Border.all(color: selected ? _primary : _border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -991,7 +1068,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
             Text(
               label,
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 13.5,
                 fontWeight: FontWeight.w600,
                 color: selected ? Colors.white : _textDark,
               ),
@@ -1098,7 +1175,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: _primary.withOpacity(0.1),
+              color: _primarySoft,
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(
@@ -1159,6 +1236,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       child: TextField(
         onChanged: onChanged,
+        cursorColor: _primary,
         decoration: InputDecoration(
           hintText: 'Tìm chuyên khoa...',
           hintStyle: TextStyle(color: Colors.grey.shade500),
@@ -1169,6 +1247,10 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: _primary, width: 1.2),
           ),
         ),
       ),
@@ -1245,10 +1327,10 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? _primary.withOpacity(0.07) : Colors.white,
+          color: isSelected ? _primarySoft : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? _primary : Colors.grey.shade200,
+            color: isSelected ? _primary : _border,
             width: isSelected ? 1.5 : 1,
           ),
         ),
@@ -1258,9 +1340,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: isSelected
-                    ? _primary.withOpacity(0.12)
-                    : const Color(0xFFF1F5F9),
+                color: isSelected ? Colors.white : const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
@@ -1305,9 +1385,9 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
   /// _buildSheetApplyButton(): nút "Áp dụng bộ lọc": đóng sheet và lọc.
   Widget _buildSheetApplyButton(BuildContext sheetContext) {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade100)),
+        border: Border(top: BorderSide(color: _border)),
       ),
       child: SafeArea(
         top: false,
@@ -1372,12 +1452,12 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
   }) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: _primary.withOpacity(0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            color: _primary.o(0.07),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -1385,8 +1465,8 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
         color: Colors.white,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.grey.shade100),
+          borderRadius: BorderRadius.circular(22),
+          side: const BorderSide(color: _border),
         ),
         child: InkWell(
           onTap: () => Navigator.pushNamed(
@@ -1410,10 +1490,16 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                 ),
                 const SizedBox(height: 14),
                 _buildCardAddress(address),
-                const SizedBox(height: 10),
-                _buildDistanceBadge(distance),
                 const SizedBox(height: 14),
-                _buildBookButton(),
+                const Divider(height: 1, color: _border),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(child: _buildDistanceBadge(distance)),
+                    const SizedBox(width: 10),
+                    _buildBookButton(),
+                  ],
+                ),
               ],
             ),
           ),
@@ -1433,27 +1519,24 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
     required Color textColor,
   }) {
     final hasRating = rating > 0;
+    final isPublic = type == 'Công lập';
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Chữ viết tắt trên nền gradient
+        // Chữ viết tắt trên nền dịu
         Container(
-          width: 60,
-          height: 60,
+          width: 56,
+          height: 56,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [bgColor, Color.lerp(bgColor, Colors.white, 0.5)!],
-            ),
+            color: bgColor,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Center(
             child: Text(
               initials,
               style: TextStyle(
-                fontSize: 21,
+                fontSize: 19,
                 fontWeight: FontWeight.w800,
                 color: textColor,
               ),
@@ -1470,7 +1553,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
               Text(
                 name,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 15.5,
                   height: 1.25,
                   fontWeight: FontWeight.w800,
                   color: _textDark,
@@ -1493,59 +1576,58 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                       color: bgColor,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(
-                      type,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: textColor,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: hasRating
-                          ? const Color(0xFFFEF3C7)
-                          : const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          Icons.star_rounded,
-                          size: 15,
-                          color: hasRating
-                              ? const Color(0xFFF59E0B)
-                              : Colors.grey.shade400,
+                          isPublic
+                              ? Icons.verified_rounded
+                              : Icons.business_rounded,
+                          size: 13,
+                          color: textColor,
                         ),
-                        const SizedBox(width: 3),
+                        const SizedBox(width: 4),
                         Text(
-                          hasRating
-                              ? rating.toStringAsFixed(1)
-                              : 'Chưa có đánh giá',
+                          type,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.w700,
-                            color: hasRating
-                                ? const Color(0xFFB45309)
-                                : _textGrey,
+                            color: textColor,
                           ),
                         ),
-                        if (hasRating)
-                          Text(
-                            ' ($reviewCount)',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: _textGrey,
-                            ),
-                          ),
                       ],
                     ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.star_rounded,
+                        size: 17,
+                        color: hasRating
+                            ? const Color(0xFFF59E0B)
+                            : Colors.grey.shade400,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        hasRating
+                            ? rating.toStringAsFixed(1)
+                            : 'Chưa có đánh giá',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: hasRating ? _textDark : _textGrey,
+                        ),
+                      ),
+                      if (hasRating)
+                        Text(
+                          ' ($reviewCount)',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: _textGrey,
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),
@@ -1558,13 +1640,13 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
         Container(
           padding: const EdgeInsets.all(9),
           decoration: BoxDecoration(
-            color: _primary.withOpacity(0.1),
+            color: _primarySoft,
             borderRadius: BorderRadius.circular(12),
           ),
           child: const Icon(
             Icons.chat_bubble_outline_rounded,
             color: _primary,
-            size: 20,
+            size: 19,
           ),
         ),
       ],
@@ -1578,17 +1660,13 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
       children: [
         const Padding(
           padding: EdgeInsets.only(top: 1),
-          child: Icon(Icons.location_on_rounded, color: _textGrey, size: 16),
+          child: Icon(Icons.location_on_outlined, color: _textGrey, size: 17),
         ),
-        const SizedBox(width: 6),
+        const SizedBox(width: 8),
         Expanded(
           child: Text(
             address,
-            style: const TextStyle(
-              fontSize: 13,
-              height: 1.35,
-              color: _textGrey,
-            ),
+            style: const TextStyle(fontSize: 13, height: 1.4, color: _textGrey),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -1597,75 +1675,57 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
     );
   }
 
-  /// _buildDistanceBadge(): nhãn "Cách bạn X km" (hoặc chưa xác định).
+  /// _buildDistanceBadge(): "Cách bạn X km" (hoặc chưa xác định).
   Widget _buildDistanceBadge(double distance) {
     final hasDistance = distance > 0;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: hasDistance
-            ? _primary.withOpacity(0.08)
-            : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.near_me_rounded,
-            size: 14,
-            color: hasDistance ? _primary : _textGrey,
-          ),
-          const SizedBox(width: 5),
-          Text(
+    return Row(
+      children: [
+        Icon(
+          Icons.near_me_rounded,
+          size: 15,
+          color: hasDistance ? _primary : _textGrey,
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
             hasDistance
                 ? 'Cách bạn ${distance.toStringAsFixed(1)} km'
-                : 'Chưa xác định khoảng cách',
+                : 'Chưa xác định',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 12.5,
               fontWeight: FontWeight.w600,
               color: hasDistance ? _primary : _textGrey,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  /// _buildBookButton(): nút giả "Đặt lịch khám" cuối thẻ (bấm cả thẻ để đặt).
+  /// _buildBookButton(): nút giả "Đặt lịch" cuối thẻ (bấm cả thẻ để đặt).
   Widget _buildBookButton() {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 13),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [_primary, _primary.withOpacity(0.78)],
-        ),
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: _primary.withOpacity(0.25),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: _primary,
+        borderRadius: BorderRadius.circular(12),
       ),
       child: const Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.calendar_month_rounded, color: Colors.white, size: 18),
-          SizedBox(width: 8),
+          Icon(Icons.calendar_month_rounded, color: Colors.white, size: 17),
+          SizedBox(width: 7),
           Text(
             'Đặt lịch khám',
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: FontWeight.w700,
               color: Colors.white,
             ),
           ),
-          SizedBox(width: 6),
-          Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
         ],
       ),
     );
@@ -1677,26 +1737,55 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
 
   /// _buildEmptyState(): thông báo không có bệnh viện phù hợp.
   Widget _buildEmptyState() {
-    return const Center(
+    return Center(
       child: Padding(
-        padding: EdgeInsets.all(40.0),
+        padding: const EdgeInsets.fromLTRB(32, 40, 32, 20),
         child: Column(
           children: [
-            Icon(Icons.search_off, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              'Không tìm thấy bệnh viện nào',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: _textGrey,
+            Container(
+              width: 96,
+              height: 96,
+              decoration: const BoxDecoration(
+                color: _primarySoft,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.local_hospital_outlined,
+                size: 46,
+                color: _primary,
               ),
             ),
-            SizedBox(height: 8),
-            Text(
-              'Hãy thử thay đổi bộ lọc của bạn',
-              style: TextStyle(fontSize: 14, color: _textGrey),
+            const SizedBox(height: 20),
+            const Text(
+              'Không tìm thấy bệnh viện nào',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: _textDark,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Hãy thử bỏ bớt bộ lọc hoặc đổi từ khóa tìm kiếm.',
+              style: TextStyle(fontSize: 14, height: 1.4, color: _textGrey),
               textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 18),
+            OutlinedButton.icon(
+              onPressed: _resetFilters,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Đặt lại bộ lọc'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _primary,
+                side: const BorderSide(color: _primary),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+              ),
             ),
           ],
         ),
@@ -1708,23 +1797,57 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
   Widget _buildErrorState(String message) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(40.0),
+        padding: const EdgeInsets.fromLTRB(32, 40, 32, 20),
         child: Column(
           children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.redAccent),
-            const SizedBox(height: 16),
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.wifi_off_rounded,
+                size: 44,
+                color: Colors.red.shade400,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Không tải được dữ liệu',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: _textDark,
+              ),
+            ),
+            const SizedBox(height: 8),
             Text(
               message,
-              style: const TextStyle(fontSize: 14, color: Colors.redAccent),
+              style: const TextStyle(
+                fontSize: 14,
+                height: 1.4,
+                color: _textGrey,
+              ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 16),
-            ElevatedButton(
+            const SizedBox(height: 18),
+            ElevatedButton.icon(
               onPressed: () => _applyFilters(),
-              style: ElevatedButton.styleFrom(backgroundColor: _primary),
-              child: const Text(
-                'Thử lại',
-                style: TextStyle(color: Colors.white),
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Thử lại'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
               ),
             ),
           ],
@@ -1762,6 +1885,85 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
       position.longitude,
       (hospital['vi_do'] as num).toDouble(),
       (hospital['kinh_do'] as num).toDouble(),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 11. SKELETON KHI ĐANG TẢI
+// ═══════════════════════════════════════════════════════════════
+
+/// _SkeletonCard: thẻ giả nhấp nháy nhẹ, thay cho vòng xoay khi tải danh sách.
+class _SkeletonCard extends StatefulWidget {
+  const _SkeletonCard();
+
+  @override
+  State<_SkeletonCard> createState() => _SkeletonCardState();
+}
+
+class _SkeletonCardState extends State<_SkeletonCard> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Widget _bar(double width, double height, {double radius = 8}) => Container(
+    width: width,
+    height: height,
+    decoration: BoxDecoration(
+      color: const Color(0xFFE6EDF5),
+      borderRadius: BorderRadius.circular(radius),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween<double>(begin: 0.45, end: 1).animate(_ctrl),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFE3EAF2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _bar(56, 56, radius: 16),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _bar(double.infinity, 14),
+                      const SizedBox(height: 10),
+                      _bar(120, 12),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _bar(double.infinity, 12),
+            const SizedBox(height: 8),
+            _bar(180, 12),
+            const SizedBox(height: 18),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [_bar(90, 14), _bar(110, 36, radius: 12)],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

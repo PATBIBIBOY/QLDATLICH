@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../utils/validators.dart';
 import '../../config/app_routes.dart';
 import '../../models/hospital_model.dart';
 import '../../models/patient_model.dart';
@@ -142,7 +143,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         role: maVaiTro,
       );
     } else {
-      // Fallback an toàn (về lý thuyết sẽ không bao giờ rơi vào đây vì đã lọc ở trên)
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Vai trò này chưa hỗ trợ đăng ký trực tiếp trên app.'),
@@ -361,7 +361,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // ✅ Tabs vai trò - Giờ đây chỉ render đúng 2 tab đã được lọc
+                // ✅ Tabs vai trò
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
@@ -421,26 +421,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       Icons.mail_outline,
                       'an.nguyen@gmail.com / 0912 345 678',
                     ),
+                    // ✅ ĐÃ SỬA: Tích hợp hàm validateEmail
                     validator: (v) {
                       final value = (v ?? '').trim();
-                      if (value.isEmpty)
+                      if (value.isEmpty) {
                         return 'Vui lòng nhập email hoặc số điện thoại';
-                      if (value.contains('@')) {
-                        return RegExp(
-                              r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                            ).hasMatch(value)
-                            ? null
-                            : 'Email không hợp lệ';
                       }
-                      return RegExp(
-                            r'^(0|\+84)[3|5|7|8|9][0-9]{8}$',
-                          ).hasMatch(value.replaceAll(' ', ''))
-                          ? null
-                          : 'Số điện thoại không hợp lệ';
+
+                      if (value.contains('@')) {
+                        return validateEmail(value);
+                      }
+
+                      return validatePhone(value);
                     },
                   ),
                   const SizedBox(height: 16),
 
+                  // ───────────────────────── Ô MẬT KHẨU ─────────────────────────
                   _label('Mật khẩu', required: true),
                   TextFormField(
                     controller: _patientPassCtrl,
@@ -456,12 +453,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         onPressed: () => setState(() => _obscure = !_obscure),
                       ),
                     ),
-                    validator: (v) => (v == null || v.length < 6)
-                        ? 'Mật khẩu tối thiểu 6 ký tự'
-                        : null,
+                    validator: validatePassword,
                   ),
                   const SizedBox(height: 16),
 
+                  // ───────────────────────── Ô NHẬP LẠI MẬT KHẨU ─────────────────────────
                   _label('Nhập lại mật khẩu', required: true),
                   TextFormField(
                     controller: _patientConfirmCtrl,
@@ -480,9 +476,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             setState(() => _obscureConfirm = !_obscureConfirm),
                       ),
                     ),
-                    validator: (v) => (v == null || v != _patientPassCtrl.text)
-                        ? 'Mật khẩu nhập lại không khớp'
-                        : null,
+                    validator: (v) {
+                      final passwordError = validatePassword(v);
+                      if (passwordError != null) {
+                        return passwordError;
+                      }
+                      if (v != _patientPassCtrl.text) {
+                        return 'Mật khẩu nhập lại không khớp';
+                      }
+
+                      return null; // Hợp lệ
+                    },
                   ),
                 ] else if (maVaiTro == 'benh_vien') ...[
                   _label('Tên bệnh viện / Cơ sở y tế', required: true),
@@ -507,13 +511,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       'admin@benhvien.vn',
                     ),
                     validator: (v) {
-                      final value = (v ?? '').trim();
-                      if (value.isEmpty) return 'Vui lòng nhập email';
-                      return RegExp(
-                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                          ).hasMatch(value)
-                          ? null
-                          : 'Email không hợp lệ';
+                      return validateEmail(v);
                     },
                   ),
                   const SizedBox(height: 16),
@@ -525,9 +523,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       Icons.location_on_outlined,
                       'Số nhà, đường, phường/xã, tỉnh/thành phố',
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Vui lòng nhập địa chỉ bệnh viện'
-                        : null,
+                    validator: validatePassword,
                   ),
                   const SizedBox(height: 16),
 
@@ -571,11 +567,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                     validator: (v) {
-                      if (v == null || v.isEmpty)
-                        return 'Vui lòng nhập lại mật khẩu';
-                      return (v != _hospitalPassCtrl.text)
-                          ? 'Mật khẩu nhập lại không khớp'
-                          : null;
+                      final passwordError = validatePassword(v);
+                      if (passwordError != null) {
+                        return passwordError;
+                      }
+                      if (v != _patientPassCtrl.text) {
+                        return 'Mật khẩu nhập lại không khớp';
+                      }
+
+                      return null; // Hợp lệ
                     },
                   ),
                 ],

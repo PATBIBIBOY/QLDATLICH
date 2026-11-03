@@ -14,6 +14,8 @@ class PatientModel {
   final DateTime? ngayTao;
   final String? role;
   final bool daXacThucEmail;
+  final String? cccd;
+  final String? soBhyt;
 
   PatientModel({
     required this.uid,
@@ -29,6 +31,8 @@ class PatientModel {
     DateTime? ngayTao,
     this.role = 'benh_nhan',
     this.daXacThucEmail = false,
+    this.cccd,
+    this.soBhyt,
   }) : ngayTao = ngayTao ?? DateTime.now();
 
   Map<String, dynamic> toMap() {
@@ -46,6 +50,8 @@ class PatientModel {
       'ngay_tao': ngayTao?.toIso8601String(),
       'role': role,
       'da_xac_thuc_email': daXacThucEmail,
+      'cccd': cccd,
+      'so_bhyt': soBhyt,
     };
   }
 
@@ -68,6 +74,8 @@ class PatientModel {
       ngayTao: map['ngay_tao'] != null ? DateTime.parse(map['ngay_tao']) : null,
       role: map['role'] ?? 'benh_nhan',
       daXacThucEmail: map['da_xac_thuc_email'] ?? false,
+      cccd: map['cccd'],
+      soBhyt: map['so_bhyt'],
     );
   }
 
@@ -85,6 +93,8 @@ class PatientModel {
     DateTime? ngayTao,
     String? role,
     bool? daXacThucEmail,
+    String? cccd,
+    String? soBhyt,
   }) {
     return PatientModel(
       uid: uid ?? this.uid,
@@ -100,6 +110,8 @@ class PatientModel {
       ngayTao: ngayTao ?? this.ngayTao,
       role: role ?? this.role,
       daXacThucEmail: daXacThucEmail ?? this.daXacThucEmail,
+      cccd: cccd ?? this.cccd,
+      soBhyt: soBhyt ?? this.soBhyt,  
     );
   }
 

@@ -376,6 +376,44 @@ class AuthService {
       return null;
     }
   }
+  
+  Future<void> updateUserProfile({
+    required String uid,
+    String? hoTen,
+    String? gioiTinh,
+    DateTime? ngaySinh,
+    String? diaChi,
+    String? email,
+    String? soDienThoai,
+    String? cccd,
+    String? soBhyt,
+  }) async {
+    try {
+      final updateData = <String, dynamic>{};
+
+      // Chỉ thêm vào map những trường có giá trị mới (khác null)
+      if (hoTen != null) updateData['ho_ten'] = hoTen;
+      if (gioiTinh != null) updateData['gioi_tinh'] = gioiTinh;
+      if (ngaySinh != null) updateData['ngay_sinh'] = ngaySinh.toIso8601String();
+      if (diaChi != null) updateData['dia_chi'] = diaChi;
+      if (email != null) updateData['email'] = email;
+      if (soDienThoai != null) updateData['so_dien_thoai'] = soDienThoai;
+      if (cccd != null) updateData['cccd'] = cccd;
+      if (soBhyt != null) updateData['so_bhyt'] = soBhyt;
+
+      if (updateData.isNotEmpty) {
+        await _firestore
+            .collection(AppConstants.patientsCollection)
+            .doc(uid)
+            .update(updateData);
+            
+        print('✅ [DEBUG] Đã cập nhật thông tin người dùng thành công.');
+      }
+    } catch (e) {
+      print('❌ [DEBUG] Lỗi khi cập nhật thông tin người dùng: $e');
+      rethrow;
+    }
+  }
 
   Future<void> signOut() async {
     await _auth.signOut();

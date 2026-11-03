@@ -8,13 +8,14 @@ import '../../widgets/appointment_card.dart';
 import '../../widgets/custom_bottom_nav_bar.dart';
 import '../../models/appointment_item.dart';
 
-/// Màn hình "Lịch khám của tôi": lấy lịch hẹn của bệnh nhân từ collection LichHen.
+/// Chỉnh độ trong suốt an toàn cho mọi phiên bản Flutter (thay withOpacity).
+extension _ColorX on Color {
+  Color o(double opacity) => withAlpha((opacity * 255).round().clamp(0, 255));
+}
+
 class MyAppointmentsScreen extends StatefulWidget {
-  /// Mã bệnh nhân. Không truyền thì dùng uid của tài khoản đang đăng nhập
-  /// (phải cùng giá trị với benhNhanId bạn truyền vào saveBooking).
   final String? benhNhanId;
 
-  /// Truyền danh sách để xem thử giao diện (không đọc Firestore). Bình thường để null.
   final List<MyAppointmentItem>? appointments;
   final int? historyCount;
 
@@ -52,6 +53,14 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
     }
   }
 
+  void _openHistory() {
+    if (widget.onOpenHistory != null) {
+      widget.onOpenHistory!();
+    } else {
+      Navigator.pushNamed(context, AppRoutes.notification, arguments: 0);
+    }
+  }
+
   Future<void> _load() async {
     final id = _patientId;
     if (id == null || id.isEmpty) return;
@@ -81,15 +90,18 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
     );
   }
 
-  void _openDetail(MyAppointmentItem item) {
+  Future<void> _openDetail(MyAppointmentItem item) async {
     if (widget.onOpenDetail != null) {
       widget.onOpenDetail!(item);
     } else {
-      Navigator.pushNamed(
+      final result = await Navigator.pushNamed(
         context,
         AppRoutes.appointmentDetail,
         arguments: item,
       );
+      if (result == true && mounted) {
+        await _load();
+      }
     }
   }
 
@@ -120,20 +132,22 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
     final notLoggedIn =
         !usePreview && (_patientId == null || _patientId!.isEmpty);
 
+    final pendingCount = items
+        .where((e) => e.status == AppointmentStatus.pending)
+        .length;
+
     // Nội dung danh sách
     final children = <Widget>[];
     if (notLoggedIn) {
       children.add(
         const _MessageState(
           icon: Icons.lock_outline_rounded,
+          title: 'Bạn chưa đăng nhập',
           text: 'Vui lòng đăng nhập để xem lịch khám của bạn.',
         ),
       );
     } else if (loading && items.isEmpty) {
-      // Khung xương khi đang tải (đẹp hơn vòng xoay trống)
       children.addAll(const [
-        _SkeletonBanner(),
-        SizedBox(height: 18),
         _SkeletonCard(),
         SizedBox(height: 14),
         _SkeletonCard(),
@@ -143,9 +157,10 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
     } else if (error != null && items.isEmpty) {
       children.add(
         _MessageState(
-          icon: Icons.error_outline_rounded,
+          icon: Icons.wifi_off_rounded,
+          title: 'Không tải được lịch khám',
           text: error,
-          color: Colors.redAccent,
+          color: Colors.red.shade400,
           onRetry: _load,
         ),
       );
@@ -153,8 +168,6 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
       if (items.isEmpty) {
         children.add(_EmptyState(onBookNow: _goBookNow));
       } else {
-        children.add(_SummaryBanner(count: items.length));
-        children.add(const SizedBox(height: 20));
         children.add(
           _SectionTitle(title: 'Lịch sắp tới', badge: '${items.length}'),
         );
@@ -179,34 +192,37 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
       children.add(
         _FadeSlideIn(
           index: items.length,
-          child: _HistoryCard(count: historyCount, onTap: widget.onOpenHistory),
+          child: _HistoryCard(count: historyCount, onTap: _openHistory),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: ApptColors.bg,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            const ApptHeader(title: 'Lịch khám của tôi'),
-            Expanded(
-              // Kéo xuống để tải lại
-              child: RefreshIndicator(
-                onRefresh: _load,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                  children: children,
-                ),
+      backgroundColor: _kBg,
+      body: Column(
+        children: [
+          _Header(
+            upcoming: items.length,
+            pending: pendingCount,
+            history: historyCount,
+            showStats: !notLoggedIn && !(loading && items.isEmpty),
+          ),
+          Expanded(
+            // Kéo xuống để tải lại
+            child: RefreshIndicator(
+              color: _kPrimary,
+              onRefresh: _load,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                children: children,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
       bottomNavigationBar: widget.showBottomNavBar
-          ? CustomBottomNavBar(
+          ? MedicalBottomNavBar(
               currentIndex: 1,
               onTap:
                   widget.onNavTap ??
@@ -224,9 +240,15 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
 
 // ───────────────────────── MÀU RIÊNG CỦA MÀN HÌNH ─────────────────────────
 
-const Color _kBlue = Color(0xFF2196F3);
-const Color _kBlueDark = Color(0xFF1565C0);
-const Color _kAmber = Color(0xFFF59E0B);
+const Color _kPrimary = Color(0xFF0B63CE);
+const Color _kPrimaryDark = Color(0xFF084A9E);
+const Color _kPrimarySoft = Color(0xFFE8F1FC);
+const Color _kAmber = Color(0xFFD97706);
+const Color _kAmberSoft = Color(0xFFFEF3C7);
+const Color _kBg = Color(0xFFF3F7FB);
+const Color _kBorder = Color(0xFFE3EAF2);
+const Color _kText = Color(0xFF0B1F3A);
+const Color _kGrey = Color(0xFF5B6B80);
 
 // ───────────────────────── HIỆU ỨNG XUẤT HIỆN ─────────────────────────
 
@@ -245,79 +267,192 @@ class _FadeSlideIn extends StatelessWidget {
       curve: Curves.easeOutCubic,
       builder: (context, v, child) => Opacity(
         opacity: v,
-        child: Transform.translate(offset: Offset(0, 18 * (1 - v)), child: child),
+        child: Transform.translate(
+          offset: Offset(0, 18 * (1 - v)),
+          child: child,
+        ),
       ),
       child: child,
     );
   }
 }
 
-// ───────────────────────── BANNER TÓM TẮT ─────────────────────────
+// ───────────────────────── PHẦN ĐẦU: TIÊU ĐỀ + THỐNG KÊ ─────────────────────────
 
-class _SummaryBanner extends StatelessWidget {
-  final int count;
-  const _SummaryBanner({required this.count});
+class _Header extends StatelessWidget {
+  final int upcoming;
+  final int pending;
+  final int history;
+  final bool showStats;
+
+  const _Header({
+    required this.upcoming,
+    required this.pending,
+    required this.history,
+    required this.showStats,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final confirmed = upcoming - pending;
+
     return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [_kBlue, _kBlueDark],
+          colors: [_kPrimaryDark, _kPrimary, Color(0xFF1F8FE8)],
         ),
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: _kBlue.withOpacity(0.30),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -40,
+            top: -30,
+            child: Container(
+              width: 150,
+              height: 150,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.o(0.07),
+              ),
+            ),
+          ),
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 22),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.white.o(0.18),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.event_note_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Lịch khám của tôi',
+                              style: TextStyle(
+                                fontSize: 21,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Theo dõi và quản lý các lịch hẹn',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: Color(0xCCFFFFFF),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (showStats) ...[
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        _StatTile(
+                          value: '$upcoming',
+                          label: 'Sắp tới',
+                          icon: Icons.event_available_rounded,
+                        ),
+                        const SizedBox(width: 10),
+                        _StatTile(
+                          value: '$pending',
+                          label: 'Chờ xác nhận',
+                          icon: Icons.hourglass_top_rounded,
+                        ),
+                        const SizedBox(width: 10),
+                        _StatTile(
+                          value: '${confirmed < 0 ? 0 : confirmed}',
+                          label: 'Đã xác nhận',
+                          icon: Icons.verified_rounded,
+                        ),
+                        const SizedBox(width: 10),
+                        _StatTile(
+                          value: '$history',
+                          label: 'Đã khám',
+                          icon: Icons.history_rounded,
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.18),
-              borderRadius: BorderRadius.circular(16),
+    );
+  }
+}
+
+class _StatTile extends StatelessWidget {
+  final String value;
+  final String label;
+  final IconData icon;
+  const _StatTile({
+    required this.value,
+    required this.label,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        decoration: BoxDecoration(
+          color: Colors.white.o(0.14),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.o(0.18)),
+        ),
+        child: Column(
+          children: [
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 20,
+                height: 1.1,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
             ),
-            child: const Icon(
-              Icons.event_available_rounded,
-              color: Colors.white,
-              size: 28,
+            const SizedBox(height: 4),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xDDFFFFFF),
+              ),
             ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Bạn có $count lịch khám',
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'Kéo xuống để cập nhật trạng thái mới nhất',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    height: 1.3,
-                    color: Colors.white.withOpacity(0.85),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -332,21 +467,13 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: 4,
-          height: 18,
-          decoration: BoxDecoration(
-            color: _kBlue,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-        const SizedBox(width: 8),
         Text(
           title,
           style: const TextStyle(
-            fontSize: 16,
+            fontSize: 18,
             fontWeight: FontWeight.w800,
-            color: ApptColors.textDark,
+            color: _kText,
+            letterSpacing: -0.2,
           ),
         ),
         if (badge != null) ...[
@@ -354,7 +481,7 @@ class _SectionTitle extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
             decoration: BoxDecoration(
-              color: _kBlue.withOpacity(0.12),
+              color: _kPrimarySoft,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
@@ -362,7 +489,7 @@ class _SectionTitle extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
-                color: _kBlue,
+                color: _kPrimary,
               ),
             ),
           ),
@@ -401,129 +528,171 @@ class _AppointmentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPending = item.status == AppointmentStatus.pending;
-    final accent = isPending ? _kAmber : _kBlue;
+    final accent = isPending ? _kAmber : _kPrimary;
+    final soft = isPending ? _kAmberSoft : _kPrimarySoft;
     final date = _splitDate(item.dateLabel);
     final hasTime = item.timeLabel.trim().isNotEmpty && item.timeLabel != '—';
 
-    return Container(
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade100),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: accent.withOpacity(0.10),
+            color: _kPrimary.o(0.07),
             blurRadius: 18,
-            offset: const Offset(0, 6),
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Dải màu bên trái theo trạng thái
-                  Container(width: 5, color: accent),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 16, 14, 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+      child: Material(
+        color: Colors.white,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: const BorderSide(color: _kBorder),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Dải màu đầu thẻ theo trạng thái
+              Container(
+                height: 4,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [accent, accent.o(0.2)]),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _DateBadge(date: date, accent: accent, soft: soft),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Ô ngày kiểu tờ lịch
-                              _DateBadge(date: date, accent: accent),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item.hospitalName,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 15.5,
-                                        height: 1.25,
-                                        fontWeight: FontWeight.w800,
-                                        color: ApptColors.textDark,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    StatusChip(item.status),
-                                  ],
+                              Text(
+                                item.hospitalName,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 15.5,
+                                  height: 1.25,
+                                  fontWeight: FontWeight.w800,
+                                  color: _kText,
                                 ),
                               ),
+                              const SizedBox(height: 8),
+                              StatusChip(item.status),
                             ],
                           ),
-                          const SizedBox(height: 14),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
 
-                          // Thông tin chi tiết
+                    // Khối thông tin chi tiết
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF7FAFD),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: _kBorder),
+                      ),
+                      child: Column(
+                        children: [
                           _InfoRow(
                             icon: Icons.medical_services_outlined,
+                            label: 'Chuyên khoa',
                             text: item.departmentName,
                             color: accent,
                           ),
                           if (hasTime) ...[
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 10),
                             _InfoRow(
                               icon: Icons.schedule_rounded,
+                              label: 'Giờ khám',
                               text: item.timeLabel,
                               color: accent,
                             ),
                           ],
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
                           _InfoRow(
                             icon: Icons.calendar_today_rounded,
-                            text: 'Ngày khám: ${item.dateLabel}',
+                            label: 'Ngày khám',
+                            text: item.dateLabel,
                             color: accent,
-                          ),
-
-                          const SizedBox(height: 12),
-                          Divider(height: 1, color: Colors.grey.shade200),
-                          const SizedBox(height: 10),
-
-                          // Chân thẻ: mã lịch + xem chi tiết
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF1F5F9),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  'Mã ${_shortId(item.id)}',
-                                  style: const TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.3,
-                                    color: ApptColors.textGrey,
-                                  ),
-                                ),
-                              ),
-                              const Spacer(),
-                              const _LinkText('Xem chi tiết'),
-                            ],
                           ),
                         ],
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+
+                    // Chân thẻ: mã lịch + xem chi tiết
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Mã ${_shortId(item.id)}',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.3,
+                              color: _kGrey,
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _kPrimary,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Xem chi tiết',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(width: 2),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                size: 18,
+                                color: Colors.white,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -531,48 +700,56 @@ class _AppointmentCard extends StatelessWidget {
   }
 }
 
-/// Ô ngày kiểu tờ lịch: số ngày lớn, tháng nhỏ phía trên.
+/// Ô ngày kiểu tờ lịch: tháng nhỏ phía trên, số ngày lớn bên dưới.
 class _DateBadge extends StatelessWidget {
   final List<String>? date; // [ngày, tháng]
   final Color accent;
-  const _DateBadge({required this.date, required this.accent});
+  final Color soft;
+  const _DateBadge({
+    required this.date,
+    required this.accent,
+    required this.soft,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 54,
-      height: 62,
+      width: 56,
+      height: 64,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [accent.withOpacity(0.16), accent.withOpacity(0.07)],
-        ),
+        color: soft,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accent.withOpacity(0.25)),
       ),
       child: date == null
           ? Icon(Icons.event_rounded, size: 28, color: accent)
           : Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  'THG ${date![1]}',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.4,
-                    color: accent,
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  color: accent,
+                  child: Text(
+                    'Th ${date![1]}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  date![0],
-                  style: const TextStyle(
-                    fontSize: 24,
-                    height: 1,
-                    fontWeight: FontWeight.w900,
-                    color: ApptColors.textDark,
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      date![0],
+                      style: const TextStyle(
+                        fontSize: 26,
+                        height: 1,
+                        fontWeight: FontWeight.w800,
+                        color: _kText,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -581,13 +758,15 @@ class _DateBadge extends StatelessWidget {
   }
 }
 
-/// Một dòng thông tin có biểu tượng tròn nhỏ.
+/// Một dòng thông tin: biểu tượng, nhãn nhỏ và giá trị.
 class _InfoRow extends StatelessWidget {
   final IconData icon;
+  final String label;
   final String text;
   final Color color;
   const _InfoRow({
     required this.icon,
+    required this.label,
     required this.text,
     required this.color,
   });
@@ -597,24 +776,27 @@ class _InfoRow extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 26,
-          height: 26,
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.10),
-            borderRadius: BorderRadius.circular(8),
+            color: color.o(0.10),
+            borderRadius: BorderRadius.circular(9),
           ),
           child: Icon(icon, size: 15, color: color),
         ),
+        const SizedBox(width: 10),
+        Text(label, style: const TextStyle(fontSize: 12.5, color: _kGrey)),
         const SizedBox(width: 10),
         Expanded(
           child: Text(
             text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
             style: const TextStyle(
               fontSize: 13.5,
-              fontWeight: FontWeight.w600,
-              color: ApptColors.textDark,
+              fontWeight: FontWeight.w700,
+              color: _kText,
             ),
           ),
         ),
@@ -632,128 +814,65 @@ class _HistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFFFFF), Color(0xFFF3F6FB)],
-        ),
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE3E8F0)),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEEF1F6),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(
-                    Icons.history_rounded,
-                    size: 26,
-                    color: ApptColors.textGrey,
-                  ),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _kBorder),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: _kPrimarySoft,
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Text(
-                            'Lịch sử',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: ApptColors.textDark,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 9,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: const Color(0xFFE3E8F0),
-                              ),
-                            ),
-                            child: Text(
-                              '$count lần khám',
-                              style: const TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
-                                color: ApptColors.textGrey,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Xem lại các lịch khám đã hoàn tất',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: ApptColors.textGrey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(
-                  Icons.chevron_right_rounded,
+                child: const Icon(
+                  Icons.history_rounded,
                   size: 26,
-                  color: ApptColors.link,
+                  color: _kPrimary,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Lịch sử khám bệnh',
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w800,
+                        color: _kText,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      count > 0
+                          ? '$count lần khám đã hoàn tất'
+                          : 'Chưa có lần khám nào hoàn tất',
+                      style: const TextStyle(fontSize: 12.5, color: _kGrey),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 26,
+                color: _kPrimary,
+              ),
+            ],
           ),
         ),
       ),
-    );
-  }
-}
-
-/// Chữ liên kết xanh kèm mũi tên: "Xem chi tiết >"
-class _LinkText extends StatelessWidget {
-  final String text;
-  const _LinkText(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          text,
-          style: const TextStyle(
-            fontSize: 13.5,
-            fontWeight: FontWeight.w800,
-            color: ApptColors.link,
-          ),
-        ),
-        const SizedBox(width: 2),
-        const Icon(
-          Icons.chevron_right_rounded,
-          size: 20,
-          color: ApptColors.link,
-        ),
-      ],
     );
   }
 }
@@ -767,29 +886,28 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 36, 12, 24),
+      padding: const EdgeInsets.fromLTRB(12, 28, 12, 24),
       child: Column(
         children: [
-          // Hình minh hoạ: vòng tròn lồng nhau
           Container(
             width: 132,
             height: 132,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _kBlue.withOpacity(0.06),
+              color: _kPrimary.o(0.06),
             ),
             child: Center(
               child: Container(
                 width: 92,
                 height: 92,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _kBlue.withOpacity(0.12),
+                  color: _kPrimarySoft,
                 ),
                 child: const Icon(
-                  Icons.event_busy_rounded,
-                  size: 46,
-                  color: _kBlue,
+                  Icons.event_available_outlined,
+                  size: 44,
+                  color: _kPrimary,
                 ),
               ),
             ),
@@ -800,32 +918,28 @@ class _EmptyState extends StatelessWidget {
             style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w800,
-              color: ApptColors.textDark,
+              color: _kText,
             ),
           ),
           const SizedBox(height: 6),
           const Text(
-            'Đặt lịch khám ngay để được bác sĩ\nchăm sóc sức khỏe cho bạn.',
+            'Chọn bệnh viện và khung giờ phù hợp,\nviệc đặt lịch chỉ mất vài phút.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13.5,
-              height: 1.45,
-              color: ApptColors.textGrey,
-            ),
+            style: TextStyle(fontSize: 13.5, height: 1.45, color: _kGrey),
           ),
           const SizedBox(height: 18),
           ElevatedButton.icon(
             onPressed: onBookNow,
             icon: const Icon(Icons.add_rounded, size: 20),
             label: const Text(
-              'Đặt lịch ngay',
+              'Đặt lịch khám',
               style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: _kBlue,
+              backgroundColor: _kPrimary,
               foregroundColor: Colors.white,
               elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
@@ -840,53 +954,65 @@ class _EmptyState extends StatelessWidget {
 /// Thông báo giữa màn hình (chưa đăng nhập / lỗi), có nút "Thử lại" tuỳ chọn.
 class _MessageState extends StatelessWidget {
   final IconData icon;
+  final String title;
   final String text;
   final Color color;
   final VoidCallback? onRetry;
 
   const _MessageState({
     required this.icon,
+    required this.title,
     required this.text,
-    this.color = ApptColors.textGrey,
+    this.color = _kPrimary,
     this.onRetry,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 12),
       child: Column(
         children: [
           Container(
-            width: 84,
-            height: 84,
+            width: 92,
+            height: 92,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: color.withOpacity(0.10),
+              color: color.o(0.10),
             ),
-            child: Icon(icon, size: 40, color: color),
+            child: Icon(icon, size: 42, color: color),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 18),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: _kText,
+            ),
+          ),
+          const SizedBox(height: 6),
           Text(
             text,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 14,
-              height: 1.45,
-              color: ApptColors.textGrey,
-            ),
+            style: const TextStyle(fontSize: 13.5, height: 1.45, color: _kGrey),
           ),
           if (onRetry != null) ...[
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: const Text('Thử lại'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: _kBlue,
-                side: const BorderSide(color: _kBlue),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kPrimary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
             ),
@@ -911,60 +1037,76 @@ class _SkeletonBox extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: const Color(0xFFE9EDF3),
+        color: const Color(0xFFE6EDF5),
         borderRadius: BorderRadius.circular(radius),
       ),
     );
   }
 }
 
-class _SkeletonBanner extends StatelessWidget {
-  const _SkeletonBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return const _SkeletonBox(height: 86, radius: 22);
-  }
-}
-
-class _SkeletonCard extends StatelessWidget {
+/// Thẻ giả nhấp nháy nhẹ khi đang tải danh sách.
+class _SkeletonCard extends StatefulWidget {
   const _SkeletonCard();
 
   @override
+  State<_SkeletonCard> createState() => _SkeletonCardState();
+}
+
+class _SkeletonCardState extends State<_SkeletonCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade100),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: const [
-              _SkeletonBox(width: 54, height: 62, radius: 16),
-              SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _SkeletonBox(height: 16),
-                    SizedBox(height: 10),
-                    _SkeletonBox(width: 90, height: 20, radius: 20),
-                  ],
+    return FadeTransition(
+      opacity: Tween<double>(begin: 0.45, end: 1).animate(_ctrl),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: _kBorder),
+        ),
+        child: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _SkeletonBox(width: 56, height: 64, radius: 16),
+                SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _SkeletonBox(height: 16),
+                      SizedBox(height: 10),
+                      _SkeletonBox(width: 90, height: 20, radius: 20),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const _SkeletonBox(height: 14),
-          const SizedBox(height: 10),
-          const _SkeletonBox(width: 160, height: 14),
-          const SizedBox(height: 10),
-          const _SkeletonBox(width: 120, height: 14),
-        ],
+              ],
+            ),
+            SizedBox(height: 16),
+            _SkeletonBox(height: 84, radius: 14),
+            SizedBox(height: 14),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _SkeletonBox(width: 80, height: 22),
+                _SkeletonBox(width: 110, height: 36, radius: 12),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

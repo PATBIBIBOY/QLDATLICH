@@ -26,15 +26,15 @@ class PhongKhamModel {
   factory PhongKhamModel.fromMap(Map<String, dynamic> map, String docId) {
     return PhongKhamModel(
       id: docId,
-      hospitalId: map['hospital_id'] ?? '',
-      khoaId: map['khoa_id'] ?? '',
-      tenPhong: map['ten_phong'] ?? '',
+      hospitalId: map['hospitalId'] ?? '',
+      khoaId: map['khoaId'] ?? '',
+      tenPhong: map['tenPhong'] ?? '',
       soPhong: map['so_phong'] ?? '',
-      gioMoCua: map['gio_mo_cua'] ?? '',
-      gioDongCua: map['gio_dong_cua'] ?? '',
-      thoiGianKham: (map['thoi_gian_kham'] as num?)?.toInt() ?? 0,
-      soBenhNhanToiDa: (map['so_benh_nhan_toi_da'] as num?)?.toInt() ?? 0,
-      nhanVienId: map['nhan_vien_id'],
+      gioMoCua: map['gioMoCua'] ?? '',
+      gioDongCua: map['gioDongCua'] ?? '',
+      thoiGianKham: (map['thoiGianKham'] as num?)?.toInt() ?? 0,
+      soBenhNhanToiDa: (map['soBenhNhanToiDa'] as num?)?.toInt() ?? 0,
+      nhanVienId: map['nhanVienId'],
     );
   }
 }

@@ -5,6 +5,7 @@ import '../config/constants.dart';
 import '../models/hospital_model.dart';
 import '../models/patient_model.dart';
 import '../services/auth_service.dart';
+import '../services/fcm_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
@@ -74,8 +75,8 @@ class AuthProvider extends ChangeNotifier {
           if (hospital == null) {
             final fallbackName =
                 (currentUser.displayName?.trim().isNotEmpty ?? false)
-                    ? currentUser.displayName!
-                    : (currentUser.email?.split('@').first ?? 'Bệnh Viện Mới');
+                ? currentUser.displayName!
+                : (currentUser.email?.split('@').first ?? 'Bệnh Viện Mới');
             final newHospital = HospitalModel(
               uid: currentUser.uid,
               tenBenhVien: fallbackName,
@@ -90,6 +91,8 @@ class AuthProvider extends ChangeNotifier {
               print('⚠️ Không thể lưu document BenhVien: $e');
             }
             hospital = newHospital;
+
+            await FCMService().init();
           }
 
           _hospital = hospital;
@@ -113,7 +116,6 @@ class AuthProvider extends ChangeNotifier {
           if (_hospital != null) {
             AppSession.benhVienId = _hospital!.uid ?? currentUser.uid;
           }
-
         }
         _selectedRole = patientModel?.role ?? _hospital?.role;
       }
@@ -170,8 +172,6 @@ class AuthProvider extends ChangeNotifier {
       _admin = null;
       await fetchCurrentUser(preferredRole: role);
 
-      // ✅ Kiểm tra nếu đăng nhập thành công nhưng chưa xác thực email
-      // Lưu ý: User đăng ký bằng SĐT (OTP) sẽ có daXacThucEmail = true, nên không bị chặn ở đây
       final isEmailUnverified =
           _user?.daXacThucEmail == false || _hospital?.daXacThucEmail == false;
       if (isEmailUnverified) {
@@ -181,6 +181,8 @@ class AuthProvider extends ChangeNotifier {
         notifyListeners();
         throw Exception('EMAIL_NOT_VERIFIED');
       }
+
+      await FCMService().init();
     } catch (e) {
       rethrow;
     } finally {
@@ -219,6 +221,7 @@ class AuthProvider extends ChangeNotifier {
       await _authService.saveUserToFirestore(newUser);
       _user = newUser;
       _hospital = null;
+      await FCMService().init();
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
         await _handleExistingEmail(email, password, user);
@@ -319,7 +322,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // ✅ ĐÃ TỐI ƯU: Thêm kiểm tra an toàn cho mật khẩu
   Future<void> _handleExistingEmail(
     String email,
     String password,
@@ -437,8 +439,74 @@ class AuthProvider extends ChangeNotifier {
       await _authService.saveUserToFirestore(newUser);
       _user = newUser;
       _hospital = null;
+      await FCMService().init();
     } catch (e) {
       rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateUserProfile({
+    String? hoTen,
+    String? gioiTinh,
+    DateTime? ngaySinh,
+    String? diaChi,
+    String? email,
+    String? soDienThoai,
+    String? cccd,
+    String? soBhyt,
+  }) async {
+    if (_user == null) {
+      throw Exception('Không tìm thấy thông tin người dùng để cập nhật.');
+    }
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      // 1. Cập nhật lên Firestore
+      await _authService.updateUserProfile(
+        uid: _user!.uid,
+        hoTen: hoTen,
+        gioiTinh: gioiTinh,
+        ngaySinh: ngaySinh,
+        diaChi: diaChi,
+        email: email,
+        soDienThoai: soDienThoai,
+        cccd: cccd,
+        soBhyt: soBhyt,
+      );
+
+      // 2. Cập nhật lại state local để UI thay đổi ngay lập tức
+      _user = _user!.copyWith(
+        hoTen: hoTen ?? _user!.hoTen,
+        gioiTinh: gioiTinh ?? _user!.gioiTinh,
+        ngaySinh: ngaySinh ?? _user!.ngaySinh,
+        diaChi: diaChi ?? _user!.diaChi,
+        email: email ?? _user!.email,
+        soDienThoai: soDienThoai ?? _user!.soDienThoai,
+        cccd: cccd ?? _user!.cccd,
+        soBhyt: soBhyt ?? _user!.soBhyt,
+      );
+
+      // 3. (Tùy chọn) Cập nhật email đăng nhập Firebase Auth nếu có thay đổi
+      // Lưu ý: Firebase yêu cầu người dùng phải đăng nhập gần đây mới cho đổi email.
+      if (email != null && email != _authService.currentUser?.email) {
+        try {
+          await _authService.currentUser?.updateEmail(email);
+          print('✅ [DEBUG] Đã cập nhật email Firebase Auth.');
+        } catch (e) {
+          print(
+            '⚠️ [DEBUG] Không thể cập nhật email Firebase Auth (yêu cầu xác thực lại): $e',
+          );
+          // Không throw lỗi ở đây để không làm hỏng luồng cập nhật Firestore
+        }
+      }
+    } catch (e) {
+      print('❌ [DEBUG] Lỗi khi cập nhật hồ sơ: $e');
+      rethrow; // Ném lỗi ra để EditProfileScreen bắt và hiển thị SnackBar
     } finally {
       _isLoading = false;
       notifyListeners();
