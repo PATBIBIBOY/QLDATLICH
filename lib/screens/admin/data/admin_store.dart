@@ -838,22 +838,12 @@ class AdminStore extends ChangeNotifier {
           }
         } catch (_) {}
 
-        // Gửi thông báo đến ThongBao cho bệnh viện
-        await _firestore.collection('ThongBao').add({
-          'tieu_de': 'Tài khoản bệnh viện đã bị ngừng hợp tác',
-          'noi_dung': 'Tài khoản bệnh viện/cơ sở y tế (${h.name}) đã bị quản trị viên ngừng hợp tác. Lý do: $reason',
-          'nguoi_nhan_uid': code,
-          'benh_vien_id': code,
-          'loai': 'khoa_tai_khoan_benh_vien',
-          'da_doc': false,
-          'ngay_tao': FieldValue.serverTimestamp(),
-        });
-
         // Gửi thông báo hệ thống
         await _firestore.collection('ThongBaoHeThong').add({
           'tieu_de': 'Hủy hợp tác bệnh viện',
           'noi_dung': 'Quản trị viên đã hủy thỏa thuận hợp tác với bệnh viện: ${h.name} ($code). Lý do: $reason',
           'loai': 'huy_hop_tac_bv',
+          'benh_vien_id': code,
           'da_doc': false,
           'thoi_gian_hien_thi': 'Vừa xong',
           'ngay_tao': FieldValue.serverTimestamp(),
@@ -945,22 +935,12 @@ class AdminStore extends ChangeNotifier {
           }
         } catch (_) {}
 
-        // Gửi thông báo đến ThongBao cho bệnh viện
-        await _firestore.collection('ThongBao').add({
-          'tieu_de': 'Hợp tác y tế đã được khôi phục',
-          'noi_dung': 'Thỏa thuận hợp tác của cơ sở y tế (${h.name}) đã được quản trị viên khôi phục thành công.',
-          'nguoi_nhan_uid': code,
-          'benh_vien_id': code,
-          'loai': 'khoi_phuc_hop_tac_benh_vien',
-          'da_doc': false,
-          'ngay_tao': FieldValue.serverTimestamp(),
-        });
-
         // Gửi thông báo hệ thống
         await _firestore.collection('ThongBaoHeThong').add({
           'tieu_de': 'Khôi phục hợp tác bệnh viện',
           'noi_dung': 'Quản trị viên đã khôi phục hợp tác với bệnh viện: ${h.name} ($code)',
           'loai': 'khoi_phuc_hop_tac_bv',
+          'benh_vien_id': code,
           'da_doc': false,
           'thoi_gian_hien_thi': 'Vừa xong',
           'ngay_tao': FieldValue.serverTimestamp(),
@@ -1091,22 +1071,13 @@ class AdminStore extends ChangeNotifier {
         'ngay_giai_quyet': FieldValue.serverTimestamp(),
       });
 
-      // 2. Gửi thông báo đến collection ThongBao
-      await _firestore.collection('ThongBao').add({
-        'tieu_de': 'Khắc phục sự cố: ${report.title}',
-        'noi_dung': responseMessage,
-        'nguoi_nhan': report.sender,
-        'bao_cao_loi_id': report.id,
-        'loai': 'phan_hoi_su_co',
-        'da_doc': false,
-        'ngay_tao': FieldValue.serverTimestamp(),
-      });
-
-      // 3. Gửi thông báo đến ThongBaoHeThong
+      // 2. Gửi thông báo đến ThongBaoHeThong
       await _firestore.collection('ThongBaoHeThong').add({
         'tieu_de': 'Đã xử lý sự cố: ${report.title}',
         'noi_dung': 'Quản trị viên đã xử lý và phản hồi tới ${report.sender}: "$responseMessage"',
         'loai': 'su_co_da_sua',
+        'bao_cao_loi_id': report.id,
+        'nguoi_nhan': report.sender,
         'thoi_gian_hien_thi': 'Vừa xong',
         'da_doc': false,
         'ngay_tao': FieldValue.serverTimestamp(),
@@ -1150,21 +1121,12 @@ class AdminStore extends ChangeNotifier {
         'ngay_khoa': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      // Gửi thông báo đến ThongBao cho bệnh nhân
-      await _firestore.collection('ThongBao').add({
-        'tieu_de': 'Tài khoản đã bị tạm khóa',
-        'noi_dung': 'Tài khoản bệnh nhân (${p.hoTen} - ${p.maBenhNhan}) đã bị quản trị viên tạm khóa. Lý do: $reason',
-        'nguoi_nhan_uid': p.uid,
-        'loai': 'khoa_tai_khoan',
-        'da_doc': false,
-        'ngay_tao': FieldValue.serverTimestamp(),
-      });
-
       // Gửi thông báo hệ thống
       await _firestore.collection('ThongBaoHeThong').add({
         'tieu_de': 'Khóa tài khoản bệnh nhân',
         'noi_dung': 'Quản trị viên đã khóa tài khoản bệnh nhân: ${p.hoTen} (${p.maBenhNhan}). Lý do: $reason',
         'loai': 'khoa_tai_khoan',
+        'nguoi_nhan_uid': p.uid,
         'da_doc': false,
         'thoi_gian_hien_thi': 'Vừa xong',
         'ngay_tao': FieldValue.serverTimestamp(),
@@ -1207,21 +1169,12 @@ class AdminStore extends ChangeNotifier {
         'ngay_mo_khoa': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      // Gửi thông báo cho bệnh nhân
-      await _firestore.collection('ThongBao').add({
-        'tieu_de': 'Tài khoản đã được mở khóa',
-        'noi_dung': 'Tài khoản bệnh nhân của bạn đã được Quản trị viên kích hoạt lại.',
-        'nguoi_nhan_uid': p.uid,
-        'loai': 'mo_khoa_tai_khoan',
-        'da_doc': false,
-        'ngay_tao': FieldValue.serverTimestamp(),
-      });
-
       // Gửi thông báo hệ thống
       await _firestore.collection('ThongBaoHeThong').add({
         'tieu_de': 'Mở khóa tài khoản bệnh nhân',
         'noi_dung': 'Quản trị viên đã kích hoạt lại tài khoản bệnh nhân: ${p.hoTen} (${p.maBenhNhan})',
         'loai': 'mo_khoa_tai_khoan',
+        'nguoi_nhan_uid': p.uid,
         'da_doc': false,
         'thoi_gian_hien_thi': 'Vừa xong',
         'ngay_tao': FieldValue.serverTimestamp(),
