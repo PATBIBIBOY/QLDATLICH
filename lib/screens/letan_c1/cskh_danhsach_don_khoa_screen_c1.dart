@@ -67,6 +67,7 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
         appointmentId: appointmentId,
         docPath: docPath,
         trangThaiMoi: 'da_duyet',
+        khoaId: widget.tenKhoa,
         phongKhamId: don['phong_kham_id'] ?? _phongHienTai,
         ngayChon: _ngayChon,
       );
@@ -95,22 +96,12 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
   // Duyệt hết toàn bộ đơn đang chờ trên Firestore
   void _duyetHetTatCa(List<Map<String, dynamic>> danhSach) async {
     AppDesignSystemC1.hapticLight();
-    for (var don in danhSach) {
-      final trangThai = (don['rawTrangThai'] ?? '').toString();
-      if (trangThai != 'da_duyet' && trangThai != 'da_kham') {
-        final id = don['id'];
-        final docPath = don['docPath'];
-        if (id != null) {
-          await FirebaseServiceC1.capNhatTrangThaiLichHen(
-            appointmentId: id,
-            docPath: docPath,
-            trangThaiMoi: 'da_duyet',
-            phongKhamId: don['phong_kham_id'] ?? _phongHienTai,
-            ngayChon: _ngayChon,
-          );
-        }
-      }
-    }
+    await FirebaseServiceC1.duyetTatCaLichHen(
+      danhSachDon: danhSach,
+      khoaId: widget.tenKhoa,
+      phongKhamId: _phongHienTai,
+      ngayChon: _ngayChon,
+    );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

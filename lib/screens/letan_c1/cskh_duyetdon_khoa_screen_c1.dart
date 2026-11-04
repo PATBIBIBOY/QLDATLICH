@@ -212,10 +212,8 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
       MaterialPageRoute(
         builder: (_) => CskhDanhsachDonKhoaScreenC1(
           tenKhoa: khoa.tenKhoa,
-          phongKham: khoa.moTaPhong.split('•').first.trim(),
-          caKham: khoa.moTaPhong.contains('•')
-              ? khoa.moTaPhong.split('•').last.trim().replaceAll('\n', ' ')
-              : 'Ca sáng',
+          phongKham: 'Tất cả các phòng',
+          caKham: 'Tất cả các ca',
           tongDon: 25,
         ),
       ),

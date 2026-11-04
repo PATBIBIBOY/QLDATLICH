@@ -279,27 +279,41 @@ class FirebaseServiceC1 {
     String clean(String str) {
       var s = boDauTiengViet(str);
       s = s.replaceAll('KHOA ', '').replaceAll('CHUYEN KHOA ', '').replaceAll('PHONG KHAM ', '').trim();
-      // Map alias mã khoa
-      if (s == 'K001' || s.contains('HO HAP') || s.contains('TIM')) {
-        // Hỗ trợ linh hoạt alias: K001 có thể là Khoa Tim hoặc Khoa Hô hấp tùy BV
-        if (s.contains('HO HAP')) return 'HOHAP';
-        if (s.contains('TIM')) return 'TIM';
-        return 'K001';
-      }
-      if (s == 'K003' || s == 'MAT' || s.contains('MAT')) return 'MAT';
-      if (s == 'K004' || s == 'NHI' || s.contains('NHI')) return 'NHI';
-      if (s == 'K002' || s.contains('NOI') || s.contains('DA LIEU')) {
-        if (s.contains('DA LIEU')) return 'DALIEU';
-        if (s.contains('NOI')) return 'NOI';
-        return 'K002';
-      }
-      if (s.contains('RANG') || s.contains('RHM')) return 'RHM';
       return s;
     }
 
     final a = clean(khoaA);
     final b = clean(khoaB);
-    return a == b || a.contains(b) || b.contains(a);
+    if (a.isEmpty || b.isEmpty) return false;
+    if (a == b || a.contains(b) || b.contains(a)) return true;
+
+    // So sánh theo mã ID khoa K001, K002...
+    final regA = RegExp(r'K\d+').firstMatch(a)?.group(0);
+    final regB = RegExp(r'K\d+').firstMatch(b)?.group(0);
+    if (regA != null && regB != null && regA == regB) return true;
+
+    // So sánh alias phổ biến
+    final bool aHoHap = a.contains('HO HAP') || a.contains('K001') || a.contains('HH');
+    final bool bHoHap = b.contains('HO HAP') || b.contains('K001') || b.contains('HH');
+    if (aHoHap && bHoHap) return true;
+
+    final bool aDaLieu = a.contains('DA LIEU') || a.contains('K002') || a.contains('DL');
+    final bool bDaLieu = b.contains('DA LIEU') || b.contains('K002') || b.contains('DL');
+    if (aDaLieu && bDaLieu) return true;
+
+    final bool aTim = a.contains('TIM') || a.contains('TM');
+    final bool bTim = b.contains('TIM') || b.contains('TM');
+    if (aTim && bTim) return true;
+
+    final bool aMat = a.contains('MAT');
+    final bool bMat = b.contains('MAT');
+    if (aMat && bMat) return true;
+
+    final bool aNhi = a.contains('NHI');
+    final bool bNhi = b.contains('NHI');
+    if (aNhi && bNhi) return true;
+
+    return false;
   }
 
   /// Kiểm tra xem có đang chọn chế độ 'Tổng' (Tất cả chuyên khoa toàn viện) hay không
@@ -385,8 +399,9 @@ class FirebaseServiceC1 {
         if (!khopNgay) continue;
 
         // 2. Lọc theo khoa (hoặc lấy tất cả khi ở chế độ Tổng)
-        final docKhoa = (data['ten_khoa'] ?? data['tenKhoa'] ?? data['khoa'] ?? data['khoa_id'] ?? '').toString();
-        if (!isAll && !laCungKhoa(docKhoa, tenKhoa)) {
+        final rawKhoaIdThongKe = (data['khoa_id'] ?? data['khoaId'] ?? '').toString();
+        final docKhoa = (data['ten_khoa'] ?? data['tenKhoa'] ?? data['khoa'] ?? rawKhoaIdThongKe).toString();
+        if (!isAll && !laCungKhoa(docKhoa, tenKhoa) && !laCungKhoa(rawKhoaIdThongKe, tenKhoa)) {
           continue;
         }
 
@@ -402,9 +417,21 @@ class FirebaseServiceC1 {
             rawTrangThaiStr.contains('huy') ||
             rawTrangThaiStr.contains('cancel');
 
-        // Nếu là Lễ tân: Bỏ qua các đơn chưa duyệt hoặc đã từ chối/hủy. CSKH: không bỏ qua đơn chờ duyệt
-        if (!laCskh && (laChuaDuyet || laDaHuyHoacTuChoi)) {
-          continue;
+        // Đối với Lễ tân: Chỉ lấy các đơn ĐÃ DUYỆT hoặc ĐÃ KHÁM / TIẾP ĐÓN
+        final bool laDaDuyetHoacKham = rawTrangThaiId == '2' ||
+            rawTrangThaiId == '5' ||
+            rawTrangThaiId == '6' ||
+            rawTrangThaiStr.contains('duyet') ||
+            rawTrangThaiStr.contains('xac_nhan') ||
+            rawTrangThaiStr.contains('da_tiep_nhan') ||
+            rawTrangThaiStr.contains('tiep_don') ||
+            rawTrangThaiStr.contains('tiep_theo') ||
+            rawTrangThaiStr.contains('kham');
+
+        if (!laCskh) {
+          if (!laDaDuyetHoacKham || laDaHuyHoacTuChoi) {
+            continue;
+          }
         }
 
         tongSo++;
@@ -605,10 +632,21 @@ class FirebaseServiceC1 {
             rawTrangThaiStr.contains('huy') ||
             rawTrangThaiStr.contains('cancel');
 
-        // Nếu là Lễ tân (choPhepChoDuyet == false): Bỏ qua hoàn toàn các đơn chưa duyệt hoặc đã từ chối/hủy
-        // Nếu là CSKH (choPhepChoDuyet == true): Giữ lại tất cả đơn để CSKH duyệt và theo dõi
-        if (!choPhepChoDuyet && (laChuaDuyet || laDaHuyHoacTuChoi)) {
-          continue;
+        // Đối với Lễ tân (choPhepChoDuyet == false): Chỉ lấy các đơn ĐÃ ĐƯỢC DUYỆT hoặc ĐÃ KHÁM/TIẾP ĐÓN
+        final bool laDaDuyetHoacKham = rawTrangThaiId == '2' ||
+            rawTrangThaiId == '5' ||
+            rawTrangThaiId == '6' ||
+            rawTrangThaiStr.contains('duyet') ||
+            rawTrangThaiStr.contains('xac_nhan') ||
+            rawTrangThaiStr.contains('da_tiep_nhan') ||
+            rawTrangThaiStr.contains('tiep_don') ||
+            rawTrangThaiStr.contains('tiep_theo') ||
+            rawTrangThaiStr.contains('kham');
+
+        if (!choPhepChoDuyet) {
+          if (!laDaDuyetHoacKham || laDaHuyHoacTuChoi) {
+            continue;
+          }
         }
 
         String hienThiTrangThai = 'Đang chờ';
@@ -621,6 +659,8 @@ class FirebaseServiceC1 {
             hienThiTrangThai = 'Đã duyệt';
           } else if (rawTrangThaiId == '5' || rawTrangThaiStr.contains('kham') || rawTrangThaiStr.contains('hoan_thanh')) {
             hienThiTrangThai = 'Đã khám';
+          } else if (laChuaDuyet) {
+            hienThiTrangThai = 'Chờ duyệt';
           } else {
             hienThiTrangThai = 'Chờ duyệt';
           }
@@ -781,9 +821,10 @@ class FirebaseServiceC1 {
     return controller.stream;
   }
 
-  /// Lấy số thứ tự (so_thu_tu) tiếp theo lớn nhất cho phòng khám hoặc bệnh viện trong ngày
+  /// Lấy số thứ tự (so_thu_tu) tiếp theo lớn nhất RIÊNG CHO TỪNG KHOA trong ngày
   static Future<int> laySoThuTuTiepTheo({
     required String benhVienId,
+    String? khoaId,
     String? phongKhamId,
     String? caId,
     DateTime? ngayChon,
@@ -826,13 +867,18 @@ class FirebaseServiceC1 {
         }
         if (!khopNgay) continue;
 
-        // Chỉ xét các đơn đã được duyệt hoặc đã có số thứ tự
-        final String docStatusId = (data['trang_thai_id'] ?? '').toString();
-        final String docStatusStr = (data['trang_thai'] ?? data['trangThai'] ?? '').toString();
-        final bool daDuyet = docStatusId == '2' || docStatusId == '5' || docStatusStr == 'da_duyet' || docStatusStr == 'da_kham';
+        // LỌC RIÊNG THEO KHOA: Mỗi khoa có một dãy số thứ tự độc lập từ 1 trở đi
+        if (khoaId != null && khoaId.isNotEmpty && !laCheDoTong(khoaId)) {
+          final docKhoa = (data['khoa_id'] ?? data['khoaId'] ?? data['ten_khoa'] ?? data['tenKhoa'] ?? data['khoa'] ?? '').toString();
+          if (!laCungKhoa(docKhoa, khoaId)) {
+            continue;
+          }
+        }
 
+        // Bất kỳ đơn nào đã từng được cấp STT trong ngày (kể cả đã duyệt, đã khám hay sau đó bị hủy)
+        // đều được ghi nhận để đảm bảo số thứ tự luôn tịnh tiến tăng dần (Max + 1), không bao giờ lùi hoặc trùng số
         final sttVal = data['so_thu_tu'] ?? data['stt'];
-        if (daDuyet && sttVal != null) {
+        if (sttVal != null) {
           if (sttVal is num) {
             if (sttVal.toInt() > maxStt) maxStt = sttVal.toInt();
           } else if (sttVal is String) {
@@ -850,12 +896,16 @@ class FirebaseServiceC1 {
       final groupSnap = await groupQuery.get();
       for (var d in groupSnap.docs) {
         final data = d.data();
-        final String docStatusId = (data['trang_thai_id'] ?? '').toString();
-        final String docStatusStr = (data['trang_thai'] ?? data['trangThai'] ?? '').toString();
-        final bool daDuyet = docStatusId == '2' || docStatusId == '5' || docStatusStr == 'da_duyet' || docStatusStr == 'da_kham';
+        // LỌC RIÊNG THEO KHOA
+        if (khoaId != null && khoaId.isNotEmpty && !laCheDoTong(khoaId)) {
+          final docKhoa = (data['khoa_id'] ?? data['khoaId'] ?? data['ten_khoa'] ?? data['tenKhoa'] ?? data['khoa'] ?? '').toString();
+          if (!laCungKhoa(docKhoa, khoaId)) {
+            continue;
+          }
+        }
 
         final sttVal = data['so_thu_tu'] ?? data['stt'];
-        if (daDuyet && sttVal != null) {
+        if (sttVal != null) {
           if (sttVal is num) {
             if (sttVal.toInt() > maxStt) maxStt = sttVal.toInt();
           } else if (sttVal is String) {
@@ -881,6 +931,7 @@ class FirebaseServiceC1 {
     String? lyDoTuChoi,
     int? soThuTuChiDinh,
     String? benhVienId,
+    String? khoaId,
     String? phongKhamId,
     String? caId,
     DateTime? ngayChon,
@@ -928,8 +979,12 @@ class FirebaseServiceC1 {
         capNhatStt = int.parse(existingStt);
       } else {
         final bvid = benhVienId ?? DuLieuProfileMauC1.thongTinHienTai.benhVienId;
+        final targetKhoaId = khoaId ??
+            (existingData['khoa_id'] ?? existingData['khoaId'] ?? existingData['ten_khoa'] ?? existingData['tenKhoa'] ?? existingData['khoa'] ?? '')
+                .toString();
         capNhatStt = await laySoThuTuTiepTheo(
           benhVienId: bvid,
+          khoaId: targetKhoaId.isNotEmpty ? targetKhoaId : null,
           phongKhamId: phongKhamId,
           caId: caId,
           ngayChon: ngayChon,
@@ -990,6 +1045,7 @@ class FirebaseServiceC1 {
   static Future<void> duyetTatCaLichHen({
     required List<Map<String, dynamic>> danhSachDon,
     String? benhVienId,
+    String? khoaId,
     String? phongKhamId,
     DateTime? ngayChon,
   }) async {
@@ -1021,9 +1077,14 @@ class FirebaseServiceC1 {
       return timeA.compareTo(timeB);
     });
 
-    // 3. Lấy số thứ tự bắt đầu
+    // 3. Lấy số thứ tự bắt đầu RIÊNG CHO KHOA NÀY
+    final firstKhoaId = khoaId ??
+        (danhSachChoDuyet.first['khoa_id'] ?? danhSachChoDuyet.first['tenKhoa'] ?? danhSachChoDuyet.first['khoa'] ?? '')
+            .toString();
+
     int currentStt = await laySoThuTuTiepTheo(
       benhVienId: bvid,
+      khoaId: firstKhoaId.isNotEmpty ? firstKhoaId : null,
       phongKhamId: phongKhamId,
       ngayChon: ngayChon,
     );
@@ -1039,6 +1100,7 @@ class FirebaseServiceC1 {
           trangThaiMoi: 'da_duyet',
           soThuTuChiDinh: currentStt,
           benhVienId: bvid,
+          khoaId: firstKhoaId.isNotEmpty ? firstKhoaId : null,
           phongKhamId: phongKhamId,
           ngayChon: ngayChon,
         );

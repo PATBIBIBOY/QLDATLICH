@@ -341,13 +341,74 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    'Trang chủ Lễ tân',
-                    style: TextStyle(
-                      color: textCol,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        'Trang chủ Lễ tân',
+                        style: TextStyle(
+                          color: textCol,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Nút chuyển nhanh Toàn viện / Khoa hiện tại
+                      InkWell(
+                        onTap: () {
+                          AppDesignSystemC1.hapticLight();
+                          setState(() {
+                            final profileKhoa = DuLieuProfileMauC1.thongTinHienTai.khoa.trim();
+                            if (FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai)) {
+                              _tenKhoaHienTai = profileKhoa.isNotEmpty ? profileKhoa : 'Khoa Hô hấp';
+                            } else {
+                              _tenKhoaHienTai = 'Toàn viện';
+                            }
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai)
+                                ? const Color(0xFF0284C7)
+                                : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai)
+                                  ? const Color(0xFF0284C7)
+                                  : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai)
+                                    ? Icons.domain_rounded
+                                    : Icons.local_hospital_rounded,
+                                size: 12,
+                                color: FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai)
+                                    ? Colors.white
+                                    : const Color(0xFF0284C7),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai)
+                                    ? 'Toàn viện'
+                                    : 'Khoa của tôi',
+                                style: TextStyle(
+                                  color: FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai)
+                                      ? Colors.white
+                                      : const Color(0xFF0284C7),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -479,20 +540,84 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
             if (danhSach.isEmpty)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
                 decoration: BoxDecoration(
                   color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                      color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA)),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  'Hiện chưa có bệnh nhân nào chờ khám',
-                  style: TextStyle(
-                    color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
-                    fontSize: 13,
+                    color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA),
                   ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF0F9FF),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.event_available_rounded,
+                        color: Color(0xFF0284C7),
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Chưa Có Bệnh Nhân Nào Chờ Khám',
+                      style: TextStyle(
+                        color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1E293B),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai)
+                          ? 'Chưa có lịch hẹn nào được CSKH duyệt trong ngày hôm nay.'
+                          : 'Khoa "$_tenKhoaHienTai" chưa có lịch hẹn nào đã được duyệt.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                        fontSize: 13,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    if (!FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai))
+                      InkWell(
+                        onTap: () {
+                          AppDesignSystemC1.hapticLight();
+                          setState(() {
+                            _tenKhoaHienTai = 'Toàn viện';
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0284C7),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.domain_rounded, color: Colors.white, size: 16),
+                              SizedBox(width: 6),
+                              Text(
+                                'Xem danh sách Toàn viện',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               )
             else
