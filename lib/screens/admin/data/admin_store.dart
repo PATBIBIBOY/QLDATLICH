@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'mock_data.dart';
@@ -284,12 +284,13 @@ class AdminStore extends ChangeNotifier {
           final timeStr = data['ngay_tao']?.toString() ??
               data['thoi_gian_gui_str']?.toString() ??
               'Mới thêm trên hệ thống';
-          final fileDoc = data['file_giay_phep']?.toString() ??
-              data['tai_lieu_dinh_kem']?.toString() ??
+          final fileDoc = data['file_giay_phep_url']?.toString() ??
+              data['file_url']?.toString() ??
               data['link_tai_lieu']?.toString() ??
               data['url_tai_lieu']?.toString() ??
-              data['file_url']?.toString() ??
+              data['tai_lieu_dinh_kem']?.toString() ??
               data['hinh_anh_giay_phep']?.toString() ??
+              data['file_giay_phep']?.toString() ??
               '';
           pendingMap[doc.id] = {
             'docId': doc.id,
@@ -339,12 +340,13 @@ class AdminStore extends ChangeNotifier {
           final timeStr = data['thoi_gian_gui_str']?.toString() ??
               data['ngay_gui_don']?.toString() ??
               'Mới gửi yêu cầu';
-          final docFile = data['file_giay_phep']?.toString() ??
-              data['tai_lieu_dinh_kem']?.toString() ??
+          final docFile = data['file_giay_phep_url']?.toString() ??
+              data['file_url']?.toString() ??
               data['link_tai_lieu']?.toString() ??
               data['url_tai_lieu']?.toString() ??
-              data['file_url']?.toString() ??
+              data['tai_lieu_dinh_kem']?.toString() ??
               data['hinh_anh_giay_phep']?.toString() ??
+              data['file_giay_phep']?.toString() ??
               '';
           final location = data['dia_chi']?.toString() ??
               'Chưa cập nhật địa chỉ';
