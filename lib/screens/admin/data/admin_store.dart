@@ -198,7 +198,7 @@ class AdminStore extends ChangeNotifier {
         // Kiểm tra chặn đăng nhập
         final bool chanDangNhap = data['chan_dang_nhap'] == true ||
             data['is_blocked'] == true ||
-            (statusId == 11 && (trangThaiStr == 'chan_dang_nhap' || trangThaiStr == 'khoa'));
+            (statusId == 8 || statusId == 11) && (trangThaiStr == 'chan_dang_nhap' || trangThaiStr == 'khoa');
         final String? blockReason = data['ly_do_khoa']?.toString() ??
             data['ly_do_huy']?.toString() ??
             data['ly_do_chan']?.toString();
@@ -508,7 +508,7 @@ class AdminStore extends ChangeNotifier {
       final trangThaiStr = data['trang_thai']?.toString().toLowerCase();
       final isBlocked = data['chan_dang_nhap'] == true ||
           data['is_blocked'] == true ||
-          statusId == 11 ||
+          statusId == 8 || statusId == 11 ||
           trangThaiStr == 'khoa' ||
           trangThaiStr == 'chan_dang_nhap';
       final blockReason = data['ly_do_khoa']?.toString() ?? data['ly_do_chan']?.toString();
