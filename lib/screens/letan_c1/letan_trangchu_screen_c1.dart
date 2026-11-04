@@ -33,6 +33,7 @@ class LeTanHomeScreenC1 extends StatefulWidget {
 class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
   int _currentIndex = 0; // 0: Trang chu, 1: Quet QR, 2: Lich hen, 3: Profile
   late String _tenKhoaHienTai;
+  String? _khoaIdHienTai;
   DateTime _ngayChon = DateTime.now();
   StreamSubscription? _subLoiDaSua;
   StreamSubscription? _subDonKhamMoi;
@@ -188,7 +189,10 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
       tieuDe: 'Chọn Khoa Tiếp Nhận',
       moTaPhu: 'Chọn chuyên khoa để lọc danh sách bệnh nhân tiếp đón tại quầy',
       onKhoaSelected: (tenKhoa, khoaId) {
-        setState(() => _tenKhoaHienTai = tenKhoa);
+        setState(() {
+          _tenKhoaHienTai = tenKhoa;
+          _khoaIdHienTai = khoaId;
+        });
       },
     );
   }
@@ -367,6 +371,9 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
                 context,
                 vaiTro: 'letan',
                 tieuDe: 'Thông Báo Lễ Tân',
+                tenKhoaHienTai: _tenKhoaHienTai,
+                khoaIdHienTai: _khoaIdHienTai,
+                onDoiKhoa: _moModalChonKhoaFirebase,
               ),
               borderRadius: BorderRadius.circular(12),
               child: Container(

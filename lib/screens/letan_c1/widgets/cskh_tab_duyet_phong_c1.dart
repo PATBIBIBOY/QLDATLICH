@@ -264,12 +264,16 @@ class CskhTabDuyetPhongC1 extends StatelessWidget {
                                   children: [
                                     Row(
                                       children: [
-                                        Text(
-                                          tenPhong,
-                                          style: TextStyle(
-                                            color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
-                                            fontSize: 15.5,
-                                            fontWeight: FontWeight.w700,
+                                        Flexible(
+                                          child: Text(
+                                            tenPhong,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
+                                              fontSize: 15.5,
+                                              fontWeight: FontWeight.w700,
+                                            ),
                                           ),
                                         ),
                                         if (soPhong.isNotEmpty) ...[

@@ -640,10 +640,12 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          _PickerRoomStatus(
-                            label: '${roomsInDepartment.length} phòng',
-                            foreground: const Color(0xFF107FE8),
-                            background: const Color(0x14107FE8),
+                          Flexible(
+                            child: _PickerRoomStatus(
+                              label: '${roomsInDepartment.length} phòng',
+                              foreground: const Color(0xFF107FE8),
+                              background: const Color(0x14107FE8),
+                            ),
                           ),
                         ],
                       ),
@@ -793,10 +795,12 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          _PickerRoomStatus(
-                            label: widget.statusLabelOf(room),
-                            foreground: statusColor,
-                            background: statusBackground,
+                          Flexible(
+                            child: _PickerRoomStatus(
+                              label: widget.statusLabelOf(room),
+                              foreground: statusColor,
+                              background: statusBackground,
+                            ),
                           ),
                         ],
                       ),
