@@ -1,12 +1,10 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-// import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../models/letan_c1/letan_qr_model_c1.dart';
-
-Map<String, String> _inMemorySession = {};
 
 /// Service kết nối Firebase Firestore cho Module Lễ tân & CSKH C1 (Đinh Hoàng Cước)
 /// Tuân thủ nguyên tắc ghi_chu_c1.md:
@@ -1263,7 +1261,50 @@ class FirebaseServiceC1 {
 
     // 2. TÌM THEO MÃ NHÂN VIÊN
     if (cleanMa != null && cleanMa.isNotEmpty) {
-      // 2.1 DocId trực tiếp trong 'NhanVien' cấp 1
+      // 2.0 Tách tiền tố bệnh viện nếu mã có dạng {MÃ_BV}_{ROLE}_{...} (Ví dụ: BV508_LT_DL_01 -> BV508)
+      String? extractedBvId;
+      if (cleanMaUpper != null && cleanMaUpper.startsWith('BV')) {
+        final parts = cleanMaUpper.split('_');
+        if (parts.isNotEmpty && parts.first.startsWith('BV')) {
+          extractedBvId = parts.first;
+        }
+      }
+
+      // 2.1 Nếu trích xuất được mã BV từ chính mã nhân viên (như BV508) -> Tìm thẳng trong NhanVien/{extractedBvId}/danh_sach
+      if (extractedBvId != null && extractedBvId.isNotEmpty) {
+        try {
+          final docExact = await _firestore
+              .collection('NhanVien')
+              .doc(extractedBvId)
+              .collection('danh_sach')
+              .doc(cleanMa)
+              .get();
+          if (docExact.exists) return docExact;
+          if (cleanMaUpper != null) {
+            final docExactUpper = await _firestore
+                .collection('NhanVien')
+                .doc(extractedBvId)
+                .collection('danh_sach')
+                .doc(cleanMaUpper)
+                .get();
+            if (docExactUpper.exists) return docExactUpper;
+          }
+        } catch (_) {}
+
+        // Truy vấn theo field ma_nhan_vien hoặc ma_tai_khoan trong đúng bệnh viện đó
+        try {
+          final qMaInBv = await _firestore
+              .collection('NhanVien')
+              .doc(extractedBvId)
+              .collection('danh_sach')
+              .where('ma_nhan_vien', isEqualTo: cleanMa)
+              .limit(1)
+              .get();
+          if (qMaInBv.docs.isNotEmpty) return qMaInBv.docs.first;
+        } catch (_) {}
+      }
+
+      // 2.2 DocId trực tiếp trong 'NhanVien' cấp 1
       try {
         final doc1 = await _firestore.collection('NhanVien').doc(cleanMa).get();
         if (doc1.exists) return doc1;
@@ -1275,7 +1316,7 @@ class FirebaseServiceC1 {
         } catch (_) {}
       }
 
-      // 2.2 Quét theo trường ma_nhan_vien hoặc ma_tai_khoan trong 'NhanVien' cấp 1
+      // 2.3 Quét theo trường ma_nhan_vien hoặc ma_tai_khoan trong 'NhanVien' cấp 1
       try {
         final q1 = await _firestore.collection('NhanVien').where('ma_nhan_vien', isEqualTo: cleanMa).limit(1).get();
         if (q1.docs.isNotEmpty) return q1.docs.first;
@@ -1291,8 +1332,15 @@ class FirebaseServiceC1 {
         } catch (_) {}
       }
 
-      // 2.3 Quét docId trong các bệnh viện phổ biến
-      final commonBvIds = ['BV502', 'BV001', 'BV01', '1'];
+      // 2.4 Quét docId trong các bệnh viện phổ biến (bao gồm cả mã trích xuất nếu có)
+      final commonBvIds = <String>{
+        ...?extractedBvId != null ? [extractedBvId] : null,
+        'BV508',
+        'BV502',
+        'BV001',
+        'BV01',
+        '1',
+      }.toList();
       for (final bvid in commonBvIds) {
         try {
           final docSub = await _firestore.collection('NhanVien').doc(bvid).collection('danh_sach').doc(cleanMa).get();
@@ -1304,7 +1352,27 @@ class FirebaseServiceC1 {
         } catch (_) {}
       }
 
-      // 2.4 Quét qua collectionGroup('danh_sach')
+      // 2.5 Quét qua collectionGroup('danh_sach') theo Document ID
+      try {
+        final qDocGroup = await _firestore
+            .collectionGroup('danh_sach')
+            .where(FieldPath.documentId, isEqualTo: cleanMa)
+            .limit(1)
+            .get();
+        if (qDocGroup.docs.isNotEmpty) return qDocGroup.docs.first;
+      } catch (_) {}
+      if (cleanMaUpper != null && cleanMaUpper != cleanMa) {
+        try {
+          final qDocGroupU = await _firestore
+              .collectionGroup('danh_sach')
+              .where(FieldPath.documentId, isEqualTo: cleanMaUpper)
+              .limit(1)
+              .get();
+          if (qDocGroupU.docs.isNotEmpty) return qDocGroupU.docs.first;
+        } catch (_) {}
+      }
+
+      // 2.6 Quét qua collectionGroup('danh_sach') theo field
       try {
         final qGroup1 = await _firestore.collectionGroup('danh_sach').where('ma_nhan_vien', isEqualTo: cleanMa).limit(1).get();
         if (qGroup1.docs.isNotEmpty) return qGroup1.docs.first;
@@ -1313,6 +1381,24 @@ class FirebaseServiceC1 {
         final qGroup2 = await _firestore.collectionGroup('danh_sach').where('ma_tai_khoan', isEqualTo: cleanMa).limit(1).get();
         if (qGroup2.docs.isNotEmpty) return qGroup2.docs.first;
       } catch (_) {}
+      if (cleanMaUpper != null && cleanMaUpper != cleanMa) {
+        try {
+          final qGroup1u = await _firestore.collectionGroup('danh_sach').where('ma_nhan_vien', isEqualTo: cleanMaUpper).limit(1).get();
+          if (qGroup1u.docs.isNotEmpty) return qGroup1u.docs.first;
+        } catch (_) {}
+      }
+
+      // 2.7 Quét qua subcollection BenhVien/{bvid}/NhanVien
+      for (final bvid in commonBvIds) {
+        try {
+          final docBvNv = await _firestore.collection('BenhVien').doc(bvid).collection('NhanVien').doc(cleanMa).get();
+          if (docBvNv.exists) return docBvNv;
+          if (cleanMaUpper != null) {
+            final docBvNvU = await _firestore.collection('BenhVien').doc(bvid).collection('NhanVien').doc(cleanMaUpper).get();
+            if (docBvNvU.exists) return docBvNvU;
+          }
+        } catch (_) {}
+      }
     }
 
     // 3. TÌM THEO UID
@@ -1940,19 +2026,29 @@ class FirebaseServiceC1 {
     required String taiKhoan,
     required String matKhau,
   }) async {
-    _inMemorySession[_keyDaLuuDangNhap] = 'true';
-    _inMemorySession[_keyTaiKhoan] = taiKhoan;
-    _inMemorySession[_keyMatKhau] = matKhau;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_keyDaLuuDangNhap, true);
+      await prefs.setString(_keyTaiKhoan, taiKhoan);
+      await prefs.setString(_keyMatKhau, matKhau);
+    } catch (_) {}
   }
 
   /// Lấy thông tin phiên đã lưu
   static Future<Map<String, String>?> layPhienDangNhap() async {
-    final daLuu = _inMemorySession[_keyDaLuuDangNhap] == 'true';
-    if (!daLuu) return null;
-    final taiKhoan = _inMemorySession[_keyTaiKhoan] ?? '';
-    final matKhau = _inMemorySession[_keyMatKhau] ?? '';
-    if (taiKhoan.isEmpty || matKhau.isEmpty) return null;
-    return {'taiKhoan': taiKhoan, 'matKhau': matKhau};
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final daLuu = prefs.getBool(_keyDaLuuDangNhap) ?? false;
+      if (!daLuu) return null;
+
+      final taiKhoan = prefs.getString(_keyTaiKhoan) ?? '';
+      final matKhau = prefs.getString(_keyMatKhau) ?? '';
+      if (taiKhoan.isEmpty || matKhau.isEmpty) return null;
+
+      return {'taiKhoan': taiKhoan, 'matKhau': matKhau};
+    } catch (_) {
+      return null;
+    }
   }
 
   // ==========================================
@@ -2266,7 +2362,12 @@ class FirebaseServiceC1 {
 
   /// Xóa phiên đăng nhập khi bấm Đăng xuất
   static Future<void> xoaPhienDangNhap() async {
-    _inMemorySession.clear();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_keyDaLuuDangNhap);
+      await prefs.remove(_keyTaiKhoan);
+      await prefs.remove(_keyMatKhau);
+    } catch (_) {}
   }
 
   // ==========================================
