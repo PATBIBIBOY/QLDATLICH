@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../core/theme.dart';
 import '../widgets/shared_widgets.dart';
 import 'approve_confirm_screen.dart';
@@ -44,18 +45,63 @@ class PendingHospitalDetailScreen extends StatelessWidget {
       return;
     }
 
-    // Nếu là URL web hoặc Firebase Storage link
+    // Nếu là URL đầy đủ → mở thẳng
     if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
       final uri = Uri.parse(cleanUrl);
       try {
-        final canLaunch = await canLaunchUrl(uri);
-        if (canLaunch) {
+        if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
           return;
         }
       } catch (_) {}
     }
 
+    // Nếu là tên file → thử lấy download URL từ Firebase Storage
+    if (context.mounted) {
+      // Hiện loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Đang lấy liên kết tài liệu...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    String? downloadUrl;
+    // Thử nhiều path phổ biến trong Storage
+    final List<String> storagePaths = [
+      'giay_phep/$cleanUrl',
+      'tai_lieu/$cleanUrl',
+      'ho_so/$cleanUrl',
+      cleanUrl,
+    ];
+    for (final path in storagePaths) {
+      try {
+        downloadUrl = await FirebaseStorage.instance.ref(path).getDownloadURL();
+        break;
+      } catch (_) {}
+    }
+
+    if (context.mounted) Navigator.pop(context); // Đóng loading
+
+    if (downloadUrl != null && context.mounted) {
+      final uri = Uri.parse(downloadUrl);
+      try {
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          return;
+        }
+      } catch (_) {}
+    }
+
+    // Không lấy được URL → hiện tên file để user biết
     if (context.mounted) {
       showDialog(
         context: context,
@@ -72,7 +118,7 @@ class PendingHospitalDetailScreen extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Tên file/Liên kết đăng ký:', style: TextStyle(fontSize: 12, color: kSlate400)),
+              const Text('Không tìm thấy liên kết tải file trên Storage.\nTên file đã lưu:', style: TextStyle(fontSize: 12, color: kSlate400)),
               const SizedBox(height: 6),
               SelectableText(
                 cleanUrl,
