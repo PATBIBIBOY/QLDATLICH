@@ -41,6 +41,7 @@ dependencies:
   intl: ^0.20.2
   http: ^1.6.0
   url_launcher: ^6.3.3
+  googleapis_auth: ^2.3.5
 
 dev_dependencies:
   flutter_test:

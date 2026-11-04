@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'mock_data.dart';
 import '../../../services/email_service.dart';
+import '../../../services/firebase_admin_auth_service.dart';
 
 // ===================================================
 // KHO DỮ LIỆU DÙNG CHUNG — Đồng bộ Realtime với Firebase Firestore
@@ -1132,6 +1133,16 @@ class AdminStore extends ChangeNotifier {
         'ngay_tao': FieldValue.serverTimestamp(),
       });
 
+      // Vô hiệu hóa tài khoản gốc trên Firebase Auth và thu hồi phiên đăng nhập
+      try {
+        await FirebaseAdminAuthService.instance.disableAndRevokeUser(
+          uid: p.uid,
+          email: p.email,
+        );
+      } catch (e) {
+        debugPrint('Lỗi vô hiệu hóa Firebase Auth: ');
+      }
+
       // Gửi email thông báo tới email đăng ký của bệnh nhân
       if (p.email != null && p.email!.isNotEmpty) {
         await EmailService.instance.sendAccountBlockedEmail(
@@ -1179,6 +1190,16 @@ class AdminStore extends ChangeNotifier {
         'thoi_gian_hien_thi': 'Vừa xong',
         'ngay_tao': FieldValue.serverTimestamp(),
       });
+
+      // Mở khóa tài khoản gốc trên Firebase Auth
+      try {
+        await FirebaseAdminAuthService.instance.enableUser(
+          uid: p.uid,
+          email: p.email,
+        );
+      } catch (e) {
+        debugPrint('Lỗi mở khóa Firebase Auth: ');
+      }
 
       // Gửi email thông báo mở khóa tới bệnh nhân
       if (p.email != null && p.email!.isNotEmpty) {
