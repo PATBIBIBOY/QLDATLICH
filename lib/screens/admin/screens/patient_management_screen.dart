@@ -290,7 +290,12 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
   }
 
   Widget _buildPatientDetailSheet(BuildContext ctx, AdminPatient patient) {
-    return Container(
+    int chartMode = 0; // 0: Theo Ngày (7 ngày), 1: Theo Tháng (12 tháng), 2: Theo Năm
+    int? selectedBarIndex;
+
+    return StatefulBuilder(
+      builder: (modalCtx, setModalState) {
+        return Container(
           height: MediaQuery.of(ctx).size.height * 0.85,
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -494,6 +499,415 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
 
                     const SizedBox(height: 20),
 
+                    // ================= PHẦN QUẢN LÝ HOẠT ĐỘNG, THỜI GIAN OFFLINE & BIỂU ĐỒ =================
+                    _buildSectionHeader('Quản lý dữ liệu hoạt động & Tần suất', Icons.insights_rounded),
+                    const SizedBox(height: 10),
+                    FutureBuilder<Map<String, dynamic>>(
+                      future: AdminStore.instance.getPatientActivityStats(patient),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: kBorder),
+                            ),
+                            child: const Center(
+                              child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(strokeWidth: 2.2),
+                              ),
+                            ),
+                          );
+                        }
+
+                        final stats = snapshot.data ?? {};
+                        final offlineDurationText = stats['offlineDurationText']?.toString() ?? 'Chưa xác định';
+                        final offlineStart = stats['offlineStart'] as DateTime? ?? patient.effectiveOfflineTime;
+                        final totalAppointments = stats['totalAppointments'] ?? 0;
+                        final completedCount = stats['completedCount'] ?? 0;
+                        final cancelledCount = stats['cancelledCount'] ?? 0;
+                        final freqPerMonth = stats['freqPerMonth']?.toString() ?? '0.0';
+                        final freqPerWeek = stats['freqPerWeek']?.toString() ?? '0.0';
+                        final totalDaysJoined = stats['totalDaysJoined'] ?? 1;
+
+                        final dailyChart = (stats['dailyChart'] as List<Map<String, dynamic>>?) ?? [];
+                        final monthlyChart = (stats['monthlyChart'] as List<Map<String, dynamic>>?) ?? [];
+                        final yearlyChart = (stats['yearlyChart'] as List<Map<String, dynamic>>?) ?? [];
+                        final chartData = chartMode == 0
+                            ? dailyChart
+                            : (chartMode == 1 ? monthlyChart : yearlyChart);
+
+                        final maxVal = chartData.map((e) => (e['count'] as int?) ?? 0).fold(1, (prev, curr) => curr > prev ? curr : prev);
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Card Trạng thái Offline / Online từ lúc bắt đầu off đến giờ
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: patient.isActive
+                                    ? const Color(0xFFF0FDF4)
+                                    : const Color(0xFFFEF2F2),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: patient.isActive
+                                      ? const Color(0xFFBBF7D0)
+                                      : const Color(0xFFFECACA),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: patient.isActive
+                                              ? const Color(0xFFDCFCE7)
+                                              : const Color(0xFFFEE2E2),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          patient.isActive
+                                              ? Icons.wifi_rounded
+                                              : Icons.power_settings_new_rounded,
+                                          color: patient.isActive ? const Color(0xFF16A34A) : kRed,
+                                          size: 18,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              patient.isActive
+                                                  ? 'Trạng thái: Đang hoạt động'
+                                                  : 'Thời gian ngưng hoạt động (Bắt đầu off):',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color: patient.isActive
+                                                    ? const Color(0xFF15803D)
+                                                    : const Color(0xFF991B1B),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              patient.isActive
+                                                  ? 'Lần hoạt động/đăng nhập: $offlineDurationText'
+                                                  : 'Bắt đầu off từ: ${_formatDateTime(offlineStart)}',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w800,
+                                                color: kSlate900,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (!patient.isActive) ...[
+                                    const SizedBox(height: 10),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(color: const Color(0xFFFCA5A5)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.timer_outlined, color: kRed, size: 16),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: RichText(
+                                              text: TextSpan(
+                                                style: const TextStyle(fontSize: 12.5, color: kSlate700),
+                                                children: [
+                                                  const TextSpan(text: 'Từ lúc bắt đầu off đến giờ: '),
+                                                  TextSpan(
+                                                    text: offlineDurationText,
+                                                    style: const TextStyle(
+                                                      fontWeight: FontWeight.w900,
+                                                      color: kRed,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            // Các thẻ chỉ số tần suất hoạt động
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF8FAFC),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: kBorder),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text('Tần suất TB', style: TextStyle(fontSize: 11, color: kSlate500)),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '$freqPerMonth lượt/tháng',
+                                          style: const TextStyle(
+                                            fontSize: 13.5,
+                                            fontWeight: FontWeight.w900,
+                                            color: kPrimary,
+                                          ),
+                                        ),
+                                        Text('$freqPerWeek lượt/tuần', style: const TextStyle(fontSize: 10.5, color: kSlate400)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF8FAFC),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: kBorder),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text('Tổng lịch hẹn', style: TextStyle(fontSize: 11, color: kSlate500)),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '$totalAppointments lượt',
+                                          style: const TextStyle(
+                                            fontSize: 13.5,
+                                            fontWeight: FontWeight.w900,
+                                            color: kSlate900,
+                                          ),
+                                        ),
+                                        Text('Xong: $completedCount · Hủy: $cancelledCount', style: const TextStyle(fontSize: 10.5, color: kSlate500)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF8FAFC),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: kBorder),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text('Thời gian tham gia', style: TextStyle(fontSize: 11, color: kSlate500)),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '$totalDaysJoined ngày',
+                                          style: const TextStyle(
+                                            fontSize: 13.5,
+                                            fontWeight: FontWeight.w900,
+                                            color: kSlate900,
+                                          ),
+                                        ),
+                                        Text('Tỉ lệ xong: ${totalAppointments > 0 ? ((completedCount / totalAppointments) * 100).toStringAsFixed(0) : 0}%', style: const TextStyle(fontSize: 10.5, color: Color(0xFF16A34A))),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            // ================= BIỂU ĐỒ HOẠT ĐỘNG (NGÀY / THÁNG / NĂM) =================
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: kBorder),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.03),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text(
+                                        'Biểu đồ tần suất hoạt động',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w800,
+                                          color: kSlate900,
+                                        ),
+                                      ),
+                                      // Bộ chuyển đổi Ngày / Tháng / Năm
+                                      Container(
+                                        padding: const EdgeInsets.all(3),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF1F5F9),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            _buildChartModePill(chartMode, 0, 'Ngày', () => setModalState(() { chartMode = 0; selectedBarIndex = null; })),
+                                            _buildChartModePill(chartMode, 1, 'Tháng', () => setModalState(() { chartMode = 1; selectedBarIndex = null; })),
+                                            _buildChartModePill(chartMode, 2, 'Năm', () => setModalState(() { chartMode = 2; selectedBarIndex = null; })),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 18),
+
+                                  // Thanh Bar Chart
+                                  SizedBox(
+                                    height: 130,
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: List.generate(chartData.length, (i) {
+                                        final item = chartData[i];
+                                        final count = (item['count'] as int?) ?? 0;
+                                        final label = item['label']?.toString() ?? '';
+                                        final isSelected = selectedBarIndex == i;
+                                        final heightRatio = (count / maxVal).clamp(0.0, 1.0);
+                                        final barHeight = count > 0 ? (heightRatio * 75).clamp(16.0, 75.0) : 6.0;
+
+                                        return Expanded(
+                                          child: GestureDetector(
+                                            onTap: () {
+                                              setModalState(() {
+                                                selectedBarIndex = isSelected ? null : i;
+                                              });
+                                            },
+                                            child: Container(
+                                              color: Colors.transparent,
+                                              child: Column(
+                                                mainAxisAlignment: MainAxisAlignment.end,
+                                                children: [
+                                                  SizedBox(
+                                                    height: 16,
+                                                    child: count > 0
+                                                        ? Text(
+                                                            '$count',
+                                                            style: TextStyle(
+                                                              fontSize: 10,
+                                                              fontWeight: FontWeight.w800,
+                                                              color: isSelected ? kPrimary : kSlate600,
+                                                            ),
+                                                          )
+                                                        : const SizedBox.shrink(),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  AnimatedContainer(
+                                                    duration: const Duration(milliseconds: 250),
+                                                    width: 14,
+                                                    height: barHeight,
+                                                    decoration: BoxDecoration(
+                                                      gradient: count > 0
+                                                          ? LinearGradient(
+                                                              begin: Alignment.topCenter,
+                                                              end: Alignment.bottomCenter,
+                                                              colors: isSelected
+                                                                  ? [kPrimary, const Color(0xFF1D4ED8)]
+                                                                  : [const Color(0xFF60A5FA), kPrimary],
+                                                            )
+                                                          : null,
+                                                      color: count == 0 ? const Color(0xFFE2E8F0) : null,
+                                                      borderRadius: BorderRadius.circular(4),
+                                                      boxShadow: isSelected
+                                                          ? [
+                                                              BoxShadow(
+                                                                color: kPrimary.withValues(alpha: 0.4),
+                                                                blurRadius: 6,
+                                                                offset: const Offset(0, 2),
+                                                              ),
+                                                            ]
+                                                          : null,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 6),
+                                                  Text(
+                                                    label,
+                                                    style: TextStyle(
+                                                      fontSize: 9.5,
+                                                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                                      color: isSelected ? kPrimary : kSlate400,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      }),
+                                    ),
+                                  ),
+
+                                  if (selectedBarIndex != null && selectedBarIndex! < chartData.length) ...[
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: kPrimaryLight,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.info_outline_rounded, color: kPrimary, size: 16),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'Thời điểm ${chartData[selectedBarIndex!]['label']}: có ${chartData[selectedBarIndex!]['count']} lượt hoạt động / lịch hẹn khám.',
+                                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kPrimary),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 20),
+
                     // Lịch hẹn khám từ Firebase
                     _buildSectionHeader('Lịch sử đặt lịch khám', Icons.calendar_month_outlined),
                     const SizedBox(height: 10),
@@ -662,6 +1076,44 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
             ],
           ),
         );
+      },
+    );
+  }
+
+  Widget _buildChartModePill(int currentMode, int index, String label, VoidCallback onTap) {
+    final isSelected = currentMode == index;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 3,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: isSelected ? kPrimary : kSlate500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDateTime(DateTime dt) {
+    return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 
   Widget _buildSectionHeader(String title, IconData icon) {

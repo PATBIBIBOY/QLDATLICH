@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'mock_data.dart';
@@ -16,6 +16,10 @@ class ErrorReport {
   final String sender;
   final String time;
   final String? desc;
+  final bool isResolved;
+  final String? adminResponse;
+  final String? resolvedTime;
+
   const ErrorReport({
     required this.id,
     required this.kind,
@@ -24,6 +28,9 @@ class ErrorReport {
     required this.sender,
     required this.time,
     this.desc,
+    this.isResolved = false,
+    this.adminResponse,
+    this.resolvedTime,
   });
 }
 
@@ -57,6 +64,7 @@ class AdminStore extends ChangeNotifier {
   ];
   // Khởi tạo rỗng, CHỈ hiển thị khi có báo cáo lỗi thực tế từ Firebase
   List<ErrorReport> reports = [];
+  List<ErrorReport> resolvedReports = [];
   List<AdminPatient> patients = [];
   List<Hospital> cancelledHospitals = [];
 
@@ -408,6 +416,7 @@ class AdminStore extends ChangeNotifier {
 
   void _processReportsSnapshot(QuerySnapshot<Map<String, dynamic>> snapshot) {
     final List<ErrorReport> reportList = [];
+    final List<ErrorReport> resolvedList = [];
     for (final doc in snapshot.docs) {
       final data = doc.data();
       final status = (data['trang_thai_xu_ly'] ??
@@ -418,67 +427,89 @@ class AdminStore extends ChangeNotifier {
           .toUpperCase() ??
           'CHO_XU_LY';
 
-      // Chỉ hiển thị các báo cáo lỗi chưa giải quyết
-      if (status != 'DA_GIAI_QUYET' &&
-          status != 'RESOLVED' &&
-          status != 'DA_XU_LY' &&
-          status != 'CLOSED') {
-        final rawKind = (data['loai'] ?? data['kind'] ?? data['type'] ?? '')
-            .toString()
-            .toLowerCase();
-        final kind = rawKind.contains('booking') || rawKind.contains('lich')
-            ? 'booking'
-            : 'qr';
-        final defaultBadge =
-            kind == 'qr' ? 'Lỗi Check-in QR' : 'Lỗi Đặt Lịch';
-        final badge = data['tieu_de']?.toString() ??
-            data['title']?.toString() ??
-            defaultBadge;
-        final title = data['tieu_de']?.toString() ??
-            data['title']?.toString() ??
-            'Báo cáo sự cố từ Bệnh viện';
+      final bool isResolved = status == 'DA_GIAI_QUYET' ||
+          status == 'RESOLVED' ||
+          status == 'DA_XU_LY' ||
+          status == 'CLOSED';
 
-        final rawSender = data['nguoi_gui']?.toString() ??
-            data['sender']?.toString() ??
-            data['ten_benh_vien']?.toString() ??
-            data['benh_vien']?.toString() ??
-            'Bệnh viện báo lỗi';
-        final senderStr = rawSender.startsWith('Người gửi:')
-            ? rawSender
-            : 'Người gửi: $rawSender';
+      final rawKind = (data['loai'] ?? data['kind'] ?? data['type'] ?? '')
+          .toString()
+          .toLowerCase();
+      final kind = rawKind.contains('booking') || rawKind.contains('lich')
+          ? 'booking'
+          : 'qr';
+      final defaultBadge =
+          kind == 'qr' ? 'Lỗi Check-in QR' : 'Lỗi Đặt Lịch';
+      final badge = data['tieu_de']?.toString() ??
+          data['title']?.toString() ??
+          defaultBadge;
+      final title = data['tieu_de']?.toString() ??
+          data['title']?.toString() ??
+          'Báo cáo sự cố từ Bệnh viện';
 
-        String timeStr = 'Gần đây';
-        if (data['thoi_gian_hien_thi'] != null) {
-          timeStr = data['thoi_gian_hien_thi'].toString();
-        } else if (data['time'] != null) {
-          timeStr = data['time'].toString();
-        } else if (data['ngay_tao'] is Timestamp) {
-          final dt = (data['ngay_tao'] as Timestamp).toDate();
-          timeStr =
-              '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')} ${dt.day}/${dt.month}/${dt.year}';
-        } else if (data['ngay_tao'] != null) {
-          timeStr = data['ngay_tao'].toString();
-        }
+      final rawSender = data['nguoi_gui']?.toString() ??
+          data['sender']?.toString() ??
+          data['ten_benh_vien']?.toString() ??
+          data['benh_vien']?.toString() ??
+          'Bệnh viện báo lỗi';
+      final senderStr = rawSender.startsWith('Người gửi:')
+          ? rawSender
+          : 'Người gửi: $rawSender';
 
-        final desc = data['noi_dung']?.toString() ??
-            data['mo_ta']?.toString() ??
-            data['desc']?.toString() ??
-            data['content']?.toString();
+      String timeStr = 'Gần đây';
+      if (data['thoi_gian_hien_thi'] != null) {
+        timeStr = data['thoi_gian_hien_thi'].toString();
+      } else if (data['time'] != null) {
+        timeStr = data['time'].toString();
+      } else if (data['ngay_tao'] is Timestamp) {
+        final dt = (data['ngay_tao'] as Timestamp).toDate();
+        timeStr =
+            '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')} ${dt.day}/${dt.month}/${dt.year}';
+      } else if (data['ngay_tao'] != null) {
+        timeStr = data['ngay_tao'].toString();
+      }
 
-        reportList.add(ErrorReport(
-          id: doc.id,
-          kind: kind,
-          badge: badge,
-          title: title,
-          sender: senderStr,
-          time: timeStr,
-          desc: desc != null && desc.isNotEmpty
-              ? (desc.startsWith('Mô tả:') ? desc : 'Mô tả: $desc')
-              : null,
-        ));
+      String? resolvedTimeStr;
+      if (data['ngay_giai_quyet'] is Timestamp) {
+        final dt = (data['ngay_giai_quyet'] as Timestamp).toDate();
+        resolvedTimeStr =
+            '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')} ${dt.day}/${dt.month}/${dt.year}';
+      } else if (data['ngay_giai_quyet'] != null) {
+        resolvedTimeStr = data['ngay_giai_quyet'].toString();
+      }
+
+      final desc = data['noi_dung']?.toString() ??
+          data['mo_ta']?.toString() ??
+          data['desc']?.toString() ??
+          data['content']?.toString();
+
+      final adminResp = data['phan_hoi_admin']?.toString() ??
+          data['phan_hoi']?.toString() ??
+          data['admin_response']?.toString();
+
+      final reportItem = ErrorReport(
+        id: doc.id,
+        kind: kind,
+        badge: badge,
+        title: title,
+        sender: senderStr,
+        time: timeStr,
+        desc: desc != null && desc.isNotEmpty
+            ? (desc.startsWith('Mô tả:') ? desc : 'Mô tả: $desc')
+            : null,
+        isResolved: isResolved,
+        adminResponse: adminResp,
+        resolvedTime: resolvedTimeStr,
+      );
+
+      if (isResolved) {
+        resolvedList.add(reportItem);
+      } else {
+        reportList.add(reportItem);
       }
     }
     reports = reportList;
+    resolvedReports = resolvedList;
     errorTotal = reportList.length;
     lastSync = DateTime.now();
     isConnected = true;
@@ -540,6 +571,26 @@ class AdminStore extends ChangeNotifier {
         } catch (_) {}
       }
 
+      DateTime? dangNhapCuoi;
+      final rawLogin = data['dang_nhap_cuoi'] ?? data['last_login'] ?? data['lan_hoat_dong_cuoi'] ?? data['last_active'];
+      if (rawLogin is Timestamp) {
+        dangNhapCuoi = rawLogin.toDate();
+      } else if (rawLogin != null) {
+        try {
+          dangNhapCuoi = DateTime.parse(rawLogin.toString());
+        } catch (_) {}
+      }
+
+      DateTime? ngayOffline;
+      final rawOff = data['ngay_offline'] ?? data['offline_at'] ?? data['thoi_gian_offline'];
+      if (rawOff is Timestamp) {
+        ngayOffline = rawOff.toDate();
+      } else if (rawOff != null) {
+        try {
+          ngayOffline = DateTime.parse(rawOff.toString());
+        } catch (_) {}
+      }
+
       final palette = _avatarPalette[idx % _avatarPalette.length];
       idx++;
 
@@ -558,6 +609,8 @@ class AdminStore extends ChangeNotifier {
         isBlocked: isBlocked,
         blockReason: blockReason,
         ngayKhoa: ngayKhoa,
+        ngayOffline: ngayOffline,
+        dangNhapCuoi: dangNhapCuoi,
         avatarBg: palette[0],
         avatarText: palette[1],
       ));
@@ -1059,7 +1112,21 @@ class AdminStore extends ChangeNotifier {
     ErrorReport report,
     String responseMessage,
   ) async {
+    final resolvedItem = ErrorReport(
+      id: report.id,
+      kind: report.kind,
+      badge: report.badge,
+      title: report.title,
+      sender: report.sender,
+      time: report.time,
+      desc: report.desc,
+      isResolved: true,
+      adminResponse: responseMessage,
+      resolvedTime: 'Vừa xong',
+    );
     reports.removeWhere((r) => r.id == report.id);
+    resolvedReports.removeWhere((r) => r.id == report.id);
+    resolvedReports.insert(0, resolvedItem);
     errorTotal = reports.length;
     notifyListeners();
 
@@ -1099,6 +1166,17 @@ class AdminStore extends ChangeNotifier {
       return reports.where((r) => r.kind == 'qr').toList();
     }
     return List.of(reports);
+  }
+
+  /// LỌC LỊCH SỬ BÁO CÁO ĐÃ GIẢI QUYẾT
+  List<ErrorReport> filteredResolvedReports(int filter) {
+    if (filter == 1) {
+      return resolvedReports.where((r) => r.kind == 'booking').toList();
+    }
+    if (filter == 2) {
+      return resolvedReports.where((r) => r.kind == 'qr').toList();
+    }
+    return List.of(resolvedReports);
   }
 
   // ===================================================
@@ -1264,6 +1342,165 @@ class AdminStore extends ChangeNotifier {
       debugPrint('Lỗi tải lịch hẹn bệnh nhân: $e');
       return [];
     }
+  }
+
+  /// THỐNG KÊ HOẠT ĐỘNG VÀ BIỂU ĐỒ TẦN SUẤT CỦA BỆNH NHÂN
+  Future<Map<String, dynamic>> getPatientActivityStats(AdminPatient patient) async {
+    final appointments = await getPatientAppointments(patient.uid);
+
+    final now = DateTime.now();
+    final joinDate = patient.ngayTao ?? now;
+    final totalDaysJoined = (now.difference(joinDate).inDays).clamp(1, 3650);
+
+    // Thời điểm bắt đầu offline
+    final offlineStart = patient.effectiveOfflineTime;
+    final offlineDuration = now.difference(offlineStart);
+
+    String offlineDurationText = 'Đang trực tuyến';
+    if (!patient.isActive) {
+      if (offlineDuration.inDays > 30) {
+        final months = (offlineDuration.inDays / 30).floor();
+        final days = offlineDuration.inDays % 30;
+        offlineDurationText = '$months tháng $days ngày';
+      } else if (offlineDuration.inDays > 0) {
+        final hours = offlineDuration.inHours % 24;
+        offlineDurationText = '${offlineDuration.inDays} ngày $hours giờ';
+      } else if (offlineDuration.inHours > 0) {
+        final mins = offlineDuration.inMinutes % 60;
+        offlineDurationText = '${offlineDuration.inHours} giờ $mins phút';
+      } else {
+        offlineDurationText = '${offlineDuration.inMinutes.clamp(1, 60)} phút';
+      }
+    } else if (patient.dangNhapCuoi != null) {
+      final diff = now.difference(patient.dangNhapCuoi!);
+      if (diff.inDays > 0) {
+        offlineDurationText = '${diff.inDays} ngày trước';
+      } else if (diff.inHours > 0) {
+        offlineDurationText = '${diff.inHours} giờ trước';
+      } else {
+        offlineDurationText = 'Vừa online';
+      }
+    }
+
+    // Tần suất hoạt động: số lịch hẹn / tháng & / tuần
+    final totalAppointments = appointments.length;
+    final freqPerMonth = totalDaysJoined >= 30
+        ? (totalAppointments / (totalDaysJoined / 30.0))
+        : (totalAppointments * (30.0 / totalDaysJoined));
+    final freqPerWeek = totalDaysJoined >= 7
+        ? (totalAppointments / (totalDaysJoined / 7.0))
+        : (totalAppointments * (7.0 / totalDaysJoined));
+
+    // Lọc lịch hoàn thành / hủy
+    int completedCount = 0;
+    int cancelledCount = 0;
+    for (final app in appointments) {
+      final status = (app['trang_thai'] ?? app['status'] ?? '').toString().toLowerCase();
+      if (status.contains('huy') || status.contains('cancel')) {
+        cancelledCount++;
+      } else if (status.contains('kham') || status.contains('xong') || status.contains('complete')) {
+        completedCount++;
+      }
+    }
+
+    // --- BIỂU ĐỒ THEO NGÀY (7 ngày gần nhất) ---
+    final List<Map<String, dynamic>> dailyChart = [];
+    for (int i = 6; i >= 0; i--) {
+      final day = now.subtract(Duration(days: i));
+      int count = 0;
+      for (final app in appointments) {
+        DateTime? appDate;
+        if (app['ngay_kham'] is Timestamp) {
+          appDate = (app['ngay_kham'] as Timestamp).toDate();
+        } else if (app['ngay_tao'] is Timestamp) {
+          appDate = (app['ngay_tao'] as Timestamp).toDate();
+        } else if (app['ngay_kham'] != null) {
+          try {
+            appDate = DateTime.parse(app['ngay_kham'].toString());
+          } catch (_) {}
+        }
+        if (appDate != null &&
+            appDate.year == day.year &&
+            appDate.month == day.month &&
+            appDate.day == day.day) {
+          count++;
+        }
+      }
+      dailyChart.add({
+        'label': '${day.day}/${day.month}',
+        'count': count,
+        'date': day,
+      });
+    }
+
+    // --- BIỂU ĐỒ THEO THÁNG (12 tháng qua) ---
+    final List<Map<String, dynamic>> monthlyChart = [];
+    for (int i = 11; i >= 0; i--) {
+      final targetMonth = DateTime(now.year, now.month - i, 1);
+      int count = 0;
+      for (final app in appointments) {
+        DateTime? appDate;
+        if (app['ngay_kham'] is Timestamp) {
+          appDate = (app['ngay_kham'] as Timestamp).toDate();
+        } else if (app['ngay_tao'] is Timestamp) {
+          appDate = (app['ngay_tao'] as Timestamp).toDate();
+        } else if (app['ngay_kham'] != null) {
+          try {
+            appDate = DateTime.parse(app['ngay_kham'].toString());
+          } catch (_) {}
+        }
+        if (appDate != null &&
+            appDate.year == targetMonth.year &&
+            appDate.month == targetMonth.month) {
+          count++;
+        }
+      }
+      monthlyChart.add({
+        'label': 'T${targetMonth.month}',
+        'count': count,
+        'year': targetMonth.year,
+      });
+    }
+
+    // --- BIỂU ĐỒ THEO NĂM (Các năm từ khi tham gia đến nay) ---
+    final List<Map<String, dynamic>> yearlyChart = [];
+    final startYear = (patient.ngayTao?.year ?? now.year).clamp(2022, now.year);
+    for (int y = startYear; y <= now.year; y++) {
+      int count = 0;
+      for (final app in appointments) {
+        DateTime? appDate;
+        if (app['ngay_kham'] is Timestamp) {
+          appDate = (app['ngay_kham'] as Timestamp).toDate();
+        } else if (app['ngay_tao'] is Timestamp) {
+          appDate = (app['ngay_tao'] as Timestamp).toDate();
+        } else if (app['ngay_kham'] != null) {
+          try {
+            appDate = DateTime.parse(app['ngay_kham'].toString());
+          } catch (_) {}
+        }
+        if (appDate != null && appDate.year == y) {
+          count++;
+        }
+      }
+      yearlyChart.add({
+        'label': '$y',
+        'count': count,
+      });
+    }
+
+    return {
+      'totalAppointments': totalAppointments,
+      'completedCount': completedCount,
+      'cancelledCount': cancelledCount,
+      'totalDaysJoined': totalDaysJoined,
+      'offlineDurationText': offlineDurationText,
+      'offlineStart': offlineStart,
+      'freqPerMonth': freqPerMonth.toStringAsFixed(1),
+      'freqPerWeek': freqPerWeek.toStringAsFixed(1),
+      'dailyChart': dailyChart,
+      'monthlyChart': monthlyChart,
+      'yearlyChart': yearlyChart,
+    };
   }
 
   @override

@@ -13,6 +13,7 @@ class ErrorReportsScreen extends StatefulWidget {
 }
 
 class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
+  int _selectedTab = 0; // 0 = Chờ xử lý, 1 = Lịch sử báo lỗi
   int _filter = 0; // 0 = tất cả, 1 = đặt lịch, 2 = qr
 
   @override
@@ -77,6 +78,7 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
     );
   }
 
+  // --- CARD BÁO CÁO CHỜ XỬ LÝ ---
   Widget _buildReportCard(BuildContext context, ErrorReport r) {
     final bool isQR = r.kind == 'qr';
     final Color badgeColor = isQR ? kRed : kOrange;
@@ -232,7 +234,171 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
     );
   }
 
-  // --- MODAL XEM CHI TIẾT SỰ CỐ & SOẠN PHẢN HỒI CHO NGƯỜI GỬI ---
+  // --- CARD LỊCH SỬ BÁO CÁO ĐÃ XỬ LÝ ---
+  Widget _buildResolvedReportCard(BuildContext context, ErrorReport r) {
+    return InkWell(
+      onTap: () => _showReportDetailModal(context, r),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: kCardShadow,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: kGreenLight,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.check_circle_rounded,
+                    size: 16,
+                    color: kGreen,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const AppBadge(
+                  text: 'Đã giải quyết',
+                  color: kGreen,
+                  bg: kGreenLight,
+                ),
+                const SizedBox(width: 8),
+                AppBadge(
+                  text: r.badge,
+                  color: kSlate600,
+                  bg: const Color(0xFFF1F5F9),
+                ),
+                const Spacer(),
+                Row(
+                  children: [
+                    const Icon(Icons.history_rounded, size: 12, color: kSlate400),
+                    const SizedBox(width: 4),
+                    Text(
+                      r.resolvedTime ?? r.time,
+                      style: const TextStyle(
+                          fontSize: 11,
+                          color: kSlate400,
+                          fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              r.title,
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+                color: kSlate900,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Row(
+              children: [
+                const Icon(Icons.person_outline_rounded,
+                    size: 14, color: kSlate400),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    r.sender,
+                    style: const TextStyle(fontSize: 12, color: kSlate500),
+                  ),
+                ),
+              ],
+            ),
+            if (r.desc != null && r.desc!.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Text(
+                  r.desc!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 12, color: kSlate700, height: 1.35),
+                ),
+              ),
+            ],
+            if (r.adminResponse != null && r.adminResponse!.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFBBF7D0)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.reply_rounded, color: kGreen, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Phản hồi từ Quản trị viên:',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: kGreen,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            r.adminResponse!,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              color: Color(0xFF166534),
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: kPrimary,
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () => _showReportDetailModal(context, r),
+                icon: const Icon(Icons.info_outline_rounded, size: 15),
+                label: const Text('Xem toàn bộ chi tiết lịch sử',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- MODAL XEM CHI TIẾT SỰ CỐ & LỊCH SỬ PHẢN HỒI ---
   void _showReportDetailModal(BuildContext context, ErrorReport r) {
     showModalBottomSheet(
       context: context,
@@ -265,14 +431,20 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: r.kind == 'qr' ? kRedBg : kOrangeBg,
+                      color: r.isResolved
+                          ? kGreenLight
+                          : (r.kind == 'qr' ? kRedBg : kOrangeBg),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
-                      r.kind == 'qr'
-                          ? Icons.qr_code_scanner_rounded
-                          : Icons.calendar_today_rounded,
-                      color: r.kind == 'qr' ? kRed : kOrange,
+                      r.isResolved
+                          ? Icons.check_circle_rounded
+                          : (r.kind == 'qr'
+                              ? Icons.qr_code_scanner_rounded
+                              : Icons.calendar_today_rounded),
+                      color: r.isResolved
+                          ? kGreen
+                          : (r.kind == 'qr' ? kRed : kOrange),
                       size: 20,
                     ),
                   ),
@@ -281,13 +453,27 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          r.badge,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: r.kind == 'qr' ? kRed : kOrange,
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              r.badge,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: r.isResolved
+                                    ? kGreen
+                                    : (r.kind == 'qr' ? kRed : kOrange),
+                              ),
+                            ),
+                            if (r.isResolved) ...[
+                              const SizedBox(width: 6),
+                              const AppBadge(
+                                text: 'Đã giải quyết',
+                                color: kGreen,
+                                bg: kGreenLight,
+                              ),
+                            ],
+                          ],
                         ),
                         Text(
                           r.title,
@@ -358,51 +544,128 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
                   ),
                 ),
               ),
+
+              if (r.isResolved && r.adminResponse != null) ...[
+                const SizedBox(height: 16),
+                const Text(
+                  'LỊCH SỬ PHẢN HỒI CỦA QUẢN TRỊ VIÊN:',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    color: kGreen,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0FDF4),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFBBF7D0)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.verified_user_rounded,
+                              size: 16, color: kGreen),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Quản trị viên đã xử lý',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: kGreen,
+                            ),
+                          ),
+                          const Spacer(),
+                          if (r.resolvedTime != null)
+                            Text(
+                              r.resolvedTime!,
+                              style: const TextStyle(
+                                  fontSize: 11, color: Color(0xFF15803D)),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        r.adminResponse!,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF14532D),
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
               const SizedBox(height: 20),
 
               // Nút hành động
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: kSlate600,
-                        side: const BorderSide(color: kBorder),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+              if (!r.isResolved)
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: kSlate600,
+                          side: const BorderSide(color: kBorder),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Đóng',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
                       ),
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text('Đóng',
-                          style: TextStyle(fontWeight: FontWeight.w700)),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.outgoing_mail, size: 18),
-                      label: const Text(
-                        'Xử Lý & Gửi Báo Tin',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w800, fontSize: 13),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.outgoing_mail, size: 18),
+                        label: const Text(
+                          'Xử Lý & Gửi Báo Tin',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w800, fontSize: 13),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kGreen,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _showNotifyDialog(context, r);
+                        },
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kGreen,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        _showNotifyDialog(context, r);
-                      },
                     ),
+                  ],
+                )
+              else
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kPrimary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Đóng lịch sử',
+                        style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
-                ],
-              ),
+                ),
               const SizedBox(height: 10),
             ],
           ),
@@ -438,15 +701,16 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Gửi thông báo kết quả xử lý sự cố tới ${r.sender}:',
-              style: const TextStyle(fontSize: 13, color: kSlate600),
+              'Xác nhận sự cố "${r.title}" đã được sửa chữa và gửi phản hồi thông báo đến $senderName:',
+              style: const TextStyle(fontSize: 13.5, color: kSlate600, height: 1.4),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: msgCtrl,
               maxLines: 4,
+              style: const TextStyle(fontSize: 13),
               decoration: InputDecoration(
-                labelText: 'Nội dung thông báo phản hồi',
+                labelText: 'Lời nhắn gửi đến người báo sự cố',
                 labelStyle: const TextStyle(fontSize: 12),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -486,7 +750,7 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
               messenger.showSnackBar(
                 SnackBar(
                   content: Text(
-                      'Đã giải quyết sự cố và gửi thông báo phản hồi tới ${r.sender} thành công! ✓'),
+                      'Đã giải quyết sự cố và lưu vào lịch sử báo lỗi! Phản hồi tới $senderName thành công! ✓'),
                   backgroundColor: kGreen,
                 ),
               );
@@ -500,7 +764,9 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
   @override
   Widget build(BuildContext context) {
     final store = AdminStore.instance;
-    final list = store.filteredReports(_filter);
+    final pendingList = store.filteredReports(_filter);
+    final historyList = store.filteredResolvedReports(_filter);
+    final activeList = _selectedTab == 0 ? pendingList : historyList;
 
     return Scaffold(
       backgroundColor: kBg,
@@ -532,7 +798,7 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
                                 ),
                               ),
                               Text(
-                                '${store.reports.length} sự cố đang chờ phản hồi trên Firebase',
+                                '${store.reports.length} sự cố cần sửa · ${store.resolvedReports.length} đã giải quyết',
                                 style: const TextStyle(
                                     fontSize: 12, color: kSlate500),
                               ),
@@ -543,14 +809,16 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 5),
                           decoration: BoxDecoration(
-                            color: kRedBg,
+                            color: store.reports.isNotEmpty ? kRedBg : kGreenLight,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            '${store.reports.length} Cần sửa',
-                            style: const TextStyle(
+                            store.reports.isNotEmpty
+                                ? '${store.reports.length} Cần sửa'
+                                : 'Ổn định',
+                            style: TextStyle(
                               fontSize: 11.5,
-                              color: kRed,
+                              color: store.reports.isNotEmpty ? kRed : kGreen,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -559,9 +827,112 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
                     ),
                     const SizedBox(height: 12),
                   ],
+
+                  // TAB SWITCHER: CHỜ XỬ LÝ vs LỊCH SỬ BÁO LỖI
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _selectedTab = 0),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: _selectedTab == 0 ? Colors.white : Colors.transparent,
+                                borderRadius: BorderRadius.circular(9),
+                                boxShadow: _selectedTab == 0
+                                    ? [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.05),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.pending_actions_rounded,
+                                    size: 16,
+                                    color: _selectedTab == 0 ? kPrimary : kSlate500,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Chờ xử lý (${store.reports.length})',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: _selectedTab == 0 ? kPrimary : kSlate600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _selectedTab = 1),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: _selectedTab == 1 ? Colors.white : Colors.transparent,
+                                borderRadius: BorderRadius.circular(9),
+                                boxShadow: _selectedTab == 1
+                                    ? [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.05),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.history_rounded,
+                                    size: 16,
+                                    color: _selectedTab == 1 ? kGreen : kSlate500,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Lịch sử báo lỗi (${store.resolvedReports.length})',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: _selectedTab == 1 ? kGreen : kSlate600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // Bộ lọc danh mục
                   Row(
                     children: [
-                      _buildChip('Tất cả (${store.reports.length})', 0, Icons.list_alt_rounded),
+                      _buildChip(
+                        'Tất cả (${_selectedTab == 0 ? store.reports.length : store.resolvedReports.length})',
+                        0,
+                        Icons.list_alt_rounded,
+                      ),
                       const SizedBox(width: 8),
                       _buildChip('Lỗi đặt lịch', 1, Icons.calendar_month_rounded),
                       const SizedBox(width: 8),
@@ -573,7 +944,7 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
             ),
 
             Expanded(
-              child: list.isEmpty
+              child: activeList.isEmpty
                   ? Center(
                       child: Padding(
                         padding: const EdgeInsets.all(32),
@@ -583,26 +954,36 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
                             Container(
                               width: 80,
                               height: 80,
-                              decoration: const BoxDecoration(
-                                color: kGreenLight,
+                              decoration: BoxDecoration(
+                                color: _selectedTab == 0 ? kGreenLight : const Color(0xFFF1F5F9),
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.check_circle_rounded, size: 44, color: kGreen),
+                              child: Icon(
+                                _selectedTab == 0
+                                    ? Icons.check_circle_rounded
+                                    : Icons.history_edu_rounded,
+                                size: 44,
+                                color: _selectedTab == 0 ? kGreen : kSlate400,
+                              ),
                             ),
                             const SizedBox(height: 18),
-                            const Text(
-                              'Hệ thống đang hoạt động ổn định',
-                              style: TextStyle(
+                            Text(
+                              _selectedTab == 0
+                                  ? 'Hệ thống đang hoạt động ổn định'
+                                  : 'Chưa có lịch sử báo lỗi',
+                              style: const TextStyle(
                                 fontWeight: FontWeight.w900,
                                 fontSize: 18,
                                 color: kSlate900,
                               ),
                             ),
                             const SizedBox(height: 6),
-                            const Text(
-                              'Không còn báo cáo sự cố chưa xử lý trong danh mục này.',
+                            Text(
+                              _selectedTab == 0
+                                  ? 'Không còn báo cáo sự cố chưa xử lý trong danh mục này.'
+                                  : 'Các báo cáo sự cố sau khi xử lý sẽ được lưu trữ tại đây.',
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 13, color: kSlate500),
+                              style: const TextStyle(fontSize: 13, color: kSlate500),
                             ),
                           ],
                         ),
@@ -610,9 +991,14 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
                     )
                   : ListView.builder(
                       padding: const EdgeInsets.all(16),
-                      itemCount: list.length,
+                      itemCount: activeList.length,
                       itemBuilder: (context, index) {
-                        return _buildReportCard(context, list[index]);
+                        final item = activeList[index];
+                        if (_selectedTab == 0) {
+                          return _buildReportCard(context, item);
+                        } else {
+                          return _buildResolvedReportCard(context, item);
+                        }
                       },
                     ),
             ),

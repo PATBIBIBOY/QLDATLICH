@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../core/theme.dart';
 import '../widgets/shared_widgets.dart';
 import 'approve_confirm_screen.dart';
 import 'reject_screen.dart';
+import 'document_viewer_screen.dart';
 
 class PendingHospitalDetailScreen extends StatelessWidget {
   final Map<String, String> hospital;
@@ -44,13 +44,18 @@ class PendingHospitalDetailScreen extends StatelessWidget {
       return;
     }
 
-    // Nếu là URL đầy đủ → mở bằng trình duyệt ngoài (Android hiện dialog chọn browser)
+    // Nếu là URL đầy đủ → mở trực tiếp trong app bằng DocumentViewerScreen (có nút quay lại)
     if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
-      final uri = Uri.parse(cleanUrl);
-      try {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-        return;
-      } catch (_) {}
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DocumentViewerScreen(
+            title: docName.isNotEmpty ? docName : 'Tài liệu đăng ký cơ sở',
+            url: cleanUrl,
+          ),
+        ),
+      );
+      return;
     }
 
     // Không mở được → hiện thông báo

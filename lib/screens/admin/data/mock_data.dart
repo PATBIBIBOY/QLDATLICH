@@ -57,6 +57,8 @@ class AdminPatient {
   bool isBlocked;
   String? blockReason;
   DateTime? ngayKhoa;
+  DateTime? ngayOffline;
+  DateTime? dangNhapCuoi;
   final Color avatarBg;
   final Color avatarText;
 
@@ -75,6 +77,8 @@ class AdminPatient {
     this.isBlocked = false,
     this.blockReason,
     this.ngayKhoa,
+    this.ngayOffline,
+    this.dangNhapCuoi,
     required this.avatarBg,
     required this.avatarText,
   });
@@ -89,7 +93,15 @@ class AdminPatient {
     return (parts[0][0] + parts.last[0]).toUpperCase();
   }
 
-  bool get isActive => !isBlocked && trangThaiId != 8;
+  bool get isActive => !isBlocked && trangThaiId != 8 && trangThaiId != 11;
+
+  /// Thời điểm bắt đầu offline hoặc ngưng hoạt động
+  DateTime get effectiveOfflineTime {
+    if (!isActive) {
+      return ngayKhoa ?? ngayOffline ?? ngayTao ?? DateTime.now();
+    }
+    return dangNhapCuoi ?? ngayOffline ?? ngayTao ?? DateTime.now();
+  }
 }
 
 // ============ DỮ LIỆU GIẢ (sau này thay bằng API) ============
