@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -1005,8 +1005,13 @@ class FirebaseServiceC1 {
   // TÍNH NĂNG 3: THÔNG BÁO THỜI GIAN THỰC (REALTIME ALERTS)
   // ==========================================
 
-  /// Lắng nghe thông báo thời gian thực từ Firestore /ThongBaoHeThong (phân lập theo bệnh viện)
-  static Stream<List<Map<String, dynamic>>> streamThongBaoRealtime({String? vaiTro, String? benhVienId}) {
+  /// Lắng nghe thông báo thời gian thực từ Firestore /ThongBaoHeThong (phân lập theo bệnh viện và khoa)
+  static Stream<List<Map<String, dynamic>>> streamThongBaoRealtime({
+    String? vaiTro,
+    String? benhVienId,
+    String? tenKhoa,
+    String? khoaId,
+  }) {
     final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty && benhVienId != '1')
         ? benhVienId.trim()
         : (DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty && DuLieuProfileMauC1.thongTinHienTai.benhVienId != '1'
@@ -1016,7 +1021,7 @@ class FirebaseServiceC1 {
     return _firestore
         .collection('ThongBaoHeThong')
         .orderBy('thoi_gian', descending: true)
-        .limit(30)
+        .limit(50)
         .snapshots()
         .map((snap) {
       if (snap.docs.isEmpty) return [];
@@ -1024,10 +1029,38 @@ class FirebaseServiceC1 {
           .map((doc) => {'id': doc.id, ...doc.data()})
           .where((item) {
             final docBv = (item['benh_vien_id'] ?? '').toString();
-            // Nếu thông báo có gắn benh_vien_id thì chỉ lấy của bệnh viện này, nếu không gắn thì hiển thị chung
-            return docBv.isEmpty || docBv == bvid;
+            // 1. Phân lập theo bệnh viện: nếu có gán thì phải khớp bệnh viện hiện tại
+            if (docBv.isNotEmpty && docBv != bvid) return false;
+
+            // 2. Phân lập theo vai trò nếu có chỉ định
+            final vaiTroNhan = (item['vai_tro_nhan'] ?? 'tat_ca').toString();
+            if (vaiTro != null && vaiTro.isNotEmpty && vaiTroNhan != 'tat_ca' && vaiTroNhan != vaiTro) {
+              return false;
+            }
+
+            // 3. Phân lập theo khoa làm việc hiện tại:
+            // Chỉ xem thông báo của khoa đang chọn. Nếu đổi khoa -> chỉ xem khoa mới đổi.
+            final locKhoa = (tenKhoa ?? '').trim();
+            final locKhoaId = (khoaId ?? '').trim();
+
+            if (locKhoa.isNotEmpty && !locKhoa.toLowerCase().contains('tất cả')) {
+              final docKhoa = (item['ten_khoa'] ?? item['tenKhoa'] ?? item['khoa'] ?? '').toString();
+              final docKhoaId = (item['khoa_id'] ?? item['khoaId'] ?? '').toString();
+
+              // Nếu là thông báo chung toàn viện (không có khoa) -> hiển thị
+              final laThongBaoChungVien = docKhoa.isEmpty && docKhoaId.isEmpty;
+              if (laThongBaoChungVien) return true;
+
+              // Khớp theo mã khoa hoặc tên khoa
+              final khopKhoaId = locKhoaId.isNotEmpty && docKhoaId.isNotEmpty && docKhoaId == locKhoaId;
+              final khopTenKhoa = docKhoa.isNotEmpty && laCungKhoa(docKhoa, locKhoa);
+
+              return khopKhoaId || khopTenKhoa;
+            }
+
+            return true;
           })
-          .take(20)
+          .take(25)
           .toList();
     });
   }

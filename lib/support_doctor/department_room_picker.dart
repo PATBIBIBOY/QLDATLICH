@@ -33,8 +33,8 @@ class DepartmentRoomPicker<T> extends StatefulWidget {
     this.hospitalName = 'Bệnh viện',
     this.title = 'Chọn phòng khám',
     this.onLogout,
-    this.logoutLabel = 'Đăng xuất',
-    this.confirmLogout = true,
+    this.logoutLabel = 'Hồ sơ',
+    this.confirmLogout = false,
   });
 
   /// Room data supplied by the app.
@@ -205,16 +205,24 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
       );
   }
 
-  /// Mở màn hình Hồ sơ cá nhân của nhân viên y tế (đổi mật khẩu, xem thông tin)
+  /// Mở trang Hồ sơ cá nhân (thông tin nhân viên, đổi mật khẩu, đổi thông tin, đăng xuất)
   void _handleOpenProfile() {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => Scaffold(
           appBar: AppBar(
-            title: const Text('Hồ Sơ Hỗ Trợ Bác Sĩ', style: TextStyle(fontWeight: FontWeight.bold)),
+            title: const Text(
+              'Hồ Sơ Hỗ Trợ Bác Sĩ',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+            ),
+            centerTitle: true,
             backgroundColor: Colors.white,
             foregroundColor: const Color(0xFF0F172A),
             elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
           ),
           body: LetanProfileTabC1(
             tenKhoaHienTai: _selectedDepartment ?? widget.initialDepartment,
@@ -632,10 +640,12 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          _PickerRoomStatus(
-                            label: '${roomsInDepartment.length} phòng',
-                            foreground: const Color(0xFF107FE8),
-                            background: const Color(0x14107FE8),
+                          Flexible(
+                            child: _PickerRoomStatus(
+                              label: '${roomsInDepartment.length} phòng',
+                              foreground: const Color(0xFF107FE8),
+                              background: const Color(0x14107FE8),
+                            ),
                           ),
                         ],
                       ),
@@ -785,10 +795,12 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          _PickerRoomStatus(
-                            label: widget.statusLabelOf(room),
-                            foreground: statusColor,
-                            background: statusBackground,
+                          Flexible(
+                            child: _PickerRoomStatus(
+                              label: widget.statusLabelOf(room),
+                              foreground: statusColor,
+                              background: statusBackground,
+                            ),
                           ),
                         ],
                       ),

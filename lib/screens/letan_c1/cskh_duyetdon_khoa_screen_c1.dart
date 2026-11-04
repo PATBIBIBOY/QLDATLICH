@@ -582,7 +582,14 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
               ),
               const SizedBox(width: 4),
               InkWell(
-                onTap: () => CskhThongBaoBottomSheetC1.show(context),
+                onTap: () => CskhThongBaoBottomSheetC1.show(
+                  context,
+                  vaiTro: 'cskh',
+                  tieuDe: 'Thông Báo CSKH',
+                  tenKhoaHienTai: _tenKhoaHienTai,
+                  khoaIdHienTai: _khoaIdHienTai,
+                  onDoiKhoa: _moModalChonKhoa,
+                ),
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
