@@ -280,10 +280,19 @@ class FirebaseServiceC1 {
       var s = boDauTiengViet(str);
       s = s.replaceAll('KHOA ', '').replaceAll('CHUYEN KHOA ', '').replaceAll('PHONG KHAM ', '').trim();
       // Map alias mã khoa
-      if (s == 'K001' || s == 'TIM' || s == 'TIM MACH' || s.contains('TIM')) return 'TIM';
+      if (s == 'K001' || s.contains('HO HAP') || s.contains('TIM')) {
+        // Hỗ trợ linh hoạt alias: K001 có thể là Khoa Tim hoặc Khoa Hô hấp tùy BV
+        if (s.contains('HO HAP')) return 'HOHAP';
+        if (s.contains('TIM')) return 'TIM';
+        return 'K001';
+      }
       if (s == 'K003' || s == 'MAT' || s.contains('MAT')) return 'MAT';
       if (s == 'K004' || s == 'NHI' || s.contains('NHI')) return 'NHI';
-      if (s == 'K002' || s.contains('NOI')) return 'NOI';
+      if (s == 'K002' || s.contains('NOI') || s.contains('DA LIEU')) {
+        if (s.contains('DA LIEU')) return 'DALIEU';
+        if (s.contains('NOI')) return 'NOI';
+        return 'K002';
+      }
       if (s.contains('RANG') || s.contains('RHM')) return 'RHM';
       return s;
     }
@@ -306,7 +315,12 @@ class FirebaseServiceC1 {
 
   /// Stream thống kê số liệu theo ngày đã chọn và theo Khoa (hoặc Tổng)
   /// Lắng nghe trực tiếp từ cả collection `LichHen` cấp 1 và `collectionGroup('lich_hen')`
-  static Stream<Map<String, int>> streamThongKeHomNay({String? tenKhoa, DateTime? ngayChon, String? benhVienId}) {
+  static Stream<Map<String, int>> streamThongKeHomNay({
+    String? tenKhoa,
+    DateTime? ngayChon,
+    String? benhVienId,
+    bool laCskh = false,
+  }) {
     final targetDate = ngayChon ?? DateTime.now();
     final String targetDateStr = '${targetDate.year.toString().padLeft(4, '0')}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}';
     final String targetDisplay = '${targetDate.day.toString().padLeft(2, '0')}/${targetDate.month.toString().padLeft(2, '0')}/${targetDate.year}';
@@ -376,7 +390,7 @@ class FirebaseServiceC1 {
           continue;
         }
 
-        // LỄ TÂN CHỈ LẤY LỊCH HẸN ĐÃ ĐƯỢC DUYỆT
+        // LỄ TÂN CHỈ LẤY LỊCH HẸN ĐÃ ĐƯỢC DUYỆT (CSKH LẤY TẤT CẢ ĐỂ DUYỆT VÀ THEO DÕI)
         final rawTrangThaiId = (data['trang_thai_id'] ?? data['trangThaiId'] ?? '1').toString();
         final rawTrangThaiStr = (data['trang_thai'] ?? data['trangThai'] ?? '').toString().toLowerCase();
 
@@ -388,21 +402,38 @@ class FirebaseServiceC1 {
             rawTrangThaiStr.contains('huy') ||
             rawTrangThaiStr.contains('cancel');
 
-        // Bỏ qua các đơn chưa duyệt hoặc đã từ chối/hủy - Lễ tân không quản lý
-        if (laChuaDuyet || laDaHuyHoacTuChoi) {
+        // Nếu là Lễ tân: Bỏ qua các đơn chưa duyệt hoặc đã từ chối/hủy. CSKH: không bỏ qua đơn chờ duyệt
+        if (!laCskh && (laChuaDuyet || laDaHuyHoacTuChoi)) {
           continue;
         }
 
         tongSo++;
 
-        // Khi lịch hẹn đã duyệt rồi, đúng ngày rồi thì bên lễ tân sẽ tính là Đang chờ (hoặc Đã khám nếu xong)
-        if (rawTrangThaiId == '5' || rawTrangThaiStr.contains('kham') || rawTrangThaiStr.contains('hoan_thanh')) {
-          daKham++;
-        } else if (rawTrangThaiStr.contains('da_tiep_nhan') || rawTrangThaiStr.contains('tiep_don')) {
-          daTiepNhan++;
+        if (laCskh) {
+          // Logic đếm cho CSKH:
+          // Đang chờ: Các đơn chưa duyệt (trang_thai_id == '1')
+          // Đã tiếp nhận (Đã duyệt): Các đơn trang_thai_id == '2'
+          // Đã khám: Các đơn trang_thai_id == '5'
+          if (laChuaDuyet) {
+            dangCho++;
+          } else if (rawTrangThaiId == '5' || rawTrangThaiStr.contains('kham') || rawTrangThaiStr.contains('hoan_thanh')) {
+            daKham++;
+          } else if (rawTrangThaiId == '2' || rawTrangThaiStr.contains('duyet') || rawTrangThaiStr.contains('xac_nhan')) {
+            daTiepNhan++;
+          } else {
+            daTiepNhan++;
+          }
         } else {
-          // Lịch hẹn đã duyệt (trang_thai_id == '2' hoặc da_duyet) và đúng ngày -> Đang chờ
-          dangCho++;
+          // Logic đếm cho Lễ tân:
+          // Khi lịch hẹn đã duyệt rồi, đúng ngày rồi thì bên lễ tân sẽ tính là Đang chờ (hoặc Đã khám nếu xong)
+          if (rawTrangThaiId == '5' || rawTrangThaiStr.contains('kham') || rawTrangThaiStr.contains('hoan_thanh')) {
+            daKham++;
+          } else if (rawTrangThaiStr.contains('da_tiep_nhan') || rawTrangThaiStr.contains('tiep_don')) {
+            daTiepNhan++;
+          } else {
+            // Lịch hẹn đã duyệt (trang_thai_id == '2' hoặc da_duyet) và đúng ngày -> Đang chờ
+            dangCho++;
+          }
         }
       }
 
@@ -462,6 +493,7 @@ class FirebaseServiceC1 {
     String? tuKhoa,
     DateTime? ngayChon,
     String? benhVienId,
+    bool choPhepChoDuyet = false,
   }) {
     final targetDate = ngayChon ?? DateTime.now();
     final String targetDateStr = '${targetDate.year.toString().padLeft(4, '0')}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}';
@@ -561,7 +593,7 @@ class FirebaseServiceC1 {
           }
         }
 
-        // 4. LỄ TÂN CHỈ LẤY LỊCH HẸN ĐÃ ĐƯỢC DUYỆT (Bỏ qua đơn chưa duyệt của CSKH và đơn từ chối/hủy)
+        // 4. CHUẨN HÓA TRẠNG THÁI HIỂN THỊ
         final rawTrangThaiId = (data['trang_thai_id'] ?? data['trangThaiId'] ?? '1').toString();
         final rawTrangThaiStr = (data['trang_thai'] ?? data['trangThai'] ?? '').toString().toLowerCase();
 
@@ -573,25 +605,39 @@ class FirebaseServiceC1 {
             rawTrangThaiStr.contains('huy') ||
             rawTrangThaiStr.contains('cancel');
 
-        // Bỏ qua hoàn toàn: Lễ tân chỉ lấy lịch hẹn đã được duyệt
-        if (laChuaDuyet || laDaHuyHoacTuChoi) {
+        // Nếu là Lễ tân (choPhepChoDuyet == false): Bỏ qua hoàn toàn các đơn chưa duyệt hoặc đã từ chối/hủy
+        // Nếu là CSKH (choPhepChoDuyet == true): Giữ lại tất cả đơn để CSKH duyệt và theo dõi
+        if (!choPhepChoDuyet && (laChuaDuyet || laDaHuyHoacTuChoi)) {
           continue;
         }
 
-        // Khi lịch hẹn đã duyệt rồi, đúng ngày rồi thì bên lễ tân sẽ hiện là "Đang chờ"
         String hienThiTrangThai = 'Đang chờ';
 
-        if (rawTrangThaiId == '5' || rawTrangThaiStr.contains('kham') || rawTrangThaiStr.contains('hoan_thanh')) {
-          hienThiTrangThai = 'Đã khám';
-        } else if (rawTrangThaiId == '6' || rawTrangThaiStr.contains('vang')) {
-          hienThiTrangThai = 'Vắng';
-        } else if (rawTrangThaiStr.contains('da_tiep_nhan') || rawTrangThaiStr.contains('tiep_don')) {
-          hienThiTrangThai = 'Đã tiếp nhận';
-        } else if (rawTrangThaiStr.contains('tiep_theo')) {
-          hienThiTrangThai = 'Tiếp theo';
+        if (choPhepChoDuyet) {
+          // Phân định rõ trạng thái cho màn hình CSKH Duyệt đơn
+          if (laDaHuyHoacTuChoi) {
+            hienThiTrangThai = 'Không duyệt';
+          } else if (rawTrangThaiId == '2' || rawTrangThaiStr.contains('duyet') || rawTrangThaiStr.contains('xac_nhan')) {
+            hienThiTrangThai = 'Đã duyệt';
+          } else if (rawTrangThaiId == '5' || rawTrangThaiStr.contains('kham') || rawTrangThaiStr.contains('hoan_thanh')) {
+            hienThiTrangThai = 'Đã khám';
+          } else {
+            hienThiTrangThai = 'Chờ duyệt';
+          }
         } else {
-          // Lịch hẹn đã duyệt (trang_thai_id == '2' hoặc da_duyet), đúng ngày -> Bên lễ tân hiện là "Đang chờ"
-          hienThiTrangThai = 'Đang chờ';
+          // Phân định trạng thái cho màn hình Lễ tân Tiếp đón
+          if (rawTrangThaiId == '5' || rawTrangThaiStr.contains('kham') || rawTrangThaiStr.contains('hoan_thanh')) {
+            hienThiTrangThai = 'Đã khám';
+          } else if (rawTrangThaiId == '6' || rawTrangThaiStr.contains('vang')) {
+            hienThiTrangThai = 'Vắng';
+          } else if (rawTrangThaiStr.contains('da_tiep_nhan') || rawTrangThaiStr.contains('tiep_don')) {
+            hienThiTrangThai = 'Đã tiếp nhận';
+          } else if (rawTrangThaiStr.contains('tiep_theo')) {
+            hienThiTrangThai = 'Tiếp theo';
+          } else {
+            // Lịch hẹn đã duyệt, đúng ngày -> Bên lễ tân hiện là "Đang chờ"
+            hienThiTrangThai = 'Đang chờ';
+          }
         }
 
         // 5. Lọc theo Tab trạng thái
@@ -631,7 +677,11 @@ class FirebaseServiceC1 {
           'phongKham': docPhong.isNotEmpty ? docPhong : 'Phòng khám',
           'bacSi': (data['bac_si'] ?? 'BS. Trực ban').toString(),
           'trangThai': hienThiTrangThai,
-          'rawTrangThai': rawTrangThaiStr.isNotEmpty ? rawTrangThaiStr : (rawTrangThaiId == '2' ? 'da_duyet' : 'cho_duyet'),
+          'rawTrangThai': rawTrangThaiStr.isNotEmpty
+              ? rawTrangThaiStr
+              : (rawTrangThaiId == '2'
+                  ? 'da_duyet'
+                  : (rawTrangThaiId == '4' ? 'tu_choi' : 'cho_duyet')),
           'trangThaiId': rawTrangThaiId,
           'stt': (data['so_thu_tu'] ?? data['stt'] ?? 1).toString(),
           'maBenhNhan': (data['benh_nhan_id'] ?? data['ma_benh_nhan'] ?? 'BN-${doc.id.substring(0, 4).toUpperCase()}').toString(),

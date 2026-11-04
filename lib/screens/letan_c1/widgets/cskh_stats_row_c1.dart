@@ -25,6 +25,7 @@ class CskhStatsRowC1 extends StatelessWidget {
         tenKhoa: tenKhoa,
         ngayChon: ngayChon,
         benhVienId: bvid,
+        laCskh: true,
       ),
       builder: (context, snapshot) {
         final thongKe = snapshot.data ?? {
