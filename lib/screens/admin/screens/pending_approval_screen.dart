@@ -4,6 +4,7 @@ import '../data/admin_store.dart';
 import '../widgets/shared_widgets.dart';
 import 'approve_confirm_screen.dart';
 import 'reject_screen.dart';
+import 'pending_hospital_detail_screen.dart';
 
 // ================= MÀN 6: BỆNH VIỆN CHỜ DUYỆT =================
 class PendingApprovalScreen extends StatefulWidget {
@@ -40,7 +41,6 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
     final time = h['time'] ?? 'Vừa gửi';
 
     return Container(
-      padding: const EdgeInsets.all(16),
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -48,174 +48,203 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
         border: Border.all(color: kBorder),
         boxShadow: kCardShadow,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AvatarBox(
-                text: h['tag'] ?? 'BV',
-                bg: kOrangeBg,
-                fg: kAmber,
-                size: 48,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PendingHospitalDetailScreen(hospital: h),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 15.5,
-                        color: kSlate900,
-                      ),
+                    AvatarBox(
+                      text: h['tag'] ?? 'BV',
+                      bg: kOrangeBg,
+                      fg: kAmber,
+                      size: 48,
                     ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Text(
-                          type,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: kSlate600,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: kOrangeBg,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Row(
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              Icon(Icons.hourglass_top_rounded, size: 11, color: kAmber),
-                              SizedBox(width: 3),
+                              Expanded(
+                                child: Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 15.5,
+                                    color: kSlate900,
+                                  ),
+                                ),
+                              ),
+                              const Icon(
+                                Icons.chevron_right_rounded,
+                                color: kSlate400,
+                                size: 22,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Row(
+                            children: [
                               Text(
-                                'Chờ duyệt',
-                                style: TextStyle(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: kAmber,
+                                type,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: kSlate600,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: kOrangeBg,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Icon(Icons.hourglass_top_rounded, size: 11, color: kAmber),
+                                    SizedBox(width: 3),
+                                    Text(
+                                      'Chờ duyệt',
+                                      style: TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: kAmber,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
 
-          const SizedBox(height: 12),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
-          const SizedBox(height: 12),
+                const SizedBox(height: 12),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 12),
 
-          // Thông tin chi tiết hồ sơ
-          Row(
-            children: [
-              const Icon(Icons.location_on_outlined, size: 15, color: kSlate400),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  location,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: kSlate600),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              const Icon(Icons.description_outlined, size: 15, color: kPrimary),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Giấy tờ pháp lý: $docFile · Mã: $code',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: kPrimary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              const Icon(Icons.access_time_rounded, size: 15, color: kSlate400),
-              const SizedBox(width: 6),
-              Text(
-                time,
-                style: const TextStyle(fontSize: 11.5, color: kSlate400),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-
-          // Hai nút hành động Duyệt và Từ chối
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 44,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
-                    label: const Text('Xác nhận Duyệt', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: kGreen,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      shadowColor: kGreen.withValues(alpha: 0.3),
-                    ),
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ApproveConfirmScreen(hospital: h),
+                // Thông tin chi tiết hồ sơ
+                Row(
+                  children: [
+                    const Icon(Icons.location_on_outlined, size: 15, color: kSlate400),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        location,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12, color: kSlate600),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: SizedBox(
-                  height: 44,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.cancel_outlined, size: 18),
-                    label: const Text('Từ chối', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: kRed,
-                      side: const BorderSide(color: Color(0xFFFECACA), width: 1.4),
-                      backgroundColor: const Color(0xFFFFF5F5),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => RejectScreen(hospital: h),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(Icons.description_outlined, size: 15, color: kPrimary),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Giấy tờ pháp lý: $docFile · Mã: $code',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: kPrimary,
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(Icons.access_time_rounded, size: 15, color: kSlate400),
+                    const SizedBox(width: 6),
+                    Text(
+                      time,
+                      style: const TextStyle(fontSize: 11.5, color: kSlate400),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // Hai nút hành động Duyệt và Từ chối
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 44,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
+                          label: const Text('Xác nhận Duyệt', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kGreen,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shadowColor: kGreen.withValues(alpha: 0.3),
+                          ),
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ApproveConfirmScreen(hospital: h),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: SizedBox(
+                        height: 44,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.cancel_outlined, size: 18),
+                          label: const Text('Từ chối', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: kRed,
+                            side: const BorderSide(color: Color(0xFFFECACA), width: 1.4),
+                            backgroundColor: const Color(0xFFFFF5F5),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => RejectScreen(hospital: h),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }

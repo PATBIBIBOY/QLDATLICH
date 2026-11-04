@@ -294,6 +294,12 @@ class AdminStore extends ChangeNotifier {
             'location': address,
             'so_giay_phep': data['so_giay_phep']?.toString() ?? doc.id,
             'ma_so_thue': data['ma_so_thue']?.toString() ?? '',
+            'email': data['email']?.toString() ?? '',
+            'phone': data['so_dien_thoai']?.toString() ?? '',
+            'mo_ta': data['mo_ta']?.toString() ?? '',
+            'bhyt': data['bhyt']?.toString() ?? (data['co_bhyt'] == true ? 'Có hỗ trợ BHYT' : ''),
+            'nguoi_dai_dien': data['nguoi_dai_dien']?.toString() ?? '',
+            'hinh_anh': data['hinh_anh']?.toString() ?? '',
             'fromCollection': 'BenhVien',
           };
         }
@@ -334,6 +340,11 @@ class AdminStore extends ChangeNotifier {
             existing['time'] = 'Gửi: $timeStr';
             if (data['so_giay_phep'] != null) existing['so_giay_phep'] = data['so_giay_phep'].toString();
             if (data['ma_so_thue'] != null) existing['ma_so_thue'] = data['ma_so_thue'].toString();
+            if (data['email'] != null && existing['email']!.isEmpty) existing['email'] = data['email'].toString();
+            if (data['so_dien_thoai'] != null && existing['phone']!.isEmpty) existing['phone'] = data['so_dien_thoai'].toString();
+            if (data['mo_ta'] != null && existing['mo_ta']!.isEmpty) existing['mo_ta'] = data['mo_ta'].toString();
+            if (data['nguoi_dai_dien'] != null && existing['nguoi_dai_dien']!.isEmpty) existing['nguoi_dai_dien'] = data['nguoi_dai_dien'].toString();
+            if (data['co_bhyt'] != null && existing['bhyt']!.isEmpty) existing['bhyt'] = data['co_bhyt'] == true ? 'Có hỗ trợ BHYT' : 'Không hỗ trợ BHYT';
           } else {
             pendingMap[doc.id] = {
               'docId': doc.id,
@@ -347,6 +358,12 @@ class AdminStore extends ChangeNotifier {
               'location': location,
               'so_giay_phep': data['so_giay_phep']?.toString() ?? '',
               'ma_so_thue': data['ma_so_thue']?.toString() ?? '',
+              'email': data['email']?.toString() ?? '',
+              'phone': data['so_dien_thoai']?.toString() ?? '',
+              'mo_ta': data['mo_ta']?.toString() ?? data['ghi_chu']?.toString() ?? '',
+              'bhyt': data['bhyt']?.toString() ?? (data['co_bhyt'] == true ? 'Có hỗ trợ BHYT' : ''),
+              'nguoi_dai_dien': data['nguoi_dai_dien']?.toString() ?? '',
+              'hinh_anh': data['hinh_anh']?.toString() ?? '',
               'fromCollection': 'YeuCauHopTac',
             };
           }
