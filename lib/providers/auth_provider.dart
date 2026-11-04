@@ -509,7 +509,9 @@ class AuthProvider extends ChangeNotifier {
       if (isHospital) {
         final statusId = (data['trang_thai_hop_tac_id'] as num?)?.toInt() ?? 1;
         final chanDangNhap = data['chan_dang_nhap'] == true || data['is_blocked'] == true;
-        final isHuy = data['trang_thai'] == 'huy_hop_tac' || data['trangThai'] == 'HUY_HOP_TAC';
+        final isHuy = statusId == 9 ||
+            data['trang_thai'] == 'huy_hop_tac' ||
+            data['trangThai'] == 'HUY_HOP_TAC';
         if (chanDangNhap || statusId != 10 || isHuy) {
           shouldKick = true;
           kickReason = data['ly_do_huy']?.toString() ??

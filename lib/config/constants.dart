@@ -22,6 +22,8 @@ enum TrangThai {
   vangMat, // Vắng mặt (ID: 6)
   hoatDong, // Hoạt động (ID: 7)
   khongHoatDong, // Không hoạt động (ID: 8)
+  huyHopTac, // Hủy Hợp Tác (ID: 9)
+  hopTac, // Hợp tác (ID: 10)
 }
 
 class TrangThaiId {
@@ -33,6 +35,8 @@ class TrangThaiId {
   static const int vangMat = 6;
   static const int hoatDong = 7;
   static const int khongHoatDong = 8;
+  static const int huyHopTac = 9;
+  static const int hopTac = 10;
 }
 
 // ============================================
@@ -49,6 +53,8 @@ class TrangThaiHelper {
     TrangThaiId.vangMat: 'Vắng mặt',
     TrangThaiId.hoatDong: 'Hoạt động',
     TrangThaiId.khongHoatDong: 'Không hoạt động',
+    TrangThaiId.huyHopTac: 'Hủy Hợp Tác',
+    TrangThaiId.hopTac: 'Hợp tác',
   };
 
   // Map từ ID sang mã màu (ARGB)
@@ -61,6 +67,8 @@ class TrangThaiHelper {
     TrangThaiId.vangMat: 0xFFAB47BC, // Tím - Vắng mặt
     TrangThaiId.hoatDong: 0xFF66BB6A, // Xanh lá - Hoạt động
     TrangThaiId.khongHoatDong: 0xFFEF5350, // Đỏ - Không hoạt động
+    TrangThaiId.huyHopTac: 0xFFEF4444, // Đỏ - Hủy Hợp Tác
+    TrangThaiId.hopTac: 0xFF10B981, // Xanh ngọc / Xanh lá - Hợp tác
   };
 
   // Map từ ID sang tên icon (Material Icons)
@@ -73,6 +81,8 @@ class TrangThaiHelper {
     TrangThaiId.vangMat: 'person_off',
     TrangThaiId.hoatDong: 'check_circle',
     TrangThaiId.khongHoatDong: 'block',
+    TrangThaiId.huyHopTac: 'link_off',
+    TrangThaiId.hopTac: 'handshake',
   };
 
   // Lấy tên trạng thái từ ID
@@ -109,6 +119,10 @@ class TrangThaiHelper {
         return TrangThaiId.hoatDong;
       case TrangThai.khongHoatDong:
         return TrangThaiId.khongHoatDong;
+      case TrangThai.huyHopTac:
+        return TrangThaiId.huyHopTac;
+      case TrangThai.hopTac:
+        return TrangThaiId.hopTac;
     }
   }
 
@@ -131,6 +145,10 @@ class TrangThaiHelper {
         return TrangThai.hoatDong;
       case TrangThaiId.khongHoatDong:
         return TrangThai.khongHoatDong;
+      case TrangThaiId.huyHopTac:
+        return TrangThai.huyHopTac;
+      case TrangThaiId.hopTac:
+        return TrangThai.hopTac;
       default:
         return TrangThai.choDuyet;
     }

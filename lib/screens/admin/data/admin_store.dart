@@ -171,7 +171,8 @@ class AdminStore extends ChangeNotifier {
 
         // Kiểm tra hủy hợp tác:
         // Khi hủy hợp tác, trang_thai_hop_tac_id chuyển về 1, nhưng có cờ huy_hop_tac hoặc is_unpartnered
-        final bool isHuyHopTac = trangThaiStr == 'huy_hop_tac' ||
+        final bool isHuyHopTac = statusId == 9 ||
+            trangThaiStr == 'huy_hop_tac' ||
             trangThaiUpper == 'HUY_HOP_TAC' ||
             data['is_unpartnered'] == true;
 
@@ -270,13 +271,13 @@ class AdminStore extends ChangeNotifier {
             totalReviews: (data['tong_so_danh_gia'] as num?)?.toInt() ?? 0,
             phone: data['so_dien_thoai']?.toString(),
             email: data['email']?.toString(),
-            status: 1, // Trạng thái = 1 khi đã hủy hợp tác
+            status: 9, // Trạng thái = 9 khi đã hủy hợp tác
             isBlocked: true,
             isUnpartnered: true,
             blockReason: blockReason ?? 'Đã ngừng hợp tác',
           );
           cancelledList.add(hospital);
-        } else if (!chanDangNhap && !isHuyHopTac && !isRejected) {
+        } else if (!chanDangNhap && !isHuyHopTac && !isRejected && statusId != 9) {
           // BỆNH VIỆN MỚI THÊM TRÊN FIREBASE / CHƯA DUYỆT
           // -> Cho vào "CHỜ DUYỆT" trước, KHÔNG hiển thị ở Tổng BV!
           final timeStr = data['ngay_tao']?.toString() ??
@@ -780,10 +781,10 @@ class AdminStore extends ChangeNotifier {
       final code = h.code;
       if (code != null && code.isNotEmpty) {
         // Cập nhật trạng thái trên Firebase BenhVien:
-        // Chuyển trang_thai_hop_tac_id từ 10 (Hợp tác) về 1 (Chờ duyệt)
+        // Chuyển trang_thai_hop_tac_id sang 9 (Hủy Hợp Tác)
         // và gắn cờ chan_dang_nhap, da_duyet = false để không thể đăng nhập
         await _firestore.collection('BenhVien').doc(code).update({
-          'trang_thai_hop_tac_id': 1,
+          'trang_thai_hop_tac_id': 9,
           'da_duyet': false,
           'trang_thai': 'huy_hop_tac',
           'trangThai': 'HUY_HOP_TAC',
@@ -799,7 +800,7 @@ class AdminStore extends ChangeNotifier {
           final ycDoc = await _firestore.collection('YeuCauHopTac').doc(code).get();
           if (ycDoc.exists) {
             await _firestore.collection('YeuCauHopTac').doc(code).update({
-              'trang_thai_hop_tac_id': 1,
+              'trang_thai_hop_tac_id': 9,
               'da_duyet': false,
               'trang_thai': 'huy_hop_tac',
               'trangThai': 'HUY_HOP_TAC',
@@ -816,7 +817,7 @@ class AdminStore extends ChangeNotifier {
             await _firestore.collection('NhanVien').doc(code).update({
               'trangThaiHoatDong': false,
               'chan_dang_nhap': true,
-              'trang_thai_hop_tac_id': 1,
+              'trang_thai_hop_tac_id': 9,
             });
           }
 
@@ -831,7 +832,7 @@ class AdminStore extends ChangeNotifier {
               await doc.reference.update({
                 'trangThaiHoatDong': false,
                 'chan_dang_nhap': true,
-                'trang_thai_hop_tac_id': 1,
+                'trang_thai_hop_tac_id': 9,
               });
             }
           }
