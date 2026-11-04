@@ -44,14 +44,12 @@ class PendingHospitalDetailScreen extends StatelessWidget {
       return;
     }
 
-    // Nếu là URL đầy đủ (Firebase Storage URL hoặc http link) → mở thẳng
+    // Nếu là URL đầy đủ → mở bằng trình duyệt ngoài (Android hiện dialog chọn browser)
     if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
       final uri = Uri.parse(cleanUrl);
       try {
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-          return;
-        }
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
       } catch (_) {}
     }
 
