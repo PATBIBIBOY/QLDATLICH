@@ -1503,6 +1503,143 @@ class AdminStore extends ChangeNotifier {
     };
   }
 
+  /// THỐNG KÊ TẦN SUẤT HOẠT ĐỘNG CHUNG CỦA TẤT CẢ TÀI KHOẢN BỆNH NHÂN TRÊN HỆ THỐNG
+  Future<Map<String, dynamic>> getGlobalActivityStats() async {
+    List<Map<String, dynamic>> allAppointments = [];
+    try {
+      final snap = await _firestore.collection('LichHen').get();
+      allAppointments = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+    } catch (e) {
+      debugPrint('Lỗi tải lịch hẹn toàn hệ thống: $e');
+    }
+
+    final now = DateTime.now();
+    final totalPatientsCount = patients.length;
+    final activePatientsCount = patients.where((p) => p.isActive).length;
+    final blockedPatientsCount = totalPatientsCount - activePatientsCount;
+
+    int completedCount = 0;
+    int cancelledCount = 0;
+    for (final app in allAppointments) {
+      final status = (app['trang_thai'] ?? app['status'] ?? '').toString().toLowerCase();
+      if (status.contains('huy') || status.contains('cancel')) {
+        cancelledCount++;
+      } else if (status.contains('kham') || status.contains('xong') || status.contains('complete')) {
+        completedCount++;
+      }
+    }
+
+    // --- BIỂU ĐỒ HOẠT ĐỘNG CHUNG THEO NGÀY (7 ngày gần nhất) ---
+    final List<Map<String, dynamic>> dailyChart = [];
+    for (int i = 6; i >= 0; i--) {
+      final day = now.subtract(Duration(days: i));
+      int count = 0;
+      for (final app in allAppointments) {
+        DateTime? appDate;
+        if (app['ngay_kham'] is Timestamp) {
+          appDate = (app['ngay_kham'] as Timestamp).toDate();
+        } else if (app['ngay_tao'] is Timestamp) {
+          appDate = (app['ngay_tao'] as Timestamp).toDate();
+        } else if (app['ngay_kham'] != null) {
+          try {
+            appDate = DateTime.parse(app['ngay_kham'].toString());
+          } catch (_) {}
+        }
+        if (appDate != null &&
+            appDate.year == day.year &&
+            appDate.month == day.month &&
+            appDate.day == day.day) {
+          count++;
+        }
+      }
+      dailyChart.add({
+        'label': '${day.day}/${day.month}',
+        'count': count,
+        'date': day,
+      });
+    }
+
+    // --- BIỂU ĐỒ HOẠT ĐỘNG CHUNG THEO THÁNG (12 tháng qua) ---
+    final List<Map<String, dynamic>> monthlyChart = [];
+    for (int i = 11; i >= 0; i--) {
+      final targetMonth = DateTime(now.year, now.month - i, 1);
+      int count = 0;
+      for (final app in allAppointments) {
+        DateTime? appDate;
+        if (app['ngay_kham'] is Timestamp) {
+          appDate = (app['ngay_kham'] as Timestamp).toDate();
+        } else if (app['ngay_tao'] is Timestamp) {
+          appDate = (app['ngay_tao'] as Timestamp).toDate();
+        } else if (app['ngay_kham'] != null) {
+          try {
+            appDate = DateTime.parse(app['ngay_kham'].toString());
+          } catch (_) {}
+        }
+        if (appDate != null &&
+            appDate.year == targetMonth.year &&
+            appDate.month == targetMonth.month) {
+          count++;
+        }
+      }
+      monthlyChart.add({
+        'label': 'T${targetMonth.month}',
+        'count': count,
+        'year': targetMonth.year,
+      });
+    }
+
+    // --- BIỂU ĐỒ HOẠT ĐỘNG CHUNG THEO NĂM (từ 3 năm trước đến nay) ---
+    final List<Map<String, dynamic>> yearlyChart = [];
+    final currentYear = now.year;
+    for (int y = currentYear - 3; y <= currentYear; y++) {
+      int count = 0;
+      for (final app in allAppointments) {
+        DateTime? appDate;
+        if (app['ngay_kham'] is Timestamp) {
+          appDate = (app['ngay_kham'] as Timestamp).toDate();
+        } else if (app['ngay_tao'] is Timestamp) {
+          appDate = (app['ngay_tao'] as Timestamp).toDate();
+        } else if (app['ngay_kham'] != null) {
+          try {
+            appDate = DateTime.parse(app['ngay_kham'].toString());
+          } catch (_) {}
+        }
+        if (appDate != null && appDate.year == y) {
+          count++;
+        }
+      }
+      yearlyChart.add({
+        'label': '$y',
+        'count': count,
+      });
+    }
+
+    final totalAppointments = allAppointments.length;
+    final totalDailyCount = dailyChart.map((e) => e['count'] as int).fold(0, (a, b) => a + b);
+    final totalMonthlyCount = monthlyChart.map((e) => e['count'] as int).fold(0, (a, b) => a + b);
+
+    final avgPerDay = (totalDailyCount / 7.0).toStringAsFixed(1);
+    final avgPerMonth = (totalMonthlyCount / 12.0).toStringAsFixed(1);
+    final activePercent = totalPatientsCount > 0
+        ? ((activePatientsCount / totalPatientsCount) * 100).toStringAsFixed(0)
+        : '0';
+
+    return {
+      'totalAppointments': totalAppointments,
+      'completedCount': completedCount,
+      'cancelledCount': cancelledCount,
+      'totalPatientsCount': totalPatientsCount,
+      'activePatientsCount': activePatientsCount,
+      'blockedPatientsCount': blockedPatientsCount,
+      'activePercent': activePercent,
+      'avgPerDay': avgPerDay,
+      'avgPerMonth': avgPerMonth,
+      'dailyChart': dailyChart,
+      'monthlyChart': monthlyChart,
+      'yearlyChart': yearlyChart,
+    };
+  }
+
   @override
   void dispose() {
     _hospitalsSub?.cancel();

@@ -17,10 +17,20 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
   int _statusFilter = 0; // 0: Tất cả, 1: Hoạt động, 2: Bị khóa
   String _searchQuery = '';
 
+  int _globalChartMode = 0; // 0: Theo Ngày, 1: Theo Tháng, 2: Theo Năm
+  int? _selectedGlobalBarIndex;
+  bool _isGlobalStatsExpanded = true;
+  Future<Map<String, dynamic>>? _globalStatsFuture;
+
   @override
   void initState() {
     super.initState();
+    _loadGlobalStats();
     AdminStore.instance.addListener(_onStoreUpdate);
+  }
+
+  void _loadGlobalStats() {
+    _globalStatsFuture = AdminStore.instance.getGlobalActivityStats();
   }
 
   @override
@@ -31,6 +41,7 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
   }
 
   void _onStoreUpdate() {
+    _loadGlobalStats();
     if (mounted) setState(() {});
   }
 
@@ -1160,6 +1171,402 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
     );
   }
 
+  Widget _buildGlobalKpiCard({
+    required String label,
+    required String value,
+    required String sub,
+    required Color valueColor,
+    required IconData icon,
+    required Color iconBg,
+    required Color iconColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, size: 13, color: iconColor),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(fontSize: 10.5, color: kSlate500, fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w900,
+              color: valueColor,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            sub,
+            style: const TextStyle(fontSize: 10, color: kSlate400, fontWeight: FontWeight.w500),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGlobalModePill(int index, String label) {
+    final isSelected = _globalChartMode == index;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _globalChartMode = index;
+          _selectedGlobalBarIndex = null;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 3,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: isSelected ? kPrimary : kSlate500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlobalActivityOverview(AdminStore store) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: kBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header với nút thu gọn / mở rộng
+          InkWell(
+            onTap: () => setState(() => _isGlobalStatsExpanded = !_isGlobalStatsExpanded),
+            borderRadius: BorderRadius.circular(18),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: kPrimaryLight,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.analytics_rounded, color: kPrimary, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Tần suất hoạt động chung toàn hệ thống',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                            color: kSlate900,
+                          ),
+                        ),
+                        SizedBox(height: 1),
+                        Text(
+                          'Thống kê tổng hợp tất cả tài khoản bệnh nhân',
+                          style: TextStyle(fontSize: 11, color: kSlate500),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    _isGlobalStatsExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: kSlate500,
+                    size: 22,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          if (_isGlobalStatsExpanded) ...[
+            const Divider(height: 1, color: kBorder),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: FutureBuilder<Map<String, dynamic>>(
+                future: _globalStatsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: CircularProgressIndicator(strokeWidth: 2.2),
+                      ),
+                    );
+                  }
+
+                  final data = snapshot.data ?? {};
+                  final totalAppointments = data['totalAppointments'] ?? 0;
+                  final completedCount = data['completedCount'] ?? 0;
+                  final cancelledCount = data['cancelledCount'] ?? 0;
+                  final activePercent = data['activePercent']?.toString() ?? '0';
+                  final avgPerDay = data['avgPerDay']?.toString() ?? '0.0';
+                  final avgPerMonth = data['avgPerMonth']?.toString() ?? '0.0';
+
+                  final dailyChart = (data['dailyChart'] as List<Map<String, dynamic>>?) ?? [];
+                  final monthlyChart = (data['monthlyChart'] as List<Map<String, dynamic>>?) ?? [];
+                  final yearlyChart = (data['yearlyChart'] as List<Map<String, dynamic>>?) ?? [];
+                  final currentChart = _globalChartMode == 0
+                      ? dailyChart
+                      : (_globalChartMode == 1 ? monthlyChart : yearlyChart);
+
+                  final maxCount = currentChart
+                      .map((e) => (e['count'] as int?) ?? 0)
+                      .fold(1, (prev, curr) => curr > prev ? curr : prev);
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Chỉ số KPI nhanh
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildGlobalKpiCard(
+                              label: 'Tổng lượt khám',
+                              value: '$totalAppointments',
+                              sub: 'Xong: $completedCount · Hủy: $cancelledCount',
+                              valueColor: kSlate900,
+                              icon: Icons.event_available_rounded,
+                              iconBg: const Color(0xFFEFF6FF),
+                              iconColor: kPrimary,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildGlobalKpiCard(
+                              label: 'Tần suất TB',
+                              value: '$avgPerDay / ngày',
+                              sub: '$avgPerMonth lượt / tháng',
+                              valueColor: kPrimary,
+                              icon: Icons.speed_rounded,
+                              iconBg: const Color(0xFFF0FDF4),
+                              iconColor: kGreen,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildGlobalKpiCard(
+                              label: 'TK hoạt động',
+                              value: '$activePercent%',
+                              sub: '${data['activePatientsCount'] ?? 0}/${data['totalPatientsCount'] ?? 0} tài khoản',
+                              valueColor: const Color(0xFF16A34A),
+                              icon: Icons.people_alt_rounded,
+                              iconBg: const Color(0xFFDCFCE7),
+                              iconColor: const Color(0xFF16A34A),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Thanh chuyển đổi Ngày / Tháng / Năm
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Biểu đồ tần suất chung:',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: kSlate700,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                _buildGlobalModePill(0, 'Theo Ngày'),
+                                _buildGlobalModePill(1, 'Theo Tháng'),
+                                _buildGlobalModePill(2, 'Theo Năm'),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      // Biểu đồ cột tổng thể
+                      SizedBox(
+                        height: 110,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: List.generate(currentChart.length, (i) {
+                            final item = currentChart[i];
+                            final count = (item['count'] as int?) ?? 0;
+                            final label = item['label']?.toString() ?? '';
+                            final isSelected = _selectedGlobalBarIndex == i;
+                            final heightRatio = (count / maxCount).clamp(0.0, 1.0);
+                            final barHeight = count > 0 ? (heightRatio * 65).clamp(16.0, 65.0) : 5.0;
+
+                            return Expanded(
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedGlobalBarIndex = isSelected ? null : i;
+                                  });
+                                },
+                                child: Container(
+                                  color: Colors.transparent,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      SizedBox(
+                                        height: 15,
+                                        child: count > 0
+                                            ? Text(
+                                                '$count',
+                                                style: TextStyle(
+                                                  fontSize: 9.5,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: isSelected ? kPrimary : kSlate600,
+                                                ),
+                                              )
+                                            : const SizedBox.shrink(),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      AnimatedContainer(
+                                        duration: const Duration(milliseconds: 250),
+                                        width: 16,
+                                        height: barHeight,
+                                        decoration: BoxDecoration(
+                                          gradient: count > 0
+                                              ? LinearGradient(
+                                                  begin: Alignment.topCenter,
+                                                  end: Alignment.bottomCenter,
+                                                  colors: isSelected
+                                                      ? [kPrimary, const Color(0xFF1D4ED8)]
+                                                      : [const Color(0xFF38BDF8), kPrimary],
+                                                )
+                                              : null,
+                                          color: count == 0 ? const Color(0xFFE2E8F0) : null,
+                                          borderRadius: BorderRadius.circular(4),
+                                          boxShadow: isSelected
+                                              ? [
+                                                  BoxShadow(
+                                                    color: kPrimary.withValues(alpha: 0.4),
+                                                    blurRadius: 6,
+                                                    offset: const Offset(0, 2),
+                                                  ),
+                                                ]
+                                              : null,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 5),
+                                      Text(
+                                        label,
+                                        style: TextStyle(
+                                          fontSize: 9.5,
+                                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                          color: isSelected ? kPrimary : kSlate400,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+
+                      if (_selectedGlobalBarIndex != null && _selectedGlobalBarIndex! < currentChart.length) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: kPrimaryLight,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.info_outline_rounded, color: kPrimary, size: 15),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Giai đoạn ${currentChart[_selectedGlobalBarIndex!]['label']}: Tổng cộng ${currentChart[_selectedGlobalBarIndex!]['count']} lượt hoạt động khám bệnh từ tất cả tài khoản.',
+                                  style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: kPrimary),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = AdminStore.instance;
@@ -1281,46 +1688,55 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
 
               const Divider(height: 1, color: kBorder),
 
-              // DANH SÁCH BỆNH NHÂN
+              // DANH SÁCH BỆNH NHÂN KÈM TỔNG QUAN TẦN SUẤT HOẠT ĐỘNG CHUNG
               Expanded(
-                child: filtered.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: const BoxDecoration(
-                                color: kSlate100,
-                                shape: BoxShape.circle,
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  itemCount: filtered.isEmpty ? 2 : filtered.length + 1,
+                  itemBuilder: (context, i) {
+                    if (i == 0) {
+                      return _buildGlobalActivityOverview(store);
+                    }
+
+                    if (filtered.isEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 36),
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: const BoxDecoration(
+                                  color: kSlate100,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.people_outline_rounded, size: 36, color: kSlate400),
                               ),
-                              child: const Icon(Icons.people_outline_rounded, size: 36, color: kSlate400),
-                            ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'Không tìm thấy bệnh nhân nào',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: kSlate700,
+                              const SizedBox(height: 12),
+                              const Text(
+                                'Không tìm thấy bệnh nhân nào',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: kSlate700,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc',
-                              style: TextStyle(fontSize: 12.5, color: kSlate500),
-                            ),
-                          ],
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc',
+                                style: TextStyle(fontSize: 12.5, color: kSlate500),
+                              ),
+                            ],
+                          ),
                         ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        itemCount: filtered.length,
-                        itemBuilder: (context, i) {
-                          final patient = filtered[i];
-                          return _buildPatientCard(patient);
-                        },
-                      ),
+                      );
+                    }
+
+                    final patient = filtered[i - 1];
+                    return _buildPatientCard(patient);
+                  },
+                ),
               ),
             ],
           ),
