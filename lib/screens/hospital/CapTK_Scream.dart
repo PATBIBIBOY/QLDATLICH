@@ -184,6 +184,7 @@ class _CapTaiKhoanNhanVienScreenState
     if (lower.contains('nhi')) return 'NH';
     if (lower.contains('răng') || lower.contains('rang')) return 'RHM';
     if (lower.contains('cấp cứu') || lower.contains('cap cuu')) return 'CC';
+    if (lower.contains('hô hấp') || lower.contains('ho hap')) return 'HH';
     if (lower.contains('sản') || lower.contains('san')) return 'PS';
     if (lower.contains('ngoại') || lower.contains('ngoai')) return 'NG';
     if (lower.contains('nội') || lower.contains('noi')) return 'NOI';

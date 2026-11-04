@@ -22,6 +22,14 @@ class NhanSuScreen extends StatefulWidget {
 class _NhanSuScreenState extends State<NhanSuScreen> {
   final NhanVienService _nhanVienService = NhanVienService();
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _nhanVienService.chuanHoaDinhDangMaNhanVien(_getBenhVienId());
+    });
+  }
+
   String _getBenhVienId() {
     if (widget.benhVienId != null && widget.benhVienId!.isNotEmpty) {
       return widget.benhVienId!;

@@ -1,9 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:flutter/material.dart';
 import '../../config/app_routes.dart';
-import '../../config/app_session.dart';
-import '../../services/email_service.dart';
 
 class GuiDonThanhCongScreen extends StatelessWidget {
   final String maHoSo;
@@ -397,111 +393,7 @@ class GuiDonThanhCongScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-
-                  // Nút DEV: Admin duyệt ngay để vào Dashboard phát triển chức năng
-                  Center(
-                    child: TextButton.icon(
-                      onPressed: () async {
-                        final uid = hospitalUid ??
-                            (AppSession.benhVienId.isNotEmpty
-                                ? AppSession.benhVienId
-                                : (FirebaseAuth.instance.currentUser?.uid ?? ''));
-
-                        final updateMap = <String, dynamic>{
-                          'trang_thai_hop_tac_id': 10,
-                          'da_gui_don': true,
-                        };
-                        if (extraData != null) {
-                          if (extraData!['co_so'] != null) updateMap['co_so'] = extraData!['co_so'];
-                          if (extraData!['bhyt'] != null) updateMap['bhyt'] = extraData!['bhyt'];
-                          if (extraData!['chuyen_khoa_ids'] != null) updateMap['chuyen_khoa_ids'] = extraData!['chuyen_khoa_ids'];
-                        }
-
-                        await FirebaseFirestore.instance
-                            .collection('BenhVien')
-                            .doc(uid)
-                            .set(updateMap, SetOptions(merge: true));
-
-                        try {
-                          await FirebaseFirestore.instance
-                              .collection('YeuCauHopTac')
-                              .doc(uid)
-                              .set(updateMap, SetOptions(merge: true));
-                        } catch (_) {}
-
-                        if (!context.mounted) return;
-                        Navigator.pushNamedAndRemoveUntil(
-                          context,
-                          AppRoutes.hospitalDashboard,
-                          (r) => false,
-                        );
-                      },
-                      icon: const Icon(
-                        Icons.bolt_rounded,
-                        size: 18,
-                        color: Color(0xFF16A34A),
-                      ),
-                      label: const Text(
-                        '⚡ [DEV] Phê duyệt ngay để mở khóa Dashboard',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF16A34A),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Center(
-                    child: TextButton.icon(
-                      onPressed: () async {
-                        final uid = hospitalUid ??
-                            (AppSession.benhVienId.isNotEmpty
-                                ? AppSession.benhVienId
-                                : (FirebaseAuth.instance.currentUser?.uid ?? ''));
-
-                        final emailNhan = extraData?['email']?.toString() ??
-                            FirebaseAuth.instance.currentUser?.email ??
-                            '';
-
-                        await EmailService.tuChoiHoacHuyHopTac(
-                          benhVienId: uid,
-                          tenBenhVien: tenBenhVien,
-                          email: emailNhan,
-                          lyDo: 'Hồ sơ chưa đạt yêu cầu pháp lý / Quyết định hủy hợp tác.',
-                        );
-
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              '❌ [DEV] Đã từ chối/hủy hợp tác (Mã 9) & gửi email thông báo về $emailNhan',
-                            ),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                        Navigator.pushNamedAndRemoveUntil(
-                          context,
-                          AppRoutes.hospitalDashboard,
-                          (r) => false,
-                        );
-                      },
-                      icon: const Icon(
-                        Icons.cancel_outlined,
-                        size: 18,
-                        color: Color(0xFFDC2626),
-                      ),
-                      label: const Text(
-                        '❌ [DEV] Từ chối / Hủy hợp tác (Mã 9 & Gửi Email)',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFFDC2626),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),

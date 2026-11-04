@@ -61,20 +61,50 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // ✅ 1. Kiểm tra nếu người dùng đăng nhập bằng MÃ NHÂN VIÊN nội bộ (chưa có Gmail Auth)
       final input = email.trim();
+      final inputUpper = input.toUpperCase();
       if (!input.contains('@') && selectedRoleCode != 'admin') {
         final firestore = FirebaseFirestore.instance;
         DocumentSnapshot<Map<String, dynamic>> nhanVienDoc = await firestore
             .collection('NhanVien')
-            .doc(input)
+            .doc(inputUpper)
             .get();
+
+        if (!nhanVienDoc.exists && input != inputUpper) {
+          nhanVienDoc = await firestore.collection('NhanVien').doc(input).get();
+        }
+
+        // Tìm trực tiếp đường dẫn chuẩn: NhanVien/{bvid}/danh_sach/{id} (VD: BV504_LT_CC_01)
+        if (!nhanVienDoc.exists && inputUpper.contains('_')) {
+          final firstPart = inputUpper.split('_')[0];
+          try {
+            final directDoc = await firestore
+                .collection('NhanVien')
+                .doc(firstPart)
+                .collection('danh_sach')
+                .doc(inputUpper)
+                .get();
+            if (directDoc.exists) {
+              nhanVienDoc = directDoc;
+            }
+          } catch (_) {}
+        }
 
         if (!nhanVienDoc.exists) {
           final q = await firestore
               .collection('NhanVien')
-              .where('ma_tai_khoan', isEqualTo: input)
+              .where('ma_tai_khoan', isEqualTo: inputUpper)
               .limit(1)
               .get();
-          if (q.docs.isNotEmpty) nhanVienDoc = q.docs.first;
+          if (q.docs.isNotEmpty) {
+            nhanVienDoc = q.docs.first;
+          } else if (input != inputUpper) {
+            final q2 = await firestore
+                .collection('NhanVien')
+                .where('ma_tai_khoan', isEqualTo: input)
+                .limit(1)
+                .get();
+            if (q2.docs.isNotEmpty) nhanVienDoc = q2.docs.first;
+          }
         }
 
         // Tìm trong subcollection danh_sach của NhanVien
@@ -82,7 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
           try {
             final cg = await firestore
                 .collectionGroup('danh_sach')
-                .where('ma_nhan_vien', isEqualTo: input)
+                .where('ma_nhan_vien', isEqualTo: inputUpper)
                 .limit(1)
                 .get();
             if (cg.docs.isNotEmpty) {
@@ -90,10 +120,19 @@ class _LoginScreenState extends State<LoginScreen> {
             } else {
               final cg2 = await firestore
                   .collectionGroup('danh_sach')
-                  .where('ma_tai_khoan', isEqualTo: input)
+                  .where('ma_tai_khoan', isEqualTo: inputUpper)
                   .limit(1)
                   .get();
-              if (cg2.docs.isNotEmpty) nhanVienDoc = cg2.docs.first;
+              if (cg2.docs.isNotEmpty) {
+                nhanVienDoc = cg2.docs.first;
+              } else if (input != inputUpper) {
+                final cg3 = await firestore
+                    .collectionGroup('danh_sach')
+                    .where('ma_nhan_vien', isEqualTo: input)
+                    .limit(1)
+                    .get();
+                if (cg3.docs.isNotEmpty) nhanVienDoc = cg3.docs.first;
+              }
             }
           } catch (_) {}
         }

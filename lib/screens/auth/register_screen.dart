@@ -45,7 +45,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void initState() {
     super.initState();
-    _loadRoles();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadRoles();
+      }
+    });
   }
 
   // ✅ Hàm load danh sách vai trò từ Firebase và CHỈ GIỮ LẠI 2 ROLE

@@ -70,6 +70,7 @@ class AppRoutes {
   static const String nhanSuScreen = '/hospital-nhan-su';
   // ignore: constant_identifier_names
   static const String NhanSuScreen = nhanSuScreen;
+  static const String phanCongScreen = '/hospital-phan-cong';
   static const String statistics = '/statistics';
 
   static const String adminDashboard = '/admin-dashboard';
@@ -206,5 +207,6 @@ class AppRoutes {
           return ThemKhoaScreen(benhVienId: bvid);
         },
         nhanSuScreen: (_) => const HomeHospitalScreen(initialTabIndex: 2),
+        phanCongScreen: (_) => const HomeHospitalScreen(initialTabIndex: 3),
       };
 }

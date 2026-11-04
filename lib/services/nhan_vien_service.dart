@@ -14,13 +14,18 @@ class NhanVienService {
     final trimmed = benhVienId.trim();
     if (trimmed.startsWith('BV')) return trimmed;
 
+    if (AppSession.benhVienId.isNotEmpty && AppSession.benhVienId.startsWith('BV')) {
+      return AppSession.benhVienId;
+    }
+
     try {
       final doc = await _db.collection('BenhVien').doc(trimmed).get();
       if (doc.exists) {
         final ma = (doc.data()?['ma_benh_vien'] ??
-                doc.data()?['maBenhVien'])
+                doc.data()?['maBenhVien'] ??
+                doc.data()?['uid'])
             ?.toString();
-        if (ma != null && ma.isNotEmpty) return ma;
+        if (ma != null && ma.isNotEmpty && ma.startsWith('BV')) return ma;
       }
 
       final query = await _db
@@ -32,7 +37,35 @@ class NhanVienService {
         final ma = (query.docs.first.data()['ma_benh_vien'] ??
                 query.docs.first.id)
             .toString();
-        if (ma.isNotEmpty) return ma;
+        if (ma.isNotEmpty && ma.startsWith('BV')) return ma;
+      }
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user?.email != null && user!.email!.isNotEmpty) {
+        final emailQ = await _db
+            .collection('BenhVien')
+            .where('email', isEqualTo: user.email)
+            .limit(1)
+            .get();
+        if (emailQ.docs.isNotEmpty) {
+          final ma = (emailQ.docs.first.data()['ma_benh_vien'] ??
+                  emailQ.docs.first.id)
+              .toString();
+          if (ma.isNotEmpty && ma.startsWith('BV')) return ma;
+        }
+
+        final ychtQ = await _db
+            .collection('YeuCauHopTac')
+            .where('email', isEqualTo: user.email)
+            .limit(1)
+            .get();
+        if (ychtQ.docs.isNotEmpty) {
+          final ma = (ychtQ.docs.first.data()['uid'] ??
+                  ychtQ.docs.first.data()['ma_benh_vien'] ??
+                  ychtQ.docs.first.id)
+              .toString();
+          if (ma.isNotEmpty && ma.startsWith('BV')) return ma;
+        }
       }
     } catch (_) {}
 
@@ -295,6 +328,57 @@ class NhanVienService {
   Future<List<TaiKhoanItem>> layDanhSachTaiKhoan([String? benhVienId]) =>
       layDanhSachTaiKhoanChuaKichHoat(benhVienId);
 
+  /// Chuẩn hóa các tài khoản nhân viên cũ sang định dạng mới:
+  /// idBV_vaitro_khoa_maso (Ví dụ: LT_HH_01 -> BV502_LT_HH_01)
+  Future<void> chuanHoaDinhDangMaNhanVien([String? benhVienId]) async {
+    try {
+      final rawId = (benhVienId != null && benhVienId.trim().isNotEmpty)
+          ? benhVienId.trim()
+          : (AppSession.benhVienId.isNotEmpty
+              ? AppSession.benhVienId
+              : (FirebaseAuth.instance.currentUser?.uid ?? ''));
+
+      final bvid = await _chuanHoaBenhVienId(rawId);
+      if (bvid.isEmpty) return;
+
+      final snap = await _db
+          .collection('NhanVien')
+          .doc(bvid)
+          .collection('danh_sach')
+          .get();
+
+      for (final doc in snap.docs) {
+        final oldId = doc.id;
+        // Nếu đã có tiền tố bvid_ thì đã đúng chuẩn mới
+        if (oldId.toUpperCase().startsWith('${bvid.toUpperCase()}_')) continue;
+
+        // Nếu là định dạng cũ chưa có mã bệnh viện (VD: LT_HH_01, CSKH_01, BS_NH_01...)
+        final newId = '${bvid}_$oldId';
+        final oldData = Map<String, dynamic>.from(doc.data());
+
+        oldData['id'] = newId;
+        oldData['ma_nhan_vien'] = newId;
+        oldData['ma_tai_khoan'] = newId;
+        oldData['ma_benh_vien'] = bvid;
+        oldData['benh_vien_id'] = bvid;
+        if (oldData['email'] != null && oldData['email'].toString().isNotEmpty) {
+          oldData['email'] = '${newId.toLowerCase()}@benhvien.vn';
+        }
+
+        // Tạo doc mới với ID mới idBV_vaitro_khoa_maso
+        await _db
+            .collection('NhanVien')
+            .doc(bvid)
+            .collection('danh_sach')
+            .doc(newId)
+            .set(oldData, SetOptions(merge: true));
+
+        // Xóa doc cũ
+        await doc.reference.delete();
+      }
+    } catch (_) {}
+  }
+
   /// Cấp mới danh sách tài khoản nhân viên theo chuẩn cấu trúc Firebase:
   /// - Document cha: `NhanVien/{benhVienId}` gồm `ma_benh_vien` và `ten_benh_vien`
   /// - Subcollection: `danh_sach`
@@ -329,17 +413,23 @@ class NhanVienService {
       }, SetOptions(merge: true));
     }
 
-    // 2. Xác định tiền tố (prefix) tài khoản nhân viên theo chuẩn
-    // CSKH: CSKH_
-    // Lễ tân: LT_TM_, LT_MT_...
-    // Bác sĩ: BS_TM_...
+    // 2. Xác định tiền tố (prefix) tài khoản nhân viên theo chuẩn:
+    // Định dạng: idBV_vaitro_khoa_maso (Ví dụ: BV504_LT_CC_01)
+    final String cleanBv = bvid.trim().isNotEmpty ? bvid.trim().toUpperCase() : 'BV';
+    final String cleanRole = rolePrefix.trim().toUpperCase();
+    final String cleanDept = deptCode.trim().toUpperCase();
+
     final String prefix;
-    if (rolePrefix == 'CSKH' || roleCode == 'customerSupport') {
-      prefix = 'CSKH_';
-    } else if (deptCode.trim().isNotEmpty) {
-      prefix = '${rolePrefix}_${deptCode.trim().toUpperCase()}_';
+    if (cleanRole == 'CSKH' || roleCode == 'customerSupport') {
+      if (cleanDept.isNotEmpty) {
+        prefix = '${cleanBv}_CSKH_${cleanDept}_';
+      } else {
+        prefix = '${cleanBv}_CSKH_';
+      }
+    } else if (cleanDept.isNotEmpty) {
+      prefix = '${cleanBv}_${cleanRole}_${cleanDept}_';
     } else {
-      prefix = '${rolePrefix}_';
+      prefix = '${cleanBv}_${cleanRole}_';
     }
 
     // 3. Quét các mã tài khoản đã có trong subcollection danh_sach để tìm số thứ tự lớn nhất

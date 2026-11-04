@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_session.dart';
 import '../models/hospital_model.dart';
@@ -8,15 +9,31 @@ import '../services/auth_service.dart';
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
 
+  @override
+  void notifyListeners() {
+    // Tránh lỗi FlutterError: setState() or markNeedsBuild() called during build
+    if (WidgetsBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (hasListeners) {
+          super.notifyListeners();
+        }
+      });
+    } else {
+      super.notifyListeners();
+    }
+  }
+
   AuthProvider() {
     _initAutoRestore();
   }
 
   void _initAutoRestore() {
-    final cur = _authService.currentUser;
-    if (cur != null) {
-      fetchCurrentUser(preferredRole: 'benh_vien');
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final cur = _authService.currentUser;
+      if (cur != null) {
+        fetchCurrentUser(preferredRole: 'benh_vien');
+      }
+    });
   }
 
   PatientModel? _user;

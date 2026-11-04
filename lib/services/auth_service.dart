@@ -4,6 +4,8 @@ import '../config/constants.dart';
 import '../models/hospital_model.dart';
 import '../models/patient_model.dart';
 
+import 'hospital_sync_service.dart';
+
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -296,7 +298,7 @@ class AuthService {
 
       if (snapshot.docs.isNotEmpty) {
         final d = snapshot.docs.first;
-        return HospitalModel.fromMap(d.data(), d.id);
+        return await _createHospitalModelWithRealtimeStatus(d);
       }
       return null;
     } catch (e) {
@@ -517,6 +519,10 @@ class AuthService {
     }
   }
 
+  static Map<String, dynamic> buildHospitalStatusFields(dynamic rawStatus) {
+    return HospitalSyncService.buildStatusFields(rawStatus);
+  }
+
   /// Chuẩn hóa các tài khoản bệnh viện đã đăng ký hợp tác trên Firestore
   /// (đảm bảo co_so, bhyt, chuyen_khoa_ids theo đúng collection Firebase CoSo & BHYT,
   /// đồng thời đồng bộ 2 chiều trạng thái giữa YeuCauHopTac và BenhVien)
@@ -535,12 +541,13 @@ class AuthService {
           final bvDocRef = _firestore.collection(AppConstants.hospitalsCollection).doc(doc.id);
           final bvSnap = await bvDocRef.get();
           if (bvSnap.exists) {
-            final currentStatus = bvSnap.data()?['trang_thai_hop_tac_id'];
-            if (currentStatus != statusId) {
-              await bvDocRef.set({
-                'trang_thai_hop_tac_id': statusId,
-                'da_gui_don': statusId != TrangThaiId.huyHopTac,
-              }, SetOptions(merge: true));
+            final bvData = bvSnap.data();
+            final currentStatus = bvData?['trang_thai_hop_tac_id'];
+            final statusFields = buildHospitalStatusFields(statusId);
+            if (currentStatus != statusId ||
+                bvData?['trangThai'] != statusFields['trangThai'] ||
+                bvData?['trang_thai'] != statusFields['trang_thai']) {
+              await bvDocRef.set(statusFields, SetOptions(merge: true));
             }
           }
         }
@@ -582,11 +589,11 @@ class AuthService {
         final int ycStatus = rawYcStatus is int
             ? rawYcStatus
             : int.tryParse(rawYcStatus.toString()) ?? 1;
-        if (data['trang_thai_hop_tac_id'] != ycStatus) {
-          await doc.reference.set({
-            'trang_thai_hop_tac_id': ycStatus,
-            'da_gui_don': ycStatus != TrangThaiId.huyHopTac,
-          }, SetOptions(merge: true));
+        final statusFields = buildHospitalStatusFields(ycStatus);
+        if (data['trang_thai_hop_tac_id'] != ycStatus ||
+            data['trangThai'] != statusFields['trangThai'] ||
+            data['trang_thai'] != statusFields['trang_thai']) {
+          await doc.reference.set(statusFields, SetOptions(merge: true));
         }
       }
     } catch (_) {}
@@ -628,7 +635,14 @@ class AuthService {
     try {
       final yc = await _firestore.collection('YeuCauHopTac').doc(d.id).get();
       if (yc.exists && yc.data()?['trang_thai_hop_tac_id'] != null) {
-        mapData['trang_thai_hop_tac_id'] = yc.data()!['trang_thai_hop_tac_id'];
+        final rawYcStatus = yc.data()!['trang_thai_hop_tac_id'];
+        final int ycStatus = rawYcStatus is int
+            ? rawYcStatus
+            : int.tryParse(rawYcStatus.toString()) ?? 1;
+        mapData['trang_thai_hop_tac_id'] = ycStatus;
+        final statusFields = buildHospitalStatusFields(ycStatus);
+        mapData['trangThai'] = statusFields['trangThai'];
+        mapData['trang_thai'] = statusFields['trang_thai'];
       }
     } catch (_) {}
     return HospitalModel.fromMap(mapData, d.id);

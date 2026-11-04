@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -11,6 +13,7 @@ import 'package:provider/provider.dart';
 import '../../config/app_routes.dart';
 import '../../config/app_session.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/email_service.dart';
 import 'guiDonThanhCong_Screen.dart';
 
 class GuiYeuCauHopTacScreen extends StatefulWidget {
@@ -475,7 +478,11 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      final hospitalUid = _getHospitalUid();
+      String hospitalUid = _getHospitalUid();
+      if (hospitalUid.isEmpty) {
+        hospitalUid = FirebaseAuth.instance.currentUser?.uid ??
+            'BV_${DateTime.now().millisecondsSinceEpoch}';
+      }
       final randSuffix = Random().nextInt(900) + 100;
       final maHoSo = '#HS-BV-2026$randSuffix';
 
@@ -495,15 +502,41 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
       }
 
       // Upload file lên Firebase Storage nếu có bytes từ máy
+      // Đặt timeout 3 giây: Nếu mạng lag hoặc Storage chưa kích hoạt thì không bao giờ bị treo ứng dụng
       String? fileDownloadUrl;
-      if (_fileBytes != null) {
+      if (_fileBytes != null && _fileBytes!.isNotEmpty) {
+        UploadTask? uploadTask;
         try {
-          final storagePath = 'giay_phep/$hospitalUid/${DateTime.now().millisecondsSinceEpoch}_$_tenFileDinhKem';
+          final safeUid = hospitalUid.replaceAll(RegExp(r'[^\w\-]'), '_');
+          final safeName = _tenFileDinhKem.replaceAll(RegExp(r'[^\w\.\-]'), '_');
+          final storagePath = 'giay_phep/$safeUid/${DateTime.now().millisecondsSinceEpoch}_$safeName';
           final storageRef = FirebaseStorage.instance.ref().child(storagePath);
-          final uploadTask = await storageRef.putData(_fileBytes!);
-          fileDownloadUrl = await uploadTask.ref.getDownloadURL();
+
+          String contentType = 'application/octet-stream';
+          final lower = safeName.toLowerCase();
+          if (lower.endsWith('.pdf')) {
+            contentType = 'application/pdf';
+          } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+            contentType = 'image/jpeg';
+          } else if (lower.endsWith('.png')) {
+            contentType = 'image/png';
+          } else if (lower.endsWith('.doc') || lower.endsWith('.docx')) {
+            contentType = 'application/msword';
+          }
+
+          final metadata = SettableMetadata(
+            contentType: contentType,
+            customMetadata: {'hospitalUid': hospitalUid, 'originalName': _tenFileDinhKem},
+          );
+
+          uploadTask = storageRef.putData(_fileBytes!, metadata);
+          final snapshot = await uploadTask.timeout(const Duration(seconds: 3));
+          fileDownloadUrl = await snapshot.ref.getDownloadURL().timeout(const Duration(seconds: 2));
         } catch (storageError) {
-          debugPrint('⚠️ Không thể tải file lên Firebase Storage: $storageError');
+          try {
+            uploadTask?.cancel();
+          } catch (_) {}
+          debugPrint('⚠️ Không thể tải file lên Firebase Storage (tiếp tục lưu vào Firestore): $storageError');
         }
       }
 
@@ -514,6 +547,7 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
 
       final dataToSave = <String, dynamic>{
         'uid': hospitalUid,
+        'auth_uid': hospitalUid,
         'benh_vien_id': hospitalUid,
         'ten_benh_vien': _tenBenhVienCtrl.text.trim(),
         'ma_co_so_byt': _maCoSoCtrl.text.trim(),
@@ -529,38 +563,65 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
         'chuyen_khoa_ids': <String>[], // ✅ Khởi tạo mảng rỗng chuẩn, không để null
         'ten_cac_khoa': <String>[],
         'file_giay_phep': _tenFileDinhKem,
+        'dung_luong_file': _dungLuongFile,
         'ma_ho_so': maHoSo,
         'da_gui_don': true,
         'trang_thai_hop_tac_id': 1, // 1: Chờ duyệt
+        'trangThai': 'CHO_DUYET',
+        'trang_thai': 'cho_duyet',
+        'da_xac_thuc': false,
         'ngay_gui_don': FieldValue.serverTimestamp(),
         'thoi_gian_gui_str': DateTime.now().toIso8601String(),
         'da_bi_tu_choi': false,
         'da_gui_mail_tu_choi': false,
+        'da_gui_mail_phe_duyet': false,
         if (FirebaseAuth.instance.currentUser?.email != null)
           'email': FirebaseAuth.instance.currentUser!.email,
       };
-      if (fileDownloadUrl != null) {
+      if (fileDownloadUrl != null && fileDownloadUrl.isNotEmpty) {
         dataToSave['file_giay_phep_url'] = fileDownloadUrl;
+      } else if (_fileBytes != null && _fileBytes!.length < 350 * 1024) {
+        // Lưu dự phòng chuỗi Base64 trực tiếp vào Firestore nếu dung lượng file nhỏ hơn 350KB
+        try {
+          dataToSave['file_giay_phep_base64'] = base64Encode(_fileBytes!);
+        } catch (_) {}
       }
 
       // 1. Lưu trực tiếp vào doc BenhVien/{uid}
       await FirebaseFirestore.instance
           .collection('BenhVien')
           .doc(hospitalUid)
-          .set(dataToSave, SetOptions(merge: true));
+          .set(dataToSave, SetOptions(merge: true))
+          .timeout(const Duration(seconds: 8));
 
       // 2. Lưu vào collection YeuCauHopTac để Admin quản lý phê duyệt
       try {
         await FirebaseFirestore.instance
             .collection('YeuCauHopTac')
             .doc(hospitalUid)
-            .set(dataToSave, SetOptions(merge: true));
+            .set(dataToSave, SetOptions(merge: true))
+            .timeout(const Duration(seconds: 8));
       } catch (e) {
         debugPrint('⚠️ Lưu YeuCauHopTac: $e');
       }
 
       // Cập nhật AppSession
       AppSession.benhVienId = hospitalUid;
+
+      // Gửi đúng 1 email xác nhận tiếp nhận hồ sơ yêu cầu hợp tác đến Gmail của bệnh viện
+      final emailGui = (dataToSave['email'] ??
+              FirebaseAuth.instance.currentUser?.email ??
+              '')
+          .toString()
+          .trim();
+      if (emailGui.isNotEmpty) {
+        EmailService.guiEmailXacNhanGuiYeuCauHopTac(
+          emailNguoiNhan: emailGui,
+          tenBenhVien: _tenBenhVienCtrl.text.trim(),
+          maBenhVien: hospitalUid,
+          maHoSo: maHoSo,
+        ).catchError((_) => false);
+      }
 
       if (!mounted) return;
 
@@ -587,6 +648,10 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
           backgroundColor: Colors.red,
         ),
       );
+    } finally {
+      if (mounted && _isSubmitting) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
 
