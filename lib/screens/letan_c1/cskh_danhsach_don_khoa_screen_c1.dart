@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/letan_c1/letan_design_system_c1.dart';
+import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
 import 'cskh_duyetdon_khoa_screen_c1.dart';
 import 'widgets/cskh_appointment_card_c1.dart';
@@ -155,11 +156,15 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
     return ValueListenableBuilder<bool>(
       valueListenable: AppDesignSystemC1.isDarkMode,
       builder: (context, isDark, child) {
+        final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
+
         return StreamBuilder<List<Map<String, dynamic>>>(
           stream: FirebaseServiceC1.streamDanhSachLichHen(
             tenKhoa: widget.tenKhoa,
             phongKham: _phongHienTai,
             ngayChon: _ngayChon,
+            benhVienId: bvid,
+            choPhepChoDuyet: true,
           ),
           builder: (context, snapshot) {
             final danhSach = snapshot.data ?? [];
