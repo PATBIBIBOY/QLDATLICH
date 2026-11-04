@@ -439,9 +439,10 @@ class AdminStore extends ChangeNotifier {
           ? 'booking'
           : 'qr';
       final defaultBadge =
-          kind == 'qr' ? 'Lỗi Check-in QR' : 'Lỗi Đặt Lịch';
-      final badge = data['tieu_de']?.toString() ??
-          data['title']?.toString() ??
+          kind == 'qr' ? 'Lỗi QR Check-in' : 'Lỗi Đặt Lịch';
+      final badge = data['badge']?.toString() ??
+          data['danh_muc']?.toString() ??
+          data['loai_loi']?.toString() ??
           defaultBadge;
       final title = data['tieu_de']?.toString() ??
           data['title']?.toString() ??

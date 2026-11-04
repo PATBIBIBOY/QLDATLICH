@@ -116,13 +116,19 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                AppBadge(
-                  text: r.badge,
-                  color: badgeColor,
-                  bg: badgeBg,
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: AppBadge(
+                      text: r.badge,
+                      color: badgeColor,
+                      bg: badgeBg,
+                    ),
+                  ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.access_time_rounded,
                         size: 12, color: kSlate400),
@@ -265,20 +271,26 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
                     color: kGreen,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 const AppBadge(
                   text: 'Đã giải quyết',
                   color: kGreen,
                   bg: kGreenLight,
                 ),
-                const SizedBox(width: 8),
-                AppBadge(
-                  text: r.badge,
-                  color: kSlate600,
-                  bg: const Color(0xFFF1F5F9),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: AppBadge(
+                      text: r.badge,
+                      color: kSlate600,
+                      bg: const Color(0xFFF1F5F9),
+                    ),
+                  ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 6),
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.history_rounded, size: 12, color: kSlate400),
                     const SizedBox(width: 4),
@@ -455,14 +467,18 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
                       children: [
                         Row(
                           children: [
-                            Text(
-                              r.badge,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: r.isResolved
-                                    ? kGreen
-                                    : (r.kind == 'qr' ? kRed : kOrange),
+                            Flexible(
+                              child: Text(
+                                r.badge,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: r.isResolved
+                                      ? kGreen
+                                      : (r.kind == 'qr' ? kRed : kOrange),
+                                ),
                               ),
                             ),
                             if (r.isResolved) ...[
