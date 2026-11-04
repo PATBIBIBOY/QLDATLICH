@@ -1181,7 +1181,7 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
     required Color iconColor,
   }) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(14),
@@ -1191,41 +1191,47 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                  color: iconBg,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, size: 13, color: iconColor),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
+              Flexible(
                 child: Text(
                   label,
-                  style: const TextStyle(fontSize: 10.5, color: kSlate500, fontWeight: FontWeight.w600),
+                  style: const TextStyle(fontSize: 11, color: kSlate500, fontWeight: FontWeight.w700),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(icon, size: 12, color: iconColor),
+              ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w900,
-              color: valueColor,
+          const SizedBox(height: 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                color: valueColor,
+              ),
             ),
           ),
           const SizedBox(height: 2),
-          Text(
-            sub,
-            style: const TextStyle(fontSize: 10, color: kSlate400, fontWeight: FontWeight.w500),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              sub,
+              style: const TextStyle(fontSize: 9.5, color: kSlate400, fontWeight: FontWeight.w500),
+            ),
           ),
         ],
       ),
@@ -1243,7 +1249,8 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: isSelected ? Colors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
@@ -1259,8 +1266,9 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
         ),
         child: Text(
           label,
+          textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 11.5,
             fontWeight: FontWeight.w800,
             color: isSelected ? kPrimary : kSlate500,
           ),
@@ -1379,7 +1387,7 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
                         children: [
                           Expanded(
                             child: _buildGlobalKpiCard(
-                              label: 'Tổng lượt khám',
+                              label: 'Lượt khám',
                               value: '$totalAppointments',
                               sub: 'Xong: $completedCount · Hủy: $cancelledCount',
                               valueColor: kSlate900,
@@ -1391,9 +1399,9 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: _buildGlobalKpiCard(
-                              label: 'Tần suất TB',
-                              value: '$avgPerDay / ngày',
-                              sub: '$avgPerMonth lượt / tháng',
+                              label: 'Tần suất',
+                              value: '$avgPerDay/ngày',
+                              sub: '$avgPerMonth lượt/tháng',
                               valueColor: kPrimary,
                               icon: Icons.speed_rounded,
                               iconBg: const Color(0xFFF0FDF4),
@@ -1403,7 +1411,7 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: _buildGlobalKpiCard(
-                              label: 'TK hoạt động',
+                              label: 'Hoạt động',
                               value: '$activePercent%',
                               sub: '${data['activePatientsCount'] ?? 0}/${data['totalPatientsCount'] ?? 0} tài khoản',
                               valueColor: const Color(0xFF16A34A),
@@ -1417,19 +1425,21 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
 
                       const SizedBox(height: 16),
 
-                      // Thanh chuyển đổi Ngày / Tháng / Năm
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      // Thanh chuyển đổi Ngày / Tháng / Năm: xếp gọn gàng full-width không bao giờ tràn màn hình
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
                             'Biểu đồ tần suất chung:',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 12.5,
                               fontWeight: FontWeight.w800,
                               color: kSlate700,
                             ),
                           ),
+                          const SizedBox(height: 8),
                           Container(
+                            width: double.infinity,
                             padding: const EdgeInsets.all(3),
                             decoration: BoxDecoration(
                               color: const Color(0xFFF1F5F9),
@@ -1437,9 +1447,9 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
                             ),
                             child: Row(
                               children: [
-                                _buildGlobalModePill(0, 'Theo Ngày'),
-                                _buildGlobalModePill(1, 'Theo Tháng'),
-                                _buildGlobalModePill(2, 'Theo Năm'),
+                                Expanded(child: _buildGlobalModePill(0, 'Theo Ngày')),
+                                Expanded(child: _buildGlobalModePill(1, 'Theo Tháng')),
+                                Expanded(child: _buildGlobalModePill(2, 'Theo Năm')),
                               ],
                             ),
                           ),
@@ -1476,12 +1486,15 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
                                       SizedBox(
                                         height: 15,
                                         child: count > 0
-                                            ? Text(
-                                                '$count',
-                                                style: TextStyle(
-                                                  fontSize: 9.5,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: isSelected ? kPrimary : kSlate600,
+                                            ? FittedBox(
+                                                fit: BoxFit.scaleDown,
+                                                child: Text(
+                                                  '$count',
+                                                  style: TextStyle(
+                                                    fontSize: 9.5,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: isSelected ? kPrimary : kSlate600,
+                                                  ),
                                                 ),
                                               )
                                             : const SizedBox.shrink(),
@@ -1489,7 +1502,7 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
                                       const SizedBox(height: 3),
                                       AnimatedContainer(
                                         duration: const Duration(milliseconds: 250),
-                                        width: 16,
+                                        width: currentChart.length > 8 ? 12 : 16,
                                         height: barHeight,
                                         decoration: BoxDecoration(
                                           gradient: count > 0
@@ -1515,15 +1528,16 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
                                         ),
                                       ),
                                       const SizedBox(height: 5),
-                                      Text(
-                                        label,
-                                        style: TextStyle(
-                                          fontSize: 9.5,
-                                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                                          color: isSelected ? kPrimary : kSlate400,
+                                      FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text(
+                                          label,
+                                          style: TextStyle(
+                                            fontSize: 9.5,
+                                            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                            color: isSelected ? kPrimary : kSlate400,
+                                          ),
                                         ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),
