@@ -282,6 +282,13 @@ class AdminStore extends ChangeNotifier {
           final timeStr = data['ngay_tao']?.toString() ??
               data['thoi_gian_gui_str']?.toString() ??
               'Mới thêm trên hệ thống';
+          final fileDoc = data['file_giay_phep']?.toString() ??
+              data['tai_lieu_dinh_kem']?.toString() ??
+              data['link_tai_lieu']?.toString() ??
+              data['url_tai_lieu']?.toString() ??
+              data['file_url']?.toString() ??
+              data['hinh_anh_giay_phep']?.toString() ??
+              '';
           pendingMap[doc.id] = {
             'docId': doc.id,
             'name': name,
@@ -290,7 +297,8 @@ class AdminStore extends ChangeNotifier {
             'tag': getInitials(name),
             'bs': '15 Bác sĩ',
             'time': 'Gửi: $timeStr',
-            'docs': data['file_giay_phep']?.toString() ?? 'Hồ sơ đăng ký hệ thống',
+            'docs': fileDoc.isNotEmpty ? fileDoc : 'Hồ sơ đăng ký hệ thống',
+            'file_url': fileDoc,
             'location': address,
             'so_giay_phep': data['so_giay_phep']?.toString() ?? doc.id,
             'ma_so_thue': data['ma_so_thue']?.toString() ?? '',
@@ -330,13 +338,21 @@ class AdminStore extends ChangeNotifier {
               data['ngay_gui_don']?.toString() ??
               'Mới gửi yêu cầu';
           final docFile = data['file_giay_phep']?.toString() ??
-              'giay_phep_byt.pdf';
+              data['tai_lieu_dinh_kem']?.toString() ??
+              data['link_tai_lieu']?.toString() ??
+              data['url_tai_lieu']?.toString() ??
+              data['file_url']?.toString() ??
+              data['hinh_anh_giay_phep']?.toString() ??
+              '';
           final location = data['dia_chi']?.toString() ??
               'Chưa cập nhật địa chỉ';
 
           if (pendingMap.containsKey(doc.id)) {
             final existing = pendingMap[doc.id]!;
-            existing['docs'] = 'GP: $docFile';
+            if (docFile.isNotEmpty) {
+              existing['docs'] = docFile;
+              existing['file_url'] = docFile;
+            }
             existing['time'] = 'Gửi: $timeStr';
             if (data['so_giay_phep'] != null) existing['so_giay_phep'] = data['so_giay_phep'].toString();
             if (data['ma_so_thue'] != null) existing['ma_so_thue'] = data['ma_so_thue'].toString();
@@ -354,7 +370,8 @@ class AdminStore extends ChangeNotifier {
               'tag': getInitials(name),
               'bs': '15 Bác sĩ',
               'time': 'Gửi: $timeStr',
-              'docs': 'GP: $docFile',
+              'docs': docFile.isNotEmpty ? docFile : 'giay_phep_byt.pdf',
+              'file_url': docFile,
               'location': location,
               'so_giay_phep': data['so_giay_phep']?.toString() ?? '',
               'ma_so_thue': data['ma_so_thue']?.toString() ?? '',

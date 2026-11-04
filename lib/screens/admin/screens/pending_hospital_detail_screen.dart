@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../core/theme.dart';
 import '../widgets/shared_widgets.dart';
 import 'approve_confirm_screen.dart';
@@ -9,6 +10,92 @@ class PendingHospitalDetailScreen extends StatelessWidget {
 
   const PendingHospitalDetailScreen({super.key, required this.hospital});
 
+  Future<void> _handleOpenDocument(BuildContext context, String fileUrl, String docName) async {
+    final cleanUrl = fileUrl.trim();
+    if (cleanUrl.isEmpty || cleanUrl == 'Hồ sơ đăng ký hệ thống' || cleanUrl == 'giay_phep_byt.pdf') {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.info_outline_rounded, color: kPrimary, size: 22),
+              SizedBox(width: 8),
+              Text('Thông tin hồ sơ', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            ],
+          ),
+          content: Text(
+            'Hồ sơ đăng ký của cơ sở: "$docName".\nHiện cơ sở y tế này chưa tải lên liên kết file công khai trên hệ thống.',
+            style: const TextStyle(fontSize: 13.5, color: kSlate700, height: 1.4),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPrimary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Đã hiểu'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Nếu là URL web hoặc Firebase Storage link
+    if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+      final uri = Uri.parse(cleanUrl);
+      try {
+        final canLaunch = await canLaunchUrl(uri);
+        if (canLaunch) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          return;
+        }
+      } catch (_) {}
+    }
+
+    if (context.mounted) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.description_outlined, color: kPrimary, size: 22),
+              SizedBox(width: 8),
+              Text('Tài liệu hồ sơ', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Tên file/Liên kết đăng ký:', style: TextStyle(fontSize: 12, color: kSlate400)),
+              const SizedBox(height: 6),
+              SelectableText(
+                cleanUrl,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kSlate800),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPrimary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Đóng'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final name = hospital['name'] ?? 'Bệnh viện mới';
@@ -16,7 +103,8 @@ class PendingHospitalDetailScreen extends StatelessWidget {
     final tag = hospital['tag'] ?? 'BV';
     final code = hospital['code'] ?? hospital['docId'] ?? '';
     final location = hospital['location'] ?? 'Chưa cập nhật địa chỉ';
-    final docFile = hospital['docs'] ?? 'Hồ sơ BYT';
+    final docFile = hospital['docs'] ?? 'Hồ sơ đăng ký hệ thống';
+    final fileUrl = hospital['file_url'] ?? '';
     final time = hospital['time'] ?? 'Vừa gửi';
     final email = hospital['email'] ?? '';
     final phone = hospital['phone'] ?? '';
@@ -166,7 +254,7 @@ class PendingHospitalDetailScreen extends StatelessWidget {
 
                   const SizedBox(height: 16),
 
-                  // Nhóm 1: Thông tin liên hệ & địa điểm
+                  // Nhóm 1: Thông tin cơ sở & liên hệ
                   _buildSectionCard(
                     title: 'Thông Tin Cơ Sở & Liên Hệ',
                     icon: Icons.business_rounded,
@@ -234,6 +322,7 @@ class PendingHospitalDetailScreen extends StatelessWidget {
                         label: 'Tài liệu / Giấy tờ đính kèm',
                         value: docFile,
                         isLink: true,
+                        onTapLink: () => _handleOpenDocument(context, fileUrl.isNotEmpty ? fileUrl : docFile, docFile),
                       ),
                       const Divider(height: 20, color: Color(0xFFF1F5F9)),
                       _buildDetailRow(
@@ -403,22 +492,20 @@ class PendingHospitalDetailScreen extends StatelessWidget {
     required String value,
     bool isHighlight = false,
     bool isLink = false,
+    VoidCallback? onTapLink,
   }) {
-    return Row(
+    final contentWidget = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16, color: kSlate400),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(fontSize: 11.5, color: kSlate400, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 2),
-              Text(
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11.5, color: kSlate400, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 2),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
                 value,
                 style: TextStyle(
                   fontSize: 13,
@@ -426,12 +513,34 @@ class PendingHospitalDetailScreen extends StatelessWidget {
                   color: isHighlight
                       ? kPrimary
                       : (isLink ? const Color(0xFF0284C7) : kSlate800),
+                  decoration: isLink ? TextDecoration.underline : null,
+                  decorationColor: const Color(0xFF0284C7),
                 ),
               ),
+            ),
+            if (isLink) ...[
+              const SizedBox(width: 4),
+              const Icon(Icons.open_in_new_rounded, size: 14, color: Color(0xFF0284C7)),
             ],
-          ),
+          ],
         ),
       ],
+    );
+
+    return InkWell(
+      onTap: isLink ? onTapLink : null,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 16, color: isLink ? const Color(0xFF0284C7) : kSlate400),
+            const SizedBox(width: 10),
+            Expanded(child: contentWidget),
+          ],
+        ),
+      ),
     );
   }
 }
