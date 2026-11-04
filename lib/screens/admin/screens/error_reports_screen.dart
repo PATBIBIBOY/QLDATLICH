@@ -865,12 +865,16 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
                                     color: _selectedTab == 0 ? kPrimary : kSlate500,
                                   ),
                                   const SizedBox(width: 6),
-                                  Text(
-                                    'Chờ xử lý (${store.reports.length})',
-                                    style: TextStyle(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: _selectedTab == 0 ? kPrimary : kSlate600,
+                                  Flexible(
+                                    child: Text(
+                                      'Chờ xử lý (${store.reports.length})',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: _selectedTab == 0 ? kPrimary : kSlate600,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -906,12 +910,16 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
                                     color: _selectedTab == 1 ? kGreen : kSlate500,
                                   ),
                                   const SizedBox(width: 6),
-                                  Text(
-                                    'Lịch sử báo lỗi (${store.resolvedReports.length})',
-                                    style: TextStyle(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: _selectedTab == 1 ? kGreen : kSlate600,
+                                  Flexible(
+                                    child: Text(
+                                      'Lịch sử báo lỗi (${store.resolvedReports.length})',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: _selectedTab == 1 ? kGreen : kSlate600,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -925,19 +933,22 @@ class _ErrorReportsScreenState extends State<ErrorReportsScreen> {
 
                   const SizedBox(height: 10),
 
-                  // Bộ lọc danh mục
-                  Row(
-                    children: [
-                      _buildChip(
-                        'Tất cả (${_selectedTab == 0 ? store.reports.length : store.resolvedReports.length})',
-                        0,
-                        Icons.list_alt_rounded,
-                      ),
-                      const SizedBox(width: 8),
-                      _buildChip('Lỗi đặt lịch', 1, Icons.calendar_month_rounded),
-                      const SizedBox(width: 8),
-                      _buildChip('Lỗi QR Check-in', 2, Icons.qr_code_scanner_rounded),
-                    ],
+                  // Bộ lọc danh mục (cuộn ngang tránh tràn màn hình nhỏ)
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildChip(
+                          'Tất cả (${_selectedTab == 0 ? store.reports.length : store.resolvedReports.length})',
+                          0,
+                          Icons.list_alt_rounded,
+                        ),
+                        const SizedBox(width: 8),
+                        _buildChip('Lỗi đặt lịch', 1, Icons.calendar_month_rounded),
+                        const SizedBox(width: 8),
+                        _buildChip('Lỗi QR Check-in', 2, Icons.qr_code_scanner_rounded),
+                      ],
+                    ),
                   ),
                 ],
               ),

@@ -681,15 +681,19 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
                                       children: [
                                         const Text('Tần suất TB', style: TextStyle(fontSize: 11, color: kSlate500)),
                                         const SizedBox(height: 4),
-                                        Text(
-                                          '$freqPerMonth lượt/tháng',
-                                          style: const TextStyle(
-                                            fontSize: 13.5,
-                                            fontWeight: FontWeight.w900,
-                                            color: kPrimary,
+                                        FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          alignment: Alignment.centerLeft,
+                                          child: Text(
+                                            '$freqPerMonth lượt/tháng',
+                                            style: const TextStyle(
+                                              fontSize: 13.5,
+                                              fontWeight: FontWeight.w900,
+                                              color: kPrimary,
+                                            ),
                                           ),
                                         ),
-                                        Text('$freqPerWeek lượt/tuần', style: const TextStyle(fontSize: 10.5, color: kSlate400)),
+                                        Text('$freqPerWeek lượt/tuần', style: const TextStyle(fontSize: 10.5, color: kSlate400), maxLines: 1, overflow: TextOverflow.ellipsis),
                                       ],
                                     ),
                                   ),
@@ -708,15 +712,19 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
                                       children: [
                                         const Text('Tổng lịch hẹn', style: TextStyle(fontSize: 11, color: kSlate500)),
                                         const SizedBox(height: 4),
-                                        Text(
-                                          '$totalAppointments lượt',
-                                          style: const TextStyle(
-                                            fontSize: 13.5,
-                                            fontWeight: FontWeight.w900,
-                                            color: kSlate900,
+                                        FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          alignment: Alignment.centerLeft,
+                                          child: Text(
+                                            '$totalAppointments lượt',
+                                            style: const TextStyle(
+                                              fontSize: 13.5,
+                                              fontWeight: FontWeight.w900,
+                                              color: kSlate900,
+                                            ),
                                           ),
                                         ),
-                                        Text('Xong: $completedCount · Hủy: $cancelledCount', style: const TextStyle(fontSize: 10.5, color: kSlate500)),
+                                        Text('Xong: $completedCount · Hủy: $cancelledCount', style: const TextStyle(fontSize: 10.5, color: kSlate500), maxLines: 1, overflow: TextOverflow.ellipsis),
                                       ],
                                     ),
                                   ),
@@ -735,15 +743,19 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
                                       children: [
                                         const Text('Thời gian tham gia', style: TextStyle(fontSize: 11, color: kSlate500)),
                                         const SizedBox(height: 4),
-                                        Text(
-                                          '$totalDaysJoined ngày',
-                                          style: const TextStyle(
-                                            fontSize: 13.5,
-                                            fontWeight: FontWeight.w900,
-                                            color: kSlate900,
+                                        FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          alignment: Alignment.centerLeft,
+                                          child: Text(
+                                            '$totalDaysJoined ngày',
+                                            style: const TextStyle(
+                                              fontSize: 13.5,
+                                              fontWeight: FontWeight.w900,
+                                              color: kSlate900,
+                                            ),
                                           ),
                                         ),
-                                        Text('Tỉ lệ xong: ${totalAppointments > 0 ? ((completedCount / totalAppointments) * 100).toStringAsFixed(0) : 0}%', style: const TextStyle(fontSize: 10.5, color: Color(0xFF16A34A))),
+                                        Text('Tỉ lệ xong: ${totalAppointments > 0 ? ((completedCount / totalAppointments) * 100).toStringAsFixed(0) : 0}%', style: const TextStyle(fontSize: 10.5, color: Color(0xFF16A34A)), maxLines: 1, overflow: TextOverflow.ellipsis),
                                       ],
                                     ),
                                   ),
@@ -771,8 +783,8 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'Biểu đồ tần suất hoạt động',
@@ -782,8 +794,9 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
                                           color: kSlate900,
                                         ),
                                       ),
-                                      // Bộ chuyển đổi Ngày / Tháng / Năm
+                                      const SizedBox(height: 8),
                                       Container(
+                                        width: double.infinity,
                                         padding: const EdgeInsets.all(3),
                                         decoration: BoxDecoration(
                                           color: const Color(0xFFF1F5F9),
@@ -791,9 +804,9 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
                                         ),
                                         child: Row(
                                           children: [
-                                            _buildChartModePill(chartMode, 0, 'Ngày', () => setModalState(() { chartMode = 0; selectedBarIndex = null; })),
-                                            _buildChartModePill(chartMode, 1, 'Tháng', () => setModalState(() { chartMode = 1; selectedBarIndex = null; })),
-                                            _buildChartModePill(chartMode, 2, 'Năm', () => setModalState(() { chartMode = 2; selectedBarIndex = null; })),
+                                            Expanded(child: _buildChartModePill(chartMode, 0, 'Ngày', () => setModalState(() { chartMode = 0; selectedBarIndex = null; }))),
+                                            Expanded(child: _buildChartModePill(chartMode, 1, 'Tháng', () => setModalState(() { chartMode = 1; selectedBarIndex = null; }))),
+                                            Expanded(child: _buildChartModePill(chartMode, 2, 'Năm', () => setModalState(() { chartMode = 2; selectedBarIndex = null; }))),
                                           ],
                                         ),
                                       ),
@@ -1097,7 +1110,8 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? Colors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
