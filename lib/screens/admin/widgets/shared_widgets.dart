@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../data/admin_store.dart';
 
-// ============ AVATAR CHỮ (BM / TA / HN...) ============
+// =========================================================================
+// CÁC THÀNH PHẦN GIAO DIỆN DÙNG CHUNG CAO CẤP (SHARED ADMIN DESIGN SYSTEM)
+// =========================================================================
+
+// ============ AVATAR CHỮ / VIẾT TẮT ============
 class AvatarBox extends StatelessWidget {
   final String text;
   final Color bg;
@@ -67,7 +71,7 @@ class BackCircle extends StatelessWidget {
           border: Border.all(color: kBorder),
           boxShadow: kCardShadow,
         ),
-        child: const Icon(Icons.arrow_back_ios_new, size: 18, color: kSlate800),
+        child: const Icon(Icons.arrow_back_ios_new_rounded, size: 17, color: kSlate800),
       ),
     );
   }
@@ -142,7 +146,7 @@ class _LiveSyncBadgeState extends State<LiveSyncBadge>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     )..repeat(reverse: true);
-    _opacity = Tween<double>(begin: 0.3, end: 1.0).animate(
+    _opacity = Tween<double>(begin: 0.35, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
   }
@@ -156,11 +160,11 @@ class _LiveSyncBadgeState extends State<LiveSyncBadge>
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: kGreenLight,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: kGreen.withValues(alpha: 0.3)),
+        border: Border.all(color: kGreen.withValues(alpha: 0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -184,7 +188,7 @@ class _LiveSyncBadgeState extends State<LiveSyncBadge>
             'Firebase Live',
             style: TextStyle(
               fontSize: 11,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
               color: kGreen,
             ),
           ),
@@ -290,7 +294,7 @@ class _HeroRealtimeBadgeState extends State<HeroRealtimeBadge>
               child: const Icon(
                 Icons.sync_rounded,
                 color: Colors.white,
-                size: 15,
+                size: 14,
               ),
             ),
             const SizedBox(width: 5),
@@ -298,7 +302,7 @@ class _HeroRealtimeBadgeState extends State<HeroRealtimeBadge>
               width: 6,
               height: 6,
               decoration: const BoxDecoration(
-                color: Color(0xFF4ADE80), // Xanh lá tươi
+                color: Color(0xFF4ADE80),
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
@@ -326,7 +330,7 @@ class _HeroRealtimeBadgeState extends State<HeroRealtimeBadge>
   }
 }
 
-// ============ BADGE NHÃN ============
+// ============ BADGE NHÃN (APP BADGE) ============
 class AppBadge extends StatelessWidget {
   final String text;
   final Color color;
@@ -348,7 +352,7 @@ class AppBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -375,7 +379,7 @@ class AppBadge extends StatelessWidget {
   }
 }
 
-// ============ THANH ĐIỀU HƯỚNG DƯỚI CAO CẤP ============
+// ============ THANH ĐIỀU HƯỚNG DƯỚI CAO CẤP (MODERN ADMIN BOTTOM BAR) ============
 class AdminBottomBar extends StatelessWidget {
   final int current;
   final Function(int) onTap;
@@ -402,63 +406,56 @@ class AdminBottomBar extends StatelessWidget {
     return Expanded(
       child: InkWell(
         onTap: () => onTap(index),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Stack(
-            alignment: Alignment.center,
-            clipBehavior: Clip.none,
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: EdgeInsets.symmetric(
-                      horizontal: active ? 16 : 0,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: active ? kPrimaryLight : Colors.transparent,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Icon(
-                      active ? activeIcon : icon,
-                      size: 22,
-                      color: itemColor,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-                      color: itemColor,
-                    ),
-                  ),
-                ],
-              ),
-              if (badgeCount > 0)
-                Positioned(
-                  top: 0,
-                  right: 22,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                    decoration: BoxDecoration(
-                      color: kRed,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      badgeCount > 9 ? '9+' : '$badgeCount',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: EdgeInsets.symmetric(
+                  horizontal: active ? 16 : 6,
+                  vertical: 4,
                 ),
+                decoration: BoxDecoration(
+                  color: active ? (isDanger ? kRedLight : kPrimaryLight) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: badgeCount > 0
+                    ? Badge(
+                        backgroundColor: kRed,
+                        label: Text(
+                          badgeCount > 9 ? '9+' : '$badgeCount',
+                          style: const TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        child: Icon(
+                          active ? activeIcon : icon,
+                          size: 22,
+                          color: itemColor,
+                        ),
+                      )
+                    : Icon(
+                        active ? activeIcon : icon,
+                        size: 22,
+                        color: itemColor,
+                      ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                  color: itemColor,
+                ),
+              ),
             ],
           ),
         ),
@@ -476,9 +473,9 @@ class AdminBottomBar extends StatelessWidget {
         border: Border(top: BorderSide(color: kBorder)),
         boxShadow: [
           BoxShadow(
-            color: Color(0x06000000),
-            blurRadius: 10,
-            offset: Offset(0, -3),
+            color: Color(0x060F172A),
+            blurRadius: 16,
+            offset: Offset(0, -4),
           ),
         ],
       ),
@@ -507,7 +504,7 @@ class AdminBottomBar extends StatelessWidget {
               ),
               _buildItem(
                 index: 3,
-                label: 'Xử lý yêu cầu',
+                label: 'Xử lý',
                 icon: Icons.assignment_turned_in_outlined,
                 activeIcon: Icons.assignment_turned_in_rounded,
                 badgeCount: store.pendingTotal + store.reports.length,
@@ -527,7 +524,7 @@ class AdminBottomBar extends StatelessWidget {
   }
 }
 
-// ============ Ô TÌM KIẾM HIỆN ĐẠI ============
+// ============ Ô TÌM KIẾM HIỆN ĐẠI (MODERN SEARCH BOX) ============
 class SearchBox extends StatelessWidget {
   final String hint;
   final ValueChanged<String>? onChanged;
@@ -555,16 +552,16 @@ class SearchBox extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.search, size: 20, color: kSlate400),
+          const Icon(Icons.search_rounded, size: 20, color: kSlate400),
           const SizedBox(width: 10),
           Expanded(
             child: TextField(
               controller: controller,
               onChanged: onChanged,
-              style: const TextStyle(fontSize: 14, color: kSlate900),
+              style: const TextStyle(fontSize: 14, color: kSlate900, fontWeight: FontWeight.w600),
               decoration: InputDecoration(
                 hintText: hint,
-                hintStyle: const TextStyle(fontSize: 13, color: kSlate400),
+                hintStyle: const TextStyle(fontSize: 13, color: kSlate400, fontWeight: FontWeight.w500),
                 border: InputBorder.none,
                 isDense: true,
                 contentPadding: EdgeInsets.zero,
@@ -574,9 +571,79 @@ class SearchBox extends StatelessWidget {
           if (controller != null && controller!.text.isNotEmpty)
             GestureDetector(
               onTap: onClear,
-              child: const Icon(Icons.cancel, size: 18, color: kSlate400),
+              child: const Icon(Icons.cancel_rounded, size: 18, color: kSlate400),
             ),
         ],
+      ),
+    );
+  }
+}
+
+// ============ TRẠNG THÁI TRỐNG HIỆN ĐẠI (EMPTY STATE) ============
+class EmptyStateWidget extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  const EmptyStateWidget({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF1F5F9),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 40, color: kSlate400),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: kSlate900,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13, color: kSlate500, height: 1.4),
+            ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 18),
+              ElevatedButton.icon(
+                onPressed: onAction,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kPrimary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: Text(actionLabel!),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

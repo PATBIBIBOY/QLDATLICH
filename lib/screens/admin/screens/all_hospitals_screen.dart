@@ -6,9 +6,10 @@ import '../widgets/shared_widgets.dart';
 import 'hospital_detail_screen.dart';
 import 'operations_screen.dart';
 
-// ===================================================
-// MÀN 10: TẤT CẢ BỆNH VIỆN TRONG HỆ THỐNG
-// ===================================================
+// =========================================================================
+// MÀN: QUẢN LÝ TẤT CẢ CƠ SỞ Y TẾ TRONG HỆ THỐNG
+// Thiết kế chuẩn Admin SaaS: Segmented Control, Filter Chips, Elevated Cards
+// =========================================================================
 class AllHospitalsScreen extends StatefulWidget {
   final int initialSort; // 0 = mặc định, 1 = thấp→cao, 2 = cao→thấp
   final bool isEmbedded; // Khi hiển thị trong Tab của MainShell
@@ -58,35 +59,39 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
           children: [
             Icon(Icons.handshake_outlined, color: kGreen, size: 24),
             SizedBox(width: 10),
-            Text('Khôi phục hợp tác?', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+            Expanded(
+              child: Text(
+                'Khôi phục hợp tác?',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: kSlate900),
+              ),
+            ),
           ],
         ),
         content: Text(
-          'Bạn có chắc chắn muốn khôi phục thỏa thuận hợp tác với cơ sở y tế "${h.name}"? Bệnh viện sẽ được mở khóa tài khoản và hiển thị trở lại trên cổng đặt lịch của bệnh nhân.',
-          style: const TextStyle(color: kSlate600, fontSize: 13.5),
+          'Bạn có chắc muốn kích hoạt lại thỏa thuận hợp tác và đưa "${h.name}" quay trở lại danh sách hoạt động bình thường?',
+          style: const TextStyle(fontSize: 13.5, color: kSlate600, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy bỏ', style: TextStyle(color: kSlate600)),
+            child: const Text('Hủy', style: TextStyle(color: kSlate500, fontWeight: FontWeight.w700)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: kGreen,
               foregroundColor: Colors.white,
+              elevation: 0,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            onPressed: () async {
-              final messenger = ScaffoldMessenger.of(context);
+            onPressed: () {
               Navigator.pop(ctx);
-              await AdminStore.instance.restoreHospitalPartnership(h);
-              final emailNotice = h.email != null && h.email!.isNotEmpty
-                  ? ' và gửi email tới ${h.email}'
-                  : '';
-              messenger.showSnackBar(
+              AdminStore.instance.restoreHospitalPartnership(h);
+              ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Đã khôi phục hợp tác với ${h.name}$emailNotice!'),
+                  content: Text('Đã khôi phục hợp tác thành công với "${h.name}"! ✓'),
                   backgroundColor: kGreen,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               );
             },
@@ -97,7 +102,7 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
     );
   }
 
-  // ================= HỘP THOẠI XÓA VĨNH VIỄN =================
+  // ================= HỘP THOẠI XÓA VĨNH VIỄN HỒ SƠ =================
   void _showDeletePermanentDialog(BuildContext context, Hospital h) {
     showDialog(
       context: context,
@@ -105,37 +110,41 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Row(
           children: [
-            Icon(Icons.warning_rounded, color: kRed, size: 24),
+            Icon(Icons.delete_forever_rounded, color: kRed, size: 24),
             SizedBox(width: 10),
-            Text('Xóa vĩnh viễn hồ sơ?', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: kRed)),
+            Expanded(
+              child: Text(
+                'Xóa vĩnh viễn hồ sơ?',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: kRed),
+              ),
+            ),
           ],
         ),
         content: Text(
-          'CẢNH BÁO: Hành động này sẽ XÓA VĨNH VIỄN toàn bộ hồ sơ của "${h.name}" khỏi cơ sở dữ liệu Firebase. Không thể khôi phục sau khi xóa!',
-          style: const TextStyle(color: kSlate600, fontSize: 13.5),
+          'Hành động này sẽ xóa hoàn toàn cơ sở "${h.name}" khỏi cơ sở dữ liệu hệ thống Cloud Firestore và không thể hoàn tác.',
+          style: const TextStyle(fontSize: 13.5, color: kSlate600, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy bỏ', style: TextStyle(color: kSlate600)),
+            child: const Text('Hủy bỏ', style: TextStyle(color: kSlate500, fontWeight: FontWeight.w700)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: kRed,
               foregroundColor: Colors.white,
+              elevation: 0,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            onPressed: () async {
-              final messenger = ScaffoldMessenger.of(context);
+            onPressed: () {
               Navigator.pop(ctx);
-              final emailNotice = h.email != null && h.email!.isNotEmpty
-                  ? ' và gửi email tới ${h.email}'
-                  : '';
-              await AdminStore.instance.deleteHospitalAccount(h);
-              messenger.showSnackBar(
+              AdminStore.instance.deleteHospitalAccount(h);
+              ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Đã xóa vĩnh viễn hồ sơ ${h.name}$emailNotice.'),
-                  backgroundColor: const Color(0xFFDC2626),
+                  content: Text('Đã xóa vĩnh viễn hồ sơ "${h.name}" khỏi hệ thống.'),
+                  backgroundColor: kSlate900,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               );
             },
@@ -146,39 +155,50 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
     );
   }
 
+  // ============ TAB TRẠNG THÁI (SEGMENTED CONTROL STYLE) ============
   Widget _buildStatusTab(int tabIndex, String label, int count, {bool isDanger = false}) {
     final active = _statusTab == tabIndex;
     final color = isDanger ? kRed : kPrimary;
     return InkWell(
       onTap: () => setState(() => _statusTab = tabIndex),
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(10),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: active ? (isDanger ? kRedBg : kPrimaryLight) : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: active ? (isDanger ? kRed : kPrimary) : Colors.transparent,
-            width: 1.2,
-          ),
+          color: active ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: active
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-                color: active ? color : kSlate600,
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                  color: active ? color : kSlate600,
+                ),
               ),
             ),
             const SizedBox(width: 6),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
               decoration: BoxDecoration(
-                color: active ? color : kSlate200,
+                color: active ? (isDanger ? kRedBg : kPrimaryLight) : kSlate200,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -186,7 +206,7 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
                 style: TextStyle(
                   fontSize: 10.5,
                   fontWeight: FontWeight.w800,
-                  color: active ? Colors.white : kSlate700,
+                  color: active ? color : kSlate700,
                 ),
               ),
             ),
@@ -196,6 +216,7 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
     );
   }
 
+  // ============ CHIP BỘ LỌC ============
   Widget _buildFilterChip(String label, bool active, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
@@ -204,10 +225,10 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: active ? kPrimary : Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: active ? kPrimary : kBorder,
-            width: 1.2,
+            width: 1,
           ),
           boxShadow: active
               ? [
@@ -231,6 +252,7 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
     );
   }
 
+  // ============ THẺ CƠ SỞ Y TẾ TRONG DANH SÁCH ============
   Widget _buildHospitalItem(BuildContext context, Hospital h) {
     final isCancelled = h.isUnpartnered || _statusTab == 1;
 
@@ -239,13 +261,13 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
         context,
         MaterialPageRoute(builder: (_) => HospitalDetailScreen(hospital: h)),
       ),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(18),
       child: Container(
         padding: const EdgeInsets.all(14),
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isCancelled
                 ? kRed.withValues(alpha: 0.35)
@@ -270,15 +292,25 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        h.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14.5,
-                          color: isCancelled ? kSlate700 : kSlate900,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              h.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14.5,
+                                color: isCancelled ? kSlate700 : kSlate900,
+                              ),
+                            ),
+                          ),
+                          if (!isCancelled) ...[
+                            const SizedBox(width: 4),
+                            const Icon(Icons.verified_rounded, size: 14, color: kPrimary),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Row(
@@ -310,7 +342,7 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
                             ),
                           ),
                           const Spacer(),
-                          // Huy hiệu trạng thái: Chỉ có Đang hợp tác hoặc Đã hủy hợp tác
+                          // Huy hiệu trạng thái
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                             decoration: BoxDecoration(
@@ -332,7 +364,7 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
                                 const SizedBox(width: 4),
                                 Text(
                                   isCancelled
-                                      ? 'Đã hủy hợp tác'
+                                      ? 'Đã hủy'
                                       : 'Đang hợp tác',
                                   style: TextStyle(
                                     fontSize: 10.5,
@@ -365,37 +397,12 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
                     ],
                   ),
                 ),
+                const SizedBox(width: 6),
+                const Icon(Icons.chevron_right_rounded, color: kSlate400, size: 20),
               ],
             ),
 
-            // Banner lý do hủy hợp tác nếu có
-            if (isCancelled && h.blockReason != null && h.blockReason!.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: kRedBg,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: kRed.withValues(alpha: 0.2)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline, size: 14, color: kRed),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'Lý do ngừng: ${h.blockReason}',
-                        style: const TextStyle(fontSize: 11, color: kRed, fontWeight: FontWeight.w600),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-
-            // Hàng nút thao tác khi ở tab Đã hủy hợp tác
+            // Nút Khôi phục hợp tác hoặc Xóa hẳn khi ở Tab Đã hủy
             if (isCancelled) ...[
               const SizedBox(height: 10),
               const Divider(height: 1, color: kBorder),
@@ -529,10 +536,10 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
                           child: TextField(
                             controller: _searchCtrl,
                             onChanged: (v) => setState(() => _query = v),
-                            style: const TextStyle(fontSize: 13.5, color: kSlate900),
+                            style: const TextStyle(fontSize: 13.5, color: kSlate900, fontWeight: FontWeight.w600),
                             decoration: const InputDecoration(
                               hintText: 'Tìm theo tên, địa chỉ, mã bệnh viện...',
-                              hintStyle: TextStyle(fontSize: 13, color: kSlate400),
+                              hintStyle: TextStyle(fontSize: 13, color: kSlate400, fontWeight: FontWeight.w500),
                               border: InputBorder.none,
                               isDense: true,
                               contentPadding: EdgeInsets.zero,
@@ -553,14 +560,19 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
 
                   const SizedBox(height: 10),
 
-                  // HÀNG 1: TABS TRẠNG THÁI HỢP TÁC (CHỈ CÒN ĐANG HỢP TÁC VÀ ĐÃ HỦY HỢP TÁC)
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
+                  // HÀNG 1: TABS TRẠNG THÁI HỢP TÁC (SEGMENTED CONTROL FULL WIDTH)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     child: Row(
                       children: [
-                        _buildStatusTab(0, 'Đang hợp tác', activeCount),
-                        const SizedBox(width: 8),
-                        _buildStatusTab(1, 'Đã hủy hợp tác', cancelledCount, isDanger: true),
+                        Expanded(child: _buildStatusTab(0, 'Đang hợp tác', activeCount)),
+                        const SizedBox(width: 4),
+                        Expanded(child: _buildStatusTab(1, 'Đã hủy hợp tác', cancelledCount, isDanger: true)),
                       ],
                     ),
                   ),
@@ -570,6 +582,7 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
                   // HÀNG 2: BỘ LỌC LOẠI HÌNH & XẾP HẠNG
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
                     child: Row(
                       children: [
                         _buildFilterChip('Tất cả', _selectedType == 'all', () {
@@ -622,7 +635,7 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.pending_actions, size: 14, color: kAmber),
+                          const Icon(Icons.pending_actions_rounded, size: 14, color: kAmber),
                           const SizedBox(width: 4),
                           Text(
                             '${store.pendingTotal} chờ duyệt',
@@ -642,37 +655,19 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
 
             Expanded(
               child: filtered.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 64,
-                            height: 64,
-                            decoration: const BoxDecoration(
-                              color: kSlate100,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              _statusTab == 1 ? Icons.link_off_rounded : Icons.search_off_rounded,
-                              size: 32,
-                              color: kSlate400,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            _statusTab == 1
-                                ? 'Không có bệnh viện nào đã hủy hợp tác'
-                                : 'Không tìm thấy bệnh viện phù hợp',
-                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: kSlate800),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Thử đổi bộ lọc hoặc từ khóa tìm kiếm',
-                            style: TextStyle(fontSize: 12.5, color: kSlate500),
-                          ),
-                        ],
-                      ),
+                  ? EmptyStateWidget(
+                      icon: _statusTab == 1 ? Icons.link_off_rounded : Icons.search_off_rounded,
+                      title: _statusTab == 1
+                          ? 'Không có bệnh viện nào đã hủy hợp tác'
+                          : 'Không tìm thấy bệnh viện phù hợp',
+                      message: 'Thử đổi từ khóa tìm kiếm hoặc đặt lại các bộ lọc danh mục.',
+                      actionLabel: _query.isNotEmpty ? 'Xóa từ khóa tìm kiếm' : null,
+                      onAction: _query.isNotEmpty
+                          ? () {
+                              _searchCtrl.clear();
+                              setState(() => _query = '');
+                            }
+                          : null,
                     )
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),

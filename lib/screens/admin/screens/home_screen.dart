@@ -8,7 +8,10 @@ import 'all_hospitals_screen.dart';
 import 'patient_management_screen.dart';
 import 'operations_screen.dart';
 
-// ================= MÀN 1: TRANG CHỦ QUẢN TRỊ VIÊN =================
+// =========================================================================
+// MÀN 1: TỔNG QUAN HỆ THỐNG / DASHBOARD QUẢN TRỊ VIÊN
+// Phong cách thiết kế hiện đại chuẩn Dashboard quốc tế (Stripe, Linear, Apple Health)
+// =========================================================================
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -45,33 +48,40 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-        content: Text(message, style: const TextStyle(color: kSlate600, fontSize: 14)),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: kSlate900)),
+        content: Text(message, style: const TextStyle(color: kSlate600, fontSize: 14, height: 1.4)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy bỏ', style: TextStyle(color: kSlate600, fontWeight: FontWeight.w700)),
+            child: const Text('Hủy bỏ', style: TextStyle(color: kSlate500, fontWeight: FontWeight.w700)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: kRed,
               foregroundColor: Colors.white,
+              elevation: 0,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () {
               Navigator.pop(context);
               onConfirm();
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(doneMessage), backgroundColor: kSlate900),
+                SnackBar(
+                  content: Text(doneMessage),
+                  backgroundColor: kSlate900,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
               );
             },
-            child: const Text('Xác nhận Xóa'),
+            child: const Text('Xác nhận'),
           ),
         ],
       ),
     );
   }
 
+  // ============ THẺ THỐNG KÊ KPI HIỆN ĐẠI ============
   Widget _buildStatCard({
     required String count,
     required String label,
@@ -100,30 +110,43 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Container(
-                    width: 38,
-                    height: 38,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
                       color: bgColor,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(icon, color: color, size: 20),
                   ),
-                  const Icon(Icons.arrow_forward_ios, size: 12, color: kSlate400),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: kSlate100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.arrow_outward_rounded, size: 14, color: kSlate400),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
-              Text(
-                count,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                  color: color,
-                  letterSpacing: -0.5,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  count,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    color: color,
+                    letterSpacing: -0.5,
+                  ),
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
@@ -132,8 +155,10 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               Text(
                 subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 10,
+                  fontSize: 10.5,
                   color: kSlate400,
                   fontWeight: FontWeight.w500,
                 ),
@@ -145,6 +170,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ============ THẺ BỆNH VIỆN TIÊU BIỂU ============
   Widget _buildHospitalCard(BuildContext context, Hospital h) {
     return InkWell(
       onTap: () => Navigator.push(
@@ -174,15 +200,23 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    h.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14.5,
-                      color: kSlate900,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          h.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14.5,
+                            color: kSlate900,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.verified_rounded, size: 15, color: kPrimary),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Row(
@@ -213,26 +247,40 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: kSlate800,
                         ),
                       ),
-                      if (h.totalReviews != null && h.totalReviews! > 0)
+                      if (h.totalReviews != null && h.totalReviews! > 0) ...[
+                        const SizedBox(width: 2),
                         Text(
-                          ' (${h.totalReviews})',
+                          '(${h.totalReviews})',
                           style: const TextStyle(fontSize: 11, color: kSlate400),
                         ),
+                      ],
                       const Spacer(),
-                      const Icon(Icons.check_circle_rounded, size: 14, color: kGreen),
-                      const SizedBox(width: 3),
-                      const Text(
-                        'Đã duyệt',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: kGreen,
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: kGreenLight,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.check_circle_rounded, size: 11, color: kGreen),
+                            SizedBox(width: 3),
+                            Text(
+                              'Đã duyệt',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: kGreen,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                   if (h.address != null && h.address!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 5),
                     Row(
                       children: [
                         const Icon(Icons.location_on_outlined, size: 13, color: kSlate400),
@@ -252,105 +300,95 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.chevron_right, color: kSlate400, size: 20),
+            const Icon(Icons.chevron_right_rounded, color: kSlate400, size: 22),
           ],
         ),
       ),
     );
   }
 
+  // ============ DÒNG BỆNH VIỆN ĐÁNH GIÁ THẤP ============
   Widget _buildLowRatedRow(Hospital h) {
-    return InkWell(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => HospitalDetailScreen(hospital: h)),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+        boxShadow: kCardShadow,
       ),
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        margin: const EdgeInsets.only(bottom: 10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFFEE2E2)),
-          boxShadow: kCardShadow,
-        ),
-        child: Row(
-          children: [
-            AvatarBox(
-              text: h.initials,
-              bg: const Color(0xFFFEE2E2),
-              fg: kRed,
-              size: 42,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: const BoxDecoration(
+              color: Color(0xFFFEF3C7),
+              shape: BoxShape.circle,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    h.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: kSlate900),
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Text(
-                        '${h.type} · ',
-                        style: const TextStyle(fontSize: 11.5, color: kSlate500),
-                      ),
-                      const Icon(Icons.star_rounded, size: 14, color: Color(0xFFEF4444)),
-                      Text(
-                        ' ${h.rating.toStringAsFixed(1)}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: kRed,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                        decoration: BoxDecoration(
-                          color: kRedBg,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text(
-                          'Cần rà soát',
-                          style: TextStyle(fontSize: 10, color: kRed, fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+            child: const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 16),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  h.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: kSlate900),
+                ),
+                Text(
+                  '${h.doctors} bác sĩ · ${h.type}',
+                  style: const TextStyle(fontSize: 11, color: kSlate500),
+                ),
+              ],
             ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: kRed, size: 20),
-              tooltip: 'Ngừng hợp tác',
-              onPressed: () => _confirmDelete(
-                title: 'Ngừng hợp tác bệnh viện?',
-                message: '${h.name} sẽ bị tạm ngừng hợp tác và ẩn khỏi hệ thống đặt lịch.',
-                onConfirm: () => AdminStore.instance.unpartnerHospital(h),
-                doneMessage: 'Đã tạm dừng hợp tác với ${h.name}',
-              ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF3C7),
+              borderRadius: BorderRadius.circular(8),
             ),
-          ],
-        ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.star_rounded, size: 14, color: Color(0xFFD97706)),
+                const SizedBox(width: 2),
+                Text(
+                  h.rating.toStringAsFixed(1),
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Color(0xFFB45309)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: kSlate400),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => HospitalDetailScreen(hospital: h)),
+            ),
+          ),
+        ],
       ),
     );
   }
 
+  // ============ THẺ HỒ SƠ VI PHẠM ============
   Widget _buildViolationCard(Map<String, String> v) {
     return Container(
+      margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
-      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: const Color(0xFFFFF5F5),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFECACA), width: 1.2),
+        border: Border.all(color: const Color(0xFFFECACA)),
+        boxShadow: kCardShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -359,65 +397,128 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(color: kRedBg, borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.warning_amber_rounded, color: kRed, size: 18),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFEE2E2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.shield_rounded, color: kRed, size: 16),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  v['name'] ?? '',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: kRed,
-                    fontSize: 14,
-                  ),
+                  v['match'] ?? 'Cơ sở vi phạm',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: kRed),
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
-                  color: kRedBg,
-                  borderRadius: BorderRadius.circular(12),
+                  color: kRed,
+                  borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  v['complaints'] ?? '',
-                  style: const TextStyle(fontSize: 10.5, color: kRed, fontWeight: FontWeight.w800),
+                  v['level'] ?? 'Nghiêm trọng',
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            v['reason'] ?? '',
-            style: const TextStyle(fontSize: 12, color: kSlate600, height: 1.3),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            v['location'] ?? '',
-            style: const TextStyle(fontSize: 11, color: kSlate400),
+            v['reason'] ?? 'Phát hiện hành vi vi phạm điều khoản quy chế y tế',
+            style: const TextStyle(fontSize: 12.5, color: kSlate700, height: 1.35),
           ),
           const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            height: 38,
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.block, size: 16),
-              label: const Text('Khóa & Xóa cơ sở này', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: kRed,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: kRed,
+                  side: const BorderSide(color: Color(0xFFFCA5A5)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: () {
+                  _confirmDelete(
+                    title: 'Bỏ qua vi phạm?',
+                    message: 'Bạn có chắc chắn muốn bỏ qua cảnh báo vi phạm này cho cơ sở không?',
+                    onConfirm: () {
+                      setState(() {
+                        AdminStore.instance.violations.remove(v);
+                      });
+                    },
+                    doneMessage: 'Đã xóa cảnh báo vi phạm thành công',
+                  );
+                },
+                child: const Text('Bỏ qua', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
               ),
-              onPressed: () => _confirmDelete(
-                title: 'Khóa cơ sở y tế vi phạm?',
-                message: 'Tài khoản và hồ sơ của ${v['name']} sẽ bị khóa ngay lập tức.',
-                onConfirm: () => AdminStore.instance.deleteViolation(v),
-                doneMessage: 'Đã khóa cơ sở vi phạm thành công',
+              const SizedBox(width: 8),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kRed,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: () {
+                  _confirmDelete(
+                    title: 'Xử lý vi phạm',
+                    message: 'Chuyển cơ sở y tế này sang danh sách cần thẩm định bổ sung?',
+                    onConfirm: () {
+                      setState(() {
+                        AdminStore.instance.violations.remove(v);
+                      });
+                    },
+                    doneMessage: 'Đã tiếp nhận và chuyển cơ sở vào diện thẩm định',
+                  );
+                },
+                child: const Text('Xử lý ngay', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
               ),
-            ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  // ============ SHORTCUT CHIP (LỐI TẮT NHANH) ============
+  Widget _buildShortcutChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required Color bg,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -601,7 +702,62 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
+
+              // ============ LỐI TẮT NHANH (QUICK ACTIONS STRIP) ============
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: [
+                    _buildShortcutChip(
+                      icon: Icons.pending_actions_rounded,
+                      label: 'Chờ duyệt (${store.pendingTotal})',
+                      color: kAmber,
+                      bg: kAmberLight,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const OperationsScreen(initialTab: 0)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildShortcutChip(
+                      icon: Icons.bug_report_rounded,
+                      label: 'Báo lỗi (${store.reports.length})',
+                      color: kRed,
+                      bg: kRedLight,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const OperationsScreen(initialTab: 1)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildShortcutChip(
+                      icon: Icons.people_alt_rounded,
+                      label: 'Tần suất BN (${store.totalPatients})',
+                      color: kTeal,
+                      bg: kTealLight,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PatientManagementScreen()),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildShortcutChip(
+                      icon: Icons.local_hospital_rounded,
+                      label: 'Tổng BV (${store.totalBV})',
+                      color: kPrimary,
+                      bg: kPrimaryLight,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AllHospitalsScreen()),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
 
               // ============ 4 THẺ THỐNG KÊ HỆ THỐNG ============
               Row(
@@ -624,8 +780,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     label: 'Bệnh nhân',
                     subtitle: 'Người dùng',
                     icon: Icons.people_alt_rounded,
-                    color: const Color(0xFF0D9488),
-                    bgColor: const Color(0xFFCCFBF1),
+                    color: kTeal,
+                    bgColor: kTealLight,
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => const PatientManagementScreen()),
@@ -728,7 +884,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     child: const Text(
-                      'Lọc theo sao',
+                      'Lọc theo sao →',
                       style: TextStyle(
                         fontSize: 12,
                         color: kPrimary,
