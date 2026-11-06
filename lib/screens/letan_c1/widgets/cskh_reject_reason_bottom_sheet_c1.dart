@@ -266,28 +266,41 @@ class CskhRejectReasonBottomSheetC1 {
                                     ? lyDoKhacController.text.trim()
                                     : cacLyDo[lyDoDangChon];
 
-                                final scaffoldMessenger = ScaffoldMessenger.of(context);
                                 final appointmentId = don['id'];
                                 final docPath = don['docPath'];
                                 Navigator.pop(ctx);
-                                if (appointmentId != null) {
-                                  await FirebaseServiceC1.capNhatTrangThaiLichHen(
-                                    appointmentId: appointmentId,
-                                    docPath: docPath,
-                                    trangThaiMoi: 'tu_choi',
-                                    lyDoTuChoi: lyDoChon,
-                                  );
-                                }
 
-                                onRejected?.call();
-
-                                scaffoldMessenger.showSnackBar(
-                                  SnackBar(
-                                    content: Text('✕ Đã từ chối đơn của ${don['hoTen']}: $lyDoChon'),
-                                    backgroundColor: const Color(0xFFEF4444),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
+                                // Optimistic UI: Phản hồi tức thì
+                                AppDesignSystemC1.hapticLight();
+                                AppDesignSystemC1.showCustomSnackBar(
+                                  context,
+                                  message: '✕ Đã từ chối đơn của ${don['hoTen']}: $lyDoChon',
+                                  isSuccess: false,
+                                  icon: Icons.cancel_rounded,
                                 );
+
+                                try {
+                                  if (appointmentId != null) {
+                                    await FirebaseServiceC1.capNhatTrangThaiLichHen(
+                                      appointmentId: appointmentId,
+                                      docPath: docPath,
+                                      trangThaiMoi: 'tu_choi',
+                                      lyDoTuChoi: lyDoChon,
+                                    );
+                                  }
+                                  AppDesignSystemC1.hapticSuccess();
+                                  onRejected?.call();
+                                } catch (_) {
+                                  AppDesignSystemC1.hapticError();
+                                  if (context.mounted) {
+                                    AppDesignSystemC1.showCustomSnackBar(
+                                      context,
+                                      message: '✕ Lỗi kết nối khi từ chối đơn khám!',
+                                      isSuccess: false,
+                                      icon: Icons.error_outline_rounded,
+                                    );
+                                  }
+                                }
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFEF4444),

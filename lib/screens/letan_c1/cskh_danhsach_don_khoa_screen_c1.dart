@@ -57,33 +57,52 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
     }
   }
 
-  // Duyệt 1 đơn khám và cập nhật Firestore
+  // Duyệt 1 đơn khám với Optimistic UI update
   void _duyetDon(Map<String, dynamic> don) async {
     AppDesignSystemC1.hapticLight();
     final appointmentId = don['id'];
     final docPath = don['docPath'];
-    int? soThuTuMoi;
 
-    if (appointmentId != null) {
-      soThuTuMoi = await FirebaseServiceC1.capNhatTrangThaiLichHen(
-        appointmentId: appointmentId,
-        docPath: docPath,
-        trangThaiMoi: 'da_duyet',
-        khoaId: widget.tenKhoa,
-        phongKhamId: don['phong_kham_id'] ?? _phongHienTai,
-        ngayChon: _ngayChon,
-      );
-    }
-    if (mounted) {
-      final sttHienThi = soThuTuMoi ?? don['so_thu_tu'] ?? don['stt'] ?? 1;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('✓ Đã xác nhận đơn của ${don['hoTen']} - Cấp STT: #$sttHienThi'),
-          duration: const Duration(seconds: 2),
-          backgroundColor: const Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+    // Optimistic UI: Phản hồi ngay lập tức để người dùng không phải chờ đợi mạng
+    final sttTam = don['so_thu_tu'] ?? don['stt'] ?? '...';
+    AppDesignSystemC1.showCustomSnackBar(
+      context,
+      message: '✓ Đang xác nhận đơn của ${don['hoTen']} - Cấp STT: #$sttTam',
+      isSuccess: true,
+      icon: Icons.check_circle_rounded,
+    );
+
+    int? soThuTuMoi;
+    try {
+      if (appointmentId != null) {
+        soThuTuMoi = await FirebaseServiceC1.capNhatTrangThaiLichHen(
+          appointmentId: appointmentId,
+          docPath: docPath,
+          trangThaiMoi: 'da_duyet',
+          khoaId: widget.tenKhoa,
+          phongKhamId: don['phong_kham_id'] ?? _phongHienTai,
+          ngayChon: _ngayChon,
+        );
+      }
+      AppDesignSystemC1.hapticSuccess();
+      if (mounted && soThuTuMoi != null) {
+        AppDesignSystemC1.showCustomSnackBar(
+          context,
+          message: '✓ Đã duyệt thành công: ${don['hoTen']} - STT: #$soThuTuMoi',
+          isSuccess: true,
+          icon: Icons.verified_rounded,
+        );
+      }
+    } catch (e) {
+      AppDesignSystemC1.hapticError();
+      if (mounted) {
+        AppDesignSystemC1.showCustomSnackBar(
+          context,
+          message: '✕ Không thể duyệt đơn của ${don['hoTen']}: Vui lòng thử lại!',
+          isSuccess: false,
+          icon: Icons.error_outline_rounded,
+        );
+      }
     }
   }
 
@@ -95,52 +114,88 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
     );
   }
 
-  // Duyệt hết toàn bộ đơn đang chờ trên Firestore
+  // Duyệt hết toàn bộ đơn đang chờ trên Firestore với Optimistic UI
   void _duyetHetTatCa(List<Map<String, dynamic>> danhSach) async {
     AppDesignSystemC1.hapticLight();
-    await FirebaseServiceC1.duyetTatCaLichHen(
-      danhSachDon: danhSach,
-      khoaId: widget.tenKhoa,
-      phongKhamId: _phongHienTai,
-      ngayChon: _ngayChon,
+    AppDesignSystemC1.showCustomSnackBar(
+      context,
+      message: '⏳ Đang duyệt ${danhSach.length} đơn khám...',
+      isSuccess: true,
+      icon: Icons.hourglass_top_rounded,
     );
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✓ Đã xác nhận tất cả các đơn khám theo thứ tự thời gian đặt!'),
-          backgroundColor: Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
-        ),
+    try {
+      await FirebaseServiceC1.duyetTatCaLichHen(
+        danhSachDon: danhSach,
+        khoaId: widget.tenKhoa,
+        phongKhamId: _phongHienTai,
+        ngayChon: _ngayChon,
       );
+      AppDesignSystemC1.hapticSuccess();
+      if (mounted) {
+        AppDesignSystemC1.showCustomSnackBar(
+          context,
+          message: '✓ Đã xác nhận tất cả các đơn khám theo thứ tự thời gian đặt!',
+          isSuccess: true,
+          icon: Icons.done_all_rounded,
+        );
+      }
+    } catch (_) {
+      AppDesignSystemC1.hapticError();
+      if (mounted) {
+        AppDesignSystemC1.showCustomSnackBar(
+          context,
+          message: '✕ Xảy ra lỗi khi duyệt hàng loạt đơn!',
+          isSuccess: false,
+          icon: Icons.error_outline_rounded,
+        );
+      }
     }
   }
 
-  // Từ chối toàn bộ các đơn đang chờ trên Firestore
+  // Từ chối toàn bộ các đơn đang chờ trên Firestore với Optimistic UI
   void _tuChoiHetTatCa(List<Map<String, dynamic>> danhSach) async {
     AppDesignSystemC1.hapticLight();
-    for (var don in danhSach) {
-      final trangThai = (don['rawTrangThai'] ?? '').toString();
-      if (trangThai != 'da_duyet' && trangThai != 'da_kham') {
-        final id = don['id'];
-        final docPath = don['docPath'];
-        if (id != null) {
-          await FirebaseServiceC1.capNhatTrangThaiLichHen(
-            appointmentId: id,
-            docPath: docPath,
-            trangThaiMoi: 'tu_choi',
-            lyDoTuChoi: 'Phòng khám đã đủ số lượng tiếp nhận tối đa',
-          );
+    AppDesignSystemC1.showCustomSnackBar(
+      context,
+      message: '⏳ Đang từ chối các đơn chờ duyệt...',
+      isSuccess: false,
+      icon: Icons.hourglass_top_rounded,
+    );
+    try {
+      for (var don in danhSach) {
+        final trangThai = (don['rawTrangThai'] ?? '').toString();
+        if (trangThai != 'da_duyet' && trangThai != 'da_kham') {
+          final id = don['id'];
+          final docPath = don['docPath'];
+          if (id != null) {
+            await FirebaseServiceC1.capNhatTrangThaiLichHen(
+              appointmentId: id,
+              docPath: docPath,
+              trangThaiMoi: 'tu_choi',
+              lyDoTuChoi: 'Phòng khám đã đủ số lượng tiếp nhận tối đa',
+            );
+          }
         }
       }
-    }
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✕ Đã cập nhật không duyệt hết các đơn chờ!'),
-          backgroundColor: Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppDesignSystemC1.hapticSuccess();
+      if (mounted) {
+        AppDesignSystemC1.showCustomSnackBar(
+          context,
+          message: '✕ Đã cập nhật không duyệt hết các đơn chờ!',
+          isSuccess: false,
+          icon: Icons.block_rounded,
+        );
+      }
+    } catch (_) {
+      AppDesignSystemC1.hapticError();
+      if (mounted) {
+        AppDesignSystemC1.showCustomSnackBar(
+          context,
+          message: '✕ Lỗi kết nối khi cập nhật đơn!',
+          isSuccess: false,
+          icon: Icons.error_outline_rounded,
+        );
+      }
     }
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../models/letan_c1/letan_qr_model_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
 import 'letan_ketqua_qr_screen_c1.dart';
@@ -49,6 +50,13 @@ class _LetanQuetQrCameraScreenC1State extends State<LetanQuetQrCameraScreenC1> {
     try {
       // 1. Phân tích mã QR từ FirebaseServiceC1
       final res = await FirebaseServiceC1.xuLyMaQrTiepNhan(rawValue);
+      final bool isSuccess = res['thanh_cong'] == true;
+
+      if (isSuccess) {
+        AppDesignSystemC1.hapticSuccess();
+      } else {
+        AppDesignSystemC1.hapticError();
+      }
 
       final ketQua = KetQuaQuetQrC1(
         thanhCong: res['thanh_cong'] == true,
