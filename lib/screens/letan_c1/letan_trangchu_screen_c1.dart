@@ -5,7 +5,6 @@ import '../../config/app_routes.dart';
 import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
-import 'letan_baocao_thanhcong_screen_c1.dart';
 import 'letan_baocaoloi_screen_c1.dart';
 import 'letan_lichhen_screen_c1.dart';
 import 'letan_profile_tab_c1.dart';
@@ -146,7 +145,10 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
               label: 'XEM',
               textColor: Colors.white,
               onPressed: () {
-                LetanBaocaoThanhcongScreenC1.moLichSuBaoCao(context, maBaoCaoHienTai: maLoi);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LetanBaocaoloiScreenC1(initialTabIndex: 1)),
+                );
               },
             ),
           ),

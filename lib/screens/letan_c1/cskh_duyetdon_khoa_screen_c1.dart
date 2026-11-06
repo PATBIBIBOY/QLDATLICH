@@ -8,7 +8,6 @@ import '../../services/letan_c1/letan_firebase_service_c1.dart';
 import 'cskh_danhsach_don_khoa_screen_c1.dart';
 import 'cskh_danhsach_tinnhan_screen_c1.dart';
 import 'cskh_profile_tab_c1.dart';
-import 'letan_baocao_thanhcong_screen_c1.dart';
 import 'letan_baocaoloi_screen_c1.dart';
 import 'letan_trangchu_screen_c1.dart';
 import 'widgets/cskh_bottom_nav_c1.dart';
@@ -159,7 +158,10 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
               label: 'XEM',
               textColor: Colors.white,
               onPressed: () {
-                LetanBaocaoThanhcongScreenC1.moLichSuBaoCao(context, maBaoCaoHienTai: maLoi);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LetanBaocaoloiScreenC1(initialTabIndex: 1)),
+                );
               },
             ),
           ),
