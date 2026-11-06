@@ -614,8 +614,13 @@ class FirebaseServiceC1 {
         final hoTen = (data['ho_ten'] ?? data['hoTen'] ?? data['patient_name'] ?? bnData['ho_ten'] ?? 'Bệnh nhân').toString();
         final sdt = (data['so_dien_thoai'] ?? data['sdt'] ?? data['phone'] ?? bnData['so_dien_thoai'] ?? '').toString();
         if (tuKhoa != null && tuKhoa.trim().isNotEmpty) {
-          final tk = tuKhoa.trim().toLowerCase();
-          if (!hoTen.toLowerCase().contains(tk) && !sdt.contains(tk)) {
+          final tk = boDauTiengViet(tuKhoa.trim());
+          final hoTenKhongDau = boDauTiengViet(hoTen);
+          final sdtClean = sdt.replaceAll(RegExp(r'[^0-9]'), '');
+          final tkClean = tuKhoa.trim().replaceAll(RegExp(r'[^0-9]'), '');
+          final bool khopTen = hoTenKhongDau.contains(tk);
+          final bool khopSdt = tkClean.isNotEmpty && sdtClean.contains(tkClean);
+          if (!khopTen && !khopSdt) {
             continue;
           }
         }
@@ -945,14 +950,23 @@ class FirebaseServiceC1 {
     DocumentSnapshot<Map<String, dynamic>>? existingSnap;
     final topDocRef = _firestore.collection('LichHen').doc(appointmentId);
     final topSnap = await topDocRef.get();
+    DocumentReference<Map<String, dynamic>>? targetDocRef;
+
     if (topSnap.exists) {
       existingSnap = topSnap;
+      targetDocRef = topDocRef;
     } else if (docPath != null && docPath.isNotEmpty) {
       final docSnap = await _firestore.doc(docPath).get();
-      if (docSnap.exists) existingSnap = docSnap;
+      if (docSnap.exists) {
+        existingSnap = docSnap;
+        targetDocRef = _firestore.doc(docPath);
+      }
     } else {
       final q = await _firestore.collectionGroup('lich_hen').where('id', isEqualTo: appointmentId).limit(1).get();
-      if (q.docs.isNotEmpty) existingSnap = q.docs.first;
+      if (q.docs.isNotEmpty) {
+        existingSnap = q.docs.first;
+        targetDocRef = q.docs.first.reference;
+      }
     }
 
     final existingData = existingSnap?.data() ?? {};
@@ -972,18 +986,20 @@ class FirebaseServiceC1 {
       } else if (alreadyApproved && existingStt is String && int.tryParse(existingStt) != null && int.parse(existingStt) > 0) {
         capNhatStt = int.parse(existingStt);
       } else {
-        // Khi duyệt mới (hoặc duyệt lại đơn từng bị hủy): Cấp số thứ tự còn trống nhỏ nhất
+        // Áp dụng Transaction khóa an toàn khi cấp STT để tránh xung đột nhiều máy
         final bvid = benhVienId ?? DuLieuProfileMauC1.thongTinHienTai.benhVienId;
         final targetKhoaId = khoaId ??
             (existingData['khoa_id'] ?? existingData['khoaId'] ?? existingData['ten_khoa'] ?? existingData['tenKhoa'] ?? existingData['khoa'] ?? '')
                 .toString();
-        capNhatStt = await laySoThuTuTiepTheo(
-          benhVienId: bvid,
-          khoaId: targetKhoaId.isNotEmpty ? targetKhoaId : null,
-          phongKhamId: phongKhamId,
-          caId: caId,
-          ngayChon: ngayChon,
-        );
+        capNhatStt = await _firestore.runTransaction<int>((transaction) async {
+          return await laySoThuTuTiepTheo(
+            benhVienId: bvid,
+            khoaId: targetKhoaId.isNotEmpty ? targetKhoaId : null,
+            phongKhamId: phongKhamId,
+            caId: caId,
+            ngayChon: ngayChon,
+          );
+        });
       }
     }
 
@@ -1015,23 +1031,9 @@ class FirebaseServiceC1 {
       }
     }
 
-    // 1. Cập nhật trực tiếp nếu là doc trong collection 'LichHen' cấp 1
-    if (topSnap.exists) {
-      await topDocRef.update(updateData);
-      return capNhatStt;
-    }
-
-    // 2. Cập nhật theo docPath nếu có
-    if (docPath != null && docPath.isNotEmpty) {
-      await _firestore.doc(docPath).update(updateData);
-      return capNhatStt;
-    }
-
-    // 3. Tìm trong collectionGroup
-    final q = await _firestore.collectionGroup('lich_hen').where('id', isEqualTo: appointmentId).limit(1).get();
-    if (q.docs.isNotEmpty) {
-      await q.docs.first.reference.update(updateData);
-      return capNhatStt;
+    // Cập nhật thông qua transaction hoặc direct reference
+    if (targetDocRef != null) {
+      await targetDocRef.update(updateData);
     }
 
     return capNhatStt;
