@@ -176,74 +176,6 @@ class FirebaseServiceC1 {
     }
   }
 
-  /// Khởi tạo dữ liệu mẫu lên Firebase cho C1 (Chuyên khoa, Bác sĩ, Lịch hẹn)
-  /// Giúp C1 có ngay dữ liệu hoàn chỉnh trên Firebase chỉ bằng 1 nút bấm
-  static Future<void> khoiTaoDuLieuMauC1() async {
-    final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty &&
-            DuLieuProfileMauC1.thongTinHienTai.benhVienId != '1' &&
-            DuLieuProfileMauC1.thongTinHienTai.benhVienId != 'BV01'
-        ? DuLieuProfileMauC1.thongTinHienTai.benhVienId
-        : 'BV502';
-    final batch = _firestore.batch();
-    final khoaRef = _firestore.collection('Khoa').doc(bvid).collection('danh_sach');
-
-    final danhSachKhoaMau = [
-      {
-        'id': 'ZQ8letlnFik9GO1LLxM8',
-        'tenKhoa': 'KHOA TIM',
-        'phongDau': '110',
-        'soPhong': 1,
-        'soCaMoiNgay': 2,
-        'trangThai': 'dang_mo',
-        'ngayTao': FieldValue.serverTimestamp(),
-      },
-      {
-        'id': 'KHOA_NOI_TONG_QUAT',
-        'tenKhoa': 'KHOA NỘI TỔNG QUÁT',
-        'phongDau': '102',
-        'soPhong': 2,
-        'soCaMoiNgay': 2,
-        'trangThai': 'dang_mo',
-        'ngayTao': FieldValue.serverTimestamp(),
-      },
-      {
-        'id': 'KHOA_NHI',
-        'tenKhoa': 'KHOA NHI',
-        'phongDau': '305',
-        'soPhong': 1,
-        'soCaMoiNgay': 2,
-        'trangThai': 'dang_mo',
-        'ngayTao': FieldValue.serverTimestamp(),
-      },
-      {
-        'id': 'KHOA_RANG_HAM_MAT',
-        'tenKhoa': 'KHOA RĂNG HÀM MẶT',
-        'phongDau': '401',
-        'soPhong': 1,
-        'soCaMoiNgay': 2,
-        'trangThai': 'dang_mo',
-        'ngayTao': FieldValue.serverTimestamp(),
-      },
-      {
-        'id': 'KHOA_MAT',
-        'tenKhoa': 'KHOA MẮT',
-        'phongDau': '204',
-        'soPhong': 1,
-        'soCaMoiNgay': 2,
-        'trangThai': 'dang_mo',
-        'ngayTao': FieldValue.serverTimestamp(),
-      },
-    ];
-
-    for (var k in danhSachKhoaMau) {
-      final id = k['id'] as String;
-      final copyMap = Map<String, dynamic>.from(k)..remove('id');
-      batch.set(khoaRef.doc(id), copyMap, SetOptions(merge: true));
-    }
-
-    await batch.commit();
-  }
-
   // ==========================================
   // REALTIME QUERIES: LỊCH KHÁM & THỐNG KÊ THEO KHOA HOẶC TỔNG THỂ
   // ==========================================
@@ -1180,32 +1112,6 @@ class FirebaseServiceC1 {
     try {
       await _firestore.collection('ThongBaoHeThong').doc(thongBaoId).update({'da_doc': true});
     } catch (_) {}
-  }
-
-  /// Phát một thông báo khẩn cấp hoặc thông báo lịch mới trong bệnh viện
-  static Future<void> guiThongBaoHeThong({
-    required String tieuDe,
-    required String noiDung,
-    required String loai, // 'khan_cap', 'lich_hen', 'he_thong'
-    String? vaiTroNhan, // 'le_tan', 'cskh', 'tat_ca'
-    String? benhVienId,
-  }) async {
-    final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty && benhVienId != '1')
-        ? benhVienId.trim()
-        : (DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty && DuLieuProfileMauC1.thongTinHienTai.benhVienId != '1'
-            ? DuLieuProfileMauC1.thongTinHienTai.benhVienId
-            : 'BV502');
-
-    await _firestore.collection('ThongBaoHeThong').add({
-      'tieu_de': tieuDe,
-      'noi_dung': noiDung,
-      'loai': loai,
-      'vai_tro_nhan': vaiTroNhan ?? 'tat_ca',
-      'benh_vien_id': bvid,
-      'thoi_gian': FieldValue.serverTimestamp(),
-      'thoi_gian_hien_thi': 'Vừa xong',
-      'da_doc': false,
-    });
   }
 
   // ==========================================
@@ -2582,74 +2488,6 @@ class FirebaseServiceC1 {
       });
       return list;
     });
-  }
-
-  /// Cập nhật trạng thái báo cáo lỗi ('cho_sua' hoặc 'da_sua')
-  /// Khi chuyển qua 'da_sua', tự động gửi thông báo về cho người gửi qua ThongBaoHeThong!
-  static Future<void> capNhatTrangThaiBaoCaoLoi({
-    required String docIdOrMaBaoCao,
-    required String trangThaiMoi, // 'cho_sua' hoặc 'da_sua'
-    String? phanHoiAdmin,
-  }) async {
-    QuerySnapshot<Map<String, dynamic>> snap = await _firestore
-        .collection('BaoCaoLoi')
-        .where('id', isEqualTo: docIdOrMaBaoCao)
-        .limit(1)
-        .get();
-
-    DocumentReference<Map<String, dynamic>>? targetDocRef;
-    Map<String, dynamic>? currentData;
-
-    if (snap.docs.isNotEmpty) {
-      targetDocRef = snap.docs.first.reference;
-      currentData = snap.docs.first.data();
-    } else {
-      final directDoc = await _firestore.collection('BaoCaoLoi').doc(docIdOrMaBaoCao).get();
-      if (directDoc.exists) {
-        targetDocRef = directDoc.reference;
-        currentData = directDoc.data();
-      }
-    }
-
-    if (targetDocRef != null && currentData != null) {
-      final laDaSua = trangThaiMoi == 'da_sua' || trangThaiMoi.toUpperCase() == 'DA_SUA';
-      final statusUpper = laDaSua ? 'DA_SUA' : 'CHO_SUA';
-
-      final Map<String, dynamic> updateData = {
-        'trang_thai': laDaSua ? 'da_sua' : 'cho_sua',
-        'trang_thai_xu_ly': statusUpper,
-        'trangThai': statusUpper,
-      };
-
-      if (laDaSua) {
-        updateData['ngay_giai_quyet'] = FieldValue.serverTimestamp();
-      }
-      if (phanHoiAdmin != null && phanHoiAdmin.isNotEmpty) {
-        updateData['phan_hoi_admin'] = phanHoiAdmin;
-      }
-
-      await targetDocRef.update(updateData);
-
-      // Nếu chuyển qua ĐÃ SỬA: Gửi thông báo về cho người gửi!
-      if (laDaSua) {
-        final tieuDeLoi = currentData['tieu_de'] ?? currentData['noi_dung'] ?? 'Sự cố';
-        final maLoi = currentData['id'] ?? docIdOrMaBaoCao;
-        final nguoiGuiUid = currentData['uid'] ?? currentData['nguoi_gui_id'] ?? currentData['ma_tai_khoan'] ?? '';
-
-        await _firestore.collection('ThongBaoHeThong').add({
-          'tieu_de': 'Đã sửa lỗi $maLoi',
-          'noi_dung': 'Báo cáo sự cố "$tieuDeLoi" của bạn đã được kỹ thuật viên xử lý và chuyển trạng thái "Đã sửa".${phanHoiAdmin != null ? ' Phản hồi: $phanHoiAdmin' : ''}',
-          'loai': 'he_thong',
-          'da_doc': false,
-          'thoi_gian': FieldValue.serverTimestamp(),
-          'thoi_gian_hien_thi': 'Vừa xong',
-          'nguoi_nhan_id': nguoiGuiUid,
-          'ma_bao_cao': maLoi,
-        });
-
-        await targetDocRef.update({'da_thong_bao_nguoi_gui': true});
-      }
-    }
   }
 
   /// Lắng nghe các thông báo lỗi vừa được chuyển thành 'Đã sửa' của người dùng hiện tại
