@@ -632,60 +632,55 @@ class FirebaseServiceC1 {
             rawTrangThaiStr.contains('huy') ||
             rawTrangThaiStr.contains('cancel');
 
-        // Đối với Lễ tân (choPhepChoDuyet == false): Chỉ lấy các đơn ĐÃ ĐƯỢC DUYỆT hoặc ĐÃ KHÁM/TIẾP ĐÓN
-        final bool laDaDuyetHoacKham = rawTrangThaiId == '2' ||
-            rawTrangThaiId == '5' ||
-            rawTrangThaiId == '6' ||
-            rawTrangThaiStr.contains('duyet') ||
-            rawTrangThaiStr.contains('xac_nhan') ||
-            rawTrangThaiStr.contains('da_tiep_nhan') ||
-            rawTrangThaiStr.contains('tiep_don') ||
-            rawTrangThaiStr.contains('tiep_theo') ||
-            rawTrangThaiStr.contains('kham');
-
-        if (!choPhepChoDuyet) {
-          if (!laDaDuyetHoacKham || laDaHuyHoacTuChoi) {
+        // Bỏ qua lọc chặn: Cả Lễ tân lẫn CSKH đều có thể xem được tất cả lịch hẹn và trạng thái trong ngày
+        // Nếu truyền boLocTrangThai == 'Đang chờ' (ở danh sách đang chờ ngoài Trang chủ Lễ tân) thì lọc theo nghiệp vụ tiếp đón
+        if (boLocTrangThai == 'Đang chờ' && !choPhepChoDuyet) {
+          final bool laDaDuyet = rawTrangThaiId == '2' ||
+              rawTrangThaiStr.contains('duyet') ||
+              rawTrangThaiStr.contains('xac_nhan') ||
+              rawTrangThaiStr.contains('da_tiep_nhan') ||
+              rawTrangThaiStr.contains('tiep_don') ||
+              rawTrangThaiStr.contains('tiep_theo');
+          if (!laDaDuyet || laDaHuyHoacTuChoi) {
             continue;
           }
         }
 
         String hienThiTrangThai = 'Đang chờ';
 
-        if (choPhepChoDuyet) {
-          // Phân định rõ trạng thái cho màn hình CSKH Duyệt đơn
-          if (laDaHuyHoacTuChoi) {
-            hienThiTrangThai = 'Không duyệt';
-          } else if (rawTrangThaiId == '2' || rawTrangThaiStr.contains('duyet') || rawTrangThaiStr.contains('xac_nhan')) {
-            hienThiTrangThai = 'Đã duyệt';
-          } else if (rawTrangThaiId == '5' || rawTrangThaiStr.contains('kham') || rawTrangThaiStr.contains('hoan_thanh')) {
-            hienThiTrangThai = 'Đã khám';
-          } else if (laChuaDuyet) {
-            hienThiTrangThai = 'Chờ duyệt';
-          } else {
-            hienThiTrangThai = 'Chờ duyệt';
-          }
+        if (laDaHuyHoacTuChoi) {
+          hienThiTrangThai = 'Không duyệt';
+        } else if (rawTrangThaiId == '5' || rawTrangThaiStr.contains('kham') || rawTrangThaiStr.contains('hoan_thanh')) {
+          hienThiTrangThai = 'Đã khám';
+        } else if (rawTrangThaiId == '6' || rawTrangThaiStr.contains('vang')) {
+          hienThiTrangThai = 'Vắng';
+        } else if (laChuaDuyet) {
+          hienThiTrangThai = 'Chờ duyệt';
+        } else if (rawTrangThaiStr.contains('da_tiep_nhan') || rawTrangThaiStr.contains('tiep_don')) {
+          hienThiTrangThai = 'Đã tiếp nhận';
+        } else if (rawTrangThaiStr.contains('tiep_theo')) {
+          hienThiTrangThai = 'Tiếp theo';
+        } else if (rawTrangThaiId == '2' || rawTrangThaiStr.contains('duyet') || rawTrangThaiStr.contains('xac_nhan')) {
+          // Khi đã được CSKH duyệt: bên CSKH hiển thị là "Đã duyệt", bên Lễ tân hiển thị là "Đang chờ" (hoặc "Đã duyệt")
+          hienThiTrangThai = choPhepChoDuyet ? 'Đã duyệt' : 'Đang chờ';
         } else {
-          // Phân định trạng thái cho màn hình Lễ tân Tiếp đón
-          if (rawTrangThaiId == '5' || rawTrangThaiStr.contains('kham') || rawTrangThaiStr.contains('hoan_thanh')) {
-            hienThiTrangThai = 'Đã khám';
-          } else if (rawTrangThaiId == '6' || rawTrangThaiStr.contains('vang')) {
-            hienThiTrangThai = 'Vắng';
-          } else if (rawTrangThaiStr.contains('da_tiep_nhan') || rawTrangThaiStr.contains('tiep_don')) {
-            hienThiTrangThai = 'Đã tiếp nhận';
-          } else if (rawTrangThaiStr.contains('tiep_theo')) {
-            hienThiTrangThai = 'Tiếp theo';
-          } else {
-            // Lịch hẹn đã duyệt, đúng ngày -> Bên lễ tân hiện là "Đang chờ"
-            hienThiTrangThai = 'Đang chờ';
-          }
+          hienThiTrangThai = choPhepChoDuyet ? 'Chờ duyệt' : 'Đang chờ';
         }
 
         // 5. Lọc theo Tab trạng thái
         if (boLocTrangThai != null && boLocTrangThai != 'Tất cả') {
           if (boLocTrangThai == 'Đang chờ') {
-            if (hienThiTrangThai != 'Đang chờ' && hienThiTrangThai != 'Tiếp theo' && hienThiTrangThai != 'Đã tiếp nhận') {
+            if (hienThiTrangThai != 'Đang chờ' && hienThiTrangThai != 'Tiếp theo' && hienThiTrangThai != 'Đã tiếp nhận' && hienThiTrangThai != 'Đã duyệt') {
               continue;
             }
+          } else if (boLocTrangThai == 'Chờ duyệt') {
+            if (hienThiTrangThai != 'Chờ duyệt') continue;
+          } else if (boLocTrangThai == 'Đã duyệt') {
+            if (hienThiTrangThai != 'Đã duyệt' && hienThiTrangThai != 'Đang chờ' && hienThiTrangThai != 'Tiếp theo' && hienThiTrangThai != 'Đã tiếp nhận') {
+              continue;
+            }
+          } else if (boLocTrangThai == 'Đã hủy' || boLocTrangThai == 'Không duyệt') {
+            if (hienThiTrangThai != 'Không duyệt' && hienThiTrangThai != 'Đã hủy') continue;
           } else if (hienThiTrangThai != boLocTrangThai) {
             continue;
           }

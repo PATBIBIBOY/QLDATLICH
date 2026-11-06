@@ -30,7 +30,7 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
   String _tuKhoa = '';
   bool _dangTaiLamMoi = false;
 
-  final List<String> _danhSachBoLoc = ['Tất cả', 'Đang chờ', 'Đã khám', 'Vắng'];
+  final List<String> _danhSachBoLoc = ['Tất cả', 'Chờ duyệt', 'Đã duyệt', 'Đã khám', 'Đã hủy'];
 
   Future<void> _xuLyLamMoiDuLieu() async {
     AppDesignSystemC1.hapticLight();
@@ -360,9 +360,14 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
     Color avatarText;
 
     final trangThai = item['trangThai'] ?? 'Đang chờ';
-    if (trangThai == 'Tiếp theo' || trangThai == 'Đang chờ' || trangThai == 'Đã tiếp nhận') {
-      badgeBg = trangThai == 'Tiếp theo' ? const Color(0xFFE8F8EF) : const Color(0xFFE8F4FD);
-      badgeText = trangThai == 'Tiếp theo' ? const Color(0xFF34C759) : const Color(0xFF007AFF);
+    if (trangThai == 'Chờ duyệt') {
+      badgeBg = const Color(0xFFFEF3C7);
+      badgeText = const Color(0xFFD97706);
+      avatarBg = const Color(0xFFFEF3C7);
+      avatarText = const Color(0xFFD97706);
+    } else if (trangThai == 'Tiếp theo' || trangThai == 'Đang chờ' || trangThai == 'Đã tiếp nhận' || trangThai == 'Đã duyệt') {
+      badgeBg = (trangThai == 'Tiếp theo' || trangThai == 'Đã duyệt') ? const Color(0xFFE8F8EF) : const Color(0xFFE8F4FD);
+      badgeText = (trangThai == 'Tiếp theo' || trangThai == 'Đã duyệt') ? const Color(0xFF34C759) : const Color(0xFF007AFF);
       avatarBg = badgeBg;
       avatarText = badgeText;
     } else if (trangThai == 'Đã khám') {
@@ -370,7 +375,7 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
       badgeText = const Color(0xFF34C759);
       avatarBg = const Color(0xFFE8F8EF);
       avatarText = const Color(0xFF34C759);
-    } else if (trangThai == 'Vắng') {
+    } else if (trangThai == 'Vắng' || trangThai == 'Không duyệt' || trangThai == 'Đã hủy') {
       badgeBg = const Color(0xFFFEE2E2);
       badgeText = const Color(0xFFEF4444);
       avatarBg = const Color(0xFFFEE2E2);
