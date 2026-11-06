@@ -723,7 +723,8 @@ class FirebaseServiceC1 {
                   ? 'da_duyet'
                   : (rawTrangThaiId == '4' ? 'tu_choi' : 'cho_duyet')),
           'trangThaiId': rawTrangThaiId,
-          'stt': (data['so_thu_tu'] ?? data['stt'] ?? 1).toString(),
+          'stt': (data['so_thu_tu'] ?? data['soThuTu'] ?? data['stt'] ?? 1).toString(),
+          'so_thu_tu': (data['so_thu_tu'] ?? data['soThuTu'] ?? data['stt'] ?? 1).toString(),
           'maBenhNhan': (data['benh_nhan_id'] ?? data['ma_benh_nhan'] ?? 'BN-${doc.id.substring(0, 4).toUpperCase()}').toString(),
           'cccd': cccdVal,
           'bhyt': (data['bhyt'] ?? data['so_bhyt'] ?? bnData['bhyt'] ?? bnData['so_bhyt'] ?? '').toString(),
@@ -1005,7 +1006,7 @@ class FirebaseServiceC1 {
     if (trangThaiMoi == 'da_duyet') {
       if (capNhatStt != null) {
         updateData['so_thu_tu'] = capNhatStt;
-        updateData['stt'] = capNhatStt;
+        updateData['stt'] = FieldValue.delete();
       }
       // Khi đã duyệt thì xóa lý do từ chối cũ nếu có
       updateData['ly_do_tu_choi'] = FieldValue.delete();

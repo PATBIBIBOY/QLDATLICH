@@ -73,7 +73,7 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
       );
     }
     if (mounted) {
-      final sttHienThi = soThuTuMoi ?? don['stt'] ?? 1;
+      final sttHienThi = soThuTuMoi ?? don['so_thu_tu'] ?? don['stt'] ?? 1;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('✓ Đã xác nhận đơn của ${don['hoTen']} - Cấp STT: #$sttHienThi'),
