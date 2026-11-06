@@ -120,7 +120,9 @@ class LetanPatientCardC1 extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${item['gioKham']} • STT: ${item['stt']} • ${item['tenKhoa']}',
+                    (item['so_thu_tu'] != null && item['so_thu_tu'].toString().isNotEmpty)
+                        ? '${item['gioKham']} • STT: ${item['so_thu_tu']} • ${item['tenKhoa']}'
+                        : '${item['gioKham']} • ${item['tenKhoa']}',
                     style: TextStyle(
                       color: subTextCol,
                       fontSize: 12,

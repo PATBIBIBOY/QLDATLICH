@@ -144,7 +144,9 @@ class CskhAppointmentCardC1 extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'STT ${item['stt'] ?? '1'}: ${item['hoTen'] ?? 'Bệnh nhân'}',
+                  (item['so_thu_tu'] != null && item['so_thu_tu'].toString().isNotEmpty)
+                      ? 'STT ${item['so_thu_tu']}: ${item['hoTen'] ?? 'Bệnh nhân'}'
+                      : '${item['hoTen'] ?? 'Bệnh nhân'}',
                   style: TextStyle(
                     color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
                     fontSize: 14,

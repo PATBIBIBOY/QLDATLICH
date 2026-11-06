@@ -461,7 +461,9 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Giờ khám: ${item['gioKham']} • STT: ${item['stt']}',
+                  (item['so_thu_tu'] != null && item['so_thu_tu'].toString().isNotEmpty)
+                      ? 'Giờ khám: ${item['gioKham']} • STT: ${item['so_thu_tu']}'
+                      : 'Giờ khám: ${item['gioKham']}',
                   style: TextStyle(
                     color: subTextCol,
                     fontSize: 12,

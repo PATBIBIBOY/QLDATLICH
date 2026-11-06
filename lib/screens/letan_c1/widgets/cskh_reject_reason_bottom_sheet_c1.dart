@@ -97,25 +97,26 @@ class CskhRejectReasonBottomSheetC1 {
                               ),
                             ],
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(10),
+                          if (don['so_thu_tu'] != null && don['so_thu_tu'].toString().isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Column(
+                                children: [
+                                  const Text(
+                                    'STT',
+                                    style: TextStyle(color: Colors.white70, fontSize: 9.5, fontWeight: FontWeight.w600),
+                                  ),
+                                  Text(
+                                    don['so_thu_tu'].toString(),
+                                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+                                  ),
+                                ],
+                              ),
                             ),
-                            child: Column(
-                              children: [
-                                const Text(
-                                  'STT',
-                                  style: TextStyle(color: Colors.white70, fontSize: 9.5, fontWeight: FontWeight.w600),
-                                ),
-                                Text(
-                                  (don['stt'] ?? '1').toString(),
-                                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
-                                ),
-                              ],
-                            ),
-                          ),
                         ],
                       ),
                     ),

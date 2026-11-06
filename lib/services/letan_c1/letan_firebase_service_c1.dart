@@ -723,8 +723,8 @@ class FirebaseServiceC1 {
                   ? 'da_duyet'
                   : (rawTrangThaiId == '4' ? 'tu_choi' : 'cho_duyet')),
           'trangThaiId': rawTrangThaiId,
-          'stt': (data['so_thu_tu'] ?? data['soThuTu'] ?? data['stt'] ?? 1).toString(),
-          'so_thu_tu': (data['so_thu_tu'] ?? data['soThuTu'] ?? data['stt'] ?? 1).toString(),
+          'stt': (data['so_thu_tu'] ?? data['soThuTu'] ?? data['stt'])?.toString(),
+          'so_thu_tu': (data['so_thu_tu'] ?? data['soThuTu'] ?? data['stt'])?.toString(),
           'maBenhNhan': (data['benh_nhan_id'] ?? data['ma_benh_nhan'] ?? 'BN-${doc.id.substring(0, 4).toUpperCase()}').toString(),
           'cccd': cccdVal,
           'bhyt': (data['bhyt'] ?? data['so_bhyt'] ?? bnData['bhyt'] ?? bnData['so_bhyt'] ?? '').toString(),
@@ -822,7 +822,10 @@ class FirebaseServiceC1 {
     return controller.stream;
   }
 
-  /// Lấy số thứ tự (so_thu_tu) tiếp theo lớn nhất RIÊNG CHO TỪNG KHOA trong ngày
+  /// Lấy số thứ tự (so_thu_tu) tiếp theo cho từng Khoa trong ngày:
+  /// - Chỉ lấy các số của các đơn ĐANG HỢP LỆ (trang_thai_id == '2' đã duyệt, '5' đã khám, hoặc da_tiep_nhan).
+  /// - Tìm vị trí số nhỏ nhất còn trống (bắt đầu từ 1) để chèn vào nếu có đơn trước đó bị hủy (ví dụ: 1, 2, 3 mà số 1 bị hủy, duyệt đơn mới sẽ được cấp số 1).
+  /// - Nếu không có chỗ trống, cấp số tiếp theo = max + 1.
   static Future<int> laySoThuTuTiepTheo({
     required String benhVienId,
     String? khoaId,
@@ -834,24 +837,15 @@ class FirebaseServiceC1 {
     final String targetDateStr = '${targetDate.year.toString().padLeft(4, '0')}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}';
     final String targetDisplay = '${targetDate.day.toString().padLeft(2, '0')}/${targetDate.month.toString().padLeft(2, '0')}/${targetDate.year}';
 
-    int maxStt = 0;
+    final Set<int> usedNumbers = {};
 
     try {
-      // 1. Quét trong collection LichHen cấp 1 theo benh_vien_id
-      Query<Map<String, dynamic>> topQuery = _firestore.collection('LichHen');
-      if (benhVienId.isNotEmpty) {
-        topQuery = topQuery.where('benh_vien_id', isEqualTo: benhVienId);
-      }
-      final topSnap = await topQuery.get();
-      for (var d in topSnap.docs) {
-        final data = d.data();
-
+      void processDocData(Map<String, dynamic> data, String docPath) {
         // Lọc theo ngày
         final docNgayHen = data['ngay_hen']?.toString() ?? '';
         final docNgayDat = data['ngay_dat']?.toString() ?? '';
         final docNgayKham = (data['ngay_kham'] ?? '').toString();
         final docNgayHienThi = (data['ngay_hien_thi'] ?? '').toString();
-        final docPath = d.reference.path;
         bool khopNgay = docPath.contains(targetDateStr) ||
             docNgayHen.contains(targetDateStr) ||
             docNgayDat.contains(targetDateStr) ||
@@ -866,27 +860,54 @@ class FirebaseServiceC1 {
           final dt = (data['ngay_dat'] as Timestamp).toDate().toLocal();
           if (dt.year == targetDate.year && dt.month == targetDate.month && dt.day == targetDate.day) khopNgay = true;
         }
-        if (!khopNgay) continue;
+        if (!khopNgay) return;
 
         // LỌC RIÊNG THEO KHOA: Mỗi khoa có một dãy số thứ tự độc lập từ 1 trở đi
         if (khoaId != null && khoaId.isNotEmpty && !laCheDoTong(khoaId)) {
           final docKhoa = (data['khoa_id'] ?? data['khoaId'] ?? data['ten_khoa'] ?? data['tenKhoa'] ?? data['khoa'] ?? '').toString();
           if (!laCungKhoa(docKhoa, khoaId)) {
-            continue;
+            return;
           }
         }
 
-        // Bất kỳ đơn nào đã từng được cấp STT trong ngày (kể cả đã duyệt, đã khám hay sau đó bị hủy)
-        // đều được ghi nhận để đảm bảo số thứ tự luôn tịnh tiến tăng dần (Max + 1), không bao giờ lùi hoặc trùng số
-        final sttVal = data['so_thu_tu'] ?? data['stt'];
+        // Chỉ tính số thứ tự của các đơn ĐANG HOẠT ĐỘNG (Đã duyệt / Đã khám / Tiếp nhận)
+        // Nếu đơn đã bị hủy / từ chối (trang_thai_id == '4' hoặc 'huy'/'tu_choi') hoặc chưa duyệt ('1') thì số đó coi như trống
+        final docStatusId = (data['trang_thai_id'] ?? data['trangThaiId'] ?? '').toString();
+        final docStatusStr = (data['trang_thai'] ?? data['trangThai'] ?? '').toString().toLowerCase();
+        final bool laBiHuy = docStatusId == '4' || docStatusStr.contains('tu_choi') || docStatusStr.contains('huy') || docStatusStr.contains('cancel');
+        if (laBiHuy) return;
+
+        final bool laDangDung = docStatusId == '2' ||
+            docStatusId == '5' ||
+            docStatusId == '6' ||
+            docStatusStr.contains('duyet') ||
+            docStatusStr.contains('xac_nhan') ||
+            docStatusStr.contains('da_tiep_nhan') ||
+            docStatusStr.contains('kham');
+        if (!laDangDung) return;
+
+        final sttVal = data['so_thu_tu'] ?? data['soThuTu'] ?? data['stt'];
         if (sttVal != null) {
+          int? parsed;
           if (sttVal is num) {
-            if (sttVal.toInt() > maxStt) maxStt = sttVal.toInt();
+            parsed = sttVal.toInt();
           } else if (sttVal is String) {
-            final parsed = int.tryParse(sttVal);
-            if (parsed != null && parsed > maxStt) maxStt = parsed;
+            parsed = int.tryParse(sttVal);
+          }
+          if (parsed != null && parsed > 0) {
+            usedNumbers.add(parsed);
           }
         }
+      }
+
+      // 1. Quét trong collection LichHen cấp 1 theo benh_vien_id
+      Query<Map<String, dynamic>> topQuery = _firestore.collection('LichHen');
+      if (benhVienId.isNotEmpty) {
+        topQuery = topQuery.where('benh_vien_id', isEqualTo: benhVienId);
+      }
+      final topSnap = await topQuery.get();
+      for (var d in topSnap.docs) {
+        processDocData(d.data(), d.reference.path);
       }
 
       // 2. Quét thêm trong collectionGroup('lich_hen')
@@ -896,28 +917,16 @@ class FirebaseServiceC1 {
       }
       final groupSnap = await groupQuery.get();
       for (var d in groupSnap.docs) {
-        final data = d.data();
-        // LỌC RIÊNG THEO KHOA
-        if (khoaId != null && khoaId.isNotEmpty && !laCheDoTong(khoaId)) {
-          final docKhoa = (data['khoa_id'] ?? data['khoaId'] ?? data['ten_khoa'] ?? data['tenKhoa'] ?? data['khoa'] ?? '').toString();
-          if (!laCungKhoa(docKhoa, khoaId)) {
-            continue;
-          }
-        }
-
-        final sttVal = data['so_thu_tu'] ?? data['stt'];
-        if (sttVal != null) {
-          if (sttVal is num) {
-            if (sttVal.toInt() > maxStt) maxStt = sttVal.toInt();
-          } else if (sttVal is String) {
-            final parsed = int.tryParse(sttVal);
-            if (parsed != null && parsed > maxStt) maxStt = parsed;
-          }
-        }
+        processDocData(d.data(), d.reference.path);
       }
     } catch (_) {}
 
-    return maxStt + 1;
+    // Tìm số nhỏ nhất từ 1 trở đi chưa có trong usedNumbers để lấp đầy khoảng trống (ví dụ: mất số 1 thì chèn vào số 1)
+    int candidate = 1;
+    while (usedNumbers.contains(candidate)) {
+      candidate++;
+    }
+    return candidate;
   }
 
   /// Cập nhật trạng thái lịch hẹn trên Firestore (hỗ trợ cả collection LichHen cấp 1 và subcollection)
@@ -957,28 +966,18 @@ class FirebaseServiceC1 {
     final bool alreadyApproved = currentStatusId == '2' || currentStatusStr == 'da_duyet';
     final existingStt = existingData['so_thu_tu'] ?? existingData['stt'];
 
-    // Nếu đơn này ĐÃ ĐƯỢC DUYỆT TỪ TRƯỚC và người dùng bấm duyệt lại:
-    // Giữ nguyên số thứ tự cũ (không được tự động tăng thêm)
-    if (trangThaiMoi == 'da_duyet' && alreadyApproved && existingStt != null) {
-      int? sttInt;
-      if (existingStt is num) sttInt = existingStt.toInt();
-      if (existingStt is String) sttInt = int.tryParse(existingStt);
-      if (sttInt != null && sttInt > 0) {
-        return sttInt;
-      }
-    }
-
     // Số 1: Chờ duyệt | Số 2: Đã xác nhận (TrangThai/2) | Số 4: Hủy / Không duyệt (TrangThai/4)
     final String newStatusId = trangThaiMoi == 'da_duyet' ? '2' : (trangThaiMoi == 'tu_choi' ? '4' : '1');
 
     int? capNhatStt = soThuTuChiDinh;
     if (trangThaiMoi == 'da_duyet' && capNhatStt == null) {
-      // Nếu đã có stt sẵn thì tái sử dụng
-      if (existingStt is num && existingStt.toInt() > 0) {
+      // Nếu trước đó đang ở trạng thái đã duyệt và đã có so_thu_tu hợp lệ thì giữ nguyên
+      if (alreadyApproved && existingStt is num && existingStt.toInt() > 0) {
         capNhatStt = existingStt.toInt();
-      } else if (existingStt is String && int.tryParse(existingStt) != null && int.parse(existingStt) > 0) {
+      } else if (alreadyApproved && existingStt is String && int.tryParse(existingStt) != null && int.parse(existingStt) > 0) {
         capNhatStt = int.parse(existingStt);
       } else {
+        // Khi duyệt mới (hoặc duyệt lại đơn từng bị hủy): Cấp số thứ tự còn trống nhỏ nhất
         final bvid = benhVienId ?? DuLieuProfileMauC1.thongTinHienTai.benhVienId;
         final targetKhoaId = khoaId ??
             (existingData['khoa_id'] ?? existingData['khoaId'] ?? existingData['ten_khoa'] ?? existingData['tenKhoa'] ?? existingData['khoa'] ?? '')
@@ -1012,6 +1011,9 @@ class FirebaseServiceC1 {
       updateData['ly_do_tu_choi'] = FieldValue.delete();
       updateData['lyDoTuChoi'] = FieldValue.delete();
     } else if (trangThaiMoi == 'tu_choi') {
+      // Khi hủy đơn: Xóa số thứ tự để vị trí số đó được giải phóng cho các đơn duyệt tiếp theo
+      updateData['so_thu_tu'] = FieldValue.delete();
+      updateData['stt'] = FieldValue.delete();
       if (lyDoTuChoi != null && lyDoTuChoi.trim().isNotEmpty) {
         updateData['ly_do_tu_choi'] = lyDoTuChoi.trim();
         updateData['lyDoTuChoi'] = lyDoTuChoi.trim();
