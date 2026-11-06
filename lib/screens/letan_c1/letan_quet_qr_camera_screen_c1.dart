@@ -4,7 +4,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../models/letan_c1/letan_qr_model_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
-import 'letan_ketqua_qr_screen_c1.dart';
+import 'widgets/letan_qr_quick_view_bottom_sheet_c1.dart';
 
 /// MÀN HÌNH QUÉT MÃ QR TIẾP ĐÓN BỆNH NHÂN
 /// - Quét trực tiếp camera phần cứng (MobileScanner), tích hợp bật/tắt đèn Flash và đổi camera
@@ -89,16 +89,13 @@ class _LetanQuetQrCameraScreenC1State extends State<LetanQuetQrCameraScreenC1> {
   }
 
   void _moManHinhKetQua(KetQuaQuetQrC1 ketQua) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => LetanKetquaQrScreenC1(
-          ketQua: ketQua,
-          onQuetTiep: () {
-            if (mounted) setState(() => _dangXuLyMa = false);
-          },
-        ),
-      ),
+    // Phương án 1 + 3: Bật Modal BottomSheet xem nhanh tại chỗ thay vì chuyển màn hình
+    LetanQrQuickViewBottomSheetC1.show(
+      context: context,
+      ketQua: ketQua,
+      onQuetTiep: () {
+        if (mounted) setState(() => _dangXuLyMa = false);
+      },
     );
   }
 

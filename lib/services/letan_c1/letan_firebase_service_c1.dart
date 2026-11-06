@@ -2173,8 +2173,8 @@ class FirebaseServiceC1 {
   /// 2. Chưa tới ngày (Hôm nay < Ngày đặt)
   /// 3. Quá hạn hoặc Đã khám (Hôm nay > Ngày đặt HOẶC trang_thai_id == 5)
   static Future<Map<String, dynamic>> xuLyMaQrTiepNhan(String rawData) async {
-    final code = rawData.trim();
-    if (code.isEmpty) {
+    final cleanCode = rawData.trim().replaceAll('#', '');
+    if (cleanCode.isEmpty) {
       return {
         'thanh_cong': false,
         'trang_thai_ngay_kham': TrangThaiNgayKhamC1.khongXacDinh,
@@ -2183,8 +2183,25 @@ class FirebaseServiceC1 {
       };
     }
 
+    // PHƯƠNG ÁN 1: BỘ LỌC CHẶN NGHIÊM NGẶT - CHỈ CHẤP NHẬN MÃ QR LỊCH HẸN BỆNH VIỆN
+    // Định dạng hợp lệ: Bắt đầu bằng LH_, chứa _LH_, hoặc BV..._K..._LH_ (ví dụ: #BV502_K001_LH_04112026_...)
+    final bool laMaHopLe = cleanCode.contains('_LH_') ||
+        cleanCode.startsWith('LH_') ||
+        RegExp(r'BV\w+_LH_').hasMatch(cleanCode) ||
+        (cleanCode.startsWith('{') && cleanCode.contains('lich_hen'));
+
+    if (!laMaHopLe) {
+      return {
+        'thanh_cong': false,
+        'trang_thai_ngay_kham': TrangThaiNgayKhamC1.khongXacDinh,
+        'thong_bao': 'Mã QR không thuộc hệ thống!',
+        'chi_tiet_loi': 'Vui lòng quét đúng mã QR trên vé khám bệnh viện (#BV..._LH_...).',
+      };
+    }
+
+    final code = cleanCode;
     Map<String, dynamic>? qrJson;
-    String targetLichHenId = code;
+    String targetLichHenId = cleanCode;
     String? qrNgayDat;
     String? qrBenhNhanId;
     String? qrKhoaId;
