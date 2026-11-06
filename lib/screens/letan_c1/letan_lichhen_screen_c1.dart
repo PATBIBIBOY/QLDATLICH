@@ -4,6 +4,7 @@ import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../models/letan_c1/letan_ui_components_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
+import 'widgets/medical_reusable_widgets_c1.dart';
 
 class LetanLichhenScreenC1 extends StatefulWidget {
   final String tuKhoaBanDau;
@@ -354,41 +355,6 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
 
   Widget _buildItemLichHenMap(Map<String, dynamic> item) {
     final isDark = AppDesignSystemC1.laCheDoToi;
-    Color badgeBg;
-    Color badgeText;
-    Color avatarBg;
-    Color avatarText;
-
-    final trangThai = item['trangThai'] ?? 'Đang chờ';
-    if (trangThai == 'Chờ duyệt') {
-      badgeBg = const Color(0xFFFEF3C7);
-      badgeText = const Color(0xFFD97706);
-      avatarBg = const Color(0xFFFEF3C7);
-      avatarText = const Color(0xFFD97706);
-    } else if (trangThai == 'Tiếp theo' || trangThai == 'Đang chờ' || trangThai == 'Đã tiếp nhận' || trangThai == 'Đã duyệt') {
-      badgeBg = (trangThai == 'Tiếp theo' || trangThai == 'Đã duyệt') ? const Color(0xFFE8F8EF) : const Color(0xFFE8F4FD);
-      badgeText = (trangThai == 'Tiếp theo' || trangThai == 'Đã duyệt') ? const Color(0xFF34C759) : const Color(0xFF007AFF);
-      avatarBg = badgeBg;
-      avatarText = badgeText;
-    } else if (trangThai == 'Đã khám') {
-      badgeBg = const Color(0xFFE8F8EF);
-      badgeText = const Color(0xFF34C759);
-      avatarBg = const Color(0xFFE8F8EF);
-      avatarText = const Color(0xFF34C759);
-    } else if (trangThai == 'Vắng' || trangThai == 'Không duyệt' || trangThai == 'Đã hủy') {
-      badgeBg = const Color(0xFFFEE2E2);
-      badgeText = const Color(0xFFEF4444);
-      avatarBg = const Color(0xFFFEE2E2);
-      avatarText = const Color(0xFFEF4444);
-    } else {
-      badgeBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF2F2F7);
-      badgeText = isDark ? const Color(0xFF94A3B8) : const Color(0xFF8E8E93);
-      avatarBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF2F2F7);
-      avatarText = isDark ? const Color(0xFF94A3B8) : const Color(0xFF8E8E93);
-    }
-
-    final cardBg = isDark ? AppDesignSystemC1.darkSurface : Colors.white;
-    final borderCol = isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA);
     final textCol = isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E);
     final subTextCol = isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93);
 
@@ -397,13 +363,9 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
         ? hoTen.trim().split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join()
         : 'BN';
 
-    return Container(
+    return MedicalCardC1(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderCol),
-      ),
+      borderRadius: 14,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -412,14 +374,14 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: avatarBg,
+              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE8F4FD),
               borderRadius: BorderRadius.circular(12),
             ),
             alignment: Alignment.center,
             child: Text(
               initials,
-              style: TextStyle(
-                color: avatarText,
+              style: const TextStyle(
+                color: Color(0xFF007AFF),
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
               ),
@@ -479,22 +441,8 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
             ),
           ),
 
-          // Nhãn trạng thái
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: badgeBg,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              trangThai,
-              style: TextStyle(
-                color: badgeText,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
+          // Nhãn trạng thái chuẩn y tế
+          MedicalStatusBadgeC1(trangThai: (item['trangThai'] ?? 'Đang chờ').toString()),
         ],
       ),
     );
