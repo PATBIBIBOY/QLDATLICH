@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -332,6 +332,7 @@ class QueueScreen extends StatefulWidget {
     this.startingNumber = 0,
     this.appointmentQueueStream,
     this.onAppointmentOutcome,
+    this.onRenumberAppointment,
   });
 
   /// Mã phiên khám – gom các lượt của cùng một buổi/ngày.
@@ -371,6 +372,13 @@ class QueueScreen extends StatefulWidget {
   /// hiện thông báo, không chặn thao tác gọi số trên màn hình.
   final Future<void> Function(String appointmentId, AppointmentOutcome outcome)?
   onAppointmentOutcome;
+
+  /// Ghi số thứ tự mới của một lịch hẹn lên Firebase khi nhân viên chèn
+  /// số: số vừa chèn nhận `số mốc + 1`, các số phía sau tăng thêm 1.
+  ///
+  /// Lỗi của callback chỉ hiện thông báo, không chặn thao tác hàng chờ.
+  final Future<void> Function(String appointmentId, int soThuTu)?
+  onRenumberAppointment;
 
   @override
   State<QueueScreen> createState() => _QueueScreenState();
@@ -424,6 +432,16 @@ class _QueueScreenState extends State<QueueScreen> {
   /// Các số đã xác nhận vắng mặt trên máy này; không nạp lại từ luồng
   /// lịch hẹn trong lúc Firebase chưa kịp đổi trạng thái.
   final Set<int> _absentAppointmentNumbers = <int>{};
+
+  /// Tên bệnh nhân của các số đang nằm trong “SỐ ĐÃ CHO QUA”, giữ theo
+  /// đúng số lúc bấm “Đợi” để dải chip vẫn hiện đúng tên kể cả khi các số
+  /// phía sau đã được đánh lại (−1) và trùng số.
+  final Map<int, String> _patientNameDaChoQua = <int, String>{};
+
+  /// Ánh xạ tạm mã lịch hẹn → số thứ tự MỚI vừa ghi sau khi chèn số.
+  /// Luồng Firebase còn trả số cũ trong vài giây; ánh xạ này giữ nguyên
+  /// số mới trên màn hình cho tới khi document trả về đúng số đó.
+  final Map<String, int> _pendingRenumberByAppointmentId = <String, int>{};
 
   /// Các số đã xin đợi vừa được chèn lại trên máy này và đang chờ
   /// Firebase đưa lịch hẹn về trạng thái đã xác nhận (`2`). Chúng được
@@ -502,16 +520,20 @@ class _QueueScreenState extends State<QueueScreen> {
       _patientNameByNumber
         ..clear()
         ..addAll(snapshot.patientNameByNumber);
+      _patientNameDaChoQua
+        ..clear()
+        ..addAll(snapshot.deferredNameByNumber);
       paused = snapshot.paused;
     } else {
-      // Mo phong lan dau: nap mac dinh tu so khoi tao de luon co the goi so va test day du chuc nang,
-      // neu Firebase co danh sach lich hen that trong ngay thi stream se tu dong cap nhat de len.
-      const defaultWindow = 5;
-      final start = widget.initialCurrent > 0 ? widget.initialCurrent : 1;
+      // Lần đầu mở phòng: KHÔNG tự sinh số thứ tự.
+      // Chỉ hiện số khi lịch hẹn thật của phòng hôm nay có `so_thu_tu`
+      // (stream lịch hẹn sẽ nạp số vào); trước đó màn hình để trống
+      // ("Chưa có bệnh nhân nào…") thay vì mặc định số 1.
+      final start = widget.initialCurrent > 0 ? widget.initialCurrent : 0;
       current = start;
-      next = start + 1;
-      waiting = List<int>.generate(defaultWindow, (index) => start + 2 + index);
-      lastIssued = start + 1 + defaultWindow;
+      next = 0;
+      waiting = <int>[];
+      lastIssued = start;
       snapshot
         ..started = true
         ..paused = false;
@@ -548,6 +570,13 @@ class _QueueScreenState extends State<QueueScreen> {
   /// màn hình chính vẽ lại (trạng thái Tạm dừng / Đang khám, số hiện tại,
   /// số đang đợi, số đã khám).
   void _syncRoomState() {
+    // Bỏ tên của những số không còn nằm trong “SỐ ĐÃ CHO QUA”.
+    final soDaChoQua = <int>{
+      for (final entry in passed)
+        if (entry.deferred) entry.number,
+    };
+    _patientNameDaChoQua.removeWhere((so, _) => !soDaChoQua.contains(so));
+
     final store = RoomSessionStore.instance;
     store.sessionOf(_storeKey)
       ..started = true
@@ -559,6 +588,7 @@ class _QueueScreenState extends State<QueueScreen> {
       ..requeuedNumbers = _requeuedAppointmentNumbers.toList()
       ..appointmentIdByNumber = Map<int, String>.of(_appointmentIdByNumber)
       ..patientNameByNumber = Map<int, String>.of(_patientNameByNumber)
+      ..deferredNameByNumber = Map<int, String>.of(_patientNameDaChoQua)
       ..paused = paused
       ..examinedNumbers = <int>[
         for (final entry in passed)
@@ -577,9 +607,63 @@ class _QueueScreenState extends State<QueueScreen> {
     store.refresh();
   }
 
+  /// Áp các số thứ tự MỚI vừa ghi sau khi chèn lên một đợt cập nhật từ
+  /// Firebase, để màn hình không quay về số cũ trong vài giây đầu.
+  AppointmentQueueUpdate _applyPendingRenumber(
+    AppointmentQueueUpdate update,
+  ) {
+    if (_pendingRenumberByAppointmentId.isEmpty) return update;
+    final numbers = <int>[];
+    final appointmentIdByNumber = <int, String>{};
+    final patientNameByNumber = <int, String>{};
+    final daDung = <int>{};
+    final dangCho = <String>{};
+    for (final number in update.numbers) {
+      final appointmentId = update.appointmentIdByNumber[number];
+      var soHienThi = number;
+      if (appointmentId != null) {
+        final soMoi = _pendingRenumberByAppointmentId[appointmentId];
+        if (soMoi != null) {
+          dangCho.add(appointmentId);
+          if (soMoi == number) {
+            // Firebase đã ghi xong số mới: không cần giữ ánh xạ nữa.
+            _pendingRenumberByAppointmentId.remove(appointmentId);
+          } else {
+            soHienThi = soMoi;
+          }
+        }
+      }
+      if (!daDung.add(soHienThi)) continue;
+      numbers.add(soHienThi);
+      if (appointmentId != null) {
+        appointmentIdByNumber[soHienThi] = appointmentId;
+      }
+      final ten = update.patientNameByNumber[number];
+      if (ten != null && ten.trim().isNotEmpty) {
+        patientNameByNumber[soHienThi] = ten;
+      }
+    }
+    // Lịch hẹn đã rời danh sách đủ điều kiện (khám xong / vắng / xin đợi)
+    // thì không cần giữ số mới nữa.
+    _pendingRenumberByAppointmentId.removeWhere(
+      (appointmentId, _) =>
+          !dangCho.contains(appointmentId) &&
+          !update.appointmentIdByNumber.containsValue(appointmentId),
+    );
+    numbers.sort();
+    return (
+      numbers: numbers,
+      appointmentIdByNumber: appointmentIdByNumber,
+      patientNameByNumber: patientNameByNumber,
+    );
+  }
+
   /// Áp một đợt cập nhật từ luồng lịch hẹn vào trạng thái hiện tại.
   void _applyAppointmentUpdate(AppointmentQueueUpdate update) {
     if (!mounted) return;
+    // Giữ đúng số mới vừa ghi sau khi chèn, kể cả khi Firebase chưa kịp
+    // cập nhật `so_thu_tu` trong vài giây đầu.
+    update = _applyPendingRenumber(update);
     final newlyRequeuedNumbers = <int>[];
     setState(() {
       final wasEmpty = current <= 0;
@@ -1088,6 +1172,10 @@ class _QueueScreenState extends State<QueueScreen> {
       // kể cả số vừa là số hiện tại / số tiếp theo. Xoá entry cũ cùng số
       // (nếu còn sót) trước khi thêm để danh sách không bị trùng số.
       _requeuedAppointmentNumbers.remove(number);
+      // Giữ tên bệnh nhân theo đúng số lúc cho qua để dải “SỐ ĐÃ CHO QUA”
+      // vẫn hiện đúng tên sau khi các số phía sau được đánh lại.
+      final tenDaChoQua = _patientNameFor(number);
+      if (tenDaChoQua != null) _patientNameDaChoQua[number] = tenDaChoQua;
       passed.removeWhere((e) => e.number == number && e.deferred);
       passed.add((number: number, deferred: true));
       _promoteWaitingHeads();
@@ -1114,7 +1202,11 @@ class _QueueScreenState extends State<QueueScreen> {
       _syncRoomState();
     });
     _reportAppointmentOutcome(number, AppointmentOutcome.deferred);
-    notify('Số $number đã được chuyển vào “SỐ ĐÃ CHO QUA”.');
+    // Các số phía sau số bị cho qua giảm 1 để hàng chờ không bị lỗ trống
+    // (hàm tự hiện thông báo khi có số phải đổi).
+    if (!_danhSoLaiSauKhiDoi(number)) {
+      notify('Số $number đã được chuyển vào “SỐ ĐÃ CHO QUA”.');
+    }
   }
 
   /// Gọi lại một bệnh nhân đã khám xong: đưa số đó vào "SỐ HIỆN TẠI" ngay,
@@ -1134,6 +1226,10 @@ class _QueueScreenState extends State<QueueScreen> {
       // Số được gọi lại đang khám -> không còn thuộc "ĐÃ KHÁM" hay
       // "SỐ ĐÃ CHO QUA" nữa.
       passed.removeWhere((entry) => entry.number == picked);
+      // Số được gọi lại coi như đang chờ khám trở lại: không còn là số
+      // vắng mặt hay số đang chờ Firebase xác nhận chèn lại.
+      _absentAppointmentNumbers.remove(picked);
+      _requeuedAppointmentNumbers.add(picked);
       current = picked;
       if (previousCurrent > 0) {
         next = previousCurrent;
@@ -1157,6 +1253,9 @@ class _QueueScreenState extends State<QueueScreen> {
       if (selected != null && !waiting.contains(selected)) selected = null;
       _syncRoomState();
     });
+    // Gọi lại = bệnh nhân quay lại hàng chờ: ghi trạng thái `2`
+    // (Đã xác nhận) lên LichHen để Firebase và app bệnh nhân thấy đúng.
+    _reportAppointmentOutcome(picked, AppointmentOutcome.requeued);
     notify('Mời bệnh nhân số $picked đến ${widget.roomName.toLowerCase()}.');
   }
 
@@ -1377,6 +1476,167 @@ class _QueueScreenState extends State<QueueScreen> {
     });
     for (final number in immediateNumbersToReport) {
       _reportAppointmentOutcome(number, AppointmentOutcome.requeued);
+    }
+    // Đánh số lại sau khi chèn: số vừa chèn nhận số mốc + 1, các số phía
+    // sau tăng thêm 1 và được ghi lên Firebase.
+    _danhSoLaiSauKhiChen();
+  }
+
+  /// Đánh số lại hàng chờ sau khi chèn số và ghi số mới lên Firebase.
+  ///
+  /// Số đang khám ([current]) và các số đã khám/đã cho qua giữ nguyên.
+  /// Các số còn chờ được đánh liên tiếp, bắt đầu từ `current + 1`, theo
+  /// đúng thứ tự gọi — nên số vừa chèn ngay sau số mốc nhận
+  /// `số mốc + 1` và mọi số phía sau tăng thêm 1.
+  void _danhSoLaiSauKhiChen() {
+    // Thứ tự gọi của các số CHƯA khám (mỗi số chỉ tính một lần).
+    final order = <int>[];
+    for (final so in <int>[if (next > 0) next, ...waiting]) {
+      if (so > 0 && !order.contains(so)) order.add(so);
+    }
+    if (order.isEmpty) return;
+
+    final renumber = <int, int>{};
+    var soMoi = current > 0 ? current : 0;
+    for (final soCu in order) {
+      soMoi += 1;
+      if (soMoi != soCu) renumber[soCu] = soMoi;
+    }
+    if (renumber.isEmpty) return;
+    _apDungDanhSoLai(renumber, 'Đã đánh số lại hàng chờ');
+  }
+
+  /// Nhấn “Đợi”: các số phía sau số bị cho qua giảm 1 để lấp chỗ trống,
+  /// đúng như yêu cầu “các số phía sau số đó −1”. Số bị đợi giữ nguyên số
+  /// (đã nằm trong “SỐ ĐÃ CHO QUA” kèm tên bệnh nhân) và được ghi lại
+  /// trạng thái `7` trước khi đánh số.
+  bool _danhSoLaiSauKhiDoi(int soBiDoi) {
+    final renumber = <int, int>{};
+    for (final so in <int>[
+      if (current > 0) current,
+      if (next > 0) next,
+      ...waiting,
+    ]) {
+      if (so > soBiDoi) renumber[so] = so - 1;
+    }
+    if (renumber.isEmpty) return false;
+    _apDungDanhSoLai(
+      renumber,
+      'Số $soBiDoi đã được chuyển vào “SỐ ĐÃ CHO QUA” và đã đánh lại số',
+    );
+    return true;
+  }
+
+  /// Áp một bảng đổi số (số cũ → số mới) cho toàn bộ trạng thái hàng chờ,
+  /// cập nhật phiên phòng và ghi `so_thu_tu` mới lên Firebase.
+  void _apDungDanhSoLai(Map<int, int> renumber, String moDau) {
+    if (renumber.isEmpty) return;
+
+    // Chụp mã lịch hẹn TRƯỚC khi đổi khoá các ánh xạ theo số.
+    final canGhi = <(String, int)>[
+      for (final entry in renumber.entries)
+        if (_appointmentIdByNumber[entry.key] case final appointmentId?)
+          (appointmentId, entry.value),
+    ];
+
+    int doi(int so) => renumber[so] ?? so;
+
+    setState(() {
+      next = doi(next);
+      waiting = <int>[for (final so in waiting) doi(so)];
+      for (var i = 0; i < passed.length; i++) {
+        final entry = passed[i];
+        final moi = renumber[entry.number];
+        if (moi != null) {
+          passed[i] = (number: moi, deferred: entry.deferred);
+        }
+      }
+      for (var i = 0; i < _deferredHistory.length; i++) {
+        _deferredHistory[i] = doi(_deferredHistory[i]);
+      }
+      for (var i = 0; i < _eligibleAppointmentNumbers.length; i++) {
+        _eligibleAppointmentNumbers[i] = doi(_eligibleAppointmentNumbers[i]);
+      }
+      for (var i = 0; i < _scheduledFutureInserts.length; i++) {
+        final insert = _scheduledFutureInserts[i];
+        _scheduledFutureInserts[i] = (
+          number: doi(insert.number),
+          afterNumber:
+              insert.afterNumber == null ? null : doi(insert.afterNumber!),
+        );
+      }
+      final soTheoId = <int, String>{
+        for (final entry in _appointmentIdByNumber.entries)
+          doi(entry.key): entry.value,
+      };
+      _appointmentIdByNumber
+        ..clear()
+        ..addAll(soTheoId);
+      final tenTheoSo = <int, String>{
+        for (final entry in _patientNameByNumber.entries)
+          doi(entry.key): entry.value,
+      };
+      _patientNameByNumber
+        ..clear()
+        ..addAll(tenTheoSo);
+      // Tên trong “SỐ ĐÃ CHO QUA” đi theo số của chính nó; nếu trùng số với
+      // một số đã cho qua trước đó thì giữ tên của số đã có (số vừa đợi
+      // được ưu tiên vì đã ghi vào map trước khi đánh số lại).
+      final tenChoQua = <int, String>{};
+      for (final entry in _patientNameDaChoQua.entries) {
+        tenChoQua.putIfAbsent(doi(entry.key), () => entry.value);
+      }
+      _patientNameDaChoQua
+        ..clear()
+        ..addAll(tenChoQua);
+      final vangMat = <int>{for (final so in _absentAppointmentNumbers) doi(so)};
+      _absentAppointmentNumbers
+        ..clear()
+        ..addAll(vangMat);
+      final chenLai = <int>{
+        for (final so in _requeuedAppointmentNumbers) doi(so),
+      };
+      _requeuedAppointmentNumbers
+        ..clear()
+        ..addAll(chenLai);
+      if (selected != null) selected = doi(selected!);
+      for (final so in renumber.values) {
+        if (so > lastIssued) lastIssued = so;
+      }
+      _syncRoomState();
+    });
+
+    final thayDoi = renumber.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    final moTa = <String>[
+      for (final entry in thayDoi) 'số ${entry.key} → ${entry.value}',
+    ].join(', ');
+
+    final ghi = widget.onRenumberAppointment;
+    if (ghi == null) {
+      notify('$moDau: $moTa.');
+      return;
+    }
+
+    for (final (appointmentId, soTheoLich) in canGhi) {
+      _pendingRenumberByAppointmentId[appointmentId] = soTheoLich;
+    }
+    notify('$moDau và cập nhật Firebase: $moTa.');
+
+    var loi = 0;
+    for (final (appointmentId, soTheoLich) in canGhi) {
+      unawaited(
+        ghi(appointmentId, soTheoLich).catchError((Object _) {
+          loi += 1;
+          _pendingRenumberByAppointmentId.remove(appointmentId);
+          if (mounted && loi == 1) {
+            notify(
+              'Chưa cập nhật được số thứ tự mới lên Firebase. '
+              'Kiểm tra kết nối rồi thử lại.',
+            );
+          }
+        }),
+      );
     }
   }
 
@@ -1612,6 +1872,9 @@ class _QueueScreenState extends State<QueueScreen> {
                                                 newestDeferredNumbers[index];
                                             return _DeferredChip(
                                               number: number,
+                                              patientName:
+                                                  _patientNameDaChoQua[number] ??
+                                                  _patientNameFor(number),
                                               onTap: () => openInsertScreen(
                                                 initialNumber: number,
                                               ),
@@ -3070,15 +3333,27 @@ class _RecallChip extends StatelessWidget {
 
 /// Ô số trong hàng "SỐ ĐÃ CHO QUA": bấm để mở màn hình chèn lại số đó.
 class _DeferredChip extends StatelessWidget {
-  const _DeferredChip({required this.number, required this.onTap});
+  const _DeferredChip({
+    required this.number,
+    required this.onTap,
+    this.patientName,
+  });
 
   final int number;
+
+  /// Tên bệnh nhân của số bị cho qua (hiện ngay cạnh số để nhân viên nhận
+  /// ra ai đang đợi, kể cả khi số đã bị đánh lại).
+  final String? patientName;
+
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) => Semantics(
     button: true,
-    label: 'Số $number đã bị cho qua, bấm để chèn lại',
+    label: (patientName ?? '').trim().isEmpty
+        ? 'Số $number đã bị cho qua, bấm để chèn lại'
+        : 'Số $number – ${patientName!.trim()} đã bị cho qua, '
+              'bấm để chèn lại',
     child: Container(
       height: 42,
       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -3117,6 +3392,22 @@ class _DeferredChip extends StatelessWidget {
                   color: _Ui.chipIdleText,
                 ),
               ),
+              if ((patientName ?? '').trim().isNotEmpty) ...[
+                const SizedBox(width: 6),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 150),
+                  child: Text(
+                    patientName!.trim(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: _Ui.chipIdleText,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
