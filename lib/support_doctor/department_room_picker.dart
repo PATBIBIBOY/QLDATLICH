@@ -33,8 +33,8 @@ class DepartmentRoomPicker<T> extends StatefulWidget {
     this.hospitalName = 'Bệnh viện',
     this.title = 'Chọn phòng khám',
     this.onLogout,
-    this.logoutLabel = 'Hồ sơ',
-    this.confirmLogout = false,
+    this.logoutLabel = 'Đăng xuất',
+    this.confirmLogout = true,
   });
 
   /// Room data supplied by the app.
@@ -205,24 +205,16 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
       );
   }
 
-  /// Mở trang Hồ sơ cá nhân (thông tin nhân viên, đổi mật khẩu, đổi thông tin, đăng xuất)
+  /// Mở màn hình Hồ sơ cá nhân của nhân viên y tế (đổi mật khẩu, xem thông tin)
   void _handleOpenProfile() {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => Scaffold(
           appBar: AppBar(
-            title: const Text(
-              'Hồ Sơ Hỗ Trợ Bác Sĩ',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-            ),
-            centerTitle: true,
+            title: const Text('Hồ Sơ Hỗ Trợ Bác Sĩ', style: TextStyle(fontWeight: FontWeight.bold)),
             backgroundColor: Colors.white,
             foregroundColor: const Color(0xFF0F172A),
             elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
           ),
           body: LetanProfileTabC1(
             tenKhoaHienTai: _selectedDepartment ?? widget.initialDepartment,
@@ -640,12 +632,10 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          Flexible(
-                            child: _PickerRoomStatus(
-                              label: '${roomsInDepartment.length} phòng',
-                              foreground: const Color(0xFF107FE8),
-                              background: const Color(0x14107FE8),
-                            ),
+                          _PickerRoomStatus(
+                            label: '${roomsInDepartment.length} phòng',
+                            foreground: const Color(0xFF107FE8),
+                            background: const Color(0x14107FE8),
                           ),
                         ],
                       ),
@@ -795,12 +785,10 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          Flexible(
-                            child: _PickerRoomStatus(
-                              label: widget.statusLabelOf(room),
-                              foreground: statusColor,
-                              background: statusBackground,
-                            ),
+                          _PickerRoomStatus(
+                            label: widget.statusLabelOf(room),
+                            foreground: statusColor,
+                            background: statusBackground,
                           ),
                         ],
                       ),
@@ -1172,6 +1160,10 @@ typedef ClinicAppointmentFeed = ({
   Stream<AppointmentQueueUpdate> updates,
   Future<void> Function(String appointmentId, AppointmentOutcome outcome)
   reportOutcome,
+
+  /// Ghi số thứ tự mới của một lịch hẹn khi nhân viên chèn số: số vừa
+  /// chèn nhận `số mốc + 1`, các số phía sau tăng thêm 1.
+  Future<void> Function(String appointmentId, int soThuTu) renumber,
 });
 
 /// Màn hình chọn khoa/phòng đã kết nối với QueueScreen trong queue_screen.dart.
@@ -1274,6 +1266,7 @@ class ClinicRoomPickerScreen extends StatelessWidget {
                 hospitalName: hospitalName,
                 appointmentQueueStream: appointmentFeed?.updates,
                 onAppointmentOutcome: appointmentFeed?.reportOutcome,
+                onRenumberAppointment: appointmentFeed?.renumber,
               ),
             ),
           );
