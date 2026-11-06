@@ -32,6 +32,8 @@ class CskhDanhsachDonKhoaScreenC1 extends StatefulWidget {
 class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC1> {
   DateTime _ngayChon = DateTime.now();
   late String _phongHienTai;
+  String _tabBoLocHienTai = 'Tất cả'; // 'Tất cả', 'Chờ duyệt', 'Đã duyệt', 'Đã hủy'
+  final List<String> _danhSachTabs = ['Tất cả', 'Chờ duyệt', 'Đã duyệt', 'Đã hủy'];
 
   @override
   void initState() {
@@ -167,6 +169,23 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
             }).length;
             final tong = danhSach.length;
 
+            // Lọc danh sách theo tab được chọn: Tất cả / Chờ duyệt / Đã duyệt / Đã hủy
+            final danhSachHienThi = danhSach.where((e) {
+              if (_tabBoLocHienTai == 'Tất cả') return true;
+              final rawId = (e['trangThaiId'] ?? '').toString();
+              final rawStr = (e['rawTrangThai'] ?? '').toString().toLowerCase();
+              final tt = (e['trangThai'] ?? '').toString();
+
+              final bool laChoDuyet = rawId == '1' || rawStr.contains('cho_duyet') || rawStr.contains('pending') || tt == 'Chờ duyệt' || tt == 'Đang chờ';
+              final bool laDaDuyet = rawId == '2' || rawId == '5' || rawStr.contains('duyet') || rawStr.contains('xac_nhan') || tt == 'Đã duyệt' || tt == 'Đã khám';
+              final bool laDaHuy = rawId == '4' || rawStr.contains('tu_choi') || rawStr.contains('huy') || rawStr.contains('cancel') || tt == 'Không duyệt';
+
+              if (_tabBoLocHienTai == 'Chờ duyệt') return laChoDuyet;
+              if (_tabBoLocHienTai == 'Đã duyệt') return laDaDuyet;
+              if (_tabBoLocHienTai == 'Đã hủy') return laDaHuy;
+              return true;
+            }).toList();
+
             return Scaffold(
               backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF8FAFC),
               body: SafeArea(
@@ -179,11 +198,117 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
                       tong: tong,
                       onSelectDate: _chonNgayLichHen,
                     ),
+
+                    // Thanh nút chuyển tab chuyển qua lại: Tất cả | Chờ duyệt | Đã duyệt | Đã hủy
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+                          borderRadius: AppDesignSystemC1.borderRadMedium,
+                        ),
+                        child: Row(
+                          children: _danhSachTabs.map((tab) {
+                            final bool isSelected = _tabBoLocHienTai == tab;
+                            int count = 0;
+                            if (tab == 'Tất cả') {
+                              count = tong;
+                            } else if (tab == 'Chờ duyệt') {
+                              count = soDonChoDuyet;
+                            } else if (tab == 'Đã duyệt') {
+                              count = danhSach.where((e) {
+                                final rawId = (e['trangThaiId'] ?? '').toString();
+                                final rawStr = (e['rawTrangThai'] ?? '').toString().toLowerCase();
+                                final tt = (e['trangThai'] ?? '').toString();
+                                return rawId == '2' || rawId == '5' || rawStr.contains('duyet') || rawStr.contains('xac_nhan') || tt == 'Đã duyệt' || tt == 'Đã khám';
+                              }).length;
+                            } else if (tab == 'Đã hủy') {
+                              count = danhSach.where((e) {
+                                final rawId = (e['trangThaiId'] ?? '').toString();
+                                final rawStr = (e['rawTrangThai'] ?? '').toString().toLowerCase();
+                                final tt = (e['trangThai'] ?? '').toString();
+                                return rawId == '4' || rawStr.contains('tu_choi') || rawStr.contains('huy') || rawStr.contains('cancel') || tt == 'Không duyệt';
+                              }).length;
+                            }
+
+                            return Expanded(
+                              child: InkWell(
+                                onTap: () {
+                                  AppDesignSystemC1.hapticLight();
+                                  setState(() {
+                                    _tabBoLocHienTai = tab;
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(10),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(vertical: 7),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(10),
+                                    boxShadow: isSelected
+                                        ? [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+                                              blurRadius: 4,
+                                              offset: const Offset(0, 1),
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        tab,
+                                        style: TextStyle(
+                                          color: isSelected
+                                              ? (isDark ? Colors.white : AppDesignSystemC1.primary)
+                                              : (isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B)),
+                                          fontSize: 12.5,
+                                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? (isDark ? const Color(0xFF0284C7) : const Color(0xFFE0F2FE))
+                                              : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          '$count',
+                                          style: TextStyle(
+                                            color: isSelected
+                                                ? (isDark ? Colors.white : const Color(0xFF0284C7))
+                                                : (isDark ? Colors.white70 : const Color(0xFF475569)),
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+
                     Expanded(
-                      child: danhSach.isEmpty
+                      child: danhSachHienThi.isEmpty
                           ? Center(
                               child: Text(
-                                'Chưa có đơn khám nào cần duyệt',
+                                'Không có đơn khám nào trong mục "$_tabBoLocHienTai"',
                                 style: TextStyle(
                                   color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
                                   fontSize: 14,
@@ -192,10 +317,10 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
                             )
                           : ListView.separated(
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              itemCount: danhSach.length,
+                              itemCount: danhSachHienThi.length,
                               separatorBuilder: (_, _) => const SizedBox(height: 10),
                               itemBuilder: (context, index) {
-                                final item = danhSach[index];
+                                final item = danhSachHienThi[index];
                                 return CskhAppointmentCardC1(
                                   item: item,
                                   onApprove: () => _duyetDon(item),
@@ -204,11 +329,12 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
                               },
                             ),
                     ),
-                    CskhBulkActionBarC1(
-                      totalCount: danhSach.length,
-                      onRejectAll: () => _tuChoiHetTatCa(danhSach),
-                      onApproveAll: () => _duyetHetTatCa(danhSach),
-                    ),
+                    if (soDonChoDuyet > 0)
+                      CskhBulkActionBarC1(
+                        totalCount: soDonChoDuyet,
+                        onRejectAll: () => _tuChoiHetTatCa(danhSach),
+                        onApproveAll: () => _duyetHetTatCa(danhSach),
+                      ),
                   ],
                 ),
               ),
