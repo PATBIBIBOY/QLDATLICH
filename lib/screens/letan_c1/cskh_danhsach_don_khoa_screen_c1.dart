@@ -159,7 +159,12 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
           ),
           builder: (context, snapshot) {
             final danhSach = snapshot.data ?? [];
-            final soDonChoDuyet = danhSach.where((e) => e['rawTrangThai'] == 'dang_cho' || e['rawTrangThai'] == 'cho_duyet' || e['trangThai'] == 'Đang chờ').length;
+            final soDonChoDuyet = danhSach.where((e) {
+              final rawId = (e['trangThaiId'] ?? '').toString();
+              final rawStr = (e['rawTrangThai'] ?? '').toString().toLowerCase();
+              final tt = (e['trangThai'] ?? '').toString();
+              return rawId == '1' || rawStr.contains('cho_duyet') || rawStr.contains('pending') || tt == 'Chờ duyệt' || tt == 'Đang chờ';
+            }).length;
             final tong = danhSach.length;
 
             return Scaffold(
