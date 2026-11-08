@@ -22,6 +22,8 @@ import '../screens/patient/qr_ticket_screen.dart';
 import '../screens/patient/edit_profile_screen.dart';
 import '../screens/patient/notification_screen.dart';
 import '../screens/patient/theo_doi_lich_kham.dart';
+import '../screens/patient/family_profiles_screen.dart';
+import '../screens/patient/add_edit_family_profile_screen.dart';
 
 import '../screens/receptionist/receptionist_home_screen.dart';
 import '../screens/receptionist/check_in_screen.dart';
@@ -43,8 +45,6 @@ import '../screens/hospital/guiDonThanhCong_Screen.dart';
 import '../screens/hospital/statistics_screen.dart';
 import '../screens/hospital/staff_management_screen.dart';
 
-
-
 class AppRoutes {
   static const String login = '/login';
   static const String register = '/register';
@@ -65,6 +65,8 @@ class AppRoutes {
   static const String editProfile = '/edit-profile';
   static const String notification = '/notification';
   static const String appointmentTracking = '/appointment-tracking';
+  static const String familyProfiles = '/family-profiles';
+  static const String addEditFamilyProfile = '/family-profiles/edit';
 
   static const String receptionistHome = '/receptionist-home';
   static const String checkIn = '/check-in';
@@ -189,6 +191,8 @@ class AppRoutes {
       return QrTicketScreen(booking: booking);
     },
     appointmentTracking: (_) => const AppointmentTrackingScreen(),
+    familyProfiles: (_) => const FamilyProfilesScreen(),
+    addEditFamilyProfile: (_) => const AddEditFamilyProfileScreen(),
     medicalHistory: (_) => const MedicalHistoryScreen(),
     hospitalFilter: (_) => const HospitalFilterScreen(),
     receptionistHome: (_) => const ReceptionistHomeScreen(),

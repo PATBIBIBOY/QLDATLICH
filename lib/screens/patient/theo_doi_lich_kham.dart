@@ -5,10 +5,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../config/app_routes.dart';
+import '../../providers/family_profile_provider.dart';
 import '../../providers/lich_hen_provider.dart';
 import '../../models/lichhen_model.dart';
 import '../../models/appointment_item.dart';
 import '../../utils/queue_time_estimator.dart';
+import '../../services/hospital_service.dart';
+import '../../widgets/family_widgets.dart';
 
 /// ---------------------------------------------------------------------------
 /// Design tokens
@@ -93,7 +96,11 @@ class ClinicApp extends StatelessWidget {
 /// Màn hình chính
 /// ---------------------------------------------------------------------------
 class AppointmentTrackingScreen extends StatefulWidget {
-  const AppointmentTrackingScreen({super.key});
+  /// Id lịch hẹn cần theo dõi. Có thể truyền qua constructor hoặc qua
+  /// `arguments` của route (String, LichHenModel hoặc MyAppointmentItem).
+  final String? bookingId;
+
+  const AppointmentTrackingScreen({super.key, this.bookingId});
 
   @override
   State<AppointmentTrackingScreen> createState() =>
@@ -103,9 +110,15 @@ class AppointmentTrackingScreen extends StatefulWidget {
 class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
   late final LichHenProvider _provider;
   final QueueTimeEstimator _queueTimeEstimator = QueueTimeEstimator();
+  final HospitalService _hospitalService = HospitalService();
+  int? _thoiGianKham; // phút / bệnh nhân, lấy từ Firestore
   Timer? _queueEstimateTimer;
 
   String? _listeningKey;
+
+  // Lịch hẹn đang được chọn để theo dõi
+  String? _selectedId;
+  bool _argsRead = false;
 
   @override
   void initState() {
@@ -117,6 +130,25 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _loadBookings();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_argsRead) return;
+    _argsRead = true;
+
+    _selectedId = widget.bookingId;
+    if (_selectedId == null) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is String) {
+        _selectedId = args;
+      } else if (args is LichHenModel) {
+        _selectedId = args.id;
+      } else if (args is MyAppointmentItem) {
+        _selectedId = args.id;
+      }
+    }
   }
 
   @override
@@ -143,6 +175,19 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
     if (_listeningKey == key) return;
     _listeningKey = key;
     _queueTimeEstimator.reset();
+    _thoiGianKham = null;
+
+    // Lấy thời gian khám của phòng (có cache sẵn trong service)
+    _hospitalService
+        .getThoiGianKhamPhong(
+          hospitalId: booking.benhVienId,
+          khoaId: booking.khoaId,
+          phongKhamId: booking.phongKhamId,
+        )
+        .then((minutes) {
+          if (!mounted || _listeningKey != key) return; // đã đổi sang lịch khác
+          setState(() => _thoiGianKham = minutes);
+        });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -274,11 +319,13 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<LichHenProvider>();
+    final family = context.watch<FamilyProfileProvider>();
+    final profile = family.current;
 
     final today = DateTime.now();
     final startOfDay = DateTime(today.year, today.month, today.day);
 
-    final upcomingBookings = provider.activeBookings.where((b) {
+    final upcomingBookings = provider.activeBookingsOf(profile?.id).where((b) {
       return _trackableStatuses.contains(b.trangThaiId.toString()) &&
           b.ngayDat != null &&
           !b.ngayDat!.isBefore(startOfDay);
@@ -337,8 +384,13 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
       );
     }
 
-    // 4. Lịch hẹn cần theo dõi
-    final booking = upcomingBookings.first;
+    // 4. Lịch hẹn cần theo dõi: ưu tiên lịch được chọn, không có thì lấy
+    //    lịch đầu tiên theo thứ tự ưu tiên.
+    var booking = upcomingBookings.first;
+    if (_selectedId != null) {
+      final matches = upcomingBookings.where((b) => b.id == _selectedId);
+      if (matches.isNotEmpty) booking = matches.first;
+    }
     final status = statusFromTrangThaiId(booking.trangThaiId);
 
     // Chỉ cần lắng nghe hàng chờ khi đang chờ khám (2) hoặc đến trễ (7)
@@ -368,6 +420,51 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
         status == AppointmentStatus.late;
 
     final children = <Widget>[
+      if (profile != null) ...[
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.person_pin_rounded,
+                size: 20,
+                color: AppColors.primary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  profile.isSelf
+                      ? 'Đang theo dõi cho: Tôi'
+                      : 'Đang theo dõi cho: ${profile.quanHe} - ${profile.hoTen}',
+                  style: _font(
+                    13,
+                    weight: FontWeight.w700,
+                    color: AppColors.primaryDark,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () => showProfileSwitcherSheet(context),
+                child: const Text('Đổi'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+      ],
+      // Thanh chọn lịch khi có nhiều hơn 1 lịch
+      if (upcomingBookings.length > 1) ...[
+        _BookingSelector(
+          bookings: upcomingBookings,
+          selectedId: booking.id,
+          onSelect: (id) => setState(() => _selectedId = id),
+        ),
+        const SizedBox(height: 14),
+      ],
       _HospitalInfoCard(
         hospital: hospital,
         department: department,
@@ -538,10 +635,13 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
 
     final peopleAhead = myIndex;
 
-    final perPatientMinutes = _queueTimeEstimator.update(currentServing);
+    // Vẫn gọi update để estimator tiếp tục cập nhật trạng thái bên trong.
+    final estimator = _queueTimeEstimator.update(currentServing);
+    // Ưu tiên thời gian khám cấu hình của phòng, không có mới dùng estimator.
+    final perPatient = _thoiGianKham ?? estimator.perPatient;
     final waitMinutes = _queueTimeEstimator.waitMinutes(
       peopleAhead,
-      perPatientMinutes.perPatient,
+      perPatient,
     );
 
     final estimate = _estimateTurn(
@@ -569,6 +669,85 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
       ),
     ]);
     return widgets;
+  }
+}
+
+/// ---------------------------------------------------------------------------
+/// Thanh chọn lịch hẹn (hiện khi có nhiều hơn 1 lịch cần theo dõi)
+/// ---------------------------------------------------------------------------
+class _BookingSelector extends StatelessWidget {
+  const _BookingSelector({
+    required this.bookings,
+    required this.selectedId,
+    required this.onSelect,
+  });
+
+  final List<LichHenModel> bookings;
+  final String selectedId;
+  final ValueChanged<String> onSelect;
+
+  String _date(DateTime? d) => d == null
+      ? '--/--'
+      : '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 64,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: bookings.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, i) {
+          final b = bookings[i];
+          final selected = b.id == selectedId;
+          final status = statusFromTrangThaiId(b.trangThaiId);
+          return InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => onSelect(b.id),
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 130, maxWidth: 190),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: selected ? AppColors.primary : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: selected ? AppColors.primary : AppColors.line,
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${_date(b.ngayDat)} · ${status.label}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _font(
+                      12.5,
+                      weight: FontWeight.w800,
+                      color: selected ? Colors.white : AppColors.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    b.tenKhoa ?? 'Chuyên khoa',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _font(
+                      12,
+                      color: selected
+                          ? Colors.white.withValues(alpha: 0.85)
+                          : AppColors.muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 }
 
@@ -1121,7 +1300,8 @@ class _LiveChip extends StatefulWidget {
   State<_LiveChip> createState() => _LiveChipState();
 }
 
-class _LiveChipState extends State<_LiveChip> with SingleTickerProviderStateMixin {
+class _LiveChipState extends State<_LiveChip>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1100),

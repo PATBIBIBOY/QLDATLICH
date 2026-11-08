@@ -289,22 +289,26 @@ class LichHenSeeder {
     }
   }
 
-    // ═══════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════
   // 4. SEED 10 LỊCH HẸN ĐỂ TEST MÀN HÌNH THEO DÕI HÀNG CHỜ
   // ═══════════════════════════════════════════════════════════════
   /// Tạo 10 lịch hẹn cho cùng 1 ngày, cùng 1 phòng khám để test real-time queue.
   /// Bệnh nhân chỉ định sẽ nằm ở số thứ tự 5 (giữa hàng chờ).
   static Future<void> seedQueueTestAppointments({
-    String specificBenhNhanId = 'dfAB917v6fRylNd1CiZWBdgFjdk1',
-    String benhVienId = 'BV001',
+    String benhVienId = 'BV502',
     String khoaId = 'K001',
-    String phongKhamId = 'NTQ001',
+    String phongKhamId = 'BV502_K001_HH001',
   }) async {
-    print('⏳ Đang tạo 10 lịch hẹn test hàng chờ cho ngày 04/11/2026...');
+    print(
+      '⏳ Đang tạo 10 lịch hẹn test hàng chờ ngẫu nhiên cho ngày 04/11/2026...',
+    );
 
     // 1. Tự động lấy TÊN BỆNH VIỆN
     String tenBenhVien = 'Không xác định';
-    final hospitalDoc = await _firestore.collection('BenhVien').doc(benhVienId).get();
+    final hospitalDoc = await _firestore
+        .collection('BenhVien')
+        .doc(benhVienId)
+        .get();
     if (hospitalDoc.exists) {
       tenBenhVien = hospitalDoc.data()?['ten_benh_vien'] ?? 'Không xác định';
     }
@@ -321,26 +325,23 @@ class LichHenSeeder {
       tenKhoa = khoaDoc.data()?['ten_khoa'] ?? 'Không xác định';
     }
 
-    final targetDate = DateTime(2026, 11, 5);
-    final totalAppointments = 10;
-    final specificStt = 5; // Bệnh nhân chỉ định sẽ nằm ở số thứ tự 5
+    final targetDate = DateTime(2026, 11, 4);
+    final totalAppointments = 15;
 
     final writer = _BatchWriter(_firestore);
 
-    for (int stt = 1; stt <= totalAppointments; stt++) {
-      final isSpecificPatient = (stt == specificStt);
-      
-      // Nếu là bệnh nhân chỉ định thì dùng UID đó, ngược lại tạo ngẫu nhiên
-      final benhNhanId = isSpecificPatient
-          ? specificBenhNhanId
-          : 'BN_RAND_${stt}_${_random.nextInt(99999)}';
+    for (int stt = 11; stt <= totalAppointments; stt++) {
+      // ✅ LUÔN tạo UID ngẫu nhiên cho mọi lịch hẹn (không còn bệnh nhân cụ thể)
+      final benhNhanId = 'BN_RAND_${stt}_${_random.nextInt(99999)}';
 
-      final lichHenId = 'LH_QUEUE_${_ngayCode(targetDate)}_${stt.toString().padLeft(5, '0')}';
+      final lichHenId =
+          'LH_QUEUE_${_ngayCode(targetDate)}_${stt.toString().padLeft(5, '0')}';
 
       // Tạo giờ dự kiến cách nhau 15 phút (08:00, 08:15, 08:30...)
       final int hour = 8 + ((stt - 1) * 15) ~/ 60;
       final int minute = ((stt - 1) * 15) % 60;
-      final gioDuKien = '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+      final gioDuKien =
+          '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
 
       final lichHenData = {
         'id': lichHenId,
@@ -351,11 +352,10 @@ class LichHenSeeder {
         'ten_khoa': tenKhoa,
         'phong_kham_id': phongKhamId,
         'ngay_dat': Timestamp.fromDate(targetDate),
-        'ca_id': 'ca_sang',
-        'ten_ca': 'Ca sáng',
-        'gio_du_kien': gioDuKien,
+        'ca_id': 'ca_chieu',
+        'ten_ca': 'Ca chiều',
         'so_thu_tu': stt,
-        'trang_thai_id': 2, 
+        'trang_thai_id': 2,
         'ma_qr': 'QR_$lichHenId',
         'qr_da_su_dung': 0,
         'ngay_tao': FieldValue.serverTimestamp(),
@@ -369,13 +369,12 @@ class LichHenSeeder {
     }
 
     await writer.flush();
-    
-    print('✅ ĐÃ TẠO THÀNH CÔNG 10 lịch hẹn test hàng chờ!');
+
+    print('✅ ĐÃ TẠO THÀNH CÔNG 10 lịch hẹn test hàng chờ ngẫu nhiên!');
     print('   📅 Ngày khám      : 04/11/2026');
     print('   🏥 Bệnh viện      : $tenBenhVien ($benhVienId)');
     print('   🔬 Khoa           : $tenKhoa ($khoaId)');
-    print('   👤 Bệnh nhân chỉ định ($specificBenhNhanId) đang ở SỐ THỨ TỰ: $specificStt');
-    print('   🔄 Các số thứ tự còn lại (1-4, 6-10) là UID ngẫu nhiên.');
+    print('   🔄 Tất cả 10 lịch hẹn đều có UID ngẫu nhiên (STT 1 đến 10).');
   }
 
   // ═══════════════════════════════════════════════════════════════

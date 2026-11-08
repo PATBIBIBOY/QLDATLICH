@@ -167,6 +167,14 @@ class LichHenProvider extends ChangeNotifier {
       .where((b) => _historyStatusIds.contains(b.trangThaiId))
       .toList();
 
+  List<LichHenModel> activeBookingsOf(String? profileId) => profileId == null
+      ? activeBookings
+      : activeBookings.where((b) => b.profileKey == profileId).toList();
+
+  List<LichHenModel> historyBookingsOf(String? profileId) => profileId == null
+      ? historyBookings
+      : historyBookings.where((b) => b.profileKey == profileId).toList();
+
   /// Tải tất cả lịch hẹn của bệnh nhân [benhNhanId].
   Future<void> loadMyBookings(String benhNhanId) async {
     final token = ++_myBookingsToken;

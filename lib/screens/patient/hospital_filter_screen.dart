@@ -8,6 +8,7 @@ import '../../config/app_routes.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/hospital_provider.dart';
 import '../../services/location_service.dart';
+import '../patient/chat_detail_screen.dart';
 
 /// Chỉnh độ trong suốt an toàn cho mọi phiên bản Flutter (thay withOpacity).
 extension _ColorX on Color {
@@ -1480,6 +1481,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildCardTop(
+                  id: id,
                   name: name,
                   type: type,
                   rating: rating,
@@ -1510,6 +1512,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
 
   /// _buildCardTop(): hàng đầu thẻ: chữ viết tắt, tên, loại hình, đánh giá, nút chat.
   Widget _buildCardTop({
+    required String id,
     required String name,
     required String type,
     required double rating,
@@ -1637,16 +1640,24 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
         const SizedBox(width: 8),
 
         // Nút chat
-        Container(
-          padding: const EdgeInsets.all(9),
-          decoration: BoxDecoration(
+        Tooltip(
+          message: 'Nhắn tin với CSKH',
+          child: Material(
             color: _primarySoft,
             borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(
-            Icons.chat_bubble_outline_rounded,
-            color: _primary,
-            size: 19,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () =>
+                  openHospitalChat(context, benhVienId: id, tenBenhVien: name),
+              child: const Padding(
+                padding: EdgeInsets.all(9),
+                child: Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  color: _primary,
+                  size: 19,
+                ),
+              ),
+            ),
           ),
         ),
       ],
@@ -1901,7 +1912,8 @@ class _SkeletonCard extends StatefulWidget {
   State<_SkeletonCard> createState() => _SkeletonCardState();
 }
 
-class _SkeletonCardState extends State<_SkeletonCard> with SingleTickerProviderStateMixin {
+class _SkeletonCardState extends State<_SkeletonCard>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),

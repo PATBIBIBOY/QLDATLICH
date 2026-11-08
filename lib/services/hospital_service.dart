@@ -27,6 +27,9 @@ class HospitalService {
   final Map<String, int> _tongSoCache = {};
   static const String _colPhongKham = 'PhongKham'; // Tên collection phòng khám
 
+  /// Cache thời gian khám (phút / bệnh nhân): "bv|khoa|phong" -> phút.
+  final Map<String, int> _thoiGianKhamCache = {};
+
   static const _fCoSo = 'co_so';
   static const _fBhyt = 'bhyt';
   static const _fRating = 'diem_danh_gia_tb';
@@ -37,6 +40,12 @@ class HospitalService {
   // ✅ 2. THÊM HÀM HỖ TRỢ ÉP KIỂU CÒN THIẾU
   static int? _toInt(dynamic v) =>
       v is num ? v.toInt() : int.tryParse(v?.toString() ?? '');
+
+  /// Chỉ chấp nhận số phút > 0.
+  static int? _soPhutHopLe(dynamic v) {
+    final n = _toInt(v);
+    return (n != null && n > 0) ? n : null;
+  }
 
   Future<List<Map<String, dynamic>>> getCoSoList() async {
     final snapshot = await _firestore.collection('CoSo').get();
@@ -249,7 +258,7 @@ class HospitalService {
         return {...doc.data()!, 'id': doc.id};
       }
 
-      return null; 
+      return null;
     } catch (e) {
       debugPrint('❌ Lỗi khi lấy thông tin khoa: $e');
       return null;
@@ -280,7 +289,7 @@ class HospitalService {
     }
   }
 
-   /// Lấy thông tin của 1 bệnh viện dựa trên Document ID
+  /// Lấy thông tin của 1 bệnh viện dựa trên Document ID
   Future<Map<String, dynamic>?> getPhongKhamById(String id) async {
     try {
       final doc = await _firestore.collection('BenhVien').doc(id).get();
@@ -320,5 +329,86 @@ class HospitalService {
       debugPrint('❌ Lỗi khi lấy danh sách phòng khám: $e');
       throw Exception('Lỗi khi lấy danh sách phòng khám: $e');
     }
+  }
+
+  Future<int?> getThoiGianKhamPhong({
+    required String hospitalId,
+    required String khoaId,
+    required String phongKhamId,
+  }) async {
+    final cacheKey = '$hospitalId|$khoaId|$phongKhamId';
+    final cached = _thoiGianKhamCache[cacheKey];
+    if (cached != null) return cached;
+
+    int? minutes;
+
+    try {
+      // 1. Theo ID document của phòng khám
+      if (phongKhamId.isNotEmpty) {
+        final doc = await _firestore
+            .collection(_colPhongKham)
+            .doc(phongKhamId)
+            .get();
+
+        if (doc.exists) {
+          final data = doc.data() ?? <String, dynamic>{};
+          final thuocKhoa =
+              data['hospitalId']?.toString() == hospitalId &&
+              data['khoaId']?.toString() == khoaId;
+
+          if (thuocKhoa) {
+            minutes = _soPhutHopLe(data['thoiGianKham'] ?? data['thoi_gian_kham']);
+          } else {
+            debugPrint(
+              '⚠️ PhongKham/$phongKhamId không thuộc $hospitalId/$khoaId',
+            );
+          }
+        }
+
+        // 2. phongKhamId có thể là tên phòng (vd. "NGT003") thay vì ID document
+        if (minutes == null && !doc.exists) {
+          final byName = await _firestore
+              .collection(_colPhongKham)
+              .where('hospitalId', isEqualTo: hospitalId)
+              .where('khoaId', isEqualTo: khoaId)
+              .where('tenPhong', isEqualTo: phongKhamId)
+              .limit(1)
+              .get();
+
+          if (byName.docs.isNotEmpty) {
+            final data = byName.docs.first.data();
+            minutes = _soPhutHopLe(data['thoiGianKham'] ?? data['thoi_gian_kham']);
+          }
+        }
+      }
+
+      // 3. Dự phòng: thời gian khám cấu hình ở cấp khoa
+      if (minutes == null && hospitalId.isNotEmpty && khoaId.isNotEmpty) {
+        final khoaDoc = await _firestore
+            .collection('Khoa')
+            .doc(hospitalId)
+            .collection('danh_sach')
+            .doc(khoaId)
+            .get();
+
+        final data = khoaDoc.data();
+        if (data != null) {
+          minutes = _soPhutHopLe(data['thoi_gian_kham'] ?? data['thoiGianKham']);
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Lỗi khi lấy thời gian khám của phòng $phongKhamId: $e');
+      return null;
+    }
+
+    if (minutes != null) {
+      debugPrint('✅ Thời gian khám $hospitalId/$khoaId/$phongKhamId = $minutes phút');
+      _thoiGianKhamCache[cacheKey] = minutes;
+    } else {
+      debugPrint(
+        '⚠️ Không tìm thấy thời gian khám cho $hospitalId/$khoaId/$phongKhamId',
+      );
+    }
+    return minutes;
   }
 }

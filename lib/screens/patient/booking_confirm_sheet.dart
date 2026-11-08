@@ -16,6 +16,7 @@ Future<bool?> showBookingConfirmSheet(
   required String dateLabel,
   required String address,
   required String bhytNote,
+  String? patientName,
 }) {
   return showModalBottomSheet<bool>(
     context: context,
@@ -28,6 +29,7 @@ Future<bool?> showBookingConfirmSheet(
       dateLabel: dateLabel,
       address: address,
       bhytNote: bhytNote,
+      patientName: patientName,
     ),
   );
 }
@@ -38,6 +40,7 @@ class BookingConfirmSheet extends StatelessWidget {
   final String dateLabel;
   final String address;
   final String bhytNote;
+  final String? patientName;
 
   const BookingConfirmSheet({
     super.key,
@@ -46,6 +49,7 @@ class BookingConfirmSheet extends StatelessWidget {
     required this.dateLabel,
     required this.address,
     required this.bhytNote,
+    this.patientName,
   });
 
   /// Một dòng thông tin nhỏ: icon + chữ.
@@ -137,11 +141,7 @@ class BookingConfirmSheet extends StatelessWidget {
                 if (room.isNotEmpty)
                   _metaRow(Icons.meeting_room_outlined, room),
                 if (shift.isNotEmpty)
-                  _metaRow(
-                    Icons.schedule_rounded,
-                    shift,
-                    color: _C.textDark,
-                  ),
+                  _metaRow(Icons.schedule_rounded, shift, color: _C.textDark),
                 if (date.isNotEmpty)
                   _metaRow(Icons.calendar_today_rounded, date),
               ],
@@ -325,6 +325,23 @@ class BookingConfirmSheet extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 18),
+                  if (patientName?.isNotEmpty == true) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: _C.green.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: _C.green.withOpacity(0.18)),
+                      ),
+                      child: _metaRow(
+                        Icons.person_pin_rounded,
+                        'Khám cho: $patientName',
+                        color: _C.green,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                  ],
 
                   // Tiêu đề danh sách khoa + số lượng
                   Row(

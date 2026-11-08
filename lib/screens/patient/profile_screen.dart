@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../models/patient_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/family_profile_provider.dart';
+import '../../providers/lich_hen_provider.dart';
 import '../../config/app_routes.dart';
 import '../../utils/app_snackbar.dart';
 
@@ -148,7 +150,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   color: _danger.withOpacity(0.10),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.logout_rounded, color: _danger, size: 30),
+                child: const Icon(
+                  Icons.logout_rounded,
+                  color: _danger,
+                  size: 30,
+                ),
               ),
               const SizedBox(height: 16),
               const Text(
@@ -164,7 +170,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const Text(
                 'Bạn sẽ cần đăng nhập lại để đặt lịch và theo dõi lịch khám.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13.5, height: 1.45, color: _textGrey),
+                style: TextStyle(
+                  fontSize: 13.5,
+                  height: 1.45,
+                  color: _textGrey,
+                ),
               ),
               const SizedBox(height: 22),
               Row(
@@ -233,11 +243,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     // Lấy trước khi await để không dùng context sau khoảng async.
     final auth = context.read<AuthProvider>();
+    final family = context.read<FamilyProfileProvider>();
+    final lichHen = context.read<LichHenProvider>();
     final navigator = Navigator.of(context);
 
     setState(() => _loggingOut = true);
     try {
       await auth.logout();
+      family.clear();
+      lichHen.clearMyBookings();
       // Xóa toàn bộ stack, quay về màn hình đăng nhập.
       navigator.pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
     } catch (_) {
@@ -365,6 +379,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ],
                       ),
                       const SizedBox(height: 24),
+
+                      // import: family_profile_provider, lich_hen_provider
+                      Material(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(22),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(22),
+                          onTap: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.familyProfiles,
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(22),
+                              border: Border.all(color: _border),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 42,
+                                  height: 42,
+                                  decoration: BoxDecoration(
+                                    color: _primary.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(13),
+                                  ),
+                                  child: const Icon(
+                                    Icons.groups_rounded,
+                                    color: _primary,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                const Expanded(
+                                  child: Text(
+                                    'Quản lý người thân',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                      color: _textDark,
+                                    ),
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: _hint,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
 
                       // ── Nút hành động ──
                       _buildActions(),
@@ -762,35 +828,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          height: 56,
-          child: OutlinedButton.icon(
-            onPressed: () {
-              // TODO: mở màn hình lịch sử khám bệnh khi đã có
-              context.showAppSnackBar(
-                message: 'Tính năng đang được phát triển',
-                type: SnackBarType.info,
-              );
-            },
-            icon: const Icon(Icons.history_rounded, size: 22),
-            label: const Text(
-              'Xem lịch sử khám bệnh',
-              style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800),
-            ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: _primary,
-              backgroundColor: Colors.white,
-              side: const BorderSide(color: _primary, width: 1.4),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-          ),
-        ),
         const SizedBox(height: 20),
-
         // Nút đăng xuất: tông đỏ nhạt, đặt tách riêng cuối cụm nút
         SizedBox(
           width: double.infinity,

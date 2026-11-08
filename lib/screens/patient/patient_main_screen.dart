@@ -7,7 +7,7 @@ import '../../providers/notification_provider.dart'; // ✅ 3. Import Notificati
 // ✅ 4. IMPORT TẤT CẢ CÁC MÀN HÌNH TAB VÀO ĐÂY
 import '../patient/home_screen.dart';
 import '../patient/my_appointments_screen.dart';
-import '../patient/chat_screen.dart';
+import 'chat_list_screen.dart';
 import '../patient/notification_screen.dart';
 import '../patient/profile_screen.dart';
 
@@ -43,7 +43,7 @@ class _PatientMainScreenState extends State<PatientMainScreen> {
   final List<Widget> _screens = const [
     HomeScreen(), // Index 0
     MyAppointmentsScreen(showBottomNavBar: false), // Index 1
-    ChatScreen(), // Index 2
+    ChatListScreen(), // Index 2
     NotificationScreen(), // Index 3
     ProfileScreen(), // Index 4
   ];

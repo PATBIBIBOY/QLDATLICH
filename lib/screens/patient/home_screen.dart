@@ -3,13 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_routes.dart';
+import '../../models/family_profile_model.dart'; // [MỚI]
 import '../../models/lichhen_model.dart';
 import '../../models/notification_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/family_profile_provider.dart'; // [MỚI]
 import '../../providers/lich_hen_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../../models/appointment_item.dart';
 import '../../utils/app_snackbar.dart';
+import '../../widgets/family_widgets.dart'; // [MỚI]
 
 // ───────────────────────── THEME & COLORS ─────────────────────────
 class AppTheme {
@@ -42,7 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _loadUser();
+        _loadProfiles(); // [MỚI] (đã gồm _loadUser)
         _loadBookings();
         _loadNotifications();
       }
@@ -54,6 +57,15 @@ class _HomeScreenState extends State<HomeScreen> {
     if (auth.user == null && FirebaseAuth.instance.currentUser != null) {
       await auth.fetchCurrentUser();
     }
+  }
+
+  // [MỚI] Nạp user trước, rồi nạp danh sách hồ sơ (cần PatientModel để đồng bộ hồ sơ chính chủ)
+  Future<void> _loadProfiles() async {
+    await _loadUser();
+    if (!mounted) return;
+    await context.read<FamilyProfileProvider>().load(
+      context.read<AuthProvider>().user,
+    );
   }
 
   Future<void> _loadBookings() async {
@@ -86,15 +98,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (upcoming.isEmpty) return null;
 
-    // 2. Sắp xếp để lấy lịch GẦN NHẤT (chronological order)
+    // 2. Sắp xếp: ưu tiên lịch ĐÃ XÁC NHẬN (2) trước, sau đó mới tới ngày, giờ
     upcoming.sort((a, b) {
-      // Ưu tiên 1: So sánh ngày khám (ngày nào đến trước thì xếp trước)
-      final dateCompare = a.ngayDat!.compareTo(b.ngayDat!);
-      if (dateCompare != 0) {
-        return dateCompare;
-      }
+      // Ưu tiên 1: trạng thái đã xác nhận ('2') đứng trước chờ duyệt ('1')
+      final aConfirmed = a.trangThaiId.toString() == '2' ? 0 : 1;
+      final bConfirmed = b.trangThaiId.toString() == '2' ? 0 : 1;
+      if (aConfirmed != bConfirmed) return aConfirmed.compareTo(bConfirmed);
 
-      // Ưu tiên 2: Nếu cùng ngày, so sánh giờ bắt đầu (giờ nào sớm hơn thì xếp trước)
+      // Ưu tiên 2: ngày khám gần nhất
+      final dateCompare = a.ngayDat!.compareTo(b.ngayDat!);
+      if (dateCompare != 0) return dateCompare;
+
+      // Ưu tiên 3: giờ bắt đầu sớm hơn
       final timeA = _parseTimeToMinutes(a.gioBatDau);
       final timeB = _parseTimeToMinutes(b.gioBatDau);
       return timeA.compareTo(timeB);
@@ -151,7 +166,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openQr() {
-    final activeBookings = context.read<LichHenProvider>().activeBookings;
+    // [SỬA] Chỉ lấy lịch của hồ sơ đang chọn
+    final activeBookings = context.read<LichHenProvider>().activeBookingsOf(
+      context.read<FamilyProfileProvider>().currentId,
+    );
     final upcomingBooking = _findUpcoming(activeBookings);
 
     if (upcomingBooking != null) {
@@ -163,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       context.showAppSnackBar(
         title: 'Chưa có lịch khám',
-        message: 'Bạn chưa có lịch khám sắp tới để xuất trình mã QR.',
+        message: 'Hồ sơ này chưa có lịch khám sắp tới để xuất trình mã QR.',
         type: SnackBarType.warning,
       );
     }
@@ -197,6 +215,11 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.pushNamed(context, AppRoutes.appointmentTracking);
   }
 
+  // [MỚI]
+  void _openFamilyProfiles() {
+    Navigator.pushNamed(context, AppRoutes.familyProfiles);
+  }
+
   Future<void> _copyHotline() async {
     await Clipboard.setData(const ClipboardData(text: '19006868'));
     if (!mounted) return;
@@ -215,8 +238,13 @@ class _HomeScreenState extends State<HomeScreen> {
         ? hoTen
         : (FirebaseAuth.instance.currentUser?.displayName ?? 'Bệnh nhân');
 
+    // [MỚI] Hồ sơ đang xem
+    final family = context.watch<FamilyProfileProvider>();
+    final currentProfile = family.current;
+
+    // [SỬA] Lọc lịch sắp tới theo hồ sơ đang chọn
     final upcomingLichHen = _findUpcoming(
-      context.watch<LichHenProvider>().activeBookings,
+      context.watch<LichHenProvider>().activeBookingsOf(currentProfile?.id),
     );
     final upcomingItem = upcomingLichHen != null
         ? _convertToAppointmentItem(upcomingLichHen)
@@ -235,6 +263,10 @@ class _HomeScreenState extends State<HomeScreen> {
         edgeOffset: topInset,
         onRefresh: () async {
           await auth.fetchCurrentUser();
+          await context.read<FamilyProfileProvider>().load(
+            auth.user,
+            force: true,
+          ); // [MỚI]
           await _loadBookings();
           await notificationProvider.refresh();
         },
@@ -263,6 +295,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           unreadCount: unreadCount,
                           onBellTap: _openNotifications,
                           onAvatarTap: _openProfile,
+                          // [MỚI]
+                          profileLabel: currentProfile == null
+                              ? null
+                              : (currentProfile.isSelf
+                                    ? 'Tôi'
+                                    : '${currentProfile.quanHe} - ${currentProfile.hoTen}'),
+                          onSwitchTap: () => showProfileSwitcherSheet(context),
                         ),
                         const SizedBox(height: 18),
                         _SearchBar(onTap: _openBooking),
@@ -288,49 +327,75 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── Dịch vụ nhanh ──
+                    // ── Dịch vụ nhanh (lưới 3 cột x 2 hàng) ──
                     const _SectionTitle(title: 'Dịch vụ nhanh'),
                     const SizedBox(height: 14),
-                    Wrap(
-                      alignment: WrapAlignment.spaceEvenly,
-                      runSpacing: 16, // Khoảng cách giữa 2 hàng
-                      spacing: 16, // Khoảng cách giữa các nút trong cùng 1 hàng
+                    IntrinsicHeight(
+                      child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _ServiceItem(
-                          icon: Icons.add_circle_rounded,
-                          label: 'Đặt lịch\nkhám',
-                          color: AppTheme.primary,
-                          onTap: _openBooking,
+                        Expanded(
+                          child: _ServiceItem(
+                            icon: Icons.add_circle_rounded,
+                            label: 'Đặt lịch\nkhám',
+                            color: AppTheme.primary,
+                            onTap: _openBooking,
+                          ),
                         ),
-                        _ServiceItem(
-                          icon: Icons.qr_code_2_rounded,
-                          label: 'Mã QR\ncủa tôi',
-                          color: AppTheme.success,
-                          onTap: _openQr,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _ServiceItem(
+                            icon: Icons.event_note_rounded,
+                            label: 'Lịch khám\ncủa tôi',
+                            color: const Color(0xFF8B5CF6),
+                            onTap: _openMyAppointments,
+                          ),
                         ),
-                        _ServiceItem(
-                          icon: Icons.event_note_rounded,
-                          label: 'Lịch khám\ncủa tôi',
-                          color: const Color(0xFF8B5CF6),
-                          onTap: _openMyAppointments,
-                        ),
-                        _ServiceItem(
-                          icon: Icons.assignment_ind_rounded,
-                          label: 'Hồ sơ\ncá nhân',
-                          color: const Color(0xFFF59E0B),
-                          onTap: _openProfile,
-                        ),
-                        // ✅ NÚT MỚI: Theo dõi lịch khám
-                        _ServiceItem(
-                          icon: Icons
-                              .monitor_heart_rounded, // Icon phù hợp với y tế/theo dõi
-                          label: 'Theo dõi\ntrực tiếp',
-                          color: const Color(
-                            0xFF0EA5E9,
-                          ), // Màu xanh dương sáng (Sky Blue) tạo điểm nhấn
-                          onTap: _openAppointmentTracking,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _ServiceItem(
+                            icon: Icons.monitor_heart_rounded,
+                            label: 'Theo dõi\ntrực tiếp',
+                            color: const Color(0xFF0EA5E9),
+                            onTap: _openAppointmentTracking,
+                          ),
                         ),
                       ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    IntrinsicHeight(
+                      child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _ServiceItem(
+                            icon: Icons.qr_code_2_rounded,
+                            label: 'Mã QR\ncủa tôi',
+                            color: AppTheme.success,
+                            onTap: _openQr,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _ServiceItem(
+                            icon: Icons.groups_rounded,
+                            label: 'Quản lý\nngười thân',
+                            color: const Color(0xFFEC4899),
+                            onTap: _openFamilyProfiles,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _ServiceItem(
+                            icon: Icons.assignment_ind_rounded,
+                            label: 'Hồ sơ\ncá nhân',
+                            color: const Color(0xFFF59E0B),
+                            onTap: _openProfile,
+                          ),
+                        ),
+                      ],
+                      ),
                     ),
                     const SizedBox(height: 28),
 
@@ -432,12 +497,16 @@ class _HomeHeader extends StatelessWidget {
   final int unreadCount;
   final VoidCallback onBellTap;
   final VoidCallback onAvatarTap;
+  final String? profileLabel; // [MỚI]
+  final VoidCallback onSwitchTap; // [MỚI]
 
   const _HomeHeader({
     required this.userName,
     required this.unreadCount,
     required this.onBellTap,
     required this.onAvatarTap,
+    required this.onSwitchTap,
+    this.profileLabel,
   });
 
   @override
@@ -510,6 +579,52 @@ class _HomeHeader extends StatelessWidget {
                   letterSpacing: -0.3,
                 ),
               ),
+              // [MỚI] Nút đổi hồ sơ đang xem
+              if (profileLabel != null) ...[
+                const SizedBox(height: 6),
+                GestureDetector(
+                  onTap: onSwitchTap,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.white.withOpacity(0.25)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.swap_horiz_rounded,
+                          size: 14,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            'Đang xem: $profileLabel',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -675,6 +790,11 @@ class _UpcomingCard extends StatelessWidget {
         : (a.gioDuKien.isNotEmpty ? a.gioDuKien : 'Đang cập nhật');
     final queueText = a.soThuTu > 0 ? '#${a.soThuTu}' : 'Chờ cấp';
 
+    // [MỚI] Lịch đặt hộ: hiện tên người đi khám
+    final isForRelative =
+        a.profileKey != FamilyProfileModel.selfId &&
+        (a.tenNguoiKham ?? '').isNotEmpty;
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -792,6 +912,35 @@ class _UpcomingCard extends StatelessWidget {
                                             fontSize: 13,
                                             color: Colors.white.withOpacity(
                                               0.88,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                                // [MỚI]
+                                if (isForRelative) ...[
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.person_rounded,
+                                        size: 14,
+                                        color: Colors.white.withOpacity(0.85),
+                                      ),
+                                      const SizedBox(width: 5),
+                                      Expanded(
+                                        child: Text(
+                                          'Khám cho: ${a.tenNguoiKham}'
+                                          '${(a.quanHe ?? '').isNotEmpty ? ' (${a.quanHe})' : ''}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white.withOpacity(
+                                              0.95,
                                             ),
                                           ),
                                         ),
@@ -1173,6 +1322,7 @@ class _ServiceItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         child: Container(
+          width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),

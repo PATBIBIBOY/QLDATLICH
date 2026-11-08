@@ -24,7 +24,6 @@ class _LoginScreenState extends State<LoginScreen> {
   static const _danger = Color(0xFFE53935);
   static const _grey = Color(0xFF64748B);
 
-  // ✅ 1. Thêm GlobalKey để quản lý Form và trigger validator
   final _formKey = GlobalKey<FormState>();
 
   static const _roleLeTan = {'receptionist', 'le_tan'};
@@ -58,19 +57,19 @@ class _LoginScreenState extends State<LoginScreen> {
   // ───────────────────────── ĐĂNG NHẬP ─────────────────────────
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
- 
+
     final email = _emailCtrl.text.trim();
     final password = _passCtrl.text;
- 
+
     try {
       final auth = context.read<AuthProvider>();
       final selectedRoleCode = _roles[_selectedRoleIndex]['code'] as String;
- 
+
       // 1. Đăng nhập bằng MÃ NHÂN VIÊN nội bộ (không có @)
       if (!email.contains('@') && selectedRoleCode != 'admin') {
         final handled = await _loginByStaffCode(email, password);
         if (handled) return;
- 
+
         // Không phải mã nhân viên và cũng không phải email -> không đăng nhập được
         throw Exception(
           'Không tìm thấy tài khoản. Vui lòng nhập email '
@@ -78,7 +77,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
       if (!mounted) return;
- 
+
       // 2. Admin: đăng nhập Firebase + kiểm tra quyền admin
       if (selectedRoleCode == 'admin') {
         await auth.loginAdmin(email: email, password: password);
@@ -90,13 +89,13 @@ class _LoginScreenState extends State<LoginScreen> {
         );
         return;
       }
- 
-      // 3. ĐĂNG NHẬP FIREBASE bằng email + mật khẩu (bước bị thiếu trước đây).
+
+      // 3. ĐĂNG NHẬP FIREBASE bằng email + mật khẩu.
       //    Sai mật khẩu -> ném lỗi; chưa xác thực email -> ném 'EMAIL_NOT_VERIFIED'.
       //    Thành công -> AuthProvider đã nạp hồ sơ (user / hospital).
       await auth.login(email: email, password: password, role: selectedRoleCode);
       if (!mounted) return;
- 
+
       // 4. Nhân viên có tài khoản Auth / email
       final currentUid = FirebaseAuth.instance.currentUser?.uid;
       if (currentUid != null) {
@@ -104,11 +103,19 @@ class _LoginScreenState extends State<LoginScreen> {
         if (handled) return;
       }
       if (!mounted) return;
- 
-      // 5. Bệnh viện
-      if (selectedRoleCode == 'benh_vien' || auth.hospital != null) {
+
+      // 5. Tab Bệnh viện: bắt buộc phải có hồ sơ bệnh viện
+      if (selectedRoleCode == 'benh_vien') {
+        if (auth.hospital == null) {
+          await auth.logout();
+          throw Exception(
+            'Tài khoản này chưa đăng ký là bệnh viện. '
+            'Vui lòng đăng nhập ở tab Bệnh nhân hoặc đăng ký tài khoản bệnh viện.',
+          );
+        }
         AppSession.benhVienId =
             auth.hospital?.uid ?? FirebaseAuth.instance.currentUser?.uid ?? '';
+        if (!mounted) return;
         Navigator.pushNamedAndRemoveUntil(
           context,
           AppRoutes.hospitalDashboard,
@@ -116,18 +123,23 @@ class _LoginScreenState extends State<LoginScreen> {
         );
         return;
       }
- 
-      // 6. Bệnh nhân: phải có hồ sơ, tránh vào app mà không hiện đúng tài khoản
+
+      // 6. Tab Bệnh nhân: bắt buộc phải có hồ sơ bệnh nhân
       if (auth.user == null) {
+        final isHospital = auth.hospital != null;
         await auth.logout();
-        throw Exception('Không tìm thấy hồ sơ bệnh nhân của tài khoản này.');
+        throw Exception(
+          isHospital
+              ? 'Đây là tài khoản bệnh viện. Vui lòng chọn tab Bệnh viện để đăng nhập.'
+              : 'Không tìm thấy hồ sơ bệnh nhân của tài khoản này.',
+        );
       }
       _goToPatientMain();
     } catch (e) {
       if (!mounted) return;
- 
+
       final errorMessage = _loginErrorMessage(e);
- 
+
       if (errorMessage.contains('EMAIL_NOT_VERIFIED')) {
         Navigator.pushReplacementNamed(
           context,
@@ -136,7 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
         return;
       }
- 
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(errorMessage), backgroundColor: _danger),
       );
@@ -441,7 +453,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 24),
 
-              // ✅ 3. Bọc các input vào trong Form để validator hoạt động
               Form(
                 key: _formKey,
                 child: Column(
@@ -452,9 +463,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       validator: (value) {
                         final input = (value ?? '').trim();
                         if (input.isEmpty) return 'Vui lòng nhập email hoặc số điện thoại';
-                        
+
                         if (input.contains('@')) {
-                          return validateEmail(input); // Hàm thông minh có gợi ý sửa lỗi
+                          return validateEmail(input);
                         }
                         return validatePhone(input);
                       },
@@ -473,7 +484,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // ✅ 4. Nâng cấp lên TextFormField để có thể validate mật khẩu
                     TextFormField(
                       controller: _passCtrl,
                       obscureText: _obscure,

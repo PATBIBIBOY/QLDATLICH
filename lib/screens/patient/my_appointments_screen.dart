@@ -2,11 +2,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_routes.dart';
+import '../../models/family_profile_model.dart';
 import '../../models/lichhen_model.dart';
 import '../../providers/lich_hen_provider.dart';
 import '../../widgets/appointment_card.dart';
 import '../../widgets/custom_bottom_nav_bar.dart';
 import '../../models/appointment_item.dart';
+
+enum _Scope { all, mine, relatives }
 
 /// Chỉnh độ trong suốt an toàn cho mọi phiên bản Flutter (thay withOpacity).
 extension _ColorX on Color {
@@ -40,8 +43,21 @@ class MyAppointmentsScreen extends StatefulWidget {
 }
 
 class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
+  _Scope _scope = _Scope.all;
+
   String? get _patientId =>
       widget.benhNhanId ?? FirebaseAuth.instance.currentUser?.uid;
+
+  bool _inScope(LichHenModel booking) {
+    switch (_scope) {
+      case _Scope.mine:
+        return booking.profileKey == FamilyProfileModel.selfId;
+      case _Scope.relatives:
+        return booking.profileKey != FamilyProfileModel.selfId;
+      case _Scope.all:
+        return true;
+    }
+  }
 
   @override
   void initState() {
@@ -78,11 +94,20 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
     final khoa = b.tenKhoa ?? 'Chuyên khoa';
     final hasHours = b.gioBatDau != null && b.gioKetThuc != null;
     final hours = hasHours ? '${b.gioBatDau} - ${b.gioKetThuc}' : '';
+    final patientName =
+        b.profileKey != FamilyProfileModel.selfId &&
+            (b.tenNguoiKham ?? '').isNotEmpty
+        ? '${b.tenNguoiKham} (${b.quanHe ?? 'Người thân'})'
+        : null;
+    final subtitleParts = [
+      if (patientName != null) patientName,
+      hasHours ? '$khoa • Giờ khám: $hours' : khoa,
+    ];
 
     return MyAppointmentItem(
       id: b.id,
       hospitalName: b.tenBenhVien ?? 'Bệnh viện ${b.benhVienId}',
-      subtitle: hasHours ? '$khoa • Giờ khám: $hours' : khoa,
+      subtitle: subtitleParts.join(' • '),
       status: statusFromTrangThaiId(b.trangThaiId),
       departmentName: khoa,
       dateLabel: _formatDate(b.ngayDat),
@@ -122,7 +147,7 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
 
     final items = usePreview
         ? widget.appointments!
-        : provider.activeBookings.map(_toItem).toList();
+        : provider.activeBookings.where(_inScope).map(_toItem).toList();
     final historyCount =
         widget.historyCount ??
         (usePreview ? 0 : provider.historyBookings.length);
@@ -165,6 +190,29 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
         ),
       );
     } else {
+      if (!usePreview) {
+        children.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Wrap(
+              spacing: 8,
+              children:
+                  {
+                    _Scope.all: 'Tất cả',
+                    _Scope.mine: 'Của tôi',
+                    _Scope.relatives: 'Người thân',
+                  }.entries.map((entry) {
+                    return ChoiceChip(
+                      label: Text(entry.value),
+                      selected: _scope == entry.key,
+                      onSelected: (_) => setState(() => _scope = entry.key),
+                    );
+                  }).toList(),
+            ),
+          ),
+        );
+      }
+
       if (items.isEmpty) {
         children.add(_EmptyState(onBookNow: _goBookNow));
       } else {

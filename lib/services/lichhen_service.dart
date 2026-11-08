@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/lichhen_model.dart';
+import '../models/family_profile_model.dart';
 
 class LichHenService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -98,6 +99,75 @@ class LichHenService {
     }
   }
 
+  static const List<Object> _trangThaiChiemCho = [2, '2'];
+
+  static const Duration _vnOffset = Duration(hours: 7);
+
+  /// Khoảng [00:00, 24:00) của ngày [ngay] theo giờ Việt Nam, đổi sang UTC.
+  /// Chỉ lấy năm/tháng/ngày nên không phụ thuộc múi giờ của máy.
+  ({Timestamp start, Timestamp end}) _khoangNgayVN(DateTime ngay) {
+    final startUtc = DateTime.utc(
+      ngay.year,
+      ngay.month,
+      ngay.day,
+    ).subtract(_vnOffset);
+    final endUtc = startUtc.add(const Duration(days: 1));
+    return (
+      start: Timestamp.fromDate(startUtc),
+      end: Timestamp.fromDate(endUtc),
+    );
+  }
+
+  /// Số lịch hẹn đã chiếm chỗ của 1 ca (bệnh viện + khoa + phòng + ca + ngày).
+  Future<int> demLichDaDat({
+    required DateTime ngay,
+    required String benhVienId,
+    required String khoaId,
+    required String phongKhamId,
+    required String caId,
+  }) async {
+    final range = _khoangNgayVN(ngay);
+    final snapshot = await _firestore
+        .collection(_colLichHen)
+        .where('benh_vien_id', isEqualTo: benhVienId)
+        .where('khoa_id', isEqualTo: khoaId)
+        .where('phong_kham_id', isEqualTo: phongKhamId)
+        .where('ca_id', isEqualTo: caId)
+        .where('trang_thai_id', whereIn: _trangThaiChiemCho)
+        .where('ngay_dat', isGreaterThanOrEqualTo: range.start)
+        .where('ngay_dat', isLessThan: range.end)
+        .count()
+        .get();
+    return snapshot.count ?? 0;
+  }
+
+  /// Số chỗ còn lại = tổng số chỗ của phòng − số lịch đã đặt (không âm).
+  Future<int> soChoConLai({
+    required DateTime ngay,
+    required String benhVienId,
+    required String khoaId,
+    required String phongKhamId,
+    required String caId,
+    int soBenhNhanToiDa = 0,
+  }) async {
+    final tongSo =
+        await _layTongSoTuPhongKham(
+          benhVienId: benhVienId,
+          khoaId: khoaId,
+          phongKhamId: phongKhamId,
+        ) ??
+        soBenhNhanToiDa;
+    final daDat = await demLichDaDat(
+      ngay: ngay,
+      benhVienId: benhVienId,
+      khoaId: khoaId,
+      phongKhamId: phongKhamId,
+      caId: caId,
+    );
+    final conLai = tongSo - daDat;
+    return conLai < 0 ? 0 : conLai;
+  }
+
   Future<List<CaSlotModel>> getCaSlotsTheoPhong({
     required DateTime ngay,
     required String benhVienId,
@@ -123,9 +193,7 @@ class LichHenService {
         ) ??
         soBenhNhanToiDa;
 
-    final start = DateTime(ngay.year, ngay.month, ngay.day);
-    final end = start.add(const Duration(days: 1));
-
+    // 3. Đếm số lịch đã đặt của từng ca (chạy song song)
     final results = await Future.wait<CaSlotModel>(
       caList.map((entry) async {
         final caId = entry.key;
@@ -137,23 +205,13 @@ class LichHenService {
           return v.isNotEmpty ? v : (macDinh?[key] ?? fallback);
         }
 
-        // Query cơ bản lọc theo phòng, ngày, ca
-        final baseQuery = _firestore
-            .collection(_colLichHen)
-            .where('benh_vien_id', isEqualTo: benhVienId)
-            .where('khoa_id', isEqualTo: khoaId)
-            .where('phong_kham_id', isEqualTo: phongKhamId)
-            .where('ca_id', isEqualTo: caId)
-            .where(
-              'ngay_dat',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(start),
-            )
-            .where('ngay_dat', isLessThan: Timestamp.fromDate(end));
-
-        final approvedQuery = baseQuery.where('trang_thai_id', isEqualTo: '2');
-
-        final countSnapshot = await approvedQuery.count().get();
-        final daDat = countSnapshot.count ?? 0;
+        final daDat = await demLichDaDat(
+          ngay: ngay,
+          benhVienId: benhVienId,
+          khoaId: khoaId,
+          phongKhamId: phongKhamId,
+          caId: caId,
+        );
 
         return CaSlotModel(
           caId: caId,
@@ -213,10 +271,10 @@ class LichHenService {
     required String benhVienId,
     required String khoaId,
     required DateTime ngayDat,
+    String? profileId, // mới
   }) async {
     final start = DateTime(ngayDat.year, ngayDat.month, ngayDat.day);
     final end = start.add(const Duration(days: 1));
-
     try {
       final snapshot = await _firestore
           .collection(_colLichHen)
@@ -225,17 +283,15 @@ class LichHenService {
           .where('khoa_id', isEqualTo: khoaId)
           .where('ngay_dat', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
           .where('ngay_dat', isLessThan: Timestamp.fromDate(end))
-          .limit(
-            1,
-          ) // ✅ Tối ưu: Chỉ cần tìm thấy 1 là biết bị trùng, không cần tải hết
           .get();
 
-      for (var doc in snapshot.docs) {
-        final status = doc.data()['trang_thai_id']?.toString();
-        // Chỉ tính là trùng nếu lịch chưa bị hủy (3: BN hủy, 4: BV hủy)
-        if (status != '3' && status != '4') {
-          return true;
-        }
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final status = data['trang_thai_id']?.toString();
+        if (status == '3' || status == '4') continue; // đã hủy
+        final docProfile = (data['profile_id'] ?? FamilyProfileModel.selfId)
+            .toString();
+        if (profileId == null || docProfile == profileId) return true;
       }
       return false;
     } catch (e) {
@@ -257,6 +313,10 @@ class LichHenService {
     String? tenBenhVien,
     String? tenKhoa,
     String? tenPhongKham,
+    String? profileId,
+    String? tenNguoiKham,
+    String? quanHe,
+    String? tenNguoiDat,
   }) async {
     final finalLichHenId =
         lichHenId ??
@@ -280,6 +340,10 @@ class LichHenService {
       if (tenBenhVien != null) 'ten_benh_vien': tenBenhVien,
       if (tenKhoa != null) 'ten_khoa': tenKhoa,
       if (tenPhongKham != null) 'ten_phong_kham': tenPhongKham,
+      if (profileId != null) 'profile_id': profileId,
+      if (tenNguoiKham != null) 'ten_nguoi_kham': tenNguoiKham,
+      if (quanHe != null) 'quan_he': quanHe,
+      if (tenNguoiDat != null) 'ten_nguoi_dat': tenNguoiDat,
       'ma_qr': null,
       'ngay_tao': FieldValue.serverTimestamp(),
     });

@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth ;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_routes.dart';
 import '../../models/appointment_item.dart';
 import '../../models/phong_kham_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/family_profile_provider.dart';
 import '../../providers/lich_hen_provider.dart';
 import '../../providers/review_provider.dart';
 import '../../services/hospital_service.dart';
 import '../../services/lichhen_service.dart';
 import '../../utils/app_snackbar.dart';
 import '../../utils/booking_helper.dart';
+import '../../widgets/family_widgets.dart';
 import '../../widgets/patient_widget/book_appointment_widget.dart';
 import 'booking_confirm_sheet.dart';
 import '../../models/lichhen_model.dart';
@@ -45,6 +48,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
 
   int _selectedStar = 5;
   int _reviewVisibleCount = 5;
+  String? _bookingProfileId;
 
   @override
   void dispose() {
@@ -56,7 +60,11 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<LichHenProvider>().clearCache();
+      if (!mounted) return;
+      context.read<LichHenProvider>().clearCache();
+      setState(() {
+        _bookingProfileId = context.read<FamilyProfileProvider>().currentId;
+      });
     });
   }
 
@@ -185,6 +193,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         _selectedSlotByDept.remove(departmentId);
       }
     });
+    // force: true → luôn đếm lại số lịch hẹn thật, không dùng số đã cache
     context.read<LichHenProvider>().loadSlots(
       ngay: date,
       benhVienId: _hospitalId,
@@ -195,6 +204,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         roomId,
         _roomsByDept,
       ),
+      force: true,
     );
   }
 
@@ -235,6 +245,18 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       );
       return;
     }
+
+    final family = context.read<FamilyProfileProvider>();
+    final profile = family.byId(_bookingProfileId ?? family.currentId);
+    if (profile == null) {
+      context.showAppSnackBar(
+        title: 'Chưa chọn người khám',
+        message: 'Vui lòng chọn khám cho ai',
+        type: SnackBarType.warning,
+      );
+      return;
+    }
+
     if (!_isScheduleComplete) {
       context.showAppSnackBar(
         title: 'Chưa hoàn tất thông tin lịch khám',
@@ -246,8 +268,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
 
     final lichHenProvider = context.read<LichHenProvider>();
-    final String benhNhanId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final String benhNhanId =
+      firebase_auth.FirebaseAuth.instance.currentUser?.uid ?? '';
     final String trangThaiId = '1';
+    final tenNguoiDat = context.read<AuthProvider>().user?.hoTen;
     final String tenBenhVien =
         _hospitalData?['ten_benh_vien']?.toString() ??
         'Bệnh viện không xác định';
@@ -261,7 +285,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         benhVienId: _hospitalId,
         khoaId: departmentId,
         ngayDat: date,
+        profileId: profile.id,
       );
+
+      if (!mounted) return;
 
       if (hasConflict) {
         final tenKhoa = BookingHelper.departmentName(
@@ -330,6 +357,43 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         }
       }
 
+      // ✅ KIỂM TRA CÒN CHỖ: đếm lại trực tiếp từ Firestore ngay trước khi đặt,
+      // phòng khi người khác vừa đặt hết chỗ lúc bạn đang chọn.
+      if (selectedSlot.tongSo > 0) {
+        try {
+          final conLai = await _lichHenService.soChoConLai(
+            ngay: date,
+            benhVienId: _hospitalId,
+            khoaId: departmentId,
+            phongKhamId: roomId,
+            caId: caId,
+            soBenhNhanToiDa: selectedSlot.tongSo,
+          );
+          if (!mounted) return;
+          if (conLai <= 0) {
+            // Làm mới số liệu trên màn hình
+            lichHenProvider.loadSlots(
+              ngay: date,
+              benhVienId: _hospitalId,
+              khoaId: departmentId,
+              phongKhamId: roomId,
+              soBenhNhanToiDa: selectedSlot.tongSo,
+              force: true,
+            );
+            context.showAppSnackBar(
+              title: 'Ca khám đã hết chỗ',
+              message:
+                  '${selectedSlot.tenCa} ngày ${BookingHelper.formatDayMonth(date)} tại khoa $tenKhoa đã đủ số lượng. Vui lòng chọn ca hoặc ngày khác.',
+              type: SnackBarType.warning,
+            );
+            return;
+          }
+        } catch (e) {
+          // Đếm lỗi (vd. thiếu index): không chặn người dùng, chỉ ghi log.
+          debugPrint('⚠️ Không kiểm tra được số chỗ còn lại: $e');
+        }
+      }
+
       final lichHenId = await _lichHenService.generateLichHenId(
         ngayDat: date,
         benhVienId: _hospitalId,
@@ -357,6 +421,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           tenPhongKham: tenPhongKham,
           benhNhanId: benhNhanId,
           lichHenId: lichHenId,
+          profileId: profile.id,
+          tenNguoiKham: profile.hoTen,
+          quanHe: profile.quanHe,
+          tenNguoiDat: tenNguoiDat,
         ),
       );
     }
@@ -379,6 +447,9 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       dateLabel: dateLabel,
       address: address,
       bhytNote: bhytNote,
+      patientName: profile.isSelf
+          ? profile.hoTen
+          : '${profile.quanHe} - ${profile.hoTen}',
     );
 
     if (confirmed == true && mounted) {
@@ -412,6 +483,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
 
         final departmentLabel = departmentNames.join(', ');
         final shiftLabel = shiftLabels.join('; ');
+        family.select(profile.id);
         final appointment = MyAppointmentItem(
           id: lichHenIds.length == 1
               ? '#${lichHenIds.first}'
@@ -551,6 +623,15 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                     ),
                     const SizedBox(height: 16),
                     const BookingInfoBox(),
+                    const SizedBox(height: 16),
+                    Consumer<FamilyProfileProvider>(
+                      builder: (_, fp, __) => ProfileChipsRow(
+                        profiles: fp.profiles,
+                        selectedId: _bookingProfileId ?? fp.currentId,
+                        onSelected: (id) =>
+                            setState(() => _bookingProfileId = id),
+                      ),
+                    ),
                     const SizedBox(height: 24),
                     SpecialtySelectionSection(
                       selectedCount: _selectedDepartmentIds.length,
