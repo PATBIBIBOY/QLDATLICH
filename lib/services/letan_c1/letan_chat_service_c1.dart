@@ -26,17 +26,18 @@ class LetanChatServiceC1 {
       for (var doc in snap.docs) {
         final d = doc.data();
         final docId = doc.id;
-        // Lọc theo bệnh viện
         final docBv = (d['benhVienId'] ?? d['benh_vien_id'] ?? '').toString();
 
         // Kiểm tra khớp bệnh viện:
-        // 1. Nếu docBv khớp với bvid (hoặc ngược lại)
-        // 2. Hoặc document ID có format CONV_{benhVienId}_{benhNhanId} chứa mã bệnh viện
-        // 3. Hoặc nếu doc chưa có mã bệnh viện thì vẫn hiện cho CSKH để không bỏ sót yêu cầu của bệnh nhân
+        // 1. Nếu docBv hoặc docId có chứa bvid (ví dụ 'BV502')
+        // 2. Hoặc nếu tài khoản hiện tại là BV502 và doc thuộc BV502
+        // 3. Không lọc nếu cuộc trò chuyện thuộc cùng bệnh viện
         if (bvid.isNotEmpty && docBv.isNotEmpty) {
-          final matchDocBv = docBv.toLowerCase().contains(bvid.toLowerCase()) || bvid.toLowerCase().contains(docBv.toLowerCase());
-          final matchDocId = docId.toLowerCase().contains(bvid.toLowerCase());
-          if (!matchDocBv && !matchDocId) {
+          final isSameBv = docBv.toLowerCase() == bvid.toLowerCase() ||
+              docBv.toLowerCase().contains(bvid.toLowerCase()) ||
+              bvid.toLowerCase().contains(docBv.toLowerCase()) ||
+              docId.toLowerCase().contains(bvid.toLowerCase());
+          if (!isSameBv) {
             continue;
           }
         }
