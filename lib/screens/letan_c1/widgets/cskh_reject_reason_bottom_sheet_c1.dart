@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../mock/mock_c1/dulieu_mau_cskh_c1.dart';
+import '../../../models/letan_c1/cskh_constants_c1.dart';
 import '../../../models/letan_c1/letan_design_system_c1.dart';
 import '../../../services/letan_c1/letan_firebase_service_c1.dart';
 
