@@ -9,14 +9,12 @@ import 'cskh_danhsach_don_khoa_screen_c1.dart';
 import 'cskh_danhsach_tinnhan_screen_c1.dart';
 import 'cskh_profile_tab_c1.dart';
 import 'letan_baocaoloi_screen_c1.dart';
-import 'letan_trangchu_screen_c1.dart';
 import 'widgets/cskh_bottom_nav_c1.dart';
 import 'widgets/cskh_department_card_c1.dart';
 import 'widgets/cskh_department_selector_card_c1.dart';
 import 'widgets/cskh_stats_row_c1.dart';
 import 'widgets/cskh_tab_duyet_phong_c1.dart';
 import 'widgets/cskh_thong_bao_bottom_sheet_c1.dart';
-import 'widgets/department_picker_modal_c1.dart';
 
 export 'widgets/cskh_department_card_c1.dart' show KhoaKhamModelC1;
 
@@ -42,14 +40,22 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
   void initState() {
     super.initState();
     final khoaNv = DuLieuProfileMauC1.thongTinHienTai.khoa.trim();
-    if (khoaNv.isNotEmpty &&
-        !khoaNv.toLowerCase().contains('bộ phận') &&
-        !khoaNv.toLowerCase().contains('cskh') &&
-        !khoaNv.toLowerCase().contains('toàn viện')) {
-      _tenKhoaHienTai = khoaNv;
-    } else {
-      _tenKhoaHienTai = 'Tất cả các khoa (Tổng)';
-    }
+    _tenKhoaHienTai = (khoaNv.isNotEmpty && !khoaNv.toLowerCase().contains('toàn viện'))
+        ? khoaNv
+        : 'Khoa Khám Bệnh';
+
+    // Tự động đồng bộ thời gian thực nếu Bệnh viện đổi khoa trên Firestore
+    FirebaseServiceC1.layThongTinNhanVienTuFirestore(DuLieuProfileMauC1.thongTinHienTai.maNhanVien).then((data) {
+      if (mounted && data != null && data['khoa'] != null) {
+        final khoaMoi = data['khoa'].toString().trim();
+        if (khoaMoi.isNotEmpty && khoaMoi != _tenKhoaHienTai) {
+          setState(() {
+            _tenKhoaHienTai = khoaMoi;
+            DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai.copyWith(khoa: khoaMoi);
+          });
+        }
+      }
+    });
     _dangKyLangNgheLoiDaSua();
     _dangKyLangNgheDonKhamMoi();
     // Tự động dọn dẹp Document rác ở cấp 1 chuyển vào /NhanVien/BV502/danh_sach/
@@ -177,20 +183,6 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
     super.dispose();
   }
 
-  // Mở BottomSheet cho phép đổi Chuyên khoa của Bệnh viện
-  void _moModalChonKhoa() {
-    DepartmentPickerModalC1.show(
-      context: context,
-      tenKhoaHienTai: _tenKhoaHienTai,
-      onKhoaSelected: (tenKhoa, khoaId) {
-        setState(() {
-          _tenKhoaHienTai = tenKhoa;
-          _khoaIdHienTai = khoaId;
-        });
-      },
-    );
-  }
-
   Future<void> _chonNgay() async {
     AppDesignSystemC1.hapticLight();
     final DateTime? picked = await showDatePicker(
@@ -287,7 +279,7 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
         tenKhoaHienTai: _tenKhoaHienTai,
         khoaIdHienTai: _khoaIdHienTai,
         ngayChon: _ngayChon,
-        onSelectKhoa: _moModalChonKhoa,
+        onSelectKhoa: null, // Cố định khoa do BV phân công
         onSelectDate: _chonNgay,
         onSelectPhong: _onSelectPhong,
       );
@@ -299,16 +291,6 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
 
     if (_currentBottomNavIndex == 3) {
       return CskhProfileTabC1(
-        onChuyenSangLeTan: () {
-          if (Navigator.canPop(context)) {
-            Navigator.pop(context);
-          } else {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()),
-            );
-          }
-        },
         onDangXuat: () {
           if (Navigator.canPop(context)) {
             Navigator.pop(context);
@@ -328,7 +310,7 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
         children: [
           CskhDepartmentSelectorCardC1(
             tenKhoaHienTai: _tenKhoaHienTai,
-            onChangeDepartment: _moModalChonKhoa,
+            onChangeDepartment: null, // Cố định khoa do BV phân công
           ),
           _buildBannerTongDon(),
           const SizedBox(height: 16),
@@ -381,7 +363,7 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'DANH SÁCH CHUYÊN KHOA',
+                'CHUYÊN KHOA PHÂN CÔNG',
                 style: TextStyle(
                   color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF475569),
                   fontSize: 13,
@@ -389,35 +371,26 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
                   letterSpacing: 0.4,
                 ),
               ),
-              InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => CskhDanhsachDonKhoaScreenC1(
-                        tenKhoa: 'Tất cả các khoa (Tổng)',
-                        phongKham: 'Toàn viện',
-                        caKham: 'Tất cả các ca',
-                        tongDon: 0,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.lock_outline_rounded, size: 12, color: Color(0xFF0284C7)),
+                    SizedBox(width: 4),
+                    Text(
+                      'Cố định theo tài khoản',
+                      style: TextStyle(
+                        color: Color(0xFF0284C7),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                  );
-                },
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text(
-                    'Duyệt toàn viện',
-                    style: TextStyle(
-                      color: Color(0xFF0284C7),
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                  ],
                 ),
               ),
             ],
@@ -464,18 +437,37 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
                 );
               }
 
+              final danhSachLoc = danhSachKhoa.where((k) {
+                final tenKhoa = (k['tenKhoa'] ?? '').toString();
+                return FirebaseServiceC1.laCungKhoa(tenKhoa, _tenKhoaHienTai);
+              }).toList();
+
+              if (danhSachLoc.isEmpty) {
+                final model = KhoaKhamModelC1(
+                  tenKhoa: _tenKhoaHienTai,
+                  moTaPhong: 'Chuyên khoa phân công của bạn',
+                  soLuongDon: 'Duyệt đơn',
+                  icon: Icons.local_hospital_rounded,
+                  laKhoaDangChon: true,
+                );
+
+                return CskhDepartmentCardC1(
+                  khoa: model,
+                  onTap: () => _onSelectKhoa(model),
+                );
+              }
+
               return Column(
-                children: danhSachKhoa.map((k) {
+                children: danhSachLoc.map((k) {
                   final tenKhoa = (k['tenKhoa'] ?? 'Khoa Khám').toString();
                   final moTa = (k['moTaPhong'] ?? '').toString();
-                  final bool isSelected = FirebaseServiceC1.laCungKhoa(tenKhoa, _tenKhoaHienTai);
 
                   final model = KhoaKhamModelC1(
                     tenKhoa: tenKhoa,
                     moTaPhong: moTa.isNotEmpty ? moTa : 'Phòng khám tiêu chuẩn',
                     soLuongDon: 'Duyệt đơn',
                     icon: Icons.local_hospital_rounded,
-                    laKhoaDangChon: isSelected,
+                    laKhoaDangChon: true,
                   );
 
                   return CskhDepartmentCardC1(
@@ -588,7 +580,7 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
                   tieuDe: 'Thông Báo CSKH',
                   tenKhoaHienTai: _tenKhoaHienTai,
                   khoaIdHienTai: _khoaIdHienTai,
-                  onDoiKhoa: _moModalChonKhoa,
+                  onDoiKhoa: null,
                 ),
                 borderRadius: BorderRadius.circular(12),
                 child: Container(

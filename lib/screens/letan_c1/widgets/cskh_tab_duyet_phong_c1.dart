@@ -11,7 +11,7 @@ class CskhTabDuyetPhongC1 extends StatelessWidget {
   final String tenKhoaHienTai;
   final String? khoaIdHienTai;
   final DateTime ngayChon;
-  final VoidCallback onSelectKhoa;
+  final VoidCallback? onSelectKhoa;
   final VoidCallback onSelectDate;
   final void Function(Map<String, dynamic> phong, String tenKhoa) onSelectPhong;
 
@@ -20,7 +20,7 @@ class CskhTabDuyetPhongC1 extends StatelessWidget {
     required this.tenKhoaHienTai,
     required this.khoaIdHienTai,
     required this.ngayChon,
-    required this.onSelectKhoa,
+    this.onSelectKhoa,
     required this.onSelectDate,
     required this.onSelectPhong,
   });
@@ -39,8 +39,8 @@ class CskhTabDuyetPhongC1 extends StatelessWidget {
           CskhDepartmentSelectorCardC1(
             tenKhoaHienTai: tenKhoaHienTai,
             onChangeDepartment: onSelectKhoa,
-            label: 'KHOA ĐANG CHỌN',
-            badgeText: 'Đang làm việc',
+            label: 'KHOA PHÂN CÔNG (CỐ ĐỊNH)',
+            badgeText: 'Bệnh viện chỉ định',
           ),
           const SizedBox(height: 14),
 

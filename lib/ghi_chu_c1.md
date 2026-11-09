@@ -428,3 +428,24 @@ Theo cấu trúc Firestore chuẩn thống nhất 2 chiều giữa phía Phân h
    - **Xóa bỏ hoàn toàn dữ liệu Mock Fallback trong Chat:** Khi danh sách hội thoại hoặc tin nhắn trống, hiển thị `EmptyStateWidget` chuyên nghiệp, không còn trộn lẫn dữ liệu ảo `ht_01`, `ht_02` từ `dulieu_mau_cskh_c1.dart`.
    - **Tự động đánh dấu đã đọc (`danhDauDaDoc`):** Ngay khi nhân viên CSKH mở màn hình chat chi tiết `CskhChatChitietScreenC1`, hệ thống cập nhật `unreadCountSupport = 0` và chuyển `isRead = true` cho toàn bộ tin nhắn từ phía bệnh nhân trong `Conversations/{conversationId}/Messages`.
    - **An toàn chỉ mục (No Composite Index Error):** Thực hiện sắp xếp `Conversations` và `Messages` linh hoạt ở client-side trên Stream, tránh gây ra Exception thiếu Firestore Composite Index.
+
+
+## 🔒 XI. QUY TẮC CỐ ĐỊNH ROLE & KHOA PHÂN CÔNG (KHÔNG CHO PHÉP NHÂN VIÊN TỰ ĐỔI)
+
+Theo đúng yêu cầu quản trị hệ thống y tế:
+1. **Cố định Vai trò / Role theo tài khoản:**
+   - Mỗi tài khoản nhân viên y tế được Bệnh viện tạo trên Firestore có vai trò cố định (`role` / `vai_tro_id` / `chuc_vu`).
+   - Nhân viên KHÔNG THỂ tự ý đổi Role hoặc chuyển giao diện giữa Lễ tân và Chăm sóc khách hàng:
+     - Tài khoản Lễ tân (`le_tan` / `receptionist`): Chỉ truy cập và làm việc tại phân hệ Lễ tân tiếp đón (`LeTanHomeScreenC1`). Không thể đổi sang CSKH để duyệt đơn.
+     - Tài khoản CSKH (`cham_soc_khach_hang` / `cskh`): Chỉ truy cập và làm việc tại phân hệ CSKH (`CskhDuyetdonKhoaScreenC1`). Bỏ hoàn toàn nút "Chuyển sang Lễ tân" trong Profile.
+     - Tại trang Chỉnh sửa thông tin (`LetanCapnhatProfileScreenC1`): Chức vụ/Vai trò hiển thị cố định (Read-only kèm biểu tượng khóa), nhân viên chỉ được phép sửa Họ tên và Gmail cá nhân.
+
+2. **Cố định Chuyên khoa làm việc (Chỉ xem và duyệt mỗi khoa mình):**
+   - Khoa tiếp đón và duyệt đơn được gắn chặt theo trường `khoa` trong Document nhân viên tại Firestore `/NhanVien/BV502/danh_sach/{maNv}`.
+   - Nhân viên KHÔNG THỂ tự chọn đổi sang khoa khác trên giao diện:
+     - **Phân hệ CSKH**: Thẻ `CskhDepartmentSelectorCardC1` và Tab Duyệt phòng hiển thị badge `Cố định bởi Bệnh viện` (ẩn nút "Đổi Khoa"). Bỏ nút "Duyệt toàn viện", danh sách chuyên khoa chỉ hiển thị duy nhất khoa của nhân viên đó.
+     - **Phân hệ Lễ tân**: Khóa không cho mở modal đổi khoa trên Header. Bỏ nút chuyển "Toàn viện / Khoa của tôi", hiển thị cố định khoa của nhân viên. Danh sách tiếp đón và lịch hẹn lọc chặt chẽ theo khoa của nhân viên.
+     - **Trang Chỉnh sửa thông tin**: Chuyên khoa tiếp nhận hiển thị dạng Read-only có khóa, nhân viên không được tự ý chọn khoa khác.
+
+3. **Cơ chế đồng bộ tự động khi Bệnh viện đổi Khoa:**
+   - Khi Ban quản trị Bệnh viện điều chuyển nhân viên sang khoa khác (cập nhật trường `khoa` trên Firestore), ứng dụng tự động đồng bộ và cập nhật ngay lập tức khoa mới cho nhân viên mà không làm gãy luồng dữ liệu.

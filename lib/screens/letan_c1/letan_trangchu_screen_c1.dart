@@ -10,7 +10,6 @@ import 'letan_lichhen_screen_c1.dart';
 import 'letan_profile_tab_c1.dart';
 import 'letan_quet_qr_camera_screen_c1.dart';
 import 'widgets/cskh_thong_bao_bottom_sheet_c1.dart';
-import 'widgets/department_picker_modal_c1.dart';
 import 'widgets/letan_bottom_nav_c1.dart';
 import 'widgets/letan_patient_card_c1.dart';
 import 'widgets/letan_qr_banner_c1.dart';
@@ -41,11 +40,25 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
   void initState() {
     super.initState();
     final profileKhoa = DuLieuProfileMauC1.thongTinHienTai.khoa.trim();
-    _tenKhoaHienTai = widget.tenKhoa.trim().isNotEmpty
-        ? widget.tenKhoa.trim()
-        : (profileKhoa.isNotEmpty ? profileKhoa : 'Toàn viện');
+    _tenKhoaHienTai = (profileKhoa.isNotEmpty && !profileKhoa.toLowerCase().contains('toàn viện'))
+        ? profileKhoa
+        : 'Khoa Khám Bệnh';
     _dangKyLangNgheLoiDaSua();
     _dangKyLangNgheDonKhamMoi();
+
+    // Tự động đồng bộ thời gian thực nếu Bệnh viện đổi khoa trên Firestore
+    FirebaseServiceC1.layThongTinNhanVienTuFirestore(DuLieuProfileMauC1.thongTinHienTai.maNhanVien).then((data) {
+      if (mounted && data != null && data['khoa'] != null) {
+        final khoaMoi = data['khoa'].toString().trim();
+        if (khoaMoi.isNotEmpty && khoaMoi != _tenKhoaHienTai) {
+          setState(() {
+            _tenKhoaHienTai = khoaMoi;
+            DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai.copyWith(khoa: khoaMoi);
+          });
+        }
+      }
+    });
+
     // Tự động dọn dẹp Document rác ở cấp 1 chuyển vào /NhanVien/BV502/danh_sach/
     FirebaseServiceC1.donDepDocumentNhanVienCap1('CSKH_02');
     FirebaseServiceC1.donDepDocumentNhanVienCap1();
@@ -184,21 +197,6 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
     setState(() => _currentIndex = 1);
   }
 
-  void _moModalChonKhoaFirebase() {
-    DepartmentPickerModalC1.show(
-      context: context,
-      tenKhoaHienTai: _tenKhoaHienTai,
-      tieuDe: 'Chọn Khoa Tiếp Nhận',
-      moTaPhu: 'Chọn chuyên khoa để lọc danh sách bệnh nhân tiếp đón tại quầy',
-      onKhoaSelected: (tenKhoa, khoaId) {
-        setState(() {
-          _tenKhoaHienTai = tenKhoa;
-          _khoaIdHienTai = khoaId;
-        });
-      },
-    );
-  }
-
   void _showDialogBaoCaoLoi() {
     AppDesignSystemC1.hapticLight();
     Navigator.push(
@@ -299,121 +297,88 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Expanded(
-          child: InkWell(
-            onTap: _moModalChonKhoaFirebase,
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          DuLieuProfileMauC1.thongTinHienTai.tenBenhVien.isNotEmpty
-                              ? DuLieuProfileMauC1.thongTinHienTai.tenBenhVien
-                              : 'Bệnh viện BV502',
-                          style: const TextStyle(
-                            color: Color(0xFFFF9500),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          'Xin chào, Lễ tân $_tenKhoaHienTai',
-                          style: TextStyle(
-                            color: subTextCol,
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: subTextCol),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Text(
-                        'Trang chủ Lễ tân',
-                        style: TextStyle(
-                          color: textCol,
-                          fontSize: 20,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        DuLieuProfileMauC1.thongTinHienTai.tenBenhVien.isNotEmpty
+                            ? DuLieuProfileMauC1.thongTinHienTai.tenBenhVien
+                            : 'Bệnh viện BV502',
+                        style: const TextStyle(
+                          color: Color(0xFFFF9500),
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(width: 8),
-                      // Nút chuyển nhanh Toàn viện / Khoa hiện tại
-                      InkWell(
-                        onTap: () {
-                          AppDesignSystemC1.hapticLight();
-                          setState(() {
-                            final profileKhoa = DuLieuProfileMauC1.thongTinHienTai.khoa.trim();
-                            if (FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai)) {
-                              _tenKhoaHienTai = profileKhoa.isNotEmpty ? profileKhoa : 'Khoa Hô hấp';
-                            } else {
-                              _tenKhoaHienTai = 'Toàn viện';
-                            }
-                          });
-                        },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        'Xin chào, Lễ tân $_tenKhoaHienTai',
+                        style: TextStyle(
+                          color: subTextCol,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Text(
+                      'Trang chủ Lễ tân',
+                      style: TextStyle(
+                        color: textCol,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai)
-                                ? const Color(0xFF0284C7)
-                                : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai)
-                                  ? const Color(0xFF0284C7)
-                                  : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai)
-                                    ? Icons.domain_rounded
-                                    : Icons.local_hospital_rounded,
-                                size: 12,
-                                color: FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai)
-                                    ? Colors.white
-                                    : const Color(0xFF0284C7),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai)
-                                    ? 'Toàn viện'
-                                    : 'Khoa của tôi',
-                                style: TextStyle(
-                                  color: FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai)
-                                      ? Colors.white
-                                      : const Color(0xFF0284C7),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
+                        border: Border.all(
+                          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
                         ),
                       ),
-                    ],
-                  ),
-                ],
-              ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.lock_outline_rounded,
+                            size: 11,
+                            color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Cố định: $_tenKhoaHienTai',
+                            style: TextStyle(
+                              color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
@@ -436,7 +401,7 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
                 tieuDe: 'Thông Báo Lễ Tân',
                 tenKhoaHienTai: _tenKhoaHienTai,
                 khoaIdHienTai: _khoaIdHienTai,
-                onDoiKhoa: _moModalChonKhoaFirebase,
+                onDoiKhoa: null,
               ),
               borderRadius: BorderRadius.circular(12),
               child: Container(

@@ -1,23 +1,22 @@
 import 'package:flutter/material.dart';
+import '../../models/letan_c1/letan_profile_model_c1.dart';
 import 'letan_profile_tab_c1.dart';
 
-/// MÀN HÌNH PROFILE CSKH (RÚT GỌN KẾ THỪA TỪ LETAN_PROFILE_TAB_C1)
-/// Giúp loại bỏ hoàn toàn 530 dòng code trùng lặp (DRY Principle)
+/// MÀN HÌNH PROFILE CSKH (KẾ THỪA TỪ LETAN_PROFILE_TAB_C1)
+/// Cố định vai trò CSKH và Khoa làm việc do Bệnh viện phân công
 class CskhProfileTabC1 extends StatelessWidget {
   final VoidCallback? onDangXuat;
-  final VoidCallback? onChuyenSangLeTan;
 
   const CskhProfileTabC1({
     super.key,
     this.onDangXuat,
-    this.onChuyenSangLeTan,
   });
 
   @override
   Widget build(BuildContext context) {
     return LetanProfileTabC1(
       onDangXuat: onDangXuat,
-      tenKhoaHienTai: 'Bộ Phận CSKH & Tiếp Nhận',
+      tenKhoaHienTai: DuLieuProfileMauC1.thongTinHienTai.khoa,
     );
   }
 }

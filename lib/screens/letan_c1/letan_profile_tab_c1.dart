@@ -41,7 +41,7 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
             email: (data['email'] ?? _thongTin.email).toString(),
             hoTen: (data['ho_ten'] ?? _thongTin.hoTen).toString(),
             chucVu: (data['chuc_vu'] ?? _thongTin.chucVu).toString(),
-            khoa: widget.tenKhoaHienTai ?? (data['khoa'] ?? _thongTin.khoa).toString(),
+            khoa: (data['khoa'] != null && data['khoa'].toString().trim().isNotEmpty) ? data['khoa'].toString().trim() : (widget.tenKhoaHienTai ?? _thongTin.khoa),
             tenBenhVien: (data['ten_benh_vien'] ?? data['tenBenhVien'] ?? _thongTin.tenBenhVien).toString(),
             benhVienId: (data['benh_vien_id'] ?? data['ma_benh_vien'] ?? _thongTin.benhVienId).toString(),
           );
