@@ -49,14 +49,19 @@ class ChatService {
   /// Tự động lấy tất cả cuộc hội thoại thuộc bệnh viện đó (hoặc chứa ID bệnh viện trong CONV_...)
   Stream<List<ConversationModel>> streamHospitalConversations(String benhVienId) {
     final bvid = benhVienId.trim().isNotEmpty ? benhVienId.trim() : 'BV502';
+    debugPrint('📡 [ChatService] Lắng nghe realtime Conversations cho bệnh viện: $bvid');
+
     return _db.collection(_colConv).snapshots().map((snap) {
+      debugPrint('📡 [ChatService] Nhận được ${snap.docs.length} cuộc hội thoại từ Firestore');
       final list = <ConversationModel>[];
       for (final doc in snap.docs) {
         final d = doc.data();
         final docBv = (d['benhVienId'] ?? d['benh_vien_id'] ?? '').toString();
         final docId = doc.id;
 
-        // Chỉ cần xét ID bệnh viện là lấy toàn bộ chat liên quan tới bệnh viện đó
+        debugPrint('👉 Doc: $docId | benhVienId: $docBv | tenBenhNhan: ${d['tenBenhNhan']}');
+
+        // CHỈ CẦN XÉT ID BỆNH VIỆN LÀ LẤY ĐƯỢC CHAT LIÊN QUAN TỚI BỆNH VIỆN ĐÓ:
         final isMatch = docBv.toLowerCase() == bvid.toLowerCase() ||
             docBv.toLowerCase().contains(bvid.toLowerCase()) ||
             bvid.toLowerCase().contains(docBv.toLowerCase()) ||
@@ -68,6 +73,7 @@ class ChatService {
           list.add(ConversationModel.fromMap(d, id: doc.id));
         }
       }
+      debugPrint('✅ [ChatService] Đã lọc được ${list.length} cuộc trò chuyện hiển thị cho CSKH');
       list.sort((a, b) => b.sortTime.compareTo(a.sortTime));
       return list;
     });
