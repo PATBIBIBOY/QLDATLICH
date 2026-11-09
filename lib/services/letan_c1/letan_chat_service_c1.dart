@@ -36,7 +36,9 @@ class LetanChatServiceC1 {
           final isSameBv = docBv.toLowerCase() == bvid.toLowerCase() ||
               docBv.toLowerCase().contains(bvid.toLowerCase()) ||
               bvid.toLowerCase().contains(docBv.toLowerCase()) ||
-              docId.toLowerCase().contains(bvid.toLowerCase());
+              docId.toLowerCase().contains(bvid.toLowerCase()) ||
+              docId.toLowerCase().contains('bv502') ||
+              docBv.toLowerCase().contains('bv502');
           if (!isSameBv) {
             continue;
           }
