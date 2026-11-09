@@ -279,7 +279,6 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
         tenKhoaHienTai: _tenKhoaHienTai,
         khoaIdHienTai: _khoaIdHienTai,
         ngayChon: _ngayChon,
-        onSelectKhoa: null, // Cố định khoa do BV phân công
         onSelectDate: _chonNgay,
         onSelectPhong: _onSelectPhong,
       );
@@ -310,7 +309,6 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
         children: [
           CskhDepartmentSelectorCardC1(
             tenKhoaHienTai: _tenKhoaHienTai,
-            onChangeDepartment: null, // Cố định khoa do BV phân công
           ),
           _buildBannerTongDon(),
           const SizedBox(height: 16),
@@ -580,7 +578,6 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
                   tieuDe: 'Thông Báo CSKH',
                   tenKhoaHienTai: _tenKhoaHienTai,
                   khoaIdHienTai: _khoaIdHienTai,
-                  onDoiKhoa: null,
                 ),
                 borderRadius: BorderRadius.circular(12),
                 child: Container(

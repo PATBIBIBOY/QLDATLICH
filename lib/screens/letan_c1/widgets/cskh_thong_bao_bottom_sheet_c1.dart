@@ -12,7 +12,6 @@ class CskhThongBaoBottomSheetC1 {
     String tieuDe = 'Thông Báo',
     String? tenKhoaHienTai,
     String? khoaIdHienTai,
-    VoidCallback? onDoiKhoa,
   }) {
     AppDesignSystemC1.hapticLight();
     final isDark = AppDesignSystemC1.laCheDoToi;
@@ -103,37 +102,6 @@ class CskhThongBaoBottomSheetC1 {
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                if (onDoiKhoa != null)
-                                  InkWell(
-                                    onTap: () {
-                                      Navigator.pop(modalCtx);
-                                      onDoiKhoa();
-                                    },
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Container(
-                                      margin: const EdgeInsets.only(right: 6),
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF0284C7).withValues(alpha: isDark ? 0.25 : 0.1),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: const [
-                                          Icon(Icons.swap_horiz_rounded, size: 14, color: Color(0xFF0284C7)),
-                                          SizedBox(width: 4),
-                                          Text(
-                                            'Đổi khoa',
-                                            style: TextStyle(
-                                              color: Color(0xFF0284C7),
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
                                 IconButton(
                                   icon: Icon(
                                     Icons.close,

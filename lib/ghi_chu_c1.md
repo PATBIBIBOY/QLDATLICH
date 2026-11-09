@@ -449,3 +449,7 @@ Theo đúng yêu cầu quản trị hệ thống y tế:
 
 3. **Cơ chế đồng bộ tự động khi Bệnh viện đổi Khoa:**
    - Khi Ban quản trị Bệnh viện điều chuyển nhân viên sang khoa khác (cập nhật trường `khoa` trên Firestore), ứng dụng tự động đồng bộ và cập nhật ngay lập tức khoa mới cho nhân viên mà không làm gãy luồng dữ liệu.
+
+4. **Dọn dẹp và xóa bỏ hoàn toàn giao diện đổi khoa:**
+   - Xóa bỏ hoàn toàn file Modal đổi khoa: `lib/screens/letan_c1/widgets/department_picker_modal_c1.dart`.
+   - Xóa bỏ toàn bộ các nút bấm và hàm callback liên quan tới "Đổi Khoa" trên Thẻ thông tin khoa `CskhDepartmentSelectorCardC1`, Tab duyệt phòng `CskhTabDuyetPhongC1`, và BottomSheet thông báo hệ thống `CskhThongBaoBottomSheetC1`.

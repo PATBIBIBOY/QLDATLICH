@@ -401,7 +401,6 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
                 tieuDe: 'Thông Báo Lễ Tân',
                 tenKhoaHienTai: _tenKhoaHienTai,
                 khoaIdHienTai: _khoaIdHienTai,
-                onDoiKhoa: null,
               ),
               borderRadius: BorderRadius.circular(12),
               child: Container(
