@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'room_session_store.dart';
+import 'room_status.dart';
 
 /// Một lượt đã qua: số thứ tự + có phải bệnh nhân xin đợi hay không.
 typedef PassedEntry = ({int number, bool deferred});
@@ -45,6 +46,23 @@ typedef AppointmentSyncResult = ({
   List<InsertResult> scheduledInserts,
   int lastIssued,
 });
+
+/// Trạng thái của nguồn dữ liệu thời gian thực (luồng lịch hẹn) để thẻ
+/// "Thông báo từ Bác sĩ" cho biết thẻ đang chạy realtime hay chỉ chạy
+/// bằng dữ liệu/giờ của chính máy.
+enum QueueFeedState {
+  /// Không có luồng lịch hẹn (chế độ demo/offline): vẫn hiện giờ máy.
+  local,
+
+  /// Đã đăng ký nghe luồng nhưng chưa nhận được đợt cập nhật đầu tiên.
+  connecting,
+
+  /// Đang nhận cập nhật STT từ Firebase theo thời gian thực.
+  live,
+
+  /// Luồng báo lỗi (mất kết nối / không đọc được dữ liệu).
+  error,
+}
 
 /// `true` nếu số mốc của [insert] lớn hơn STT lớn nhất đã biết từ
 /// danh sách lịch hẹn ([highestKnownNumber]). Những yêu cầu này chưa
@@ -333,6 +351,8 @@ class QueueScreen extends StatefulWidget {
     this.appointmentQueueStream,
     this.onAppointmentOutcome,
     this.onRenumberAppointment,
+    this.roomStatusStream,
+    this.onRoomStatusChanged,
   });
 
   /// Mã phiên khám – gom các lượt của cùng một buổi/ngày.
@@ -380,6 +400,16 @@ class QueueScreen extends StatefulWidget {
   final Future<void> Function(String appointmentId, int soThuTu)?
   onRenumberAppointment;
 
+  /// Luồng id trạng thái đã đối chiếu từ 4 field của `PhongKham/{roomId}`
+  /// (12 tạm dừng / 13 đang khám / 14 đóng phòng), ưu tiên field số.
+  /// `null` = không đọc được field hợp lệ, lúc đó màn hình giữ nguyên
+  /// trạng thái phiên local.
+  final Stream<int?>? roomStatusStream;
+
+  /// Ghi `trang_thai_id` + `trang_thai` lên Firestore khi bác sĩ bấm nút
+  /// Tạm dừng / Tiếp tục hoặc Đóng / Mở phòng khám.
+  final Future<void> Function(int statusId)? onRoomStatusChanged;
+
   @override
   State<QueueScreen> createState() => _QueueScreenState();
 }
@@ -400,6 +430,12 @@ class _QueueScreenState extends State<QueueScreen> {
   /// tự sinh thêm STT.
   late int lastIssued;
 
+  /// Phòng đã bấm nút “Bắt đầu” chưa. Khi chưa bấm, số hiện tại giữ đúng
+  /// số bắt đầu mặc định là 0 và mọi số nằm trong hàng chờ; nút chính hiện
+  /// chữ “Bắt đầu”, bấm lần đầu mới đưa số nhỏ nhất lên “đang khám”, sau đó
+  /// nút đổi thành “Tiếp theo”.
+  bool _daBatDau = false;
+
   /// Các số đã qua lượt:
   ///  - deferred = false: đã khám xong (dùng cho "Gọi lại số").
   ///  - deferred = true : bệnh nhân xin đợi (dùng cho "+ Chèn" để chèn lại).
@@ -416,6 +452,12 @@ class _QueueScreenState extends State<QueueScreen> {
 
   /// Đăng ký nghe luồng danh sách lịch hẹn của phòng.
   StreamSubscription<AppointmentQueueUpdate>? _appointmentSubscription;
+
+  /// Đăng ký nghe trạng thái đã đối chiếu từ 4 field của chính phòng này.
+  StreamSubscription<int?>? _roomStatusSubscription;
+
+  /// Mã trạng thái nhận gần nhất từ Firestore (`null` = chưa có field hợp lệ).
+  int? _roomStatusId;
 
   /// Tập số lịch hẹn đủ điều kiện trong lần đồng bộ gần nhất.
   List<int> _eligibleAppointmentNumbers = <int>[];
@@ -437,6 +479,11 @@ class _QueueScreenState extends State<QueueScreen> {
   /// đúng số lúc bấm “Đợi” để dải chip vẫn hiện đúng tên kể cả khi các số
   /// phía sau đã được đánh lại (−1) và trùng số.
   final Map<int, String> _patientNameDaChoQua = <int, String>{};
+
+  /// Mã lịch hẹn của từng số đang nằm trong “SỐ ĐÃ CHO QUA”, chốt ngay
+  /// lúc bấm “Đợi” — số hiển thị có thể trùng với số của người khác đang
+  /// chạy, nên khi chèn lại phải dùng đúng mã lịch hẹn này.
+  final Map<int, String> _maLichHenDaChoQua = <int, String>{};
 
   /// Ánh xạ tạm mã lịch hẹn → số thứ tự MỚI vừa ghi sau khi chèn số.
   /// Luồng Firebase còn trả số cũ trong vài giây; ánh xạ này giữ nguyên
@@ -469,7 +516,21 @@ class _QueueScreenState extends State<QueueScreen> {
 
   int? selected;
   bool paused = false;
+
+  /// Phòng đã đóng (nút dưới cùng). Khi đóng, mọi thao tác gọi số bị khoá
+  /// và thẻ thông báo chuyển sang trạng thái "đóng phòng khám".
+  bool closed = false;
   String? message;
+
+  /// Trạng thái luồng dữ liệu realtime. Thẻ thông báo dùng giá trị này để
+  /// hiện nhãn "Đang kết nối…" / "Realtime" / "Mất kết nối" / "Giờ máy".
+  QueueFeedState _feedState = QueueFeedState.local;
+
+  /// Thời điểm (giờ máy) của lần bấm "Tạm dừng khám" / "Tiếp tục khám"
+  /// gần nhất. Không có đồng hồ chạy liên tục: giá trị chỉ được chụp tại
+  /// đúng thời điểm bấm nút rồi giữ nguyên cho đến lần bấm sau.
+  DateTime? _lastStatusChangeAt;
+  String _lastStatusChangeLabel = '';
 
   /// Khóa lưu trạng thái phòng trong [RoomSessionStore] (ưu tiên mã phòng).
   String get _storeKey => widget.roomId ?? widget.sessionId;
@@ -523,7 +584,16 @@ class _QueueScreenState extends State<QueueScreen> {
       _patientNameDaChoQua
         ..clear()
         ..addAll(snapshot.deferredNameByNumber);
+      _maLichHenDaChoQua
+        ..clear()
+        ..addAll(snapshot.deferredAppointmentIdByNumber);
+      _daBatDau = snapshot.daBatDau || snapshot.current > 0;
       paused = snapshot.paused;
+      closed = snapshot.closed;
+      // Mốc giờ của lần bấm Tạm dừng / Tiếp tục vẫn đứng yên khi rời
+      // phòng rồi mở lại trong cùng phiên chạy app.
+      _lastStatusChangeAt = snapshot.statusChangedAt;
+      _lastStatusChangeLabel = snapshot.statusChangeLabel;
     } else {
       // Lần đầu mở phòng: KHÔNG tự sinh số thứ tự.
       // Chỉ hiện số khi lịch hẹn thật của phòng hôm nay có `so_thu_tu`
@@ -534,16 +604,34 @@ class _QueueScreenState extends State<QueueScreen> {
       next = 0;
       waiting = <int>[];
       lastIssued = start;
+      // Số bắt đầu mặc định là 0; chỉ khi nơi gọi truyền sẵn [initialCurrent]
+      // mới coi như phòng đã bắt đầu gọi số.
+      _daBatDau = start > 0;
       snapshot
         ..started = true
         ..paused = false;
     }
+    final roomStatusStream = widget.roomStatusStream;
+    if (roomStatusStream != null) {
+      _roomStatusSubscription = roomStatusStream.listen(
+        _applyRoomStatusId,
+        onError: (_) {
+          // Lỗi đọc trạng thái không chặn hàng chờ; giữ trạng thái local.
+          notify('Không đọc được trạng thái phòng khám. Kiểm tra kết nối.');
+        },
+      );
+    }
+
     final appointmentStream = widget.appointmentQueueStream;
     if (appointmentStream != null) {
+      _feedState = QueueFeedState.connecting;
       _appointmentSubscription = appointmentStream.listen(
         _applyAppointmentUpdate,
         onError: (Object error, StackTrace stackTrace) {
           if (mounted) {
+            // Đồng hồ vẫn chạy theo giờ máy, nhưng thẻ báo rõ là đang
+            // không nhận được dữ liệu realtime nữa.
+            setState(() => _feedState = QueueFeedState.error);
             notify(
               'Không tải được số thứ tự từ lịch hẹn. '
               'Kiểm tra kết nối Firebase.',
@@ -562,8 +650,42 @@ class _QueueScreenState extends State<QueueScreen> {
 
   @override
   void dispose() {
+    _roomStatusSubscription?.cancel();
     _appointmentSubscription?.cancel();
     super.dispose();
+  }
+
+  /// Áp id trạng thái đã đối chiếu từ 4 field `PhongKham/{roomId}` vào
+  /// banner và các nút: 12 → Tạm dừng khám, 13 → Đang khám,
+  /// 14 → Đóng phòng khám. `null` trả quyền về trạng thái phiên local.
+  void _applyRoomStatusId(int? id) {
+    if (!mounted || id == _roomStatusId) return;
+    _roomStatusId = id;
+    if (id == null) return;
+    final nextPaused = id == kRoomStatusPausedId;
+    final nextClosed = id == kRoomStatusClosedId;
+    if (paused == nextPaused && closed == nextClosed) return;
+    setState(() {
+      paused = nextPaused;
+      closed = nextClosed;
+      // Trạng thái đến từ Firestore/thiết bị khác: dùng lại thông báo
+      // mặc định theo trạng thái mới, KHÔNG chụp lại mốc giờ máy.
+      message = null;
+    });
+    _syncRoomState();
+  }
+
+  /// Ghi 2 field snake_case `trang_thai_id` + `trang_thai` lên Firestore
+  /// (nếu màn hình có kết nối Firestore). Lỗi chỉ hiện thông báo, không
+  /// đảo ngược giao diện vì luồng realtime sẽ tự sửa nếu ghi thất bại.
+  Future<void> _publishRoomStatusId(int id) async {
+    final callback = widget.onRoomStatusChanged;
+    if (callback == null) return;
+    try {
+      await callback(id);
+    } catch (_) {
+      notify('Không cập nhật được trạng thái phòng khám. Kiểm tra kết nối.');
+    }
   }
 
   /// Ghi trạng thái hiện tại của phòng vào [RoomSessionStore] và báo cho
@@ -576,6 +698,7 @@ class _QueueScreenState extends State<QueueScreen> {
         if (entry.deferred) entry.number,
     };
     _patientNameDaChoQua.removeWhere((so, _) => !soDaChoQua.contains(so));
+    _maLichHenDaChoQua.removeWhere((so, _) => !soDaChoQua.contains(so));
 
     final store = RoomSessionStore.instance;
     store.sessionOf(_storeKey)
@@ -584,12 +707,19 @@ class _QueueScreenState extends State<QueueScreen> {
       ..next = next
       ..waiting = List<int>.of(waiting)
       ..lastIssued = lastIssued
+      ..daBatDau = _daBatDau
       ..absentNumbers = _absentAppointmentNumbers.toList()
       ..requeuedNumbers = _requeuedAppointmentNumbers.toList()
       ..appointmentIdByNumber = Map<int, String>.of(_appointmentIdByNumber)
       ..patientNameByNumber = Map<int, String>.of(_patientNameByNumber)
       ..deferredNameByNumber = Map<int, String>.of(_patientNameDaChoQua)
+      ..deferredAppointmentIdByNumber = Map<int, String>.of(
+        _maLichHenDaChoQua,
+      )
       ..paused = paused
+      ..closed = closed
+      ..statusChangedAt = _lastStatusChangeAt
+      ..statusChangeLabel = _lastStatusChangeLabel
       ..examinedNumbers = <int>[
         for (final entry in passed)
           if (!entry.deferred) entry.number,
@@ -666,6 +796,10 @@ class _QueueScreenState extends State<QueueScreen> {
     update = _applyPendingRenumber(update);
     final newlyRequeuedNumbers = <int>[];
     setState(() {
+      // Đã có đợt dữ liệu thật từ luồng: thẻ thông báo chuyển sang
+      // trạng thái "Realtime". Mỗi đợt emit sau đó đều vẽ lại thẻ với
+      // nội dung/STT/giờ mới nhất.
+      _feedState = QueueFeedState.live;
       final wasEmpty = current <= 0;
       _appointmentIdByNumber.addAll(update.appointmentIdByNumber);
       for (final number in update.numbers) {
@@ -680,7 +814,15 @@ class _QueueScreenState extends State<QueueScreen> {
       }
       _eligibleAppointmentNumbers = List<int>.of(update.numbers);
       final confirmedNumbers = update.numbers.toSet();
-      final passedNumbers = passed.map((entry) => entry.number).toSet();
+      // Chỉ những số ĐÃ KHÁM mới bị loại khỏi hàng chờ khi đồng bộ. Số nằm
+      // trong sổ “SỐ ĐÃ CHO QUA” thì không loại theo số, vì số đó có thể đã
+      // được cấp lại cho một bệnh nhân khác đang chờ (bệnh nhân đã đợi được
+      // Firebase giữ ở trạng thái 7 nên vốn không nằm trong danh sách đủ
+      // điều kiện).
+      final passedNumbers = <int>{
+        for (final entry in passed)
+          if (!entry.deferred) entry.number,
+      };
       _requeuedAppointmentNumbers.removeWhere(
         (number) =>
             confirmedNumbers.contains(number) ||
@@ -723,25 +865,49 @@ class _QueueScreenState extends State<QueueScreen> {
           newlyRequeuedNumbers.add(number);
         }
       }
-      current = result.current;
-      next = result.next;
-      waiting = result.waiting;
+      if (_daBatDau) {
+        current = result.current;
+        next = result.next;
+        waiting = result.waiting;
+      } else {
+        // Chưa bấm “Bắt đầu”: giữ số hiện tại = 0, dồn hết số về hàng chờ.
+        final cho = <int>[
+          if (result.current > 0) result.current,
+          if (result.next > 0) result.next,
+          ...result.waiting,
+        ];
+        current = 0;
+        next = 0;
+        waiting = cho;
+      }
       _scheduledFutureInserts
         ..clear()
         ..addAll(result.scheduledInserts);
       lastIssued = result.lastIssued;
       if (selected != null && !waiting.contains(selected)) selected = null;
-      if (wasEmpty && current > 0) {
+      // Phòng đã đóng: giữ nguyên thông báo "đóng phòng", không ghi đè
+      // bằng các lời nhắn nạp số từ luồng realtime.
+      if (!closed && wasEmpty && current > 0) {
         message = next > 0
             ? 'Đã nạp số thứ tự từ lịch hẹn đã xác nhận.\n'
                   'Bệnh nhân số $current đang khám; số $next là số tiếp theo.'
             : 'Đã nạp số thứ tự từ lịch hẹn đã xác nhận.\n'
                   'Bệnh nhân số $current đang khám.';
+      } else if (!closed && wasEmpty && !_daBatDau && waiting.isNotEmpty) {
+        message =
+            'Đã nạp ${waiting.length} số từ lịch hẹn đã xác nhận.\n'
+            'Số bắt đầu là 0 – nhấn “Bắt đầu” để gọi số ${waiting.first}.';
       }
       _syncRoomState();
     });
     for (final number in newlyRequeuedNumbers) {
       _reportAppointmentOutcome(number, AppointmentOutcome.requeued);
+    }
+    // Đồng bộ xong thì chạy lại danh sách số: nếu dữ liệu trên Firebase bị
+    // lỗ số / trùng số, màn hình tự sửa về dãy 1, 2, 3, … n.
+    // Chỉ làm khi không còn đợt đánh số nào đang chờ ghi để tránh ghi đè nhau.
+    if (_pendingRenumberByAppointmentId.isEmpty) {
+      _chayLaiDanhSachSo(imLang: true);
     }
   }
 
@@ -760,6 +926,23 @@ class _QueueScreenState extends State<QueueScreen> {
             'Không cập nhật được trạng thái lịch hẹn của số $number '
             'lên Firebase.',
           );
+        }
+      }),
+    );
+  }
+
+  /// Báo kết quả cho một lịch hẹn theo mã (dùng khi số thứ tự vừa đổi
+  /// nên không thể tra ngược từ số nữa).
+  void _reportAppointmentOutcomeById(
+    String appointmentId,
+    AppointmentOutcome outcome,
+  ) {
+    final report = widget.onAppointmentOutcome;
+    if (report == null) return;
+    unawaited(
+      report(appointmentId, outcome).catchError((Object error) {
+        if (mounted) {
+          notify('Không cập nhật được trạng thái lịch hẹn lên Firebase.');
         }
       }),
     );
@@ -799,12 +982,25 @@ class _QueueScreenState extends State<QueueScreen> {
   }
 
   String get _defaultStatusMessage {
+    if (closed) {
+      return 'Phòng khám đã đóng.\n'
+          'Không gọi số mới cho đến khi bác sĩ mở lại phòng.\n'
+          'Nhấn “Mở phòng khám” ở nút dưới cùng để tiếp tục.';
+    }
     if (paused) {
-      return 'Bác sĩ đã nhấn nút “Tạm dừng khám”.\n'
+      final mocGio = _lastStatusChangeAt == null
+          ? ''
+          : ' lúc ${formatMayGio(_lastStatusChangeAt!)}';
+      return 'Bác sĩ đã nhấn nút “Tạm dừng khám”$mocGio.\n'
           'Việc gọi số tiếp theo tạm thời bị dừng.\n'
           'Vui lòng chờ đến khi bác sĩ tiếp tục khám.';
     }
     if (current <= 0) {
+      if (waiting.isNotEmpty) {
+        return 'Số bắt đầu là 0 – chưa gọi số nào.\n'
+            'Đang có ${waiting.length} số trong hàng chờ; nhấn “Bắt đầu” '
+            'để gọi số ${waiting.first}.';
+      }
       return 'Chưa có bệnh nhân nào trong danh sách lịch hẹn đã xác nhận '
           'của phòng hôm nay.\n'
           'STT chỉ xuất hiện khi lịch hẹn được cập nhật vào danh sách.';
@@ -858,20 +1054,40 @@ class _QueueScreenState extends State<QueueScreen> {
   /// Nút "Tiếp theo" (đã gộp với "Xác nhận khám"): xác nhận số hiện tại đã
   /// khám xong rồi gọi số kế tiếp trong một lần bấm.
   void callNext() {
+    if (closed) {
+      notify('Phòng khám đã đóng. Nhấn “Mở phòng khám” để tiếp tục.');
+      return;
+    }
     if (paused) {
       notify('Vui lòng tiếp tục khám trước khi gọi số.');
       return;
     }
     if (current <= 0) {
-      notify('Chưa có lịch hẹn đã xác nhận nào để gọi.');
+      // Số bắt đầu mặc định là 0: nút chính lúc này là “Bắt đầu”.
+      // Bấm lần đầu mới đưa số nhỏ nhất đang chờ lên thành số đang khám.
+      if (waiting.isEmpty) {
+        notify('Chưa có lịch hẹn đã xác nhận nào để bắt đầu gọi số.');
+        return;
+      }
+      setState(() {
+        _daBatDau = true;
+        current = 0;
+        next = 0;
+        _promoteWaitingHeads();
+        message =
+            'Đã bắt đầu gọi số.\n'
+            'Bệnh nhân số $current đang khám'
+            '${next > 0 ? '; số $next là số tiếp theo' : ''}.';
+        _syncRoomState();
+      });
+      _chayLaiDanhSachSo(imLang: true);
       return;
     }
     final finished = current;
     var shouldReportExamined = false;
     setState(() {
-      // Số từng xin đợi nay đã khám xong: bỏ khỏi "SỐ ĐÃ CHO QUA" để không
-      // xuất hiện ở cả 2 danh sách cùng lúc.
-      passed.removeWhere((e) => e.number == finished && e.deferred);
+      // “SỐ ĐÃ CHO QUA” là sổ ghi cố định của phòng: nút Tiếp theo KHÔNG
+      // xoá số nào khỏi đó. Chỉ nút “Đặt lại số” mới xoá toàn bộ.
       if (!_currentConfirmed) {
         // Xác nhận khám: ghi số hiện tại vào danh sách đã khám.
         passed.add((number: finished, deferred: false));
@@ -894,6 +1110,8 @@ class _QueueScreenState extends State<QueueScreen> {
     if (shouldReportExamined) {
       _reportAppointmentOutcome(finished, AppointmentOutcome.examined);
     }
+    // Chạy lại danh sách số sau khi chuyển sang số kế tiếp.
+    _chayLaiDanhSachSo(imLang: true);
   }
 
   /// “Đặt lại số” trong chế độ lịch hẹn: xoá trạng thái phiên trên máy
@@ -932,6 +1150,7 @@ class _QueueScreenState extends State<QueueScreen> {
     if (!mounted || confirmed != true) return;
 
     setState(() {
+      _daBatDau = false;
       passed.clear();
       _deferredHistory.clear();
       _scheduledFutureInserts.clear();
@@ -949,15 +1168,22 @@ class _QueueScreenState extends State<QueueScreen> {
         scheduledInserts: const <InsertResult>[],
         lastIssued: 0,
       );
-      current = result.current;
-      next = result.next;
-      waiting = result.waiting;
+      // Đặt lại số cũng đưa phòng về số bắt đầu 0 (chưa gọi số nào) và giữ
+      // nguyên số thứ tự thật của lịch hẹn, không tự đánh lại từ 1.
+      current = 0;
+      next = 0;
+      waiting = <int>[
+        if (result.current > 0) result.current,
+        if (result.next > 0) result.next,
+        ...result.waiting,
+      ];
       lastIssued = result.lastIssued;
-      message = current > 0
-          ? 'Đã đặt lại hàng chờ theo lịch hẹn đã xác nhận: số hiện '
-                'tại = $current${next > 0 ? ', số tiếp theo = $next' : ''}.'
-          : 'Đã đặt lại hàng chờ. Hiện chưa có lịch hẹn đã xác nhận '
-                'nào cho phòng hôm nay.';
+      message = waiting.isNotEmpty
+          ? 'Đã đặt lại hàng chờ theo lịch hẹn đã xác nhận: số bắt đầu = 0, '
+                '${waiting.length} số đang chờ. Nhấn “Bắt đầu” để gọi số '
+                '${waiting.first}.'
+          : 'Đã đặt lại hàng chờ. Hiện chưa có lịch hẹn đã xác nhận nào cho '
+                'phòng hôm nay.';
       _syncRoomState();
     });
     notify('Đã đặt lại hàng chờ của ${widget.roomName} theo lịch hẹn.');
@@ -975,6 +1201,10 @@ class _QueueScreenState extends State<QueueScreen> {
   ///
   /// Nếu số đó vẫn còn có lượt trong hàng chờ, số đó cũng bị bỏ khỏi hàng chờ.
   Future<void> markCurrentAbsent() async {
+    if (closed) {
+      notify('Phòng khám đã đóng. Nhấn “Mở phòng khám” để tiếp tục.');
+      return;
+    }
     if (paused) {
       notify('Vui lòng tiếp tục khám trước khi cập nhật lượt.');
       return;
@@ -1014,11 +1244,8 @@ class _QueueScreenState extends State<QueueScreen> {
     if (!mounted || confirmed != true) return;
 
     setState(() {
-      // Số đã xin đợi nay xác nhận vắng mặt: bỏ khỏi "SỐ ĐÃ CHO QUA" và,
-      // nếu số đó đang có lượt trong hàng chờ, bỏ luôn khỏi hàng chờ.
-      passed.removeWhere(
-        (entry) => entry.deferred && entry.number == absentNumber,
-      );
+      // “SỐ ĐÃ CHO QUA” là sổ ghi cố định: xác nhận vắng mặt chỉ bỏ số khỏi
+      // hàng chờ, không xoá số khỏi sổ. Chỉ “Đặt lại số” mới xoá toàn bộ.
       _absentAppointmentNumbers.add(absentNumber);
       _requeuedAppointmentNumbers.remove(absentNumber);
       _scheduledFutureInserts.removeWhere(
@@ -1031,11 +1258,13 @@ class _QueueScreenState extends State<QueueScreen> {
       final queueNote = wasInQueue ? ' và khỏi hàng chờ' : '';
       message =
           'Đã ghi nhận bệnh nhân số $absentNumber vắng mặt.'
-          '\nSố $absentNumber đã được bỏ khỏi danh sách “SỐ ĐÃ CHO QUA”'
+          '\nSố $absentNumber vẫn được giữ trong “SỐ ĐÃ CHO QUA”'
           '$queueNote.';
       _syncRoomState();
     });
     _reportAppointmentOutcome(absentNumber, AppointmentOutcome.absent);
+    // Chạy lại danh sách số sau khi bỏ một số khỏi hàng chờ.
+    _chayLaiDanhSachSo(imLang: true);
   }
 
   /// Bảng chọn số cần ghi nhận vắng mặt – chỉ gồm các số đã bấm "Đợi".
@@ -1138,6 +1367,10 @@ class _QueueScreenState extends State<QueueScreen> {
   /// nút "+ Chèn" để đưa số đó trở lại hàng chờ tại vị trí mong muốn;
   /// lúc số thực sự vào lại hàng chờ, lịch hẹn được báo về `2`.
   void deferNumber(int number) {
+    if (closed) {
+      notify('Phòng khám đã đóng. Nhấn “Mở phòng khám” để tiếp tục.');
+      return;
+    }
     if (paused) {
       notify('Vui lòng tiếp tục khám trước khi đổi lượt.');
       return;
@@ -1150,6 +1383,7 @@ class _QueueScreenState extends State<QueueScreen> {
       return;
     }
     setState(() {
+      _donSoTrung();
       // LƯU LỊCH SỬ: mọi số vừa bấm "Đợi" đều được ghi lại để dùng cho
       // việc khác, dù sau đó số đó có được gọi lại hay xác nhận vắng mặt.
       if (!_deferredHistory.contains(number)) {
@@ -1176,6 +1410,10 @@ class _QueueScreenState extends State<QueueScreen> {
       // vẫn hiện đúng tên sau khi các số phía sau được đánh lại.
       final tenDaChoQua = _patientNameFor(number);
       if (tenDaChoQua != null) _patientNameDaChoQua[number] = tenDaChoQua;
+      final maLichHenDaChoQua = _appointmentIdByNumber[number];
+      if (maLichHenDaChoQua != null) {
+        _maLichHenDaChoQua[number] = maLichHenDaChoQua;
+      }
       passed.removeWhere((e) => e.number == number && e.deferred);
       passed.add((number: number, deferred: true));
       _promoteWaitingHeads();
@@ -1204,7 +1442,10 @@ class _QueueScreenState extends State<QueueScreen> {
     _reportAppointmentOutcome(number, AppointmentOutcome.deferred);
     // Các số phía sau số bị cho qua giảm 1 để hàng chờ không bị lỗ trống
     // (hàm tự hiện thông báo khi có số phải đổi).
-    if (!_danhSoLaiSauKhiDoi(number)) {
+    if (!_chayLaiDanhSachSo(
+      moDau: 'Số $number đã vào “SỐ ĐÃ CHO QUA” và đã đánh lại số',
+      donTheoSoDaKham: true,
+    )) {
       notify('Số $number đã được chuyển vào “SỐ ĐÃ CHO QUA”.');
     }
   }
@@ -1213,6 +1454,10 @@ class _QueueScreenState extends State<QueueScreen> {
   /// số đang khám cũ lùi về "SỐ TIẾP THEO"; số kế tiếp cũ (chưa được gọi) quay
   /// trở lại đầu hàng chờ để không bị mất lượt.
   void recallNumber(int picked) {
+    if (closed) {
+      notify('Phòng khám đã đóng. Nhấn “Mở phòng khám” để tiếp tục.');
+      return;
+    }
     if (paused) {
       notify('Vui lòng tiếp tục khám trước khi gọi lại số.');
       return;
@@ -1221,11 +1466,12 @@ class _QueueScreenState extends State<QueueScreen> {
     final previousCurrent = current;
     final previousNext = next;
     setState(() {
-      // Bệnh nhân vào phòng khám ngay: bỏ khỏi danh sách đã khám, sẽ được
-      // đưa lại danh sách khi bác sĩ nhấn "Tiếp theo".
-      // Số được gọi lại đang khám -> không còn thuộc "ĐÃ KHÁM" hay
-      // "SỐ ĐÃ CHO QUA" nữa.
-      passed.removeWhere((entry) => entry.number == picked);
+      // Bệnh nhân vào phòng khám ngay: bỏ khỏi danh sách "ĐÃ KHÁM" (sẽ được
+      // ghi lại khi bác sĩ nhấn "Tiếp theo"). Riêng "SỐ ĐÃ CHO QUA" vẫn giữ
+      // nguyên – chỉ nút "Đặt lại số" mới xoá sổ này.
+      passed.removeWhere(
+        (entry) => entry.number == picked && !entry.deferred,
+      );
       // Số được gọi lại coi như đang chờ khám trở lại: không còn là số
       // vắng mặt hay số đang chờ Firebase xác nhận chèn lại.
       _absentAppointmentNumbers.remove(picked);
@@ -1416,8 +1662,38 @@ class _QueueScreenState extends State<QueueScreen> {
       ),
     );
     if (!mounted || results == null || results.isEmpty) return;
+
+    // Số mốc phải còn trong lượt gọi (đang khám / số tiếp theo / hàng chờ).
+    // Nếu không, báo để chọn lại thay vì tự đoán chỗ chèn — đây chính là
+    // nguyên nhân bệnh nhân bị đẩy lên trước hàng chờ.
+    final soMocHopLe = <int>{
+      0,
+      if (current > 0) current,
+      if (next > 0) next,
+      ...waiting,
+    };
+    for (final insert in results) {
+      final after = insert.afterNumber;
+      if (after == null || after == 0) continue;
+      if (_isFutureScheduledInsert(insert, lastIssued)) continue;
+      if (!soMocHopLe.contains(after)) {
+        notify(
+          'Số mốc $after không còn trong hàng chờ. '
+          'Chọn số khác hoặc nhập 0 để chèn lên đầu.',
+        );
+        return;
+      }
+    }
+
     final immediateNumbersToReport = <int>{};
+    // Bộ đếm "số tạm" âm: số trong hàng chờ luôn dương, nên số tạm không
+    // bao giờ trùng với bất kỳ ai đang chạy (kể cả khi số hiển thị của
+    // người đã đợi trùng số với người khác). Sau bước đánh số lại, số tạm
+    // được thay bằng số thật đúng vị trí chèn.
+    var soTamKeTiep = -1;
     setState(() {
+      // Dọn số trùng trước khi tính vị trí để phép đánh số không bị lệch.
+      _donSoTrung();
       // Tách yêu cầu chèn ngay khỏi yêu cầu chờ số mốc tương lai, dựa trên
       // [lastIssued] tại thời điểm đóng màn hình chèn.
       final immediateResults = results
@@ -1427,10 +1703,31 @@ class _QueueScreenState extends State<QueueScreen> {
           .where((r) => _isFutureScheduledInsert(r, lastIssued))
           .toList();
       final before = List<int>.of(waiting);
+      // Đổi số hiển thị của người được chèn sang "số tạm" âm, đồng thời
+      // gắn đúng mã lịch hẹn + tên đã chốt lúc bấm “Đợi”.
+      final immediateForQueue = <InsertResult>[];
+      for (final insert in immediateResults) {
+        // LUÔN dùng số tạm âm cho người vừa chèn: số hiển thị cũ của họ có
+        // thể trùng với số của một người khác đang chạy, nếu đưa thẳng số
+        // đó vào hàng chờ thì phép đánh số sẽ đổi nhầm người.
+        final soTam = soTamKeTiep;
+        soTamKeTiep -= 1;
+        final maLichHen = _maLichHenDaChoQua[insert.number];
+        if (maLichHen != null) {
+          _appointmentIdByNumber[soTam] = maLichHen;
+        }
+        final ten =
+            _patientNameDaChoQua[insert.number] ??
+            _patientNameByNumber[insert.number];
+        if (ten != null && ten.trim().isNotEmpty) {
+          _patientNameByNumber[soTam] = ten.trim();
+        }
+        immediateForQueue.add((number: soTam, afterNumber: insert.afterNumber));
+      }
       // Chèn ngay: dựng lại hàng chờ trong một lượt theo các số mốc gốc.
       waiting = _waitingAfterInserts(
         before,
-        immediateResults,
+        immediateForQueue,
         nextNumber: next,
       );
       // Chờ mốc tương lai: giữ lịch; đợt cập nhật lịch hẹn sau sẽ tự đặt
@@ -1441,19 +1738,21 @@ class _QueueScreenState extends State<QueueScreen> {
         );
         _scheduledFutureInserts.add(insert);
       }
-      // Cả số chèn ngay lẫn số đã lên lịch đều rời danh sách xin đợi.
+      // Cả số chèn ngay lẫn số đã lên lịch vẫn được GIỮ trong “SỐ ĐÃ CHO
+      // QUA” (kèm số cũ + tên + mã lịch hẹn) để lễ tân còn đối chiếu; chỉ
+      // nút “Đặt lại số” mới xoá sổ này. Người được chèn lại vào hàng chờ
+      // nhận số mới nên không trùng số trong danh sách đang gọi.
       final insertedNumbers = results.map((r) => r.number).toSet();
-      passed.removeWhere(
-        (entry) => entry.deferred && insertedNumbers.contains(entry.number),
-      );
       // Số chèn ngay được giữ tạm trong hàng chờ và sẽ báo về trạng
       // thái `2` ngay sau setState. Số chờ mốc tương lai vẫn giữ `7`
       // cho tới khi thực sự được đặt vào hàng chờ ở một đợt đồng bộ sau.
-      _requeuedAppointmentNumbers.addAll(immediateResults.map((r) => r.number));
-      immediateNumbersToReport.addAll(immediateResults.map((r) => r.number));
-      selected = immediateResults.isEmpty
+      _requeuedAppointmentNumbers
+        ..removeAll(insertedNumbers)
+        ..addAll(immediateForQueue.map((r) => r.number));
+      immediateNumbersToReport.addAll(immediateForQueue.map((r) => r.number));
+      selected = immediateForQueue.isEmpty
           ? null
-          : immediateResults.first.number;
+          : immediateForQueue.first.number;
       final immediateDetails = <String>[
         for (final r in immediateResults)
           r.afterNumber == null
@@ -1474,62 +1773,128 @@ class _QueueScreenState extends State<QueueScreen> {
       message = sentences.join('\n');
       _syncRoomState();
     });
-    for (final number in immediateNumbersToReport) {
-      _reportAppointmentOutcome(number, AppointmentOutcome.requeued);
+    // Chốt mã lịch hẹn của người vừa chèn TRƯỚC khi đánh số lại (sau đó
+    // khoá ánh xạ đã đổi sang số mới).
+    final canBaoTrangThai = <String>[
+      for (final number in immediateNumbersToReport)
+        if (_appointmentIdByNumber[number] case final appointmentId?)
+          appointmentId,
+    ];
+    // Chạy lại danh sách số sau khi chèn: số vừa chèn nhận số mốc + 1,
+    // các số phía sau tăng thêm 1 và được ghi lên Firebase.
+    _chayLaiDanhSachSo(moDau: 'Đã đánh số lại hàng chờ');
+    for (final appointmentId in canBaoTrangThai) {
+      _reportAppointmentOutcomeById(appointmentId, AppointmentOutcome.requeued);
     }
-    // Đánh số lại sau khi chèn: số vừa chèn nhận số mốc + 1, các số phía
-    // sau tăng thêm 1 và được ghi lên Firebase.
-    _danhSoLaiSauKhiChen();
   }
 
-  /// Đánh số lại hàng chờ sau khi chèn số và ghi số mới lên Firebase.
+  /// Chạy lại TOÀN BỘ danh sách số sau mỗi thao tác (Tiếp theo, Đợi, Chèn,
+  /// Vắng mặt, đồng bộ Firebase):
+  ///  1. dọn số trùng / số không hợp lệ trong (đang khám, tiếp theo, hàng chờ);
+  ///  2. lấy số nền là số lớn nhất đã khám xong (các số này không đổi);
+  ///  3. đánh lại liên tiếp theo đúng thứ tự gọi;
+  ///  4. ghi `so_thu_tu` mới lên Firebase cho ai bị đổi.
   ///
-  /// Số đang khám ([current]) và các số đã khám/đã cho qua giữ nguyên.
-  /// Các số còn chờ được đánh liên tiếp, bắt đầu từ `current + 1`, theo
-  /// đúng thứ tự gọi — nên số vừa chèn ngay sau số mốc nhận
-  /// `số mốc + 1` và mọi số phía sau tăng thêm 1.
-  void _danhSoLaiSauKhiChen() {
-    // Thứ tự gọi của các số CHƯA khám (mỗi số chỉ tính một lần).
-    final order = <int>[];
-    for (final so in <int>[if (next > 0) next, ...waiting]) {
-      if (so > 0 && !order.contains(so)) order.add(so);
-    }
-    if (order.isEmpty) return;
+  /// Nhờ vậy mọi thao tác đều "tự lành": dù trước đó dữ liệu có lỗi, lỗ số
+  /// hay trùng số thì sau khi bấm là dãy về đúng 1, 2, 3, … n.
+  bool _chayLaiDanhSachSo({
+    String? moDau,
+    bool imLang = false,
+    bool donTheoSoDaKham = false,
+  }) {
+    if (!mounted) return false;
 
-    final renumber = <int, int>{};
-    var soMoi = current > 0 ? current : 0;
-    for (final soCu in order) {
-      soMoi += 1;
-      if (soMoi != soCu) renumber[soCu] = soMoi;
+    // 1) Dọn trùng: mỗi số chỉ được nằm ở một vị trí.
+    final daDung = <int>{};
+    if (current > 0) daDung.add(current);
+    if (next > 0 && !daDung.add(next)) next = 0;
+    final waitingMoi = <int>[];
+    for (final so in waiting) {
+      if (so <= 0) continue;
+      if (!daDung.add(so)) continue;
+      waitingMoi.add(so);
     }
-    if (renumber.isEmpty) return;
-    _apDungDanhSoLai(renumber, 'Đã đánh số lại hàng chờ');
-  }
+    var canVeLai = waitingMoi.length != waiting.length;
+    if (!canVeLai) {
+      for (var i = 0; i < waitingMoi.length; i++) {
+        if (waitingMoi[i] != waiting[i]) {
+          canVeLai = true;
+          break;
+        }
+      }
+    }
+    waiting = waitingMoi;
 
-  /// Nhấn “Đợi”: các số phía sau số bị cho qua giảm 1 để lấp chỗ trống,
-  /// đúng như yêu cầu “các số phía sau số đó −1”. Số bị đợi giữ nguyên số
-  /// (đã nằm trong “SỐ ĐÃ CHO QUA” kèm tên bệnh nhân) và được ghi lại
-  /// trạng thái `7` trước khi đánh số.
-  bool _danhSoLaiSauKhiDoi(int soBiDoi) {
-    final renumber = <int, int>{};
-    for (final so in <int>[
+    // 3) Đánh lại theo đúng thứ tự gọi.
+    final order = <int>[
       if (current > 0) current,
       if (next > 0) next,
       ...waiting,
-    ]) {
-      if (so > soBiDoi) renumber[so] = so - 1;
+    ];
+
+    // 2) Số nền:
+    //  - [donTheoSoDaKham] = true (chỉ dùng sau khi bấm “Đợi”): nền là số lớn
+    //    nhất đã khám xong, nên các số phía sau số bị cho qua giảm 1.
+    //  - còn lại: NEO số đầu tiên, chỉ dồn các lỗ trống phía sau. Nhờ vậy
+    //    màn hình tự sửa lỗi lỗ số/trùng số mà KHÔNG kéo cả hàng chờ về số 1
+    //    khi phiên làm việc bắt đầu từ số khác (vd 5, 6…).
+    var soMoi = 0;
+    if (donTheoSoDaKham) {
+      for (final entry in passed) {
+        if (!entry.deferred && entry.number > soMoi) soMoi = entry.number;
+      }
+    } else if (order.isNotEmpty) {
+      soMoi = order.first - 1;
     }
-    if (renumber.isEmpty) return false;
+    // Chỉ dồn xuống khi số đầu hàng chờ đang nối tiếp số đã khám (hoặc bắt
+    // đầu từ 1, 2). Trường hợp “Gọi lại” một số cũ thì giữ nguyên.
+    final dungSoNen = order.isNotEmpty &&
+        (!donTheoSoDaKham ||
+            (order.first > soMoi && order.first <= soMoi + 2));
+    final renumber = <int, int>{};
+    if (dungSoNen) {
+      for (final so in order) {
+        soMoi += 1;
+        if (soMoi != so) renumber[so] = soMoi;
+      }
+    }
+
+    if (renumber.isEmpty) {
+      if (canVeLai) setState(() {});
+      _syncRoomState();
+      return false;
+    }
     _apDungDanhSoLai(
       renumber,
-      'Số $soBiDoi đã được chuyển vào “SỐ ĐÃ CHO QUA” và đã đánh lại số',
+      moDau ?? 'Đã đánh lại số thứ tự',
+      imLang: imLang,
     );
     return true;
   }
 
+  /// Dọn số trùng trong trạng thái hiện tại (mỗi số chỉ xuất hiện một lần
+  /// ở “đang khám” / “số tiếp theo” / hàng chờ). Chạy đầu mỗi thao tác để
+  /// dữ liệu cũ bị lỗi không làm lệch phép đánh số.
+  void _donSoTrung() {
+    final daDung = <int>{};
+    if (current > 0) daDung.add(current);
+    if (next > 0 && !daDung.add(next)) next = 0;
+    final waitingMoi = <int>[];
+    for (final so in waiting) {
+      if (so <= 0) continue;
+      if (!daDung.add(so)) continue;
+      waitingMoi.add(so);
+    }
+    waiting = waitingMoi;
+  }
+
   /// Áp một bảng đổi số (số cũ → số mới) cho toàn bộ trạng thái hàng chờ,
   /// cập nhật phiên phòng và ghi `so_thu_tu` mới lên Firebase.
-  void _apDungDanhSoLai(Map<int, int> renumber, String moDau) {
+  void _apDungDanhSoLai(
+    Map<int, int> renumber,
+    String moDau, {
+    bool imLang = false,
+  }) {
     if (renumber.isEmpty) return;
 
     // Chụp mã lịch hẹn TRƯỚC khi đổi khoá các ánh xạ theo số.
@@ -1541,18 +1906,39 @@ class _QueueScreenState extends State<QueueScreen> {
 
     int doi(int so) => renumber[so] ?? so;
 
+    // Chặn trước khi áp dụng: nếu bảng đổi số làm hai vị trí khác nhau ra
+    // cùng một số thì huỷ thao tác, giữ nguyên hàng chờ hiện tại thay vì
+    // để màn hình rơi vào trạng thái trùng số (nguồn gốc lỗi “số nhảy”).
+    final truocKhiDoi = <int>{
+      if (current > 0) current,
+      if (next > 0) next,
+      ...waiting.where((so) => so != 0),
+    };
+    final sauKhiDoi = <int>{for (final so in truocKhiDoi) doi(so)};
+    if (sauKhiDoi.length != truocKhiDoi.length) {
+      notify(
+        'Chưa đánh số lại được vì sẽ tạo số trùng. '
+        'Bấm “Đặt lại số” để nạp lại hàng chờ rồi thao tác lại.',
+      );
+      return;
+    }
+
     setState(() {
+      // Số đang khám cũng phải đổi theo: khi bệnh nhân đang khám xin đợi,
+      // người kế tiếp lên khám và nhận đúng số mới (vd 2 → 1).
+      current = doi(current);
       next = doi(next);
       waiting = <int>[for (final so in waiting) doi(so)];
+      // Chỉ số của những người ĐÃ KHÁM đi theo bảng đổi số. Sổ “SỐ ĐÃ CHO
+      // QUA” (chip + lịch sử xin đợi) giữ nguyên số cũ, tên cũ và mã lịch
+      // hẹn cũ — không thao tác nào ngoài “Đặt lại số” được sửa sổ này.
       for (var i = 0; i < passed.length; i++) {
         final entry = passed[i];
+        if (entry.deferred) continue;
         final moi = renumber[entry.number];
         if (moi != null) {
-          passed[i] = (number: moi, deferred: entry.deferred);
+          passed[i] = (number: moi, deferred: false);
         }
-      }
-      for (var i = 0; i < _deferredHistory.length; i++) {
-        _deferredHistory[i] = doi(_deferredHistory[i]);
       }
       for (var i = 0; i < _eligibleAppointmentNumbers.length; i++) {
         _eligibleAppointmentNumbers[i] = doi(_eligibleAppointmentNumbers[i]);
@@ -1579,16 +1965,8 @@ class _QueueScreenState extends State<QueueScreen> {
       _patientNameByNumber
         ..clear()
         ..addAll(tenTheoSo);
-      // Tên trong “SỐ ĐÃ CHO QUA” đi theo số của chính nó; nếu trùng số với
-      // một số đã cho qua trước đó thì giữ tên của số đã có (số vừa đợi
-      // được ưu tiên vì đã ghi vào map trước khi đánh số lại).
-      final tenChoQua = <int, String>{};
-      for (final entry in _patientNameDaChoQua.entries) {
-        tenChoQua.putIfAbsent(doi(entry.key), () => entry.value);
-      }
-      _patientNameDaChoQua
-        ..clear()
-        ..addAll(tenChoQua);
+      // Tên trong “SỐ ĐÃ CHO QUA” khoá theo đúng số cũ của chip nên không
+      // đổi khi đánh số lại hàng chờ.
       final vangMat = <int>{for (final so in _absentAppointmentNumbers) doi(so)};
       _absentAppointmentNumbers
         ..clear()
@@ -1614,14 +1992,14 @@ class _QueueScreenState extends State<QueueScreen> {
 
     final ghi = widget.onRenumberAppointment;
     if (ghi == null) {
-      notify('$moDau: $moTa.');
+      if (!imLang) notify('$moDau: $moTa.');
       return;
     }
 
     for (final (appointmentId, soTheoLich) in canGhi) {
       _pendingRenumberByAppointmentId[appointmentId] = soTheoLich;
     }
-    notify('$moDau và cập nhật Firebase: $moTa.');
+    if (!imLang) notify('$moDau và cập nhật Firebase: $moTa.');
 
     var loi = 0;
     for (final (appointmentId, soTheoLich) in canGhi) {
@@ -1734,7 +2112,9 @@ class _QueueScreenState extends State<QueueScreen> {
                             Expanded(
                               child: _NumberCard(
                                 label: 'SỐ HIỆN TẠI',
-                                value: current > 0 ? '$current' : '—',
+                                // Số bắt đầu mặc định là 0 cho tới khi bấm
+                                // nút “Bắt đầu”.
+                                value: '$current',
                                 subtitle: _patientNameSubtitle(current),
                                 gradient: _Ui.greenCard,
                                 foreground: Colors.white,
@@ -1975,8 +2355,10 @@ class _QueueScreenState extends State<QueueScreen> {
                             Expanded(
                               flex: 4,
                               child: _ActionButton(
-                                label: 'Tiếp theo',
-                                icon: Icons.arrow_forward_rounded,
+                                label: current > 0 ? 'Tiếp theo' : 'Bắt đầu',
+                                icon: current > 0
+                                    ? Icons.arrow_forward_rounded
+                                    : Icons.play_arrow_rounded,
                                 primary: true,
                                 onPressed: callNext,
                               ),
@@ -2021,16 +2403,47 @@ class _QueueScreenState extends State<QueueScreen> {
                                     : Icons.pause_circle_filled_rounded,
                                 iconLeading: true,
                                 color: paused ? _Ui.green : Colors.white,
-                                onPressed: () => setState(() {
-                                  paused = !paused;
-                                  message = paused
-                                      ? 'Bác sĩ đã nhấn nút “Tạm dừng khám”.\nViệc gọi số tiếp theo tạm thời bị dừng.\n'
-                                            'Vui lòng chờ đến khi bác sĩ tiếp tục khám.'
-                                      : null;
-                                  // Cập nhật ngay trạng thái phòng cho trang chính:
-                                  // chỉ khi bấm nút này phòng mới hiện "Tạm dừng".
-                                  _syncRoomState();
-                                }),
+                                onPressed: () {
+                                  if (closed) {
+                                    notify(
+                                      'Phòng khám đã đóng. Mở phòng trước khi '
+                                      'tạm dừng khám.',
+                                    );
+                                    return;
+                                  }
+                                  setState(() {
+                                    paused = !paused;
+                                    // Chụp GIỜ MÁY đúng thời điểm bấm nút.
+                                    // Không có timer chạy liên tục: mốc này
+                                    // đứng yên cho đến lần bấm tiếp theo.
+                                    final mocGio = DateTime.now();
+                                    final gio = formatMayGio(mocGio);
+                                    _lastStatusChangeAt = mocGio;
+                                    _lastStatusChangeLabel = paused
+                                        ? 'Tạm dừng lúc'
+                                        : 'Tiếp tục lúc';
+                                    message = paused
+                                        ? 'Bác sĩ tạm dừng khám lúc $gio.\n'
+                                              'Việc gọi số tiếp theo tạm thời bị dừng.\n'
+                                              'Vui lòng chờ đến khi bác sĩ tiếp tục khám.'
+                                        : 'Bác sĩ tiếp tục khám lúc $gio.\n'
+                                              'Số thứ tự được gọi lại bình thường.';
+                                    // Cập nhật ngay trạng thái phòng cho trang chính:
+                                    // chỉ khi bấm nút này phòng mới hiện "Tạm dừng".
+                                    _syncRoomState();
+                                  });
+                                  // Ghi cả `trang_thai_id` (12/13) và
+                                  // `trang_thai` (mã chuỗi) lên
+                                  // PhongKham/{roomId}. Các thiết bị khác
+                                  // nghe realtime sẽ đổi theo.
+                                  unawaited(
+                                    _publishRoomStatusId(
+                                      paused
+                                          ? kRoomStatusPausedId
+                                          : kRoomStatusOpenId,
+                                    ),
+                                  );
+                                },
                               ),
                             ),
                           ],
@@ -2038,9 +2451,58 @@ class _QueueScreenState extends State<QueueScreen> {
                         const SizedBox(height: 16),
                         _StatusBanner(
                           paused: paused,
+                          closed: closed,
                           message: message ?? _defaultStatusMessage,
-                          footer:
-                              '${widget.roomName} · ${widget.departmentName} · 08:42',
+                          // Footer CHỈ hiện mốc giờ chụp lúc bấm
+                          // Tạm dừng / Tiếp tục khám, không chạy liên tục.
+                          footer: _LiveStatusFooter(
+                            prefix:
+                                '${widget.roomName} · ${widget.departmentName}',
+                            paused: paused,
+                            closed: closed,
+                            feedState: _feedState,
+                            statusChangedAt: _lastStatusChangeAt,
+                            statusChangeLabel: _lastStatusChangeLabel,
+                          ),
+                        ),
+                        // NÚT DƯỚI CÙNG: đóng / mở phòng khám, nằm ngay
+                        // dưới thẻ "Thông báo từ Bác sĩ".
+                        const SizedBox(height: 12),
+                        _ActionButton(
+                          label: closed ? 'Mở phòng khám' : 'Đóng phòng khám',
+                          icon: closed
+                              ? Icons.lock_open_rounded
+                              : Icons.lock_outline_rounded,
+                          iconLeading: true,
+                          color: closed ? _Ui.green : Colors.white,
+                          danger: !closed,
+                          onPressed: () {
+                            final seDong = !closed;
+                            setState(() {
+                              closed = seDong;
+                              // Đóng phòng là trạng thái cuối buổi, không
+                              // chồng thêm trạng thái "Tạm dừng".
+                              if (closed) paused = false;
+                              // Bấm Đóng / Mở KHÔNG đổi mốc giờ của lần
+                              // Tạm dừng / Tiếp tục khám trước đó.
+                              message = null;
+                              _syncRoomState();
+                            });
+                            // Đóng = 14, Mở lại = 13; ghi cả 2 field snake_case.
+                            unawaited(
+                              _publishRoomStatusId(
+                                seDong
+                                    ? kRoomStatusClosedId
+                                    : kRoomStatusOpenId,
+                              ),
+                            );
+                            notify(
+                              seDong
+                                  ? 'Đã đóng phòng khám. Các thao tác gọi số '
+                                        'tạm bị khoá.'
+                                  : 'Đã mở lại phòng khám.',
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -3533,118 +3995,290 @@ class _AbsentChip extends StatelessWidget {
   );
 }
 
-/// Thẻ thông báo từ bác sĩ: xanh khi đang khám, kem + icon cam khi tạm dừng.
+/// Bảng màu + nội dung của thẻ thông báo theo 3 trạng thái phòng:
+/// Đang khám (xanh) · Tạm dừng (kem/cam) · Đóng phòng (đỏ nhạt).
+class _BannerStyle {
+  const _BannerStyle({
+    required this.heading,
+    required this.icon,
+    required this.background,
+    required this.border,
+    required this.shadow,
+    required this.halo,
+    required this.accent,
+    required this.title,
+    required this.body,
+    required this.footer,
+    required this.dot,
+  });
+
+  final String heading;
+  final IconData icon;
+  final Color background;
+  final Color border;
+  final Color shadow;
+  final Color halo;
+  final Color accent;
+  final Color title;
+  final Color body;
+  final Color footer;
+  final Color dot;
+
+  factory _BannerStyle.of({required bool paused, required bool closed}) {
+    if (closed) {
+      return const _BannerStyle(
+        heading: 'Thông báo đóng phòng khám',
+        icon: Icons.close_rounded,
+        background: Color(0xFFFFF1F0),
+        border: Color(0xFFFFD9D6),
+        shadow: Color(0x1FE5484D),
+        halo: Color(0x2EE5484D),
+        accent: Color(0xFFE5484D),
+        title: Color(0xFF7A1D1D),
+        body: Color(0xFF8A4B45),
+        footer: Color(0xFFB5807A),
+        dot: Color(0xFFD9A8A2),
+      );
+    }
+    if (paused) {
+      return const _BannerStyle(
+        heading: 'Thông báo tạm dừng khám',
+        icon: Icons.pause_rounded,
+        background: Color(0xFFFFF8E8),
+        border: Color(0xFFFFE6BC),
+        shadow: Color(0x1FF5A623),
+        halo: Color(0x2EF5A623),
+        accent: Color(0xFFF5A623),
+        title: Color(0xFF6B4A00),
+        body: Color(0xFF8A6A2F),
+        footer: Color(0xFFB08F4E),
+        dot: Color(0xFFC9A96A),
+      );
+    }
+    return const _BannerStyle(
+      heading: 'Thông báo từ Bác sĩ',
+      icon: Icons.check_rounded,
+      background: Color(0xFFEAF9F0),
+      border: Color(0xFFCFF0DC),
+      shadow: Color(0x1F2AC653),
+      halo: Color(0x2E2AC653),
+      accent: Color(0xFF2AC653),
+      title: Color(0xFF14532C),
+      body: Color(0xFF38624A),
+      footer: Color(0xFF8AA79A),
+      dot: Color(0xFF7FAE92),
+    );
+  }
+}
+
+/// Thẻ thông báo từ bác sĩ: xanh khi đang khám, kem + icon cam khi tạm
+/// dừng, đỏ nhạt + icon đóng khi phòng khám đã đóng.
 class _StatusBanner extends StatelessWidget {
   const _StatusBanner({
     required this.paused,
+    required this.closed,
     required this.message,
     required this.footer,
   });
 
   final bool paused;
+  final bool closed;
   final String message;
-  final String footer;
+
+  /// Dòng chân thẻ. Là [Widget] để footer tự quyết nội dung (mốc giờ
+  /// chụp lúc bấm nút + trạng thái luồng dữ liệu) mà không cần rebuild
+  /// cả màn hình hàng chờ.
+  final Widget footer;
 
   @override
-  Widget build(BuildContext context) => AnimatedContainer(
-    duration: const Duration(milliseconds: 260),
-    curve: Curves.easeOut,
-    padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-    decoration: BoxDecoration(
-      color: paused ? const Color(0xFFFFF8E8) : const Color(0xFFEAF9F0),
-      borderRadius: BorderRadius.circular(24),
-      border: Border.all(
-        color: paused ? const Color(0xFFFFE6BC) : const Color(0xFFCFF0DC),
+  Widget build(BuildContext context) {
+    final style = _BannerStyle.of(paused: paused, closed: closed);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOut,
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+      decoration: BoxDecoration(
+        color: style.background,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: style.border),
+        boxShadow: [
+          BoxShadow(
+            color: style.shadow,
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
-      boxShadow: [
-        BoxShadow(
-          color: paused ? const Color(0x1FF5A623) : const Color(0x1F2AC653),
-          blurRadius: 20,
-          offset: const Offset(0, 10),
-        ),
-      ],
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(3.5),
-          decoration: BoxDecoration(
-            color: paused ? const Color(0x2EF5A623) : const Color(0x2E2AC653),
-            shape: BoxShape.circle,
-          ),
-          child: Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: paused ? const Color(0xFFF5A623) : const Color(0xFF2AC653),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              paused ? Icons.pause_rounded : Icons.check_rounded,
-              color: Colors.white,
-              size: 22,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(3.5),
+            decoration: BoxDecoration(color: style.halo, shape: BoxShape.circle),
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: style.accent,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(style.icon, color: Colors.white, size: 22),
             ),
           ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                paused ? 'Thông báo tạm dừng khám' : 'Thông báo từ Bác sĩ',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: paused
-                      ? const Color(0xFF6B4A00)
-                      : const Color(0xFF14532C),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                message,
-                style: TextStyle(
-                  fontSize: 12.2,
-                  height: 1.55,
-                  color: paused
-                      ? const Color(0xFF8A6A2F)
-                      : const Color(0xFF38624A),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Container(
-                    width: 4,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: paused
-                          ? const Color(0xFFC9A96A)
-                          : const Color(0xFF7FAE92),
-                      shape: BoxShape.circle,
-                    ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  style.heading,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: style.title,
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    footer,
-                    style: TextStyle(
-                      fontSize: 10.3,
-                      fontWeight: FontWeight.w500,
-                      color: paused
-                          ? const Color(0xFFB08F4E)
-                          : const Color(0xFF8AA79A),
-                    ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  message,
+                  style: TextStyle(
+                    fontSize: 12.2,
+                    height: 1.55,
+                    color: style.body,
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: style.dot,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: DefaultTextStyle(
+                        style: TextStyle(
+                          fontSize: 10.3,
+                          fontWeight: FontWeight.w500,
+                          color: style.footer,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        child: footer,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
+}
+
+/// Định dạng `HH:mm:ss` theo giờ địa phương của MÁY đang chạy app.
+/// Dùng cho MỘT MỐC THỜI ĐIỂM đã chụp (lúc bấm Tạm dừng / Tiếp tục
+/// khám), không phải cho đồng hồ chạy liên tục.
+String formatMayGio(DateTime time) {
+  String haiChuSo(int value) => value.toString().padLeft(2, '0');
+  return '${haiChuSo(time.hour)}:${haiChuSo(time.minute)}'
+      ':${haiChuSo(time.second)}';
+}
+
+/// Dòng chân thẻ thông báo: KHÔNG có đồng hồ chạy liên tục.
+///
+/// Giờ chỉ xuất hiện khi bác sĩ bấm "Tạm dừng khám" hoặc "Tiếp tục
+/// khám": `_QueueScreenState` chụp `DateTime.now()` đúng thời điểm đó
+/// rồi truyền vào đây. Mốc giờ đứng yên cho đến lần bấm tiếp theo, kể
+/// cả khi luồng lịch hẹn realtime vẫn tiếp tục cập nhật nội dung thẻ.
+/// Khi chưa bấm nút nào, footer chỉ hiện tên phòng/khoa và trạng thái
+/// của luồng dữ liệu (`Giờ máy` / `Đang kết nối…` / `Realtime` /
+/// `Mất kết nối`). Khi phòng đã đóng, footer thêm nhãn `Đã đóng phòng`.
+class _LiveStatusFooter extends StatelessWidget {
+  const _LiveStatusFooter({
+    required this.prefix,
+    required this.paused,
+    required this.closed,
+    required this.feedState,
+    required this.statusChangedAt,
+    required this.statusChangeLabel,
+  });
+
+  /// "Tên phòng · Tên khoa" lấy từ phòng bác sĩ đang mở.
+  final String prefix;
+  final bool paused;
+  final bool closed;
+  final QueueFeedState feedState;
+
+  /// `null` khi phòng hôm nay chưa bấm Tạm dừng / Tiếp tục lần nào.
+  final DateTime? statusChangedAt;
+  final String statusChangeLabel;
+
+  ({String label, Color color}) get _feedBadge {
+    final neutral = closed
+        ? const Color(0xFFB5807A)
+        : paused
+        ? const Color(0xFFB08F4E)
+        : const Color(0xFF8AA79A);
+    return switch (feedState) {
+      QueueFeedState.local => (label: 'Giờ máy', color: neutral),
+      QueueFeedState.connecting => (
+        label: 'Đang kết nối…',
+        color: const Color(0xFFC98A17),
+      ),
+      QueueFeedState.live => (
+        label: 'Realtime',
+        color: const Color(0xFF1E9C48),
+      ),
+      QueueFeedState.error => (
+        label: 'Mất kết nối',
+        color: const Color(0xFFD93F3F),
+      ),
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final badge = _feedBadge;
+    final baseStyle = DefaultTextStyle.of(context).style;
+    final mocGio = statusChangedAt;
+    return Text.rich(
+      TextSpan(
+        style: baseStyle,
+        children: <InlineSpan>[
+          TextSpan(text: '$prefix · '),
+          if (closed)
+            TextSpan(
+              text: 'Đã đóng phòng · ',
+              style: baseStyle.copyWith(
+                color: const Color(0xFFC23B3B),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          if (mocGio != null)
+            TextSpan(
+              text: '${formatMayGio(mocGio)} · $statusChangeLabel · ',
+              style: baseStyle.copyWith(fontWeight: FontWeight.w700),
+            ),
+          TextSpan(
+            text: badge.label,
+            style: baseStyle.copyWith(
+              color: badge.color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
 }
 
 /// Dòng gợi ý khi danh sách trống.
