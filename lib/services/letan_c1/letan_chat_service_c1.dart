@@ -9,14 +9,12 @@ class LetanChatServiceC1 {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   /// Lắng nghe danh sách các cuộc hội thoại CSKH realtime từ collection "Conversations"
+  /// Chỉ cần xét đúng ID bệnh viện (ví dụ BV502) là lấy toàn bộ chat của bệnh viện đó
   static Stream<List<Map<String, dynamic>>> streamDanhSachHoiThoaiCskh([String? benhVienId]) {
-    final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty && benhVienId != 'BV01' && benhVienId != '1')
-        ? benhVienId.trim()
-        : (DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty &&
-                DuLieuProfileMauC1.thongTinHienTai.benhVienId != 'BV01' &&
-                DuLieuProfileMauC1.thongTinHienTai.benhVienId != '1'
-            ? DuLieuProfileMauC1.thongTinHienTai.benhVienId
-            : 'BV502');
+    final rawBv = benhVienId ?? DuLieuProfileMauC1.thongTinHienTai.benhVienId;
+    final bvid = (rawBv.trim().isNotEmpty && rawBv != 'BV01' && rawBv != '1')
+        ? rawBv.trim()
+        : 'BV502';
 
     return _firestore.collection('Conversations').snapshots().map((snap) {
       if (snap.docs.isEmpty) return [];
@@ -28,22 +26,27 @@ class LetanChatServiceC1 {
         final docId = doc.id;
         final docBv = (d['benhVienId'] ?? d['benh_vien_id'] ?? '').toString();
 
-        // Kiểm tra khớp bệnh viện:
-        // 1. Nếu docBv hoặc docId có chứa bvid (ví dụ 'BV502')
-        // 2. Hoặc document ID có format CONV_{benhVienId}_{benhNhanId} chứa mã bệnh viện
-        // 3. Fallback: Nếu không truyền bvid hoặc chưa xác định thì nạp tất cả hội thoại
-        if (bvid.isNotEmpty && docBv.isNotEmpty) {
-          final isSameBv = docBv.toLowerCase() == bvid.toLowerCase() ||
+        // CHỈ CẦN XÉT ID BỆNH VIỆN LÀ LẤY ĐƯỢC CHAT LIÊN QUAN TỚI BỆNH VIỆN ĐÓ:
+        // 1. docBv trùng khớp với bvid (hoặc ngược lại)
+        // 2. Hoặc Document ID bắt đầu bằng CONV_{bvid}_...
+        // 3. Nếu là BV502 (Bệnh viện anh Tuấn) thì luôn nạp các đoạn chat thuộc BV502
+        bool isHospitalChat = false;
+        if (docBv.isNotEmpty) {
+          isHospitalChat = docBv.toLowerCase() == bvid.toLowerCase() ||
               docBv.toLowerCase().contains(bvid.toLowerCase()) ||
-              bvid.toLowerCase().contains(docBv.toLowerCase()) ||
-              docId.toLowerCase().contains(bvid.toLowerCase()) ||
-              docId.toLowerCase().contains('bv502') ||
-              docBv.toLowerCase().contains('bv502');
-          if (!isSameBv) {
-            continue;
-          }
+              bvid.toLowerCase().contains(docBv.toLowerCase());
         }
-        list.add({'id': doc.id, ...d});
+        if (!isHospitalChat && docId.isNotEmpty) {
+          isHospitalChat = docId.toLowerCase().contains(bvid.toLowerCase());
+        }
+        // Trường hợp fallback nếu tài khoản là BV502:
+        if (!isHospitalChat && (bvid.toLowerCase().contains('bv502') || bvid.isEmpty)) {
+          isHospitalChat = docId.toLowerCase().contains('bv502') || docBv.toLowerCase().contains('bv502');
+        }
+
+        if (isHospitalChat) {
+          list.add({'id': doc.id, ...d});
+        }
       }
 
       // Sắp xếp cuộc trò chuyện có tin nhắn mới nhất lên đầu trang (sort an toàn ở client)
