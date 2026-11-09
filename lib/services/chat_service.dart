@@ -76,7 +76,44 @@ class ChatService {
       debugPrint('✅ [ChatService] Đã lọc được ${list.length} cuộc trò chuyện hiển thị cho CSKH');
       list.sort((a, b) => b.sortTime.compareTo(a.sortTime));
       return list;
+    }).handleError((error, stackTrace) {
+      debugPrint('❌ [ChatService] LỖI streamHospitalConversations: $error');
+      debugPrint('$stackTrace');
+      throw error;
     });
+  }
+
+  /// Tải trực tiếp 1 lần (Future) hỗ trợ phòng hờ Stream bị treo hoặc chưa kịp kích hoạt
+  Future<List<ConversationModel>> fetchHospitalConversationsOnce(String benhVienId) async {
+    final bvid = benhVienId.trim().isNotEmpty ? benhVienId.trim() : 'BV502';
+    debugPrint('🔄 [ChatService] fetchHospitalConversationsOnce cho: $bvid');
+    try {
+      final snap = await _db.collection(_colConv).get();
+      debugPrint('🔄 [ChatService] get() trả về ${snap.docs.length} documents');
+      final list = <ConversationModel>[];
+      for (final doc in snap.docs) {
+        final d = doc.data();
+        final docBv = (d['benhVienId'] ?? d['benh_vien_id'] ?? '').toString();
+        final docId = doc.id;
+
+        final isMatch = docBv.toLowerCase() == bvid.toLowerCase() ||
+            docBv.toLowerCase().contains(bvid.toLowerCase()) ||
+            bvid.toLowerCase().contains(docBv.toLowerCase()) ||
+            docId.toLowerCase().contains(bvid.toLowerCase()) ||
+            docId.toLowerCase().contains('bv502') ||
+            docBv.toLowerCase().contains('bv502');
+
+        if (isMatch) {
+          list.add(ConversationModel.fromMap(d, id: doc.id));
+        }
+      }
+      list.sort((a, b) => b.sortTime.compareTo(a.sortTime));
+      return list;
+    } catch (e, stack) {
+      debugPrint('❌ [ChatService] Lỗi khi get() Conversations: $e');
+      debugPrint('$stack');
+      rethrow;
+    }
   }
 
   /// Theo dõi 1 cuộc trò chuyện (trạng thái open/closed, support phụ trách).
