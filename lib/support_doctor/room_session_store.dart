@@ -11,6 +11,10 @@ class RoomSessionSnapshot {
   /// Khi chưa mở, trang chính hiển thị đúng dữ liệu phòng ban đầu.
   bool started = false;
 
+  /// Phòng đã bấm nút “Bắt đầu” chưa. Trước khi bấm, số hiện tại giữ đúng
+  /// số bắt đầu mặc định là 0 và nút chính hiện chữ “Bắt đầu”.
+  bool daBatDau = false;
+
   /// Số hiện tại và số kế tiếp đang hiển thị ở màn hình hàng chờ.
   int current = 0;
   int next = 0;
@@ -46,6 +50,11 @@ class RoomSessionSnapshot {
   /// số lúc bấm “Đợi” (số này không đổi khi các số phía sau được đánh lại).
   Map<int, String> deferredNameByNumber = <int, String>{};
 
+  /// Mã lịch hẹn của từng số trong “SỐ ĐÃ CHO QUA”, chốt lúc bấm “Đợi”.
+  /// Cần khôi phục cùng phiên để khi mở lại phòng vẫn chèn lại đúng người
+  /// (dùng số hiển thị làm khoá sẽ bị trùng với người đang chạy).
+  Map<int, String> deferredAppointmentIdByNumber = <int, String>{};
+
   /// STT lớn nhất đã biết từ danh sách lịch hẹn/phiên; không dùng để
   /// tự sinh thêm số bệnh nhân.
   int lastIssued = 0;
@@ -75,9 +84,27 @@ class RoomSessionSnapshot {
   /// Bác sĩ đang tạm dừng khám.
   bool paused = false;
 
-  /// Trạng thái phòng: chỉ "Tạm dừng" khi bác sĩ đã nhấn nút "Tạm dừng khám".
-  RoomRuntimeStatus get status =>
-      paused ? RoomRuntimeStatus.paused : RoomRuntimeStatus.open;
+  /// Phòng khám đã ĐÓNG (nút "Đóng phòng khám" ở dưới cùng màn hình hàng
+  /// chờ). Khác với [paused]: đóng phòng là trạng thái cuối buổi, các thao
+  /// tác gọi số bị khoá cho đến khi bác sĩ bấm "Mở phòng khám".
+  bool closed = false;
+
+  /// Mốc thời gian (giờ MÁY) được chụp ở lần bấm "Tạm dừng khám" hoặc
+  /// "Tiếp tục khám" gần nhất. Giờ này KHÔNG chạy liên tục: nó đứng yên
+  /// cho đến lần bấm tiếp theo, và được giữ lại khi rồi mở lại phòng.
+  /// Bấm "Đóng / Mở phòng khám" KHÔNG đổi mốc này.
+  DateTime? statusChangedAt;
+
+  /// Nhãn đi kèm mốc giờ: "Tạm dừng lúc" / "Tiếp tục lúc".
+  String statusChangeLabel = '';
+
+  /// Trạng thái phòng theo thứ tự ưu tiên: Đóng > Tạm dừng > Đang khám.
+  /// Màn hình chọn khoa/phòng đọc getter này để hiện đúng nhãn/bộ lọc.
+  RoomRuntimeStatus get status => closed
+      ? RoomRuntimeStatus.closed
+      : paused
+      ? RoomRuntimeStatus.paused
+      : RoomRuntimeStatus.open;
 
   /// Số bệnh nhân đang đợi (bằng độ dài hàng chờ).
   int get waitingCount => waiting.length;
@@ -91,9 +118,10 @@ class RoomSessionSnapshot {
 
 /// Kho trạng thái dùng chung giữa màn hình chọn khoa/phòng và màn hình hàng chờ.
 ///
-/// Nhờ lớp này, khi bác sĩ nhấn "Tạm dừng khám" / "Tiếp tục khám" ở màn hình
-/// hàng chờ thì trang chính hiển thị đúng trạng thái mới ngay khi quay lại,
-/// kèm số hiện tại – số đang đợi – số đã khám của phòng đó.
+/// Nhờ lớp này, khi bác sĩ nhấn "Tạm dừng khám" / "Tiếp tục khám" hay
+/// "Đóng phòng khám" / "Mở phòng khám" ở màn hình hàng chờ thì trang chính
+/// hiển thị đúng trạng thái mới ngay khi quay lại, kèm số hiện tại –
+/// số đang đợi – số đã khám của phòng đó.
 class RoomSessionStore extends ChangeNotifier {
   RoomSessionStore._();
 
