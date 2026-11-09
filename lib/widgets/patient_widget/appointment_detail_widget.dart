@@ -2,29 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../config/app_routes.dart';
 import '../../models/appointment_item.dart';
-import '../../widgets/appointment_card.dart'; // Đảm bảo file này chứa StatusChip
+import '../../widgets/appointment_card.dart';
 import '../../utils/app_snackbar.dart';
+import 'book_appointment_widget.dart' show AppTheme, AppCard, InfoPill, SectionTitle;
 
-/// Chỉnh độ trong suốt an toàn cho mọi phiên bản Flutter (thay withOpacity).
-extension _ColorX on Color {
-  Color o(double opacity) => withAlpha((opacity * 255).round().clamp(0, 255));
-}
-
-// ───────────────────────── CONSTANTS ─────────────────────────
-const Color _primary = Color(0xFF0B63CE);
-const Color _primaryDark = Color(0xFF084A9E);
-const Color _primarySoft = Color(0xFFE8F1FC);
-const Color _green = Color(0xFF15935F);
-const Color _greenSoft = Color(0xFFE3F6EE);
-const Color _red = Color(0xFFDC2626);
-const Color _amber = Color(0xFFD97706);
-const Color _amberSoft = Color(0xFFFEF3C7);
-const Color _dark = Color(0xFF0B1F3A);
-const Color _grey = Color(0xFF5B6B80);
-const Color _border = Color(0xFFE3EAF2);
-
-// ───────────────────────── WIDGETS ─────────────────────────
-
+/// AppointmentDetailHeader: thanh tiêu đề của màn chi tiết lịch khám.
 class AppointmentDetailHeader extends StatelessWidget {
   const AppointmentDetailHeader({super.key});
 
@@ -34,12 +16,12 @@ class AppointmentDetailHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(bottom: BorderSide(color: _border)),
+        border: Border(bottom: BorderSide(color: AppTheme.borderColor)),
       ),
       child: Row(
         children: [
           Material(
-            color: _primarySoft,
+            color: AppTheme.tint(AppTheme.primaryBlue),
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
@@ -50,7 +32,7 @@ class AppointmentDetailHeader extends StatelessWidget {
                 child: Icon(
                   Icons.arrow_back_ios_new_rounded,
                   size: 17,
-                  color: _primary,
+                  color: AppTheme.primaryBlue,
                 ),
               ),
             ),
@@ -63,14 +45,13 @@ class AppointmentDetailHeader extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
-                    color: _dark,
-                    letterSpacing: -0.2,
+                    color: AppTheme.textDark,
                   ),
                 ),
                 SizedBox(height: 1),
                 Text(
-                  'Thông tin & trạng thái',
-                  style: TextStyle(fontSize: 11.5, color: _grey),
+                  'Thông tin và trạng thái',
+                  style: TextStyle(fontSize: 11.5, color: AppTheme.textGrey),
                 ),
               ],
             ),
@@ -82,6 +63,7 @@ class AppointmentDetailHeader extends StatelessWidget {
   }
 }
 
+/// AppointmentStatusHero: thẻ trạng thái lịch khám, kèm các bước tiến trình khi đang chờ hoặc đã duyệt.
 class AppointmentStatusHero extends StatelessWidget {
   final bool isPending;
   final bool isApproved;
@@ -99,135 +81,91 @@ class AppointmentStatusHero extends StatelessWidget {
     final IconData icon;
     final String title;
     final String message;
-    final List<Color> colors;
+    final Color color;
 
     if (isCancelled) {
       icon = Icons.event_busy_rounded;
       title = 'Lịch khám đã bị hủy';
-      message = 'Rất tiếc, lịch khám này không còn hiệu lực.';
-      colors = const [Color(0xFFEF4444), Color(0xFFB91C1C)];
+      message = 'Lịch khám này không còn hiệu lực.';
+      color = AppTheme.danger;
     } else if (isApproved) {
       icon = Icons.verified_rounded;
       title = 'Lịch khám đã được duyệt';
       message = 'Vui lòng đến đúng ngày và khung giờ đã đặt.';
-      colors = const [Color(0xFF1FB57A), Color(0xFF0E7A52)];
+      color = AppTheme.primaryGreen;
     } else if (isPending) {
       icon = Icons.hourglass_top_rounded;
       title = 'Đang chờ bệnh viện xác nhận';
-      message = 'Chúng tôi sẽ thông báo ngay khi lịch khám được duyệt.';
-      colors = const [Color(0xFFF59E0B), Color(0xFFC2650A)];
+      message = 'Bạn sẽ được thông báo ngay khi lịch khám được duyệt.';
+      color = AppTheme.warning;
     } else {
       icon = Icons.event_note_rounded;
       title = 'Thông tin lịch khám';
       message = 'Chi tiết lịch khám của bạn.';
-      colors = const [Color(0xFF1F8FE8), _primaryDark];
+      color = AppTheme.primaryBlue;
     }
 
     return Container(
-      clipBehavior: Clip.antiAlias,
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: colors,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: colors.last.o(0.28),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
+        color: AppTheme.tint(color, 0.07),
+        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+        border: Border.all(color: AppTheme.tint(color, 0.22)),
       ),
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned(
-            right: -34,
-            top: -34,
-            child: Container(
-              width: 130,
-              height: 130,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.o(0.09),
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                child: Icon(icon, size: 25, color: Colors.white),
               ),
-            ),
-          ),
-          Positioned(
-            right: 40,
-            bottom: -46,
-            child: Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.o(0.06),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 54,
-                      height: 54,
-                      decoration: BoxDecoration(
-                        color: Colors.white.o(0.2),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: Colors.white.o(0.3)),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16.5,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.textDark,
                       ),
-                      child: Icon(icon, size: 28, color: Colors.white),
                     ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: const TextStyle(
-                              fontSize: 17.5,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                              letterSpacing: -0.2,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            message,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              height: 1.4,
-                              color: Colors.white.o(0.9),
-                            ),
-                          ),
-                        ],
+                    const SizedBox(height: 3),
+                    Text(
+                      message,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        height: 1.4,
+                        color: AppTheme.textGrey,
                       ),
                     ),
                   ],
                 ),
-                if (isPending || isApproved) ...[
-                  const SizedBox(height: 20),
-                  AppointmentStatusSteps(
-                    completed: isApproved ? 3 : 1,
-                    current: isApproved ? null : 1,
-                    accent: colors.last,
-                  ),
-                ],
-              ],
-            ),
+              ),
+            ],
           ),
+          if (isPending || isApproved) ...[
+            const SizedBox(height: 20),
+            AppointmentStatusSteps(
+              completed: isApproved ? 3 : 1,
+              current: isApproved ? null : 1,
+              accent: color,
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
+/// AppointmentStatusSteps: dải ba bước Đã gửi, Chờ duyệt, Đã duyệt.
 class AppointmentStatusSteps extends StatelessWidget {
   final int completed;
   final int? current;
@@ -240,39 +178,37 @@ class AppointmentStatusSteps extends StatelessWidget {
     required this.accent,
   });
 
+  /// _circle: vòng tròn đánh dấu một bước (đã xong, đang chờ hoặc chưa tới).
+  Widget _circle(int step) {
+    final done = step < completed;
+    final isCurrent = step == current;
+    return Container(
+      width: 26,
+      height: 26,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: done ? accent : Colors.white,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: done || isCurrent ? accent : AppTheme.borderColor,
+          width: 2,
+        ),
+      ),
+      child: done
+          ? const Icon(Icons.check_rounded, size: 15, color: Colors.white)
+          : isCurrent
+          ? Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+            )
+          : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const labels = ['Đã gửi', 'Chờ duyệt', 'Đã duyệt'];
-
-    Widget circle(int step) {
-      final done = step < completed;
-      final isCurrent = step == current;
-      return Container(
-        width: 26,
-        height: 26,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: done ? Colors.white : Colors.white.o(0.2),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: Colors.white.o(done || isCurrent ? 1 : 0.45),
-            width: 2,
-          ),
-        ),
-        child: done
-            ? Icon(Icons.check_rounded, size: 16, color: accent)
-            : isCurrent
-            ? Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-              )
-            : null,
-      );
-    }
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,7 +221,7 @@ class AppointmentStatusSteps extends StatelessWidget {
               child: Container(
                 height: 2.5,
                 decoration: BoxDecoration(
-                  color: Colors.white.o(lineDone ? 1 : 0.35),
+                  color: lineDone ? accent : AppTheme.borderColor,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -296,14 +232,14 @@ class AppointmentStatusSteps extends StatelessWidget {
         final highlighted = step < completed || step == current;
         return Column(
           children: [
-            circle(step),
-            const SizedBox(height: 5),
+            _circle(step),
+            const SizedBox(height: 6),
             Text(
               labels[step],
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 11.5,
                 fontWeight: highlighted ? FontWeight.w800 : FontWeight.w600,
-                color: Colors.white.o(highlighted ? 1 : 0.7),
+                color: highlighted ? AppTheme.textDark : AppTheme.textGrey,
               ),
             ),
           ],
@@ -313,6 +249,7 @@ class AppointmentStatusSteps extends StatelessWidget {
   }
 }
 
+/// AppointmentInfoCard: thẻ thông tin bệnh viện, chuyên khoa, mã lịch, ngày và giờ khám.
 class AppointmentInfoCard extends StatelessWidget {
   final MyAppointmentItem appointment;
   final AppointmentStatus status;
@@ -323,27 +260,27 @@ class AppointmentInfoCard extends StatelessWidget {
     required this.status,
   });
 
+  /// _copyId: sao chép mã lịch hẹn vào clipboard.
+  Future<void> _copyId(BuildContext context) async {
+    await Clipboard.setData(ClipboardData(text: appointment.id));
+    if (!context.mounted) return;
+    context.showAppSnackBar(
+      title: 'Sao chép thành công',
+      message: 'Đã sao chép mã lịch hẹn',
+      type: SnackBarType.success,
+      duration: const Duration(seconds: 2),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: _border),
-        boxShadow: [
-          BoxShadow(
-            color: _primary.o(0.06),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+    return AppCard(
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Đầu thẻ: bệnh viện + trạng thái
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+            padding: const EdgeInsets.all(18),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -351,13 +288,13 @@ class AppointmentInfoCard extends StatelessWidget {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: _primarySoft,
-                    borderRadius: BorderRadius.circular(15),
+                    color: AppTheme.tint(AppTheme.primaryBlue),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   child: const Icon(
                     Icons.local_hospital_rounded,
                     size: 26,
-                    color: _primary,
+                    color: AppTheme.primaryBlue,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -373,42 +310,14 @@ class AppointmentInfoCard extends StatelessWidget {
                           fontSize: 16.5,
                           height: 1.25,
                           fontWeight: FontWeight.w800,
-                          color: _dark,
+                          color: AppTheme.textDark,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _primarySoft,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.medical_services_outlined,
-                              size: 13,
-                              color: _primary,
-                            ),
-                            const SizedBox(width: 5),
-                            Flexible(
-                              child: Text(
-                                appointment.departmentName,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: _primary,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                      InfoPill(
+                        icon: Icons.medical_services_outlined,
+                        text: appointment.departmentName,
+                        color: AppTheme.primaryBlue,
                       ),
                     ],
                   ),
@@ -418,81 +327,32 @@ class AppointmentInfoCard extends StatelessWidget {
               ],
             ),
           ),
-
-          // Đường cắt kiểu vé: hai nửa tròn hai bên
-          Row(
-            children: [
-              Container(
-                width: 12,
-                height: 24,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF3F7FB),
-                  borderRadius: BorderRadius.horizontal(
-                    right: Radius.circular(12),
-                  ),
-                ),
-              ),
-              const Expanded(child: _DashedLine()),
-              Container(
-                width: 12,
-                height: 24,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF3F7FB),
-                  borderRadius: BorderRadius.horizontal(
-                    left: Radius.circular(12),
-                  ),
-                ),
-              ),
-            ],
-          ),
-
+          const Divider(height: 1, color: AppTheme.borderColor),
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 4, 18, 8),
+            padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Column(
               children: [
                 AppointmentInfoRow(
                   icon: Icons.confirmation_number_outlined,
                   label: 'Mã lịch hẹn',
                   value: appointment.id,
-                  trailing: Material(
-                    color: _primarySoft,
-                    borderRadius: BorderRadius.circular(10),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(10),
-                      onTap: () async {
-                        await Clipboard.setData(
-                          ClipboardData(text: appointment.id),
-                        );
-                        if (!context.mounted) return;
-                        context.showAppSnackBar(
-                          title: 'Sao chép thành công',
-                          message: 'Đã sao chép mã lịch hẹn',
-                          type: SnackBarType.success,
-                          duration: const Duration(seconds: 2),
-                        );
-                      },
-                      child: const Tooltip(
-                        message: 'Sao chép mã',
-                        child: SizedBox(
-                          width: 36,
-                          height: 36,
-                          child: Icon(
-                            Icons.copy_rounded,
-                            size: 17,
-                            color: _primary,
-                          ),
-                        ),
-                      ),
+                  trailing: IconButton(
+                    tooltip: 'Sao chép mã',
+                    onPressed: () => _copyId(context),
+                    icon: const Icon(
+                      Icons.copy_rounded,
+                      size: 19,
+                      color: AppTheme.primaryBlue,
                     ),
                   ),
                 ),
-                const Divider(height: 1, color: Color(0xFFEEF2F7)),
+                const Divider(height: 1, color: AppTheme.borderColor),
                 AppointmentInfoRow(
                   icon: Icons.calendar_month_rounded,
                   label: 'Ngày khám',
                   value: appointment.dateLabel,
                 ),
-                const Divider(height: 1, color: Color(0xFFEEF2F7)),
+                const Divider(height: 1, color: AppTheme.borderColor),
                 AppointmentInfoRow(
                   icon: Icons.schedule_rounded,
                   label: 'Khung giờ',
@@ -507,27 +367,7 @@ class AppointmentInfoCard extends StatelessWidget {
   }
 }
 
-/// Đường nét đứt dùng cho đường cắt của thẻ.
-class _DashedLine extends StatelessWidget {
-  const _DashedLine();
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, c) {
-        final count = (c.maxWidth / 9).floor();
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: List.generate(
-            count,
-            (_) => Container(width: 5, height: 1.5, color: _border),
-          ),
-        );
-      },
-    );
-  }
-}
-
+/// AppointmentInfoRow: một dòng thông tin gồm biểu tượng, nhãn, giá trị và nút phụ.
 class AppointmentInfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -552,10 +392,10 @@ class AppointmentInfoRow extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: _primarySoft,
+              color: AppTheme.mutedFill,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, size: 20, color: _primary),
+            child: Icon(icon, size: 20, color: AppTheme.primaryBlue),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -565,9 +405,8 @@ class AppointmentInfoRow extends StatelessWidget {
                 Text(
                   label,
                   style: const TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                    color: _grey,
+                    fontSize: 12,
+                    color: AppTheme.textGrey,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -577,7 +416,7 @@ class AppointmentInfoRow extends StatelessWidget {
                     fontSize: 14.5,
                     height: 1.3,
                     fontWeight: FontWeight.w700,
-                    color: _dark,
+                    color: AppTheme.textDark,
                   ),
                 ),
               ],
@@ -590,6 +429,7 @@ class AppointmentInfoRow extends StatelessWidget {
   }
 }
 
+/// AppointmentPendingSection: lưu ý chờ duyệt và nút hủy lịch.
 class AppointmentPendingSection extends StatelessWidget {
   final VoidCallback onCancel;
 
@@ -603,14 +443,13 @@ class AppointmentPendingSection extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: _amberSoft,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFFCD98A)),
+            color: const Color(0xFFFFF4DB),
+            borderRadius: BorderRadius.circular(AppTheme.radiusItem),
           ),
           child: const Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.info_outline_rounded, size: 20, color: _amber),
+              Icon(Icons.info_outline_rounded, size: 20, color: AppTheme.warning),
               SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -634,12 +473,12 @@ class AppointmentPendingSection extends StatelessWidget {
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
           ),
           style: OutlinedButton.styleFrom(
-            foregroundColor: _red,
+            foregroundColor: AppTheme.danger,
             backgroundColor: Colors.white,
-            side: BorderSide(color: _red.o(0.45), width: 1.3),
+            side: BorderSide(color: AppTheme.tint(AppTheme.danger, 0.45)),
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(AppTheme.radiusItem),
             ),
           ),
         ),
@@ -648,17 +487,36 @@ class AppointmentPendingSection extends StatelessWidget {
   }
 }
 
+/// AppointmentApprovedSection: số thứ tự, thời gian chờ ước tính và các nút theo dõi.
 class AppointmentApprovedSection extends StatelessWidget {
   final Future<Map<String, dynamic>?> Function() fetchDetails;
   final VoidCallback onRefresh;
   final VoidCallback onTrack;
+  final void Function(Map<String, dynamic> data) onShareTicket;
 
   const AppointmentApprovedSection({
     super.key,
     required this.fetchDetails,
     required this.onRefresh,
     required this.onTrack,
+    required this.onShareTicket,
   });
+
+  /// _statSkeleton: ô giữ chỗ khi đang tải số thứ tự.
+  Widget _statSkeleton() {
+    return const AppCard(
+      child: SizedBox(
+        height: 92,
+        child: Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 3),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -679,14 +537,17 @@ class AppointmentApprovedSection extends StatelessWidget {
           return Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: _greenSoft,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _green.o(0.25)),
+              color: AppTheme.tint(AppTheme.primaryGreen, 0.08),
+              borderRadius: BorderRadius.circular(AppTheme.radiusItem),
             ),
             child: const Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.info_outline_rounded, size: 20, color: _green),
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 20,
+                  color: AppTheme.primaryGreen,
+                ),
                 SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -694,7 +555,7 @@ class AppointmentApprovedSection extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12.5,
                       height: 1.45,
-                      color: Color(0xFF0E6B47),
+                      color: Color(0xFF0B6B49),
                     ),
                   ),
                 ),
@@ -719,7 +580,7 @@ class AppointmentApprovedSection extends StatelessWidget {
                     icon: Icons.format_list_numbered_rounded,
                     label: 'Số thứ tự của bạn',
                     value: soThuTu,
-                    color: _primary,
+                    color: AppTheme.primaryBlue,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -728,45 +589,60 @@ class AppointmentApprovedSection extends StatelessWidget {
                     icon: Icons.timer_outlined,
                     label: 'Thời gian chờ ước tính',
                     value: thoiGianCho,
-                    color: _amber,
+                    color: AppTheme.warning,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
-              onPressed: onRefresh,
-              icon: const Icon(Icons.refresh_rounded, size: 19),
+              onPressed: onTrack,
+              icon: const Icon(Icons.track_changes_rounded, size: 19),
               label: const Text(
-                'Làm mới trạng thái',
+                'Theo dõi số thứ tự trực tiếp',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _primary,
+                backgroundColor: AppTheme.primaryBlue,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusItem),
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             OutlinedButton.icon(
-              onPressed: onTrack,
-              icon: const Icon(Icons.track_changes_rounded, size: 19),
+              onPressed: () => onShareTicket(data),
+              icon: const Icon(Icons.qr_code_2_rounded, size: 20),
               label: const Text(
-                'Bấm Vào Đây để theo dõi trực tiếp',
+                'Xem và chia sẻ vé khám',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
               ),
               style: OutlinedButton.styleFrom(
-                foregroundColor: _primary,
+                foregroundColor: AppTheme.primaryBlue,
                 backgroundColor: Colors.white,
-                side: BorderSide(color: _primary.o(0.45), width: 1.3),
+                side: BorderSide(
+                  color: AppTheme.tint(AppTheme.primaryBlue, 0.45),
+                ),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusItem),
                 ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            TextButton.icon(
+              onPressed: onRefresh,
+              icon: const Icon(Icons.refresh_rounded, size: 19),
+              label: const Text(
+                'Làm mới trạng thái',
+                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700),
+              ),
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.textGrey,
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
             ),
           ],
@@ -774,27 +650,9 @@ class AppointmentApprovedSection extends StatelessWidget {
       },
     );
   }
-
-  /// Ô giả khi đang tải số thứ tự (nhẹ nhàng hơn vòng xoay).
-  Widget _statSkeleton() {
-    return Container(
-      height: 124,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _border),
-      ),
-      child: const Center(
-        child: SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(strokeWidth: 3, color: _primary),
-        ),
-      ),
-    );
-  }
 }
 
+/// AppointmentStatTile: ô số liệu lớn kèm biểu tượng và nhãn.
 class AppointmentStatTile extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -811,28 +669,15 @@ class AppointmentStatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _border),
-        boxShadow: [
-          BoxShadow(
-            color: color.o(0.09),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.o(0.12),
-              borderRadius: BorderRadius.circular(11),
+              color: AppTheme.tint(color, 0.12),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, size: 20, color: color),
           ),
@@ -844,17 +689,15 @@ class AppointmentStatTile extends StatelessWidget {
               height: 1.1,
               fontWeight: FontWeight.w800,
               color: color,
-              letterSpacing: -0.3,
             ),
           ),
           const SizedBox(height: 5),
           Text(
             label,
             style: const TextStyle(
-              fontSize: 11.5,
+              fontSize: 12,
               height: 1.3,
-              fontWeight: FontWeight.w600,
-              color: _grey,
+              color: AppTheme.textGrey,
             ),
           ),
         ],
@@ -863,6 +706,7 @@ class AppointmentStatTile extends StatelessWidget {
   }
 }
 
+/// AppointmentCancelledSection: gợi ý đặt lại, về trang chủ và xóa lịch đã hủy.
 class AppointmentCancelledSection extends StatelessWidget {
   final VoidCallback onGoToBooking;
   final VoidCallback onDelete;
@@ -873,53 +717,36 @@ class AppointmentCancelledSection extends StatelessWidget {
     required this.onDelete,
   });
 
+  /// _iconBox: ô biểu tượng màu đặc dùng trong dòng gợi ý.
+  Widget _iconBox(IconData icon, Color color) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Icon(icon, size: 20, color: Colors.white),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 8),
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: _primarySoft,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.lightbulb_outline_rounded,
-                size: 18,
-                color: _primary,
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'Gợi ý cho bạn',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: _dark,
-              ),
-            ),
-          ],
+        const SectionTitle(
+          icon: Icons.lightbulb_outline_rounded,
+          text: 'Gợi ý cho bạn',
         ),
         const SizedBox(height: 12),
         SuggestionTile(
-          background: _greenSoft,
-          accent: _green,
-          leading: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: _green,
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: const Icon(
-              Icons.access_time_filled_rounded,
-              size: 19,
-              color: Colors.white,
-            ),
+          background: AppTheme.tint(AppTheme.primaryGreen, 0.08),
+          accent: AppTheme.primaryGreen,
+          leading: _iconBox(
+            Icons.access_time_filled_rounded,
+            AppTheme.primaryGreen,
           ),
           title: 'Đặt lịch ca khác',
           subtitle: 'Xem các khung giờ còn trống trong ngày',
@@ -927,20 +754,11 @@ class AppointmentCancelledSection extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         SuggestionTile(
-          background: _primarySoft,
-          accent: _primary,
-          leading: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: _primary,
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: const Icon(
-              Icons.calendar_month_rounded,
-              size: 19,
-              color: Colors.white,
-            ),
+          background: AppTheme.tint(AppTheme.primaryBlue, 0.08),
+          accent: AppTheme.primaryBlue,
+          leading: _iconBox(
+            Icons.calendar_month_rounded,
+            AppTheme.primaryBlue,
           ),
           title: 'Chọn ngày khác',
           subtitle: 'Xem lịch trống các ngày tới',
@@ -955,16 +773,16 @@ class AppointmentCancelledSection extends StatelessWidget {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
           ),
           style: ElevatedButton.styleFrom(
-            backgroundColor: _primary,
+            backgroundColor: AppTheme.primaryBlue,
             foregroundColor: Colors.white,
             elevation: 0,
             padding: const EdgeInsets.symmetric(vertical: 15),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(AppTheme.radiusItem),
             ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         OutlinedButton.icon(
           onPressed: () => Navigator.pushNamedAndRemoveUntil(
             context,
@@ -977,12 +795,12 @@ class AppointmentCancelledSection extends StatelessWidget {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
           ),
           style: OutlinedButton.styleFrom(
-            foregroundColor: _dark,
+            foregroundColor: AppTheme.textDark,
             backgroundColor: Colors.white,
-            side: const BorderSide(color: _border),
+            side: const BorderSide(color: AppTheme.borderColor),
             padding: const EdgeInsets.symmetric(vertical: 15),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(AppTheme.radiusItem),
             ),
           ),
         ),
@@ -995,7 +813,7 @@ class AppointmentCancelledSection extends StatelessWidget {
             style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700),
           ),
           style: TextButton.styleFrom(
-            foregroundColor: _red,
+            foregroundColor: AppTheme.danger,
             padding: const EdgeInsets.symmetric(vertical: 12),
           ),
         ),
@@ -1004,6 +822,183 @@ class AppointmentCancelledSection extends StatelessWidget {
   }
 }
 
+/// ConfirmActionDialog: hộp thoại xác nhận hủy hoặc xóa lịch khám kèm tóm tắt lịch.
+class ConfirmActionDialog extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final String warning;
+  final String keepLabel;
+  final String confirmLabel;
+  final IconData confirmIcon;
+  final MyAppointmentItem appointment;
+  final VoidCallback onConfirm;
+
+  const ConfirmActionDialog({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.warning,
+    required this.keepLabel,
+    required this.confirmLabel,
+    required this.confirmIcon,
+    required this.appointment,
+    required this.onConfirm,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final buttonShape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(AppTheme.radiusItem),
+    );
+
+    return Dialog(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: AppTheme.tint(AppTheme.danger, 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 30, color: AppTheme.danger),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: AppTheme.textDark,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14,
+                height: 1.45,
+                color: AppTheme.textGrey,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppTheme.mutedFill,
+                borderRadius: BorderRadius.circular(AppTheme.radiusItem),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AppointmentDialogInfoRow(
+                    icon: Icons.local_hospital_rounded,
+                    text: appointment.hospitalName,
+                    bold: true,
+                  ),
+                  const SizedBox(height: 10),
+                  AppointmentDialogInfoRow(
+                    icon: Icons.calendar_month_rounded,
+                    text: appointment.dateLabel,
+                  ),
+                  const SizedBox(height: 10),
+                  AppointmentDialogInfoRow(
+                    icon: Icons.schedule_rounded,
+                    text: appointment.timeLabel,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 18,
+                  color: AppTheme.danger,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    warning,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      height: 1.4,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.danger,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.textDark,
+                      side: const BorderSide(color: AppTheme.borderColor),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: buttonShape,
+                    ),
+                    child: Text(
+                      keepLabel,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      onConfirm();
+                    },
+                    icon: Icon(confirmIcon, size: 18),
+                    label: Text(
+                      confirmLabel,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.danger,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: buttonShape,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// AppointmentDialogInfoRow: dòng thông tin ngắn trong hộp thoại xác nhận.
 class AppointmentDialogInfoRow extends StatelessWidget {
   final IconData icon;
   final String text;
@@ -1024,10 +1019,10 @@ class AppointmentDialogInfoRow extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: _primarySoft,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(9),
           ),
-          child: Icon(icon, size: 15, color: _primary),
+          child: Icon(icon, size: 15, color: AppTheme.primaryBlue),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -1039,7 +1034,7 @@ class AppointmentDialogInfoRow extends StatelessWidget {
                 fontSize: 13.5,
                 height: 1.3,
                 fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
-                color: _dark,
+                color: AppTheme.textDark,
               ),
             ),
           ),
@@ -1049,6 +1044,7 @@ class AppointmentDialogInfoRow extends StatelessWidget {
   }
 }
 
+/// SuggestionTile: dòng gợi ý bấm được với biểu tượng, tiêu đề và mô tả.
 class SuggestionTile extends StatelessWidget {
   final Color background;
   final Color accent;
@@ -1071,17 +1067,15 @@ class SuggestionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: background,
-      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTheme.radiusItem),
+        side: BorderSide(color: AppTheme.tint(accent, 0.2)),
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          width: double.infinity,
+        child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: accent.o(0.2)),
-          ),
           child: Row(
             children: [
               leading,
@@ -1095,13 +1089,16 @@ class SuggestionTile extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 14.5,
                         fontWeight: FontWeight.w800,
-                        color: _dark,
+                        color: AppTheme.textDark,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: const TextStyle(fontSize: 12, color: _grey),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textGrey,
+                      ),
                     ),
                   ],
                 ),
@@ -1115,6 +1112,7 @@ class SuggestionTile extends StatelessWidget {
   }
 }
 
+/// DetailRow: dòng nhãn và giá trị dạng "Nhãn: giá trị".
 class DetailRow extends StatelessWidget {
   final String label;
   final String value;
@@ -1132,7 +1130,7 @@ class DetailRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1140,17 +1138,20 @@ class DetailRow extends StatelessWidget {
             width: labelWidth ?? 120,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 13, color: _grey),
+              style: const TextStyle(fontSize: 13, color: AppTheme.textGrey),
             ),
           ),
-          const Text(': ', style: TextStyle(fontSize: 13, color: _grey)),
+          const Text(
+            ': ',
+            style: TextStyle(fontSize: 13, color: AppTheme.textGrey),
+          ),
           Expanded(
             child: Text(
               value,
               style: TextStyle(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w600,
-                color: valueColor ?? _dark,
+                color: valueColor ?? AppTheme.textDark,
               ),
             ),
           ),

@@ -1,14 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_widget/book_appointment_widget.dart';
 
-class _C {
-  static const primary = Color(0xFF2196F3);
-  static const primaryDark = Color(0xFF1976D2);
-  static const green = Color(0xFF5B8C3E);
-  static const textDark = Color(0xFF1A1A1A);
-  static const textGrey = Color(0xFF757575);
-  static const border = Color(0xFFE6E9F0);
-}
-
+/// showBookingConfirmSheet: mở bảng xác nhận đặt lịch, trả về true nếu người dùng xác nhận.
 Future<bool?> showBookingConfirmSheet(
   BuildContext context, {
   required String hospitalName,
@@ -34,6 +27,7 @@ Future<bool?> showBookingConfirmSheet(
   );
 }
 
+/// BookingConfirmSheet: bảng tóm tắt bệnh viện, người khám và lịch khám trước khi gửi yêu cầu.
 class BookingConfirmSheet extends StatelessWidget {
   final String hospitalName;
   final List<Map<String, String>> bookingDetails;
@@ -52,25 +46,179 @@ class BookingConfirmSheet extends StatelessWidget {
     this.patientName,
   });
 
-  /// Một dòng thông tin nhỏ: icon + chữ.
+  /// _metaRow: dòng thông tin nhỏ gồm biểu tượng và nội dung.
   Widget _metaRow(IconData icon, String text, {Color? color}) {
+    final tone = color ?? AppTheme.textGrey;
     return Padding(
-      padding: const EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.only(top: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 1),
-            child: Icon(icon, size: 15, color: color ?? _C.textGrey),
+            child: Icon(icon, size: 16, color: tone),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               text,
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.3,
-                color: color ?? _C.textGrey,
+              style: TextStyle(fontSize: 13, height: 1.35, color: tone),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// _buildHeader: tay kéo, biểu tượng và tiêu đề của bảng.
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+      child: Column(
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppTheme.borderColor,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: AppTheme.tint(AppTheme.primaryBlue, 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.event_available_rounded,
+              size: 30,
+              color: AppTheme.primaryBlue,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Xác nhận đặt lịch khám',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.textDark,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Kiểm tra thông tin trước khi gửi yêu cầu',
+            style: TextStyle(fontSize: 13, color: AppTheme.textGrey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// _buildHospitalCard: thẻ bệnh viện gồm tên, địa chỉ và thông tin BHYT.
+  Widget _buildHospitalCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.mutedFill,
+        borderRadius: BorderRadius.circular(AppTheme.radiusItem),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.local_hospital_rounded,
+                  size: 24,
+                  color: AppTheme.primaryBlue,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Bệnh viện',
+                      style: TextStyle(fontSize: 12, color: AppTheme.textGrey),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      hospitalName,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        height: 1.25,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.textDark,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (address.isNotEmpty)
+            _metaRow(Icons.location_on_rounded, address),
+          if (bhytNote.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            InfoPill(
+              icon: Icons.verified_rounded,
+              text: bhytNote,
+              color: AppTheme.primaryGreen,
+              background: Colors.white,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// _buildPatientCard: dòng hiển thị người được khám.
+  Widget _buildPatientCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.tint(AppTheme.primaryGreen, 0.08),
+        borderRadius: BorderRadius.circular(AppTheme.radiusItem),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.person_rounded,
+            size: 20,
+            color: AppTheme.primaryGreen,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                text: 'Khám cho: ',
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  color: AppTheme.textGrey,
+                ),
+                children: [
+                  TextSpan(
+                    text: patientName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.textDark,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -79,8 +227,8 @@ class BookingConfirmSheet extends StatelessWidget {
     );
   }
 
-  /// Thẻ của từng khoa đã chọn.
-  Widget _departmentTile(int index, Map<String, String> detail) {
+  /// _departmentTile: thẻ lịch khám của một chuyên khoa.
+  Widget _departmentTile(Map<String, String> detail) {
     final department = detail['departmentName'] ?? '';
     final room = detail['roomName'] ?? '';
     final shift = detail['shiftLabel'] ?? '';
@@ -88,41 +236,22 @@ class BookingConfirmSheet extends StatelessWidget {
         ? detail['dateLabel']!
         : dateLabel;
 
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _C.border),
-        boxShadow: [
-          BoxShadow(
-            color: _C.primary.withOpacity(0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Số thứ tự của khoa
           Container(
-            width: 28,
-            height: 28,
-            alignment: Alignment.center,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [_C.primary, _C.primaryDark],
-              ),
-              shape: BoxShape.circle,
+              color: AppTheme.tint(AppTheme.primaryBlue, 0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Text(
-              '${index + 1}',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-              ),
+            child: const Icon(
+              Icons.medical_services_outlined,
+              size: 20,
+              color: AppTheme.primaryBlue,
             ),
           ),
           const SizedBox(width: 12),
@@ -135,16 +264,113 @@ class BookingConfirmSheet extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
-                    color: _C.green,
+                    color: AppTheme.textDark,
                   ),
                 ),
                 if (room.isNotEmpty)
                   _metaRow(Icons.meeting_room_outlined, room),
-                if (shift.isNotEmpty)
-                  _metaRow(Icons.schedule_rounded, shift, color: _C.textDark),
                 if (date.isNotEmpty)
                   _metaRow(Icons.calendar_today_rounded, date),
+                if (shift.isNotEmpty)
+                  _metaRow(
+                    Icons.schedule_rounded,
+                    shift,
+                    color: AppTheme.textDark,
+                  ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// _buildNotice: lưu ý về việc bệnh viện sẽ xét duyệt lịch hẹn.
+  Widget _buildNotice() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4DB),
+        borderRadius: BorderRadius.circular(AppTheme.radiusItem),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline_rounded, size: 20, color: AppTheme.warning),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Sau khi xác nhận, yêu cầu sẽ được chuyển cho bệnh viện xét duyệt lịch hẹn.',
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.4,
+                color: Color(0xFF7A4A07),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// _buildActions: hai nút Hủy và Xác nhận cố định ở cuối bảng.
+  Widget _buildActions(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        12,
+        20,
+        16 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: AppTheme.borderColor)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: SizedBox(
+              height: 52,
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(context, false),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.textGrey,
+                  side: const BorderSide(color: AppTheme.borderColor),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppTheme.radiusItem),
+                  ),
+                ),
+                child: const Text(
+                  'Hủy',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 3,
+            child: SizedBox(
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: () => Navigator.pop(context, true),
+                icon: const Icon(Icons.check_rounded, size: 20),
+                label: const Text(
+                  'Xác nhận đặt lịch',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryBlue,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppTheme.radiusItem),
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -155,195 +381,26 @@ class BookingConfirmSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+      decoration: const BoxDecoration(
+        color: AppTheme.bgColor,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ── Thanh kéo ──
-          const SizedBox(height: 10),
-          Container(
-            width: 44,
-            height: 5,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(3),
-            ),
-          ),
-
-          // ── Tiêu đề ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-            child: Column(
-              children: [
-                Container(
-                  width: 68,
-                  height: 68,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [_C.primary, _C.primaryDark],
-                    ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: _C.primary.withOpacity(0.35),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.event_available_rounded,
-                    size: 34,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                const Text(
-                  'Xác nhận đặt lịch khám',
-                  style: TextStyle(
-                    fontSize: 21,
-                    fontWeight: FontWeight.w900,
-                    color: _C.textDark,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Kiểm tra thông tin trước khi gửi yêu cầu',
-                  style: TextStyle(fontSize: 13, color: _C.textGrey),
-                ),
-              ],
-            ),
-          ),
-
-          // ── Nội dung (cuộn được khi chọn nhiều khoa) ──
+          _buildHeader(),
           Flexible(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Thẻ bệnh viện
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: _C.primary.withOpacity(0.06),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: _C.primary.withOpacity(0.15)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: const Icon(
-                                Icons.local_hospital_rounded,
-                                size: 24,
-                                color: _C.primary,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'BỆNH VIỆN',
-                                    style: TextStyle(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.6,
-                                      color: _C.textGrey,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    hospitalName,
-                                    style: const TextStyle(
-                                      fontSize: 16.5,
-                                      height: 1.25,
-                                      fontWeight: FontWeight.w800,
-                                      color: _C.textDark,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (address.isNotEmpty)
-                          _metaRow(Icons.location_on_rounded, address),
-                        if (bhytNote.isNotEmpty) ...[
-                          const SizedBox(height: 10),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.verified_user_rounded,
-                                  size: 15,
-                                  color: _C.primaryDark,
-                                ),
-                                const SizedBox(width: 6),
-                                Flexible(
-                                  child: Text(
-                                    bhytNote,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: _C.primaryDark,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 18),
+                  _buildHospitalCard(),
                   if (patientName?.isNotEmpty == true) ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: _C.green.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: _C.green.withOpacity(0.18)),
-                      ),
-                      child: _metaRow(
-                        Icons.person_pin_rounded,
-                        'Khám cho: $patientName',
-                        color: _C.green,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 12),
+                    _buildPatientCard(),
                   ],
-
-                  // Tiêu đề danh sách khoa + số lượng
+                  const SizedBox(height: 20),
                   Row(
                     children: [
                       const Expanded(
@@ -352,191 +409,32 @@ class BookingConfirmSheet extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
-                            color: _C.textDark,
+                            color: AppTheme.textDark,
                           ),
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _C.primary.withOpacity(0.10),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '${bookingDetails.length} chuyên khoa',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: _C.primaryDark,
-                          ),
-                        ),
+                      InfoPill(
+                        text: '${bookingDetails.length} chuyên khoa',
+                        color: AppTheme.primaryBlue,
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-
-                  // Mỗi khoa 1 thẻ
-                  ...List.generate(
-                    bookingDetails.length,
-                    (i) => Padding(
+                  const SizedBox(height: 12),
+                  for (var i = 0; i < bookingDetails.length; i++)
+                    Padding(
                       padding: EdgeInsets.only(
                         bottom: i == bookingDetails.length - 1 ? 0 : 10,
                       ),
-                      child: _departmentTile(i, bookingDetails[i]),
+                      child: _departmentTile(bookingDetails[i]),
                     ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Lưu ý
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF6DD),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFFFE3A0)),
-                    ),
-                    child: const Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.info_outline_rounded,
-                          size: 20,
-                          color: Color(0xFFF59E0B),
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Sau khi xác nhận, đơn khám sẽ được chuyển để bệnh viện '
-                            'xét duyệt lịch hẹn.',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              height: 1.4,
-                              color: Color(0xFF8A5B00),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  const SizedBox(height: 16),
+                  _buildNotice(),
                 ],
               ),
             ),
           ),
-
-          // ── Nút hành động (luôn nằm dưới cùng, không bị cuộn mất) ──
-          Container(
-            padding: EdgeInsets.fromLTRB(
-              20,
-              12,
-              20,
-              16 + MediaQuery.of(context).viewInsets.bottom,
-            ),
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: _C.border)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: _SheetButton(
-                    text: 'Hủy',
-                    icon: Icons.close_rounded,
-                    filled: false,
-                    color: const Color(0xFFE53935),
-                    onPressed: () => Navigator.pop(context, false),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 3,
-                  child: _SheetButton(
-                    text: 'Xác nhận đặt lịch',
-                    icon: Icons.check_rounded,
-                    filled: true,
-                    color: _C.primary,
-                    onPressed: () => Navigator.pop(context, true),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          Container(color: Colors.white, child: _buildActions(context)),
         ],
-      ),
-    );
-  }
-}
-
-/// Nút của hộp thoại: [filled] = nền đặc (Xác nhận), false = viền (Hủy).
-class _SheetButton extends StatelessWidget {
-  final String text;
-  final IconData icon;
-  final bool filled;
-  final Color color;
-  final VoidCallback onPressed;
-
-  const _SheetButton({
-    required this.text,
-    required this.icon,
-    required this.filled,
-    required this.color,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final content = Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, size: 20, color: filled ? Colors.white : color),
-        const SizedBox(width: 8),
-        Flexible(
-          child: Text(
-            text,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: filled ? Colors.white : color,
-            ),
-          ),
-        ),
-      ],
-    );
-
-    return Container(
-      height: 52,
-      decoration: BoxDecoration(
-        gradient: filled
-            ? const LinearGradient(colors: [_C.primary, _C.primaryDark])
-            : null,
-        color: filled ? null : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: filled ? null : Border.all(color: color.withOpacity(0.5)),
-        boxShadow: filled
-            ? [
-                BoxShadow(
-                  color: _C.primary.withOpacity(0.35),
-                  blurRadius: 14,
-                  offset: const Offset(0, 6),
-                ),
-              ]
-            : null,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onPressed,
-          child: Center(child: content),
-        ),
       ),
     );
   }

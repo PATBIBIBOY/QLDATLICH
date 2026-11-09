@@ -33,6 +33,8 @@ Future<void> main() async {
   //await DanhGiaSeeder.seedAllDanhGia();
   //await ThongBaoSeeder.seedAllThongBao();
   //await LichHenSeeder.seedQueueTestAppointments();
+  //await LichHenSeeder.seed39AppointmentsForSpecificRoom();
+
   runApp(const QLDatLichApp());
 }
 

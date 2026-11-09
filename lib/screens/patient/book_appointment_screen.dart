@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth ;
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_routes.dart';
 import '../../models/appointment_item.dart';
+import '../../models/lichhen_model.dart';
 import '../../models/phong_kham_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/family_profile_provider.dart';
 import '../../providers/lich_hen_provider.dart';
-import '../../providers/review_provider.dart';
 import '../../services/hospital_service.dart';
 import '../../services/lichhen_service.dart';
 import '../../utils/app_snackbar.dart';
@@ -16,7 +16,6 @@ import '../../utils/booking_helper.dart';
 import '../../widgets/family_widgets.dart';
 import '../../widgets/patient_widget/book_appointment_widget.dart';
 import 'booking_confirm_sheet.dart';
-import '../../models/lichhen_model.dart';
 
 class BookAppointmentScreen extends StatefulWidget {
   const BookAppointmentScreen({super.key});
@@ -37,7 +36,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   final Map<String, String> _selectedRoomByDept = {};
   final Map<String, DateTime> _selectedDayByDept = {};
   final Map<String, String> _selectedSlotByDept = {};
-  final ScrollController _dayScroll = ScrollController();
 
   final HospitalService _hospitalService = HospitalService();
   final LichHenService _lichHenService = LichHenService();
@@ -46,15 +44,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   final Set<String> _loadingRoomDepts = {};
   final Map<String, String> _roomErrorByDept = {};
 
-  int _selectedStar = 5;
-  int _reviewVisibleCount = 5;
   String? _bookingProfileId;
-
-  @override
-  void dispose() {
-    _dayScroll.dispose();
-    super.dispose();
-  }
 
   @override
   void initState() {
@@ -85,6 +75,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
   }
 
+  /// _fetchDepartments: tải danh sách chuyên khoa của bệnh viện.
   Future<void> _fetchDepartments(String hospitalId) async {
     if (hospitalId.isEmpty) {
       setState(() {
@@ -117,6 +108,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
   }
 
+  /// _toggleDepartment: chọn hoặc bỏ chọn một chuyên khoa.
   void _toggleDepartment(String departmentId) {
     setState(() {
       if (_selectedDepartmentIds.contains(departmentId)) {
@@ -132,10 +124,12 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         _activeDepartmentId = departmentId;
       }
     });
-    if (_selectedDepartmentIds.contains(departmentId))
+    if (_selectedDepartmentIds.contains(departmentId)) {
       _fetchRooms(departmentId);
+    }
   }
 
+  /// _hasScheduleFor: kiểm tra chuyên khoa đã chọn đủ phòng, ngày, giờ chưa.
   bool _hasScheduleFor(String id) =>
       _selectedRoomByDept.containsKey(id) &&
       _selectedDayByDept.containsKey(id) &&
@@ -145,12 +139,14 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       _selectedDepartmentIds.isNotEmpty &&
       _selectedDepartmentIds.every(_hasScheduleFor);
 
+  /// _fetchRooms: tải danh sách phòng khám của một chuyên khoa.
   Future<void> _fetchRooms(String departmentId, {bool force = false}) async {
     if (_hospitalId.isEmpty ||
         (!force &&
             (_roomsByDept.containsKey(departmentId) ||
-                _loadingRoomDepts.contains(departmentId))))
+                _loadingRoomDepts.contains(departmentId)))) {
       return;
+    }
     setState(() {
       _loadingRoomDepts.add(departmentId);
       _roomErrorByDept.remove(departmentId);
@@ -175,6 +171,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
   }
 
+  /// _selectRoom: chọn phòng khám và xóa ngày, giờ đã chọn trước đó.
   void _selectRoom(String departmentId, String roomId) {
     setState(() {
       if (_selectedRoomByDept[departmentId] != roomId) {
@@ -185,6 +182,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     });
   }
 
+  /// _selectDay: chọn ngày khám và nạp lại số chỗ còn trống của các ca.
   void _selectDay(String departmentId, String roomId, DateTime date) {
     setState(() {
       final current = _selectedDayByDept[departmentId];
@@ -193,7 +191,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         _selectedSlotByDept.remove(departmentId);
       }
     });
-    // force: true → luôn đếm lại số lịch hẹn thật, không dùng số đã cache
     context.read<LichHenProvider>().loadSlots(
       ngay: date,
       benhVienId: _hospitalId,
@@ -208,6 +205,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     );
   }
 
+  /// _openMonthCalendar: mở lịch tháng để chọn ngày khám.
   Future<void> _openMonthCalendar(String departmentId, String roomId) async {
     final today = BookingHelper.today();
     var initial = _selectedDayByDept[departmentId] ?? today;
@@ -236,6 +234,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     _selectDay(departmentId, roomId, picked);
   }
 
+  /// _continueBooking: kiểm tra dữ liệu, xác nhận rồi lưu các lịch hẹn đã chọn.
   Future<void> _continueBooking() async {
     if (_selectedDepartmentIds.isEmpty) {
       context.showAppSnackBar(
@@ -269,14 +268,13 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
 
     final lichHenProvider = context.read<LichHenProvider>();
     final String benhNhanId =
-      firebase_auth.FirebaseAuth.instance.currentUser?.uid ?? '';
-    final String trangThaiId = '1';
+        firebase_auth.FirebaseAuth.instance.currentUser?.uid ?? '';
+    const String trangThaiId = '1';
     final tenNguoiDat = context.read<AuthProvider>().user?.hoTen;
     final String tenBenhVien =
         _hospitalData?['ten_benh_vien']?.toString() ??
         'Bệnh viện không xác định';
 
-    // ✅ BƯỚC KIỂM TRA TRÙNG LỊCH: Chạy trước khi hiện bảng xác nhận
     for (final departmentId in _selectedDepartmentIds) {
       final date = _selectedDayByDept[departmentId]!;
 
@@ -298,14 +296,13 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         context.showAppSnackBar(
           title: 'Lịch khám bị trùng',
           message:
-              'Bạn đã có lịch khám tại khoa $tenKhoa vào ngày ${BookingHelper.formatDayMonth(date)}. Vui lòng chọn ngày khác hoặc hủy lịch cũ.',
+              '${profile.isSelf ? 'Bạn' : profile.hoTen} đã có lịch khám tại khoa $tenKhoa vào ngày ${BookingHelper.formatDayMonth(date)}. Vui lòng chọn ngày khác hoặc hủy lịch cũ.',
           type: SnackBarType.error,
         );
-        return; // Dừng hàm, không cho đặt tiếp
+        return;
       }
     }
 
-    // Nếu không bị trùng, tiếp tục quy trình đặt lịch bình thường
     final List<Map<String, String>> bookingDetails = [];
     final List<Future<void> Function()> saveTasks = [];
     final List<String> departmentNames = [];
@@ -350,15 +347,11 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       final selectedRoom = rooms.where((r) => r.id == roomId).firstOrNull;
 
       if (selectedRoom != null) {
-        if (selectedRoom.tenPhong.isNotEmpty) {
-          tenPhongKham = selectedRoom.tenPhong;
-        } else {
-          tenPhongKham = BookingHelper.roomNameOf(selectedRoom);
-        }
+        tenPhongKham = selectedRoom.tenPhong.isNotEmpty
+            ? selectedRoom.tenPhong
+            : BookingHelper.roomNameOf(selectedRoom);
       }
 
-      // ✅ KIỂM TRA CÒN CHỖ: đếm lại trực tiếp từ Firestore ngay trước khi đặt,
-      // phòng khi người khác vừa đặt hết chỗ lúc bạn đang chọn.
       if (selectedSlot.tongSo > 0) {
         try {
           final conLai = await _lichHenService.soChoConLai(
@@ -371,7 +364,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           );
           if (!mounted) return;
           if (conLai <= 0) {
-            // Làm mới số liệu trên màn hình
             lichHenProvider.loadSlots(
               ngay: date,
               benhVienId: _hospitalId,
@@ -389,8 +381,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
             return;
           }
         } catch (e) {
-          // Đếm lỗi (vd. thiếu index): không chặn người dùng, chỉ ghi log.
-          debugPrint('⚠️ Không kiểm tra được số chỗ còn lại: $e');
+          debugPrint('Không kiểm tra được số chỗ còn lại: $e');
         }
       }
 
@@ -513,23 +504,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
   }
 
-  void _loadReviewsForActive({bool force = false}) {
-    final provider = context.read<ReviewProvider>();
-    final id = _activeDepartmentId;
-
-    if (id == null || !_selectedDepartmentIds.contains(id)) {
-      provider.clearReviews();
-      return;
-    }
-
-    setState(() {
-      _selectedStar = 5;
-      _reviewVisibleCount = 5;
-    });
-
-    provider.fetchReviews(hospitalId: _hospitalId, khoaId: id, force: force);
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_hospitalData == null) {
@@ -601,112 +575,241 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.bgColor,
-      body: SafeArea(
-        child: Column(
-          children: [
-            AppointmentHeader(
-              textDark: AppTheme.textDark,
-              onBack: () => Navigator.pop(context),
+      body: Column(
+        children: [
+          _BookingHeader(
+            hospitalName: _hospitalData?['ten_benh_vien']?.toString() ?? '',
+            total: selectedIds.length,
+            done: doneCount,
+            onBack: () => Navigator.pop(context),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  HospitalInfoCard(hospitalData: _hospitalData!),
+                  const SizedBox(height: 14),
+                  const BookingInfoBox(),
+                  const SizedBox(height: 20),
+                  Consumer<FamilyProfileProvider>(
+                    builder: (_, fp, __) => ProfileChipsRow(
+                      profiles: fp.profiles,
+                      selectedId: _bookingProfileId ?? fp.currentId,
+                      onSelected: (id) =>
+                          setState(() => _bookingProfileId = id),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  SpecialtySelectionSection(
+                    selectedCount: _selectedDepartmentIds.length,
+                    selectedNames: selectedNames,
+                    isExpanded: _isSpecialtyExpanded,
+                    isLoading: _isLoadingDepartments,
+                    error: _departmentLoadError,
+                    departments: _departments,
+                    selectedDepartmentIds: _selectedDepartmentIds,
+                    onToggleExpand: () => setState(
+                      () => _isSpecialtyExpanded = !_isSpecialtyExpanded,
+                    ),
+                    onToggleDepartment: _toggleDepartment,
+                  ),
+                  const SizedBox(height: 28),
+                  DateTimeSelectionSection(
+                    selectedIds: selectedIds,
+                    activeId: activeId,
+                    selectedRoomId: selectedRoomId,
+                    selectedDay: selectedDay,
+                    doneCount: doneCount,
+                    days: days,
+                    lichHen: lichHen,
+                    selectedSlot: selectedSlot,
+                    monthLabel: monthLabel,
+                    hospitalId: _hospitalId,
+                    rooms: _roomsByDept[activeId] ?? [],
+                    isLoadingRooms: _loadingRoomDepts.contains(activeId),
+                    roomError: _roomErrorByDept[activeId],
+                    hasSchedule: _hasScheduleFor,
+                    onRetryFetch: _fetchRooms,
+                    onRoomSelected: _selectRoom,
+                    onDaySelected: _selectDay,
+                    onOpenCalendar: _openMonthCalendar,
+                    getDepartmentName: (id) =>
+                        BookingHelper.departmentName(id, _departments),
+                    getRoomName: (deptId, roomId) =>
+                        BookingHelper.roomName(deptId, roomId, _roomsByDept),
+                    formatDayMonth: BookingHelper.formatDayMonth,
+                    getRoomMax: (deptId, roomId) =>
+                        BookingHelper.roomMax(deptId, roomId, _roomsByDept),
+                    onSlotSelected: (deptId, roomId, caId) =>
+                        setState(() => _selectedSlotByDept[deptId] = caId),
+                    onSwitchActiveDepartment: (id) =>
+                        setState(() => _activeDepartmentId = id),
+                  ),
+                  const SizedBox(height: 28),
+                  LocationSection(hospitalData: _hospitalData!),
+                  const SizedBox(height: 28),
+                  ReviewSection(
+                    activeId: activeId,
+                    selectedDepartmentIds: _selectedDepartmentIds,
+                    hospitalId: _hospitalId,
+                    getDepartmentName: (id) =>
+                        BookingHelper.departmentName(id, _departments),
+                  ),
+                ],
+              ),
             ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+          ),
+          SafeArea(
+            top: false,
+            child: BookingBottomActionArea(
+              color: AppTheme.primaryBlue,
+              onContinue: _continueBooking,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// _BookingHeader: đầu trang có tên bệnh viện và tiến độ chọn lịch của các chuyên khoa.
+class _BookingHeader extends StatelessWidget {
+  final String hospitalName;
+  final int total;
+  final int done;
+  final VoidCallback onBack;
+
+  const _BookingHeader({
+    required this.hospitalName,
+    required this.total,
+    required this.done,
+    required this.onBack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = total == 0 ? 0.0 : done / total;
+    final allDone = total > 0 && done == total;
+
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: AppTheme.primaryBlue,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Material(
+                    color: Colors.white.withOpacity(0.18),
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: onBack,
+                      child: const SizedBox(
+                        width: 40,
+                        height: 40,
+                        child: Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 18,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Đặt lịch khám',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        if (hospitalName.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            hospitalName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: Colors.white.withOpacity(0.85),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.fromLTRB(14, 11, 14, 12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    HospitalInfoCard(
-                      hospitalData: _hospitalData!,
-                      primaryBlue: AppTheme.primaryBlue,
-                      primaryGreen: AppTheme.primaryGreen,
-                      textDark: AppTheme.textDark,
-                      textGrey: AppTheme.textGrey,
+                    Row(
+                      children: [
+                        Icon(
+                          total == 0
+                              ? Icons.touch_app_rounded
+                              : (allDone
+                                    ? Icons.check_circle_rounded
+                                    : Icons.event_available_rounded),
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            total == 0
+                                ? 'Chọn người khám, chuyên khoa, phòng và giờ khám'
+                                : 'Đã hoàn tất $done/$total chuyên khoa',
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    const BookingInfoBox(),
-                    const SizedBox(height: 16),
-                    Consumer<FamilyProfileProvider>(
-                      builder: (_, fp, __) => ProfileChipsRow(
-                        profiles: fp.profiles,
-                        selectedId: _bookingProfileId ?? fp.currentId,
-                        onSelected: (id) =>
-                            setState(() => _bookingProfileId = id),
+                    if (total > 0) ...[
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 6,
+                          backgroundColor: Colors.white.withOpacity(0.25),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            Color(0xFF7EE0C3),
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    SpecialtySelectionSection(
-                      selectedCount: _selectedDepartmentIds.length,
-                      selectedNames: selectedNames,
-                      isExpanded: _isSpecialtyExpanded,
-                      isLoading: _isLoadingDepartments,
-                      error: _departmentLoadError,
-                      departments: _departments,
-                      selectedDepartmentIds: _selectedDepartmentIds,
-                      onToggleExpand: () => setState(
-                        () => _isSpecialtyExpanded = !_isSpecialtyExpanded,
-                      ),
-                      onToggleDepartment: _toggleDepartment,
-                    ),
-                    const SizedBox(height: 24),
-                    DateTimeSelectionSection(
-                      selectedIds: selectedIds,
-                      activeId: activeId,
-                      selectedRoomId: selectedRoomId,
-                      selectedDay: selectedDay,
-                      doneCount: doneCount,
-                      days: days,
-                      lichHen: lichHen,
-                      selectedSlot: selectedSlot,
-                      labelDate: labelDate,
-                      monthLabel: monthLabel,
-                      hospitalId: _hospitalId,
-                      departments: _departments,
-                      onRoomSelected: _selectRoom,
-                      onDaySelected: _selectDay,
-                      onOpenCalendar: _openMonthCalendar,
-                      getDepartmentName: (id) =>
-                          BookingHelper.departmentName(id, _departments),
-                      getRoomName: (deptId, roomId) =>
-                          BookingHelper.roomName(deptId, roomId, _roomsByDept),
-                      formatDayMonth: BookingHelper.formatDayMonth,
-                      getRoomMax: (deptId, roomId) =>
-                          BookingHelper.roomMax(deptId, roomId, _roomsByDept),
-                      rooms: _roomsByDept[activeId] ?? [],
-                      isLoadingRooms: _loadingRoomDepts.contains(activeId),
-                      roomError: _roomErrorByDept[activeId],
-                      onRetryFetch: _fetchRooms,
-                      onSlotSelected: (deptId, roomId, caId) {
-                        setState(() {
-                          _selectedSlotByDept[deptId] = caId;
-                        });
-                      },
-                      onSwitchActiveDepartment: (id) {
-                        setState(() {
-                          _activeDepartmentId = id;
-                        });
-                        _loadReviewsForActive();
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    LocationSection(hospitalData: _hospitalData!),
-                    const SizedBox(height: 24),
-                    ReviewSection(
-                      activeId: activeId,
-                      selectedDepartmentIds: _selectedDepartmentIds,
-                      hospitalId: _hospitalId,
-                      departments: _departments,
-                      getDepartmentName: (id) =>
-                          BookingHelper.departmentName(id, _departments),
-                    ),
-                    const SizedBox(height: 100),
+                    ],
                   ],
                 ),
               ),
-            ),
-            BookingBottomActionArea(
-              primaryGreen: AppTheme.primaryGreen,
-              onContinue: _continueBooking,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

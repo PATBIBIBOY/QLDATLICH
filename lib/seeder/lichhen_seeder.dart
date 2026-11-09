@@ -377,6 +377,99 @@ class LichHenSeeder {
     print('   🔄 Tất cả 10 lịch hẹn đều có UID ngẫu nhiên (STT 1 đến 10).');
   }
 
+    // ═══════════════════════════════════════════════════════════════
+  // 6. SEED 39 LỊCH HẸN CỤ THỂ CHO 1 PHÒNG KHÁM (CA SÁNG)
+  // ═══════════════════════════════════════════════════════════════
+  /// Tạo chính xác 39 lịch hẹn cho BV001, Khoa K001, Phòng BV001_K001_NGT001
+  /// Ngày: 10/11/2026, Ca sáng. Thời gian được phân bổ đều từ 07:30 đến 11:24.
+  static Future<void> seed39AppointmentsForSpecificRoom({
+    String benhVienId = 'BV001',
+    String khoaId = 'K001',
+    String phongKhamId = 'BV001_K001_NGT001',
+    String caId = 'ca_sang',
+    DateTime? targetDate,
+    int totalAppointments = 25,
+  }) async {
+    final appointmentDate = targetDate ?? DateTime(2026, 11, 10);
+    print('⏳ Đang tạo $totalAppointments lịch hẹn cho phòng khám $phongKhamId...');
+
+    // 1. Tự động lấy TÊN BỆNH VIỆN
+    String tenBenhVien = 'Không xác định';
+    final hospitalDoc = await _firestore.collection('BenhVien').doc(benhVienId).get();
+    if (hospitalDoc.exists) {
+      tenBenhVien = hospitalDoc.data()?['ten_benh_vien'] ?? 'Không xác định';
+    }
+
+    // 2. Tự động lấy TÊN KHOA
+    String tenKhoa = 'Không xác định';
+    final khoaDoc = await _firestore
+        .collection('Khoa')
+        .doc(benhVienId)
+        .collection('danh_sach')
+        .doc(khoaId)
+        .get();
+    if (khoaDoc.exists) {
+      tenKhoa = khoaDoc.data()?['ten_khoa'] ?? 'Không xác định';
+    }
+
+    final writer = _BatchWriter(_firestore);
+    final ngayCode = _ngayCode(appointmentDate);
+
+    for (int stt = 1; stt <= totalAppointments; stt++) {
+      // Tạo UID bệnh nhân giả lập có quy tắc
+      final benhNhanId = 'BN_SPEC_${stt.toString().padLeft(3, '0')}';
+      final lichHenId = 'LH_SPEC_${ngayCode}_${stt.toString().padLeft(5, '0')}';
+
+      // ✅ LOGIC PHÂN BỔ GIỜ: 
+      // Ca sáng bắt đầu 07:30. 39 bệnh nhân / ~4 giờ = ~6 phút/bệnh nhân.
+      // Điều này đảm bảo giờ khám nằm gọn trong khoảng 07:30 - 12:00
+      final int minutesToAdd = (stt - 1) * 6; 
+      final DateTime appointmentTime = DateTime(
+        appointmentDate.year, 
+        appointmentDate.month, 
+        appointmentDate.day, 
+        7, 30 // Bắt đầu lúc 07:30
+      ).add(Duration(minutes: minutesToAdd));
+      
+      final gioDuKien = '${appointmentTime.hour.toString().padLeft(2, '0')}:${appointmentTime.minute.toString().padLeft(2, '0')}';
+
+      final lichHenData = {
+        'id': lichHenId,
+        'benh_nhan_id': benhNhanId,
+        'benh_vien_id': benhVienId,
+        'ten_benh_vien': tenBenhVien,
+        'khoa_id': khoaId,
+        'ten_khoa': tenKhoa,
+        'phong_kham_id': phongKhamId,
+        'ngay_dat': Timestamp.fromDate(appointmentDate),
+        'ca_id': caId,
+        'ten_ca': 'Ca sáng',
+        'gio_du_kien': gioDuKien,
+        'so_thu_tu': stt,
+        'trang_thai_id': 2, // 2: Đã xác nhận (sẵn sàng để test check-in)
+        'ma_qr': 'QR_$lichHenId',
+        'qr_da_su_dung': 0,
+        'ngay_tao': FieldValue.serverTimestamp(),
+        'ngay_cap_nhat': FieldValue.serverTimestamp(),
+      };
+
+      await writer.set(
+        _firestore.collection(_colLichHen).doc(lichHenId),
+        lichHenData,
+      );
+    }
+
+    await writer.flush();
+
+    print('✅ ĐÃ TẠO THÀNH CÔNG $totalAppointments lịch hẹn cụ thể!');
+    print('   📅 Ngày khám      : ${_ngayHienThi(appointmentDate)}');
+    print('   🏥 Bệnh viện      : $tenBenhVien ($benhVienId)');
+    print('   🔬 Khoa           : $tenKhoa ($khoaId)');
+    print('   🚪 Phòng khám     : $phongKhamId');
+    print('   ⏰ Khung giờ      : 07:30 đến 11:24 (Ca sáng, cách đều ~6 phút)');
+    print('   🔖 Trạng thái     : 2 (Đã xác nhận)');
+  }
+
   // ═══════════════════════════════════════════════════════════════
   // 5. CHẠY TẤT CẢ
   // ═══════════════════════════════════════════════════════════════

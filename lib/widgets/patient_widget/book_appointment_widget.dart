@@ -1,35 +1,377 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/lichhen_model.dart';
 import '../../models/phong_kham_model.dart';
-import '../../models/review_model.dart';
 import '../../providers/lich_hen_provider.dart';
 import '../../providers/review_provider.dart';
 import '../../utils/app_snackbar.dart';
 import '../../utils/booking_helper.dart';
-import 'package:url_launcher/url_launcher.dart';
 
+/// AppTheme: bảng màu, bo góc và bóng đổ dùng chung cho màn đặt lịch.
 class AppTheme {
-  // Constructor private để ngăn chặn việc khởi tạo class này
   AppTheme._();
 
-  // --- Màu sắc ---
-  static const Color bgColor = Color(0xFFF7F7F8);
-  static const Color primaryBlue = Color(0xFF2196F3);
-  static const Color primaryGreen = Color(0xFF5B8C3E);
-  static const Color textDark = Color(0xFF1A1A1A);
-  static const Color textGrey = Color(0xFF757575);
-  static const Color borderColor = Color(0xFFE0E0E0);
+  static const Color bgColor = Color(0xFFF3F6FA);
+  static const Color primaryBlue = Color(0xFF0F6CBD);
+  static const Color primaryGreen = Color(0xFF0E9F6E);
+  static const Color textDark = Color(0xFF0F2A43);
+  static const Color textGrey = Color(0xFF5F6F82);
+  static const Color borderColor = Color(0xFFDDE5EE);
+  static const Color mutedFill = Color(0xFFEEF3F8);
+  static const Color amber = Color(0xFFF5A623);
+  static const Color warning = Color(0xFFB45309);
+  static const Color danger = Color(0xFFC62828);
 
-  // --- Cấu hình ---
+  static const double radiusCard = 18;
+  static const double radiusItem = 14;
   static const int soNgayHienThi = 6;
+
+  static const List<BoxShadow> softShadow = [
+    BoxShadow(color: Color(0x0F0F2A43), blurRadius: 16, offset: Offset(0, 4)),
+  ];
+
+  /// tint: tạo màu nền nhạt từ một màu chính.
+  static Color tint(Color color, [double opacity = 0.1]) =>
+      color.withOpacity(opacity);
 }
 
-// ──────────────────────────────────────────────────────────────
-// 1. HEADER & INFO
-// ──────────────────────────────────────────────────────────────
+/// AppCard: khung thẻ trắng bo góc dùng chung cho các khối nội dung.
+class AppCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
 
+  const AppCard({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(16),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+        border: Border.all(color: AppTheme.borderColor),
+        boxShadow: AppTheme.softShadow,
+      ),
+      child: child,
+    );
+  }
+}
+
+/// SectionTitle: tiêu đề mục kèm biểu tượng, dấu bắt buộc và phần phụ bên phải.
+class SectionTitle extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final bool required;
+  final Widget? trailing;
+
+  const SectionTitle({
+    super.key,
+    required this.icon,
+    required this.text,
+    this.required = false,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: AppTheme.tint(AppTheme.primaryBlue),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 18, color: AppTheme.primaryBlue),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text.rich(
+            TextSpan(
+              text: text,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: AppTheme.textDark,
+              ),
+              children: [
+                if (required)
+                  const TextSpan(
+                    text: ' *',
+                    style: TextStyle(color: AppTheme.danger),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        if (trailing != null) trailing!,
+      ],
+    );
+  }
+}
+
+/// InfoPill: nhãn nhỏ bo tròn hiển thị trạng thái hoặc thông tin ngắn.
+class InfoPill extends StatelessWidget {
+  final String text;
+  final Color color;
+  final Color? background;
+  final IconData? icon;
+
+  const InfoPill({
+    super.key,
+    required this.text,
+    required this.color,
+    this.background,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: background ?? AppTheme.tint(color),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 4),
+          ],
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// StatePanel: khung thông báo trống hoặc lỗi, có thể kèm nút thử lại.
+class StatePanel extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color color;
+  final VoidCallback? onRetry;
+
+  const StatePanel({
+    super.key,
+    required this.icon,
+    required this.text,
+    required this.color,
+    this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
+      decoration: BoxDecoration(
+        color: AppTheme.mutedFill,
+        borderRadius: BorderRadius.circular(AppTheme.radiusItem),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 30, color: color),
+          const SizedBox(height: 8),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.45,
+              color: AppTheme.textGrey,
+            ),
+          ),
+          if (onRetry != null) ...[
+            const SizedBox(height: 4),
+            TextButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Thử lại'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// LoadingBox: vòng tròn tải dữ liệu căn giữa.
+class LoadingBox extends StatelessWidget {
+  const LoadingBox({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 24),
+      child: Center(child: CircularProgressIndicator(strokeWidth: 3)),
+    );
+  }
+}
+
+/// SelectionTile: dòng lựa chọn dùng chung cho chuyên khoa, phòng khám và ca khám.
+class SelectionTile extends StatelessWidget {
+  final IconData icon;
+  final Color? iconColor;
+  final Color? iconBackground;
+  final String title;
+  final String? subtitle;
+  final bool selected;
+  final bool disabled;
+  final bool square;
+  final Widget? footer;
+  final VoidCallback? onTap;
+
+  const SelectionTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.selected,
+    this.iconColor,
+    this.iconBackground,
+    this.subtitle,
+    this.disabled = false,
+    this.square = false,
+    this.footer,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const blue = AppTheme.primaryBlue;
+    return Opacity(
+      opacity: disabled ? 0.55 : 1,
+      child: Material(
+        color: selected ? AppTheme.tint(blue, 0.06) : Colors.white,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.radiusItem),
+          side: BorderSide(
+            color: selected ? blue : AppTheme.borderColor,
+            width: selected ? 1.4 : 1,
+          ),
+        ),
+        child: InkWell(
+          onTap: disabled ? null : onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color:
+                            iconBackground ??
+                            (selected
+                                ? AppTheme.tint(blue, 0.14)
+                                : AppTheme.mutedFill),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 21,
+                        color:
+                            iconColor ??
+                            (selected ? blue : AppTheme.textGrey),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: TextStyle(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w700,
+                              color: selected ? blue : AppTheme.textDark,
+                            ),
+                          ),
+                          if (subtitle != null && subtitle!.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              subtitle!,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                height: 1.3,
+                                color: AppTheme.textGrey,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _SelectIndicator(selected: selected, square: square),
+                  ],
+                ),
+                if (footer != null) ...[const SizedBox(height: 12), footer!],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// _SelectIndicator: ô tích (nhiều lựa chọn) hoặc nút tròn (một lựa chọn).
+class _SelectIndicator extends StatelessWidget {
+  final bool selected;
+  final bool square;
+
+  const _SelectIndicator({required this.selected, required this.square});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        shape: square ? BoxShape.rectangle : BoxShape.circle,
+        borderRadius: square ? BorderRadius.circular(7) : null,
+        color: selected ? AppTheme.primaryBlue : Colors.transparent,
+        border: Border.all(
+          color: selected ? AppTheme.primaryBlue : const Color(0xFFB8C4D2),
+          width: 1.5,
+        ),
+      ),
+      child: selected
+          ? const Icon(Icons.check_rounded, size: 15, color: Colors.white)
+          : null,
+    );
+  }
+}
+
+/// AppointmentHeader: thanh tiêu đề đơn giản có nút quay lại.
 class AppointmentHeader extends StatelessWidget {
   final Color textDark;
   final VoidCallback onBack;
@@ -49,7 +391,7 @@ class AppointmentHeader extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Material(
-            color: Colors.grey.shade100,
+            color: AppTheme.mutedFill,
             shape: const CircleBorder(),
             child: InkWell(
               customBorder: const CircleBorder(),
@@ -69,103 +411,75 @@ class AppointmentHeader extends StatelessWidget {
               color: textDark,
             ),
           ),
-          const SizedBox(width: 36), // Cân bằng layout
+          const SizedBox(width: 36),
         ],
       ),
     );
   }
 }
 
+/// HospitalInfoCard: thẻ thông tin bệnh viện gồm loại cơ sở, đánh giá, địa chỉ và BHYT.
 class HospitalInfoCard extends StatelessWidget {
   final Map<String, dynamic> hospitalData;
-  final Color primaryBlue;
-  final Color primaryGreen;
-  final Color textDark;
-  final Color textGrey;
 
-  const HospitalInfoCard({
-    super.key,
-    required this.hospitalData,
-    required this.primaryBlue,
-    required this.primaryGreen,
-    required this.textDark,
-    required this.textGrey,
-  });
+  const HospitalInfoCard({super.key, required this.hospitalData});
+
+  static double _toDouble(dynamic v) =>
+      v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0;
+
+  static int _toInt(dynamic v) =>
+      v is num ? v.toInt() : int.tryParse(v?.toString() ?? '') ?? 0;
 
   @override
   Widget build(BuildContext context) {
-    final hospitalName =
-        hospitalData['ten_benh_vien']?.toString() ?? 'Tên bệnh viện';
-    final hospitalAddress = hospitalData['dia_chi']?.toString() ?? 'Địa chỉ';
-    final ratingValue =
-        hospitalData['diem_danh_gia_tb'] ?? hospitalData['diem_danh_gia'];
-    final hospitalRating = ratingValue is num
-        ? ratingValue.toDouble()
-        : double.tryParse(ratingValue?.toString() ?? '') ?? 0;
-    final reviewCountValue =
-        hospitalData['tong_so_danh_gia'] ?? hospitalData['so_luong_danh_gia'];
-    final reviewCount = reviewCountValue is num
-        ? reviewCountValue.toInt()
-        : int.tryParse(reviewCountValue?.toString() ?? '') ?? 0;
+    final name = hospitalData['ten_benh_vien']?.toString() ?? 'Tên bệnh viện';
+    final address = hospitalData['dia_chi']?.toString() ?? 'Địa chỉ';
+    final rating = _toDouble(
+      hospitalData['diem_danh_gia_tb'] ?? hospitalData['diem_danh_gia'],
+    );
+    final reviewCount = _toInt(
+      hospitalData['tong_so_danh_gia'] ?? hospitalData['so_luong_danh_gia'],
+    );
 
-    final facilityValue =
-        (hospitalData['co_so'] ?? hospitalData['co_so_id'] ?? '')
-            .toString()
-            .toLowerCase();
-    final isPublic = facilityValue == 'cong_lap' || facilityValue == 'công lập';
-    final isPrivate = facilityValue == 'tu_nhan' || facilityValue == 'tư nhân';
+    final facility = (hospitalData['co_so'] ?? hospitalData['co_so_id'] ?? '')
+        .toString()
+        .toLowerCase();
+    final isPublic = facility == 'cong_lap' || facility == 'công lập';
+    final isPrivate = facility == 'tu_nhan' || facility == 'tư nhân';
     final facilityLabel = isPublic
         ? 'Bệnh viện công'
         : isPrivate
         ? 'Bệnh viện tư'
         : 'Chưa cập nhật loại cơ sở';
     final facilityColor = isPublic
-        ? primaryBlue
+        ? AppTheme.primaryBlue
         : isPrivate
-        ? const Color(0xFFD97706)
-        : textGrey;
-    final facilityBackground = isPublic
-        ? const Color(0xFFE3F2FD)
-        : isPrivate
-        ? const Color(0xFFFFF3E0)
-        : const Color(0xFFF1F1F1);
+        ? AppTheme.warning
+        : AppTheme.textGrey;
 
-    final bhytValue = (hospitalData['bhyt'] ?? hospitalData['bhyt_id'] ?? '')
+    final bhyt = (hospitalData['bhyt'] ?? hospitalData['bhyt_id'] ?? '')
         .toString()
         .toLowerCase();
-    final hasBhyt =
-        bhytValue == 'co_bhyt' || bhytValue == 'có bhyt' || bhytValue == 'true';
-    final noBhyt = bhytValue == 'khong_bhyt' || bhytValue == 'không bhyt';
+    final hasBhyt = bhyt == 'co_bhyt' || bhyt == 'có bhyt' || bhyt == 'true';
+    final noBhyt = bhyt == 'khong_bhyt' || bhyt == 'không bhyt';
     final bhytColor = hasBhyt
-        ? primaryGreen
+        ? AppTheme.primaryGreen
         : noBhyt
-        ? const Color(0xFFB42318)
-        : textGrey;
+        ? AppTheme.danger
+        : AppTheme.textGrey;
     final bhytText = hasBhyt
-        ? 'Bệnh viện có hỗ trợ khám BHYT'
+        ? 'Có hỗ trợ khám BHYT'
         : noBhyt
-        ? 'Bệnh viện không hỗ trợ khám BHYT'
+        ? 'Không hỗ trợ khám BHYT'
         : 'Chưa cập nhật thông tin BHYT';
     final bhytIcon = hasBhyt
-        ? Icons.check_circle_rounded
+        ? Icons.verified_rounded
         : noBhyt
         ? Icons.cancel_rounded
         : Icons.info_outline_rounded;
 
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade100),
-        boxShadow: [
-          BoxShadow(
-            color: primaryBlue.withOpacity(0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -173,22 +487,15 @@ class HospitalInfoCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 56,
-                height: 56,
+                width: 54,
+                height: 54,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      facilityBackground,
-                      Color.lerp(facilityBackground, Colors.white, 0.5)!,
-                    ],
-                  ),
+                  color: AppTheme.tint(facilityColor, 0.12),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(
                   Icons.local_hospital_rounded,
-                  size: 30,
+                  size: 28,
                   color: facilityColor,
                 ),
               ),
@@ -198,85 +505,34 @@ class HospitalInfoCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      hospitalName,
+                      name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: 17,
                         height: 1.25,
                         fontWeight: FontWeight.w800,
+                        color: AppTheme.textDark,
                       ),
                     ),
                     const SizedBox(height: 10),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: facilityBackground,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            facilityLabel,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: facilityColor,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: hospitalRating > 0
-                                ? const Color(0xFFFFF8E1)
-                                : const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.star_rounded,
-                                size: 16,
-                                color: hospitalRating > 0
-                                    ? const Color(0xFFFFA000)
-                                    : Colors.grey.shade400,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                hospitalRating > 0
-                                    ? hospitalRating.toStringAsFixed(1)
-                                    : 'Chưa có đánh giá',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: hospitalRating > 0
-                                      ? textDark
-                                      : textGrey,
-                                ),
-                              ),
-                              if (hospitalRating > 0 && reviewCount > 0) ...[
-                                const SizedBox(width: 4),
-                                Text(
-                                  '($reviewCount)',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
+                        InfoPill(text: facilityLabel, color: facilityColor),
+                        InfoPill(
+                          icon: Icons.star_rounded,
+                          text: rating > 0
+                              ? '${rating.toStringAsFixed(1)}'
+                                    '${reviewCount > 0 ? ' ($reviewCount)' : ''}'
+                              : 'Chưa có đánh giá',
+                          color: rating > 0
+                              ? AppTheme.warning
+                              : AppTheme.textGrey,
+                          background: rating > 0
+                              ? const Color(0xFFFFF4DB)
+                              : AppTheme.mutedFill,
                         ),
                       ],
                     ),
@@ -286,34 +542,24 @@ class HospitalInfoCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          Divider(height: 1, color: Colors.grey.shade200),
+          const Divider(height: 1, color: AppTheme.borderColor),
           const SizedBox(height: 14),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: primaryBlue.withOpacity(0.10),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.location_on_rounded,
-                  size: 18,
-                  color: AppTheme.primaryBlue,
-                ),
+              const Icon(
+                Icons.location_on_rounded,
+                size: 20,
+                color: AppTheme.primaryBlue,
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 3),
-                  child: Text(
-                    hospitalAddress,
-                    style: const TextStyle(
-                      fontSize: 13.5,
-                      height: 1.4,
-                      color: Colors.grey,
-                    ),
+                child: Text(
+                  address,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    height: 1.4,
+                    color: AppTheme.textGrey,
                   ),
                 ),
               ),
@@ -322,15 +568,14 @@ class HospitalInfoCard extends StatelessWidget {
           const SizedBox(height: 14),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             decoration: BoxDecoration(
-              color: bhytColor.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: bhytColor.withOpacity(0.18)),
+              color: AppTheme.tint(bhytColor, 0.08),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               children: [
-                Icon(bhytIcon, size: 22, color: bhytColor),
+                Icon(bhytIcon, size: 20, color: bhytColor),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -351,46 +596,51 @@ class HospitalInfoCard extends StatelessWidget {
   }
 }
 
+/// BookingInfoBox: ghi chú hướng dẫn các bước đặt lịch.
 class BookingInfoBox extends StatelessWidget {
   const BookingInfoBox({super.key});
 
   @override
   Widget build(BuildContext context) {
-    const green = Color(0xFF2E7D32);
+    const blue = AppTheme.primaryBlue;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFE8F5E9),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: green.withOpacity(0.18)),
+        color: AppTheme.tint(blue, 0.07),
+        borderRadius: BorderRadius.circular(AppTheme.radiusItem),
+        border: Border.all(color: AppTheme.tint(blue, 0.18)),
       ),
       child: const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_rounded, color: green, size: 20),
+          Icon(Icons.info_outline_rounded, color: blue, size: 20),
           SizedBox(width: 12),
           Expanded(
             child: Text.rich(
               TextSpan(
-                style: TextStyle(fontSize: 13.5, color: green, height: 1.45),
+                style: TextStyle(
+                  fontSize: 13.5,
+                  color: AppTheme.textDark,
+                  height: 1.45,
+                ),
                 children: [
                   TextSpan(text: 'Vui lòng chọn '),
                   TextSpan(
-                    text: 'Chuyên khoa',
+                    text: 'chuyên khoa',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
                   TextSpan(text: ', '),
                   TextSpan(
-                    text: 'Phòng khám',
+                    text: 'phòng khám',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
                   TextSpan(text: ' và '),
                   TextSpan(
-                    text: 'Ngày khám',
+                    text: 'ngày khám',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
-                  TextSpan(text: ' phù hợp. Lịch sẽ được '),
+                  TextSpan(text: ' phù hợp. Lịch hẹn sẽ được bệnh viện '),
                   TextSpan(
                     text: 'xét duyệt',
                     style: TextStyle(fontWeight: FontWeight.w800),
@@ -406,10 +656,7 @@ class BookingInfoBox extends StatelessWidget {
   }
 }
 
-// ──────────────────────────────────────────────────────────────
-// 2. SPECIALTY & ROOM SELECTION
-// ──────────────────────────────────────────────────────────────
-
+/// SpecialtySelectionSection: ô chọn nhiều chuyên khoa với danh sách xổ xuống.
 class SpecialtySelectionSection extends StatelessWidget {
   final int selectedCount;
   final List<String> selectedNames;
@@ -434,96 +681,90 @@ class SpecialtySelectionSection extends StatelessWidget {
     required this.onToggleDepartment,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    const primaryBlue = Color(0xFF2196F3);
-    const textDark = Color(0xFF1A1A1A);
-    const textGrey = Color(0xFF757575);
-    const borderColor = Color(0xFFE0E0E0);
-
-    Widget messageBox(IconData icon, String text, Color color) {
+  /// _buildDepartmentList: dựng nội dung danh sách theo trạng thái tải, lỗi, rỗng.
+  Widget _buildDepartmentList() {
+    if (isLoading) return const LoadingBox();
+    if (error != null) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-        child: Column(
-          children: [
-            Icon(icon, size: 36, color: color),
-            const SizedBox(height: 8),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13.5,
-                height: 1.4,
-                color: textGrey,
-              ),
-            ),
-          ],
+        padding: const EdgeInsets.all(8),
+        child: StatePanel(
+          icon: Icons.error_outline_rounded,
+          text: error!,
+          color: AppTheme.danger,
         ),
       );
     }
+    if (departments.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(8),
+        child: StatePanel(
+          icon: Icons.search_off_rounded,
+          text: 'Bệnh viện chưa có danh sách chuyên khoa.',
+          color: AppTheme.textGrey,
+        ),
+      );
+    }
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 340),
+      child: ListView.separated(
+        shrinkWrap: true,
+        padding: const EdgeInsets.all(8),
+        itemCount: departments.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          final department = departments[index];
+          final id = BookingHelper.departmentIdOf(department);
+          return SelectionTile(
+            icon: Icons.health_and_safety_outlined,
+            title: department['ten_khoa']?.toString() ?? 'Chuyên khoa',
+            subtitle: department['mo_ta']?.toString(),
+            selected: selectedDepartmentIds.contains(id),
+            square: true,
+            onTap: () => onToggleDepartment(id),
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const blue = AppTheme.primaryBlue;
+    final active = isExpanded || selectedCount > 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text.rich(
-          TextSpan(
-            text: 'Chọn chuyên khoa khám',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: textDark,
-            ),
-            children: [
-              TextSpan(
-                text: ' *',
-                style: TextStyle(color: Colors.redAccent),
-              ),
-            ],
-          ),
+        const SectionTitle(
+          icon: Icons.medical_services_outlined,
+          text: 'Chọn chuyên khoa khám',
+          required: true,
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         Material(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusItem),
+            side: BorderSide(
+              color: active ? blue : AppTheme.borderColor,
+              width: 1.4,
+            ),
+          ),
           child: InkWell(
-            borderRadius: BorderRadius.circular(14),
             onTap: onToggleExpand,
-            child: Container(
+            child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: primaryBlue, width: 1.4),
-                boxShadow: [
-                  BoxShadow(
-                    color: primaryBlue.withOpacity(0.10),
-                    blurRadius: 14,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: primaryBlue.withOpacity(0.10),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.medical_services_outlined,
-                      size: 20,
-                      color: primaryBlue,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
                   Expanded(
                     child: selectedCount == 0
                         ? const Text(
-                            'Chọn chuyên khoa',
+                            'Chọn một hoặc nhiều chuyên khoa',
                             style: TextStyle(
                               fontSize: 14.5,
                               fontWeight: FontWeight.w600,
-                              color: textGrey,
+                              color: AppTheme.textGrey,
                             ),
                           )
                         : Column(
@@ -534,7 +775,7 @@ class SpecialtySelectionSection extends StatelessWidget {
                                 style: const TextStyle(
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.w700,
-                                  color: primaryBlue,
+                                  color: blue,
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -548,7 +789,7 @@ class SpecialtySelectionSection extends StatelessWidget {
                                   fontSize: 14.5,
                                   height: 1.3,
                                   fontWeight: FontWeight.w700,
-                                  color: textDark,
+                                  color: AppTheme.textDark,
                                 ),
                               ),
                             ],
@@ -560,7 +801,7 @@ class SpecialtySelectionSection extends StatelessWidget {
                     child: const Icon(
                       Icons.keyboard_arrow_down_rounded,
                       size: 26,
-                      color: primaryBlue,
+                      color: blue,
                     ),
                   ),
                 ],
@@ -580,160 +821,12 @@ class SpecialtySelectionSection extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: borderColor),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                      border: Border.all(color: AppTheme.borderColor),
+                      boxShadow: AppTheme.softShadow,
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(16),
-                      child: isLoading
-                          ? const Padding(
-                              padding: EdgeInsets.all(28),
-                              child: Center(child: CircularProgressIndicator()),
-                            )
-                          : error != null
-                          ? messageBox(
-                              Icons.error_outline_rounded,
-                              error!,
-                              Colors.redAccent,
-                            )
-                          : departments.isEmpty
-                          ? messageBox(
-                              Icons.search_off_rounded,
-                              'Bệnh viện chưa có danh sách chuyên khoa.',
-                              Colors.grey.shade400,
-                            )
-                          : ConstrainedBox(
-                              constraints: const BoxConstraints(maxHeight: 340),
-                              child: ListView.separated(
-                                shrinkWrap: true,
-                                padding: EdgeInsets.zero,
-                                itemCount: departments.length,
-                                separatorBuilder: (_, __) =>
-                                    Divider(height: 1, color: borderColor),
-                                itemBuilder: (context, index) {
-                                  final department = departments[index];
-                                  final departmentId =
-                                      BookingHelper.departmentIdOf(department);
-                                  final name =
-                                      department['ten_khoa']?.toString() ??
-                                      'Chuyên khoa';
-                                  final description =
-                                      department['mo_ta']?.toString() ?? '';
-                                  final isSelected = selectedDepartmentIds
-                                      .contains(departmentId);
-
-                                  return Material(
-                                    color: isSelected
-                                        ? primaryBlue.withOpacity(0.07)
-                                        : Colors.white,
-                                    child: InkWell(
-                                      onTap: () =>
-                                          onToggleDepartment(departmentId),
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 14,
-                                          vertical: 12,
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            AnimatedContainer(
-                                              duration: const Duration(
-                                                milliseconds: 180,
-                                              ),
-                                              width: 24,
-                                              height: 24,
-                                              decoration: BoxDecoration(
-                                                color: isSelected
-                                                    ? primaryBlue
-                                                    : Colors.white,
-                                                borderRadius:
-                                                    BorderRadius.circular(7),
-                                                border: Border.all(
-                                                  color: isSelected
-                                                      ? primaryBlue
-                                                      : Colors.grey.shade400,
-                                                  width: 1.5,
-                                                ),
-                                              ),
-                                              child: isSelected
-                                                  ? const Icon(
-                                                      Icons.check_rounded,
-                                                      color: Colors.white,
-                                                      size: 16,
-                                                    )
-                                                  : null,
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Container(
-                                              width: 40,
-                                              height: 40,
-                                              decoration: BoxDecoration(
-                                                color: isSelected
-                                                    ? primaryBlue.withOpacity(
-                                                        0.14,
-                                                      )
-                                                    : const Color(0xFFF1F5F9),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              child: Icon(
-                                                Icons
-                                                    .health_and_safety_outlined,
-                                                size: 21,
-                                                color: isSelected
-                                                    ? primaryBlue
-                                                    : textGrey,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    name,
-                                                    style: TextStyle(
-                                                      fontSize: 14.5,
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      color: isSelected
-                                                          ? primaryBlue
-                                                          : textDark,
-                                                    ),
-                                                  ),
-                                                  if (description
-                                                      .isNotEmpty) ...[
-                                                    const SizedBox(height: 2),
-                                                    Text(
-                                                      description,
-                                                      maxLines: 2,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: const TextStyle(
-                                                        fontSize: 12,
-                                                        height: 1.3,
-                                                        color: textGrey,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
+                      child: _buildDepartmentList(),
                     ),
                   ),
                 ),
@@ -743,39 +836,50 @@ class SpecialtySelectionSection extends StatelessWidget {
   }
 }
 
+/// BookingStepTitle: tiêu đề bước 1-3, hiện dấu tích khi bước đã hoàn tất.
 class BookingStepTitle extends StatelessWidget {
   final int step;
   final String text;
-  const BookingStepTitle({super.key, required this.step, required this.text});
+  final bool done;
+
+  const BookingStepTitle({
+    super.key,
+    required this.step,
+    required this.text,
+    this.done = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: 22,
-          height: 22,
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 24,
+          height: 24,
           alignment: Alignment.center,
-          decoration: const BoxDecoration(
-            color: Color(0xFF2196F3),
+          decoration: BoxDecoration(
+            color: done ? AppTheme.primaryGreen : AppTheme.primaryBlue,
             shape: BoxShape.circle,
           ),
-          child: Text(
-            '$step',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-            ),
-          ),
+          child: done
+              ? const Icon(Icons.check_rounded, size: 15, color: Colors.white)
+              : Text(
+                  '$step',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 10),
         Text(
           text,
           style: const TextStyle(
-            fontSize: 14,
+            fontSize: 14.5,
             fontWeight: FontWeight.w700,
-            color: Color(0xFF1A1A1A),
+            color: AppTheme.textDark,
           ),
         ),
       ],
@@ -783,6 +887,7 @@ class BookingStepTitle extends StatelessWidget {
   }
 }
 
+/// RoomSelectionList: danh sách phòng khám của chuyên khoa đang chọn.
 class RoomSelectionList extends StatelessWidget {
   final String activeId;
   final bool isLoading;
@@ -803,167 +908,49 @@ class RoomSelectionList extends StatelessWidget {
     required this.onRetry,
   });
 
+  /// _buildTile: dựng một dòng phòng khám.
+  Widget _buildTile(PhongKhamModel room) {
+    final roomId = BookingHelper.roomIdOf(room);
+    return SelectionTile(
+      icon: Icons.meeting_room_rounded,
+      title: BookingHelper.roomNameOf(room),
+      subtitle: BookingHelper.roomSubtitleOf(room),
+      selected: selectedRoomId == roomId,
+      onTap: () => onSelect(activeId, roomId),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    const primaryBlue = Color(0xFF2196F3);
-    const borderColor = Color(0xFFE0E0E0);
-    const textGrey = Color(0xFF757575);
-    const textDark = Color(0xFF1A1A1A);
-
-    Widget infoBox(IconData icon, String text, Color color, {Widget? action}) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 30, color: color),
-            const SizedBox(height: 8),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.4,
-                color: textGrey,
-              ),
-            ),
-            if (action != null) ...[const SizedBox(height: 8), action],
-          ],
-        ),
+    if (isLoading) return const LoadingBox();
+    if (error != null) {
+      return StatePanel(
+        icon: Icons.error_outline_rounded,
+        text: error!,
+        color: AppTheme.danger,
+        onRetry: () => onRetry(activeId, force: true),
       );
     }
-
-    if (isLoading)
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 20),
-        child: Center(child: CircularProgressIndicator()),
+    if (rooms.isEmpty) {
+      return const StatePanel(
+        icon: Icons.meeting_room_outlined,
+        text: 'Chuyên khoa này chưa có phòng khám.',
+        color: AppTheme.textGrey,
       );
-    if (error != null)
-      return infoBox(
-        Icons.error_outline_rounded,
-        error!,
-        Colors.redAccent,
-        action: TextButton(
-          onPressed: () => onRetry(activeId, force: true),
-          child: const Text('Thử lại'),
-        ),
-      );
-    if (rooms.isEmpty)
-      return infoBox(
-        Icons.meeting_room_outlined,
-        'Chuyên khoa này chưa có phòng khám.',
-        Colors.grey.shade400,
-      );
-
+    }
     return Column(
-      children: List.generate(rooms.length, (i) {
-        final room = rooms[i];
-        final roomId = BookingHelper.roomIdOf(room);
-        final subtitle = BookingHelper.roomSubtitleOf(room);
-        final isSelected = selectedRoomId == roomId;
-
-        return Padding(
-          padding: EdgeInsets.only(bottom: i == rooms.length - 1 ? 0 : 10),
-          child: Material(
-            color: isSelected ? primaryBlue.withOpacity(0.07) : Colors.white,
-            clipBehavior: Clip.antiAlias,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(
-                color: isSelected ? primaryBlue : borderColor,
-                width: isSelected ? 1.5 : 1,
-              ),
-            ),
-            child: InkWell(
-              onTap: () => onSelect(activeId, roomId),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? primaryBlue.withOpacity(0.14)
-                            : const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.meeting_room_rounded,
-                        size: 22,
-                        color: isSelected ? primaryBlue : textGrey,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            BookingHelper.roomNameOf(room),
-                            style: TextStyle(
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w800,
-                              color: isSelected ? primaryBlue : textDark,
-                            ),
-                          ),
-                          if (subtitle.isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              subtitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: textGrey,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isSelected ? primaryBlue : Colors.transparent,
-                        border: Border.all(
-                          color: isSelected
-                              ? primaryBlue
-                              : Colors.grey.shade400,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: isSelected
-                          ? const Icon(
-                              Icons.check_rounded,
-                              size: 16,
-                              color: Colors.white,
-                            )
-                          : null,
-                    ),
-                  ],
-                ),
-              ),
-            ),
+      children: [
+        for (var i = 0; i < rooms.length; i++)
+          Padding(
+            padding: EdgeInsets.only(bottom: i == rooms.length - 1 ? 0 : 10),
+            child: _buildTile(rooms[i]),
           ),
-        );
-      }),
+      ],
     );
   }
 }
 
-// ──────────────────────────────────────────────────────────────
-// 3. DATE & TIME SELECTION
-// ──────────────────────────────────────────────────────────────
-
+/// DateTimeSelectionSection: chọn phòng khám, ngày và khung giờ cho từng chuyên khoa.
 class DateTimeSelectionSection extends StatelessWidget {
   final List<String> selectedIds;
   final String? activeId;
@@ -973,15 +960,13 @@ class DateTimeSelectionSection extends StatelessWidget {
   final List<Map<String, dynamic>> days;
   final LichHenProvider lichHen;
   final CaSlotModel? selectedSlot;
-  final DateTime labelDate;
   final String monthLabel;
   final String hospitalId;
-  final List<Map<String, dynamic>> departments;
   final List<PhongKhamModel> rooms;
   final bool isLoadingRooms;
   final String? roomError;
+  final bool Function(String) hasSchedule;
   final Function(String, {bool force}) onRetryFetch;
-
   final Function(String, String) onRoomSelected;
   final Function(String, String, DateTime) onDaySelected;
   final Function(String, String) onOpenCalendar;
@@ -991,6 +976,7 @@ class DateTimeSelectionSection extends StatelessWidget {
   final int Function(String, String) getRoomMax;
   final Function(String, String, String) onSlotSelected;
   final Function(String) onSwitchActiveDepartment;
+  final Map<String, int>? waitingByCa;
 
   const DateTimeSelectionSection({
     super.key,
@@ -1002,10 +988,13 @@ class DateTimeSelectionSection extends StatelessWidget {
     required this.days,
     required this.lichHen,
     required this.selectedSlot,
-    required this.labelDate,
     required this.monthLabel,
     required this.hospitalId,
-    required this.departments,
+    required this.rooms,
+    required this.isLoadingRooms,
+    this.roomError,
+    required this.hasSchedule,
+    required this.onRetryFetch,
     required this.onRoomSelected,
     required this.onDaySelected,
     required this.onOpenCalendar,
@@ -1013,134 +1002,39 @@ class DateTimeSelectionSection extends StatelessWidget {
     required this.getRoomName,
     required this.formatDayMonth,
     required this.getRoomMax,
-    required this.rooms,
-    required this.isLoadingRooms,
-    this.roomError,
-    required this.onRetryFetch,
     required this.onSlotSelected,
     required this.onSwitchActiveDepartment,
+    this.waitingByCa,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    const primaryBlue = Color(0xFF2196F3);
-    const primaryGreen = Color(0xFF5B8C3E);
-    const textDark = Color(0xFF1A1A1A);
-    const textGrey = Color(0xFF757575);
-    const borderColor = Color(0xFFE0E0E0);
-
-    final titleWidget = const Text.rich(
-      TextSpan(
-        text: 'Chọn phòng khám, ngày và khung giờ khám',
-        style: TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w800,
-          color: textDark,
-        ),
-        children: [
-          TextSpan(
-            text: ' *',
-            style: TextStyle(color: Colors.redAccent),
-          ),
-        ],
-      ),
-    );
-
-    if (activeId == null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          titleWidget,
-          const SizedBox(height: 10),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: borderColor),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: primaryBlue.withOpacity(0.08),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.calendar_month_rounded,
-                    size: 30,
-                    color: primaryBlue,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Chưa chọn chuyên khoa',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: textDark,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Hãy chọn chuyên khoa ở trên để chọn phòng khám,\nngày và khung giờ khám.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, height: 1.4, color: textGrey),
-                ),
-              ],
-            ),
-          ),
-        ],
-      );
-    }
-
+  /// _buildDepartmentTabs: dãy nút chuyển giữa các chuyên khoa đã chọn.
+  Widget _buildDepartmentTabs() {
+    const blue = AppTheme.primaryBlue;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        titleWidget,
-        const SizedBox(height: 10),
-        if (selectedIds.length > 1) ...[
-          SizedBox(
-            height: 44,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: selectedIds.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, i) {
-                final id = selectedIds[i];
-                final isActive = id == activeId;
-                final isDone = _hasScheduleFor(
-                  id,
-                  selectedRoomId,
-                  selectedDay,
-                  selectedSlot,
-                ); // Simplified check for UI
-                return GestureDetector(
+        SizedBox(
+          height: 42,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: selectedIds.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, i) {
+              final id = selectedIds[i];
+              final isActive = id == activeId;
+              final isDone = hasSchedule(id);
+              return Material(
+                color: isActive ? blue : Colors.white,
+                shape: StadiumBorder(
+                  side: BorderSide(
+                    color: isActive ? blue : AppTheme.borderColor,
+                  ),
+                ),
+                child: InkWell(
+                  customBorder: const StadiumBorder(),
                   onTap: () => onSwitchActiveDepartment(id),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isActive ? primaryBlue : Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: isActive ? primaryBlue : borderColor,
-                      ),
-                      boxShadow: isActive
-                          ? [
-                              BoxShadow(
-                                color: primaryBlue.withOpacity(0.28),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ]
-                          : null,
-                    ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -1151,7 +1045,9 @@ class DateTimeSelectionSection extends StatelessWidget {
                           size: 17,
                           color: isActive
                               ? Colors.white
-                              : (isDone ? primaryGreen : Colors.grey.shade400),
+                              : (isDone
+                                    ? AppTheme.primaryGreen
+                                    : const Color(0xFFB8C4D2)),
                         ),
                         const SizedBox(width: 6),
                         ConstrainedBox(
@@ -1163,87 +1059,223 @@ class DateTimeSelectionSection extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 13.5,
                               fontWeight: FontWeight.w700,
-                              color: isActive ? Colors.white : textDark,
+                              color: isActive ? Colors.white : AppTheme.textDark,
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Đã chọn lịch cho $doneCount/${selectedIds.length} khoa',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: doneCount == selectedIds.length ? primaryGreen : textGrey,
-            ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Đã chọn lịch cho $doneCount/${selectedIds.length} chuyên khoa',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: doneCount == selectedIds.length
+                ? AppTheme.primaryGreen
+                : AppTheme.textGrey,
           ),
-          const SizedBox(height: 12),
-        ],
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: borderColor),
-            boxShadow: [
-              BoxShadow(
-                color: primaryBlue.withOpacity(0.07),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
+        ),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+
+  /// _buildDayStrip: dải ngày khám cuộn ngang.
+  Widget _buildDayStrip() {
+    const blue = AppTheme.primaryBlue;
+    return SizedBox(
+      height: 74,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: days.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final date = days[i]['date'] as DateTime;
+          final isSelected =
+              selectedDay != null &&
+              BookingHelper.isSameDay(date, selectedDay!);
+          return Material(
+            color: isSelected ? blue : Colors.white,
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppTheme.radiusItem),
+              side: BorderSide(color: isSelected ? blue : AppTheme.borderColor),
+            ),
+            child: InkWell(
+              onTap: () => onDaySelected(activeId!, selectedRoomId!, date),
+              child: SizedBox(
+                width: 62,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      days[i]['label'] as String,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isSelected
+                            ? Colors.white.withOpacity(0.85)
+                            : AppTheme.textGrey,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      days[i]['day'] as String,
+                      style: TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                        color: isSelected ? Colors.white : AppTheme.textDark,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// _buildSelectedSummary: khung tóm tắt lịch khám vừa chọn.
+  Widget _buildSelectedSummary() {
+    const green = AppTheme.primaryGreen;
+    final slot = selectedSlot!;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.tint(green, 0.09),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.check_circle_rounded, size: 20, color: green),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Lịch khám đã chọn',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: green,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  getRoomName(activeId!, selectedRoomId!),
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.textDark,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Ngày ${formatDayMonth(selectedDay!)} · ${slot.tenCa} (${slot.gioBatDau} - ${slot.gioKetThuc})',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.35,
+                    color: AppTheme.textDark,
+                  ),
+                ),
+              ],
+            ),
           ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const blue = AppTheme.primaryBlue;
+    const title = SectionTitle(
+      icon: Icons.event_available_rounded,
+      text: 'Chọn phòng, ngày và giờ khám',
+      required: true,
+    );
+
+    if (activeId == null) {
+      return const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          title,
+          SizedBox(height: 12),
+          AppCard(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+            child: Column(
+              children: [
+                Icon(Icons.calendar_month_rounded, size: 34, color: blue),
+                SizedBox(height: 12),
+                Text(
+                  'Chưa chọn chuyên khoa',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textDark,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Chọn chuyên khoa ở trên để xem phòng khám,\nngày và khung giờ khám.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: AppTheme.textGrey,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        title,
+        const SizedBox(height: 12),
+        if (selectedIds.length > 1) _buildDepartmentTabs(),
+        AppCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: primaryBlue.withOpacity(0.10),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.event_available_rounded,
-                      size: 20,
-                      color: primaryBlue,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Lịch khám của',
-                          style: TextStyle(fontSize: 11.5, color: textGrey),
-                        ),
-                        Text(
-                          getDepartmentName(activeId!),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: textDark,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+              const Text(
+                'Lịch khám của',
+                style: TextStyle(fontSize: 12, color: AppTheme.textGrey),
               ),
-              const SizedBox(height: 16),
-              const BookingStepTitle(step: 1, text: 'Chọn phòng khám'),
-              const SizedBox(height: 10),
+              const SizedBox(height: 2),
+              Text(
+                getDepartmentName(activeId!),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.textDark,
+                ),
+              ),
+              const Divider(height: 28, color: AppTheme.borderColor),
+              BookingStepTitle(
+                step: 1,
+                text: 'Chọn phòng khám',
+                done: selectedRoomId != null,
+              ),
+              const SizedBox(height: 12),
               RoomSelectionList(
                 activeId: activeId!,
                 isLoading: isLoadingRooms,
@@ -1255,38 +1287,18 @@ class DateTimeSelectionSection extends StatelessWidget {
               ),
               if (selectedRoomId == null) ...[
                 const SizedBox(height: 14),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.lock_clock_rounded, size: 18, color: textGrey),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Hãy chọn phòng khám để xem ngày và khung giờ khám.',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            height: 1.35,
-                            color: textGrey,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                const StatePanel(
+                  icon: Icons.lock_clock_rounded,
+                  text: 'Chọn phòng khám để xem ngày và khung giờ khám.',
+                  color: AppTheme.textGrey,
                 ),
               ] else ...[
-                const SizedBox(height: 16),
-                Divider(height: 1, color: borderColor),
-                const SizedBox(height: 14),
-                const BookingStepTitle(step: 2, text: 'Chọn ngày khám'),
+                const Divider(height: 28, color: AppTheme.borderColor),
+                BookingStepTitle(
+                  step: 2,
+                  text: 'Chọn ngày khám',
+                  done: selectedDay != null,
+                ),
                 const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1294,125 +1306,38 @@ class DateTimeSelectionSection extends StatelessWidget {
                     Text(
                       monthLabel,
                       style: const TextStyle(
-                        fontSize: 14.5,
+                        fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: textDark,
+                        color: AppTheme.textDark,
                       ),
                     ),
-                    InkWell(
-                      borderRadius: BorderRadius.circular(20),
-                      onTap: () => onOpenCalendar(activeId!, selectedRoomId!),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: primaryBlue.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.calendar_month_rounded,
-                              size: 14,
-                              color: primaryBlue,
-                            ),
-                            SizedBox(width: 5),
-                            Text(
-                              'Xem lịch tháng',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: primaryBlue,
-                              ),
-                            ),
-                          ],
+                    TextButton.icon(
+                      onPressed: () =>
+                          onOpenCalendar(activeId!, selectedRoomId!),
+                      style: TextButton.styleFrom(
+                        foregroundColor: blue,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      icon: const Icon(Icons.calendar_month_rounded, size: 16),
+                      label: const Text(
+                        'Xem lịch tháng',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 78,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: days.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (context, i) {
-                      final date = days[i]['date'] as DateTime;
-                      final isSelected =
-                          selectedDay != null &&
-                          BookingHelper.isSameDay(date, selectedDay!);
-                      return GestureDetector(
-                        onTap: () =>
-                            onDaySelected(activeId!, selectedRoomId!, date),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          width: 66,
-                          decoration: BoxDecoration(
-                            gradient: isSelected
-                                ? LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      primaryBlue,
-                                      primaryBlue.withOpacity(0.75),
-                                    ],
-                                  )
-                                : null,
-                            color: isSelected ? null : Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: isSelected ? primaryBlue : borderColor,
-                            ),
-                            boxShadow: isSelected
-                                ? [
-                                    BoxShadow(
-                                      color: primaryBlue.withOpacity(0.28),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ]
-                                : null,
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                days[i]['label'] as String,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: isSelected
-                                      ? Colors.white.withOpacity(0.9)
-                                      : textGrey,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                days[i]['day'] as String,
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800,
-                                  color: isSelected ? Colors.white : textDark,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                const SizedBox(height: 6),
+                _buildDayStrip(),
+                const Divider(height: 28, color: AppTheme.borderColor),
+                BookingStepTitle(
+                  step: 3,
+                  text: 'Chọn khung giờ khám',
+                  done: selectedSlot != null,
                 ),
-                const SizedBox(height: 16),
-                Divider(height: 1, color: borderColor),
-                const SizedBox(height: 14),
-                const BookingStepTitle(step: 3, text: 'Khung giờ khám'),
-                const SizedBox(height: 10),
-
+                const SizedBox(height: 12),
                 SlotSelectionList(
                   activeId: activeId!,
                   roomId: selectedRoomId!,
@@ -1422,41 +1347,11 @@ class DateTimeSelectionSection extends StatelessWidget {
                   getRoomMax: getRoomMax,
                   onSlotSelected: onSlotSelected,
                   selectedCaId: selectedSlot?.caId,
+                  waitingByCa: waitingByCa,
                 ),
-
                 if (selectedDay != null && selectedSlot != null) ...[
-                  const SizedBox(height: 14),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: primaryGreen.withOpacity(0.10),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.check_circle_rounded,
-                          size: 18,
-                          color: primaryGreen,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Đã chọn: ${getRoomName(activeId!, selectedRoomId!)} · ngày ${formatDayMonth(selectedDay!)} · ${selectedSlot!.tenCa} (${selectedSlot!.gioBatDau} - ${selectedSlot!.gioKetThuc})',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: primaryGreen,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  const SizedBox(height: 16),
+                  _buildSelectedSummary(),
                 ],
               ],
             ],
@@ -1465,17 +1360,314 @@ class DateTimeSelectionSection extends StatelessWidget {
       ],
     );
   }
+}
 
-  bool _hasScheduleFor(
-    String id,
-    String? roomId,
-    DateTime? day,
-    CaSlotModel? slot,
-  ) {
-    return roomId != null && day != null && slot != null;
+/// CrowdLevel: mức độ đông của một ca khám kèm nhãn và màu hiển thị.
+enum CrowdLevel {
+  quiet('Vắng', Color(0xFF0E9F6E)),
+  moderate('Vừa phải', Color(0xFFC98A00)),
+  busy('Đông', Color(0xFFE5701B)),
+  veryBusy('Rất đông', Color(0xFFC62828));
+
+  final String label;
+  final Color color;
+  const CrowdLevel(this.label, this.color);
+
+  /// fromRatio: xác định mức đông theo tỷ lệ số người trên sức chứa của ca.
+  static CrowdLevel fromRatio(double ratio) {
+    if (ratio < 0.4) return CrowdLevel.quiet;
+    if (ratio < 0.7) return CrowdLevel.moderate;
+    if (ratio < 0.9) return CrowdLevel.busy;
+    return CrowdLevel.veryBusy;
+  }
+
+  /// fromCount: xác định mức đông theo số người khi ca không có sức chứa cố định.
+  static CrowdLevel fromCount(int count) {
+    if (count < 10) return CrowdLevel.quiet;
+    if (count < 25) return CrowdLevel.moderate;
+    if (count < 40) return CrowdLevel.busy;
+    return CrowdLevel.veryBusy;
   }
 }
 
+/// CrowdInfo: số người và mức đông đã tính của một ca khám.
+class CrowdInfo {
+  final CaSlotModel slot;
+  final int booked;
+  final CrowdLevel level;
+
+  const CrowdInfo._(this.slot, this.booked, this.level);
+
+  /// CrowdInfo.of: tính số người và mức đông của một ca, ưu tiên số người đang chờ nếu có.
+  factory CrowdInfo.of(CaSlotModel slot, {int? waiting}) {
+    final total = slot.tongSo;
+    final used = total > 0 ? (total - slot.conLai < 0 ? 0 : total - slot.conLai) : 0;
+    final booked = waiting ?? used;
+    final level = total > 0
+        ? CrowdLevel.fromRatio(booked / total)
+        : CrowdLevel.fromCount(booked);
+    return CrowdInfo._(slot, booked, level);
+  }
+
+  bool get isFull => slot.tongSo > 0 && slot.conLai <= 0;
+
+  /// heightFactor: tỷ lệ chiều cao cột từ 0 đến 1, theo sức chứa hoặc theo ca đông nhất.
+  double heightFactor(int maxBooked) {
+    final base = slot.tongSo > 0
+        ? booked / slot.tongSo
+        : (maxBooked > 0 ? booked / maxBooked : 0.0);
+    return base.clamp(0.0, 1.0).toDouble();
+  }
+}
+
+/// SlotCrowdChart: biểu đồ cột độ đông theo từng ca khám, bấm vào cột để chọn ca.
+class SlotCrowdChart extends StatelessWidget {
+  final List<CaSlotModel> slots;
+  final String? selectedCaId;
+  final Map<String, int>? waitingByCa;
+  final ValueChanged<String> onSelect;
+
+  const SlotCrowdChart({
+    super.key,
+    required this.slots,
+    required this.selectedCaId,
+    required this.onSelect,
+    this.waitingByCa,
+  });
+
+  static const double _maxBarHeight = 96;
+
+  /// _buildBar: dựng cột biểu đồ, nhãn ca và giờ của một ca khám.
+  Widget _buildBar(CrowdInfo info, int maxBooked) {
+    final slot = info.slot;
+    final selected = selectedCaId == slot.caId;
+    final color = info.level.color;
+    final barHeight = 6 + (_maxBarHeight - 6) * info.heightFactor(maxBooked);
+
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 5),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: info.isFull ? null : () => onSelect(slot.caId),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text(
+                '${info.booked}',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
+              const SizedBox(height: 4),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOut,
+                height: barHeight,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(8),
+                  ),
+                  border: selected
+                      ? Border.all(color: AppTheme.textDark, width: 2)
+                      : null,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? AppTheme.tint(AppTheme.primaryBlue, 0.12)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      slot.tenCa,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: selected
+                            ? AppTheme.primaryBlue
+                            : AppTheme.textDark,
+                      ),
+                    ),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        '${slot.gioBatDau} - ${slot.gioKetThuc}',
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          color: AppTheme.textGrey,
+                        ),
+                      ),
+                    ),
+                    if (info.isFull)
+                      const Text(
+                        'Hết chỗ',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.danger,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// _buildLegend: chú thích bốn mức độ đông bằng chấm màu.
+  Widget _buildLegend() {
+    return Wrap(
+      spacing: 14,
+      runSpacing: 6,
+      children: [
+        for (final level in CrowdLevel.values)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  color: level.color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                level.label,
+                style: const TextStyle(fontSize: 11.5, color: AppTheme.textGrey),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  /// _buildTip: gợi ý ca ít người nhất khi các ca còn chỗ có mức đông khác nhau.
+  Widget? _buildTip(List<CrowdInfo> infos, int maxBooked) {
+    final available = infos.where((e) => !e.isFull).toList();
+    if (available.length < 2) return null;
+    final best = available.reduce(
+      (a, b) => a.heightFactor(maxBooked) <= b.heightFactor(maxBooked) ? a : b,
+    );
+    final worst = available.reduce(
+      (a, b) => a.heightFactor(maxBooked) >= b.heightFactor(maxBooked) ? a : b,
+    );
+    if (best.level.index >= worst.level.index) return null;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppTheme.tint(AppTheme.primaryGreen, 0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.lightbulb_outline_rounded,
+            size: 18,
+            color: AppTheme.primaryGreen,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Ca ít người nhất: ${best.slot.tenCa} (${best.slot.gioBatDau} - ${best.slot.gioKetThuc}), thường chờ ngắn hơn.',
+              style: const TextStyle(
+                fontSize: 12.5,
+                height: 1.4,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textDark,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final infos = [
+      for (final slot in slots)
+        CrowdInfo.of(slot, waiting: waitingByCa?[slot.caId]),
+    ];
+    final maxBooked = infos.fold<int>(0, (m, e) => e.booked > m ? e.booked : m);
+    final tip = _buildTip(infos, maxBooked);
+
+    return Material(
+      color: AppTheme.mutedFill,
+      borderRadius: BorderRadius.circular(AppTheme.radiusItem),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.bar_chart_rounded,
+                  size: 20,
+                  color: AppTheme.primaryBlue,
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Độ đông theo khung giờ',
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.textDark,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Padding(
+              padding: const EdgeInsets.only(left: 28),
+              child: Text(
+                waitingByCa != null
+                    ? 'Số người đang chờ của từng ca'
+                    : 'Số lượt đã đặt của từng ca',
+                style: const TextStyle(fontSize: 12, color: AppTheme.textGrey),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [for (final info in infos) _buildBar(info, maxBooked)],
+            ),
+            const Divider(height: 1, color: AppTheme.borderColor),
+            const SizedBox(height: 10),
+            _buildLegend(),
+            if (tip != null) tip,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// SlotSelectionList: biểu đồ độ đông và danh sách ca khám của ngày đã chọn.
 class SlotSelectionList extends StatelessWidget {
   final String activeId;
   final String roomId;
@@ -1485,6 +1677,7 @@ class SlotSelectionList extends StatelessWidget {
   final String? selectedCaId;
   final int Function(String, String) getRoomMax;
   final Function(String, String, String) onSlotSelected;
+  final Map<String, int>? waitingByCa;
 
   const SlotSelectionList({
     super.key,
@@ -1496,37 +1689,71 @@ class SlotSelectionList extends StatelessWidget {
     required this.getRoomMax,
     required this.onSlotSelected,
     required this.selectedCaId,
+    this.waitingByCa,
   });
+
+  /// _buildSlotTile: dựng một dòng ca khám với thanh số chỗ còn trống.
+  Widget _buildSlotTile(CaSlotModel slot) {
+    final left = slot.conLai;
+    final total = slot.tongSo;
+    final isUnknownTotal = total <= 0;
+    final isFull = !isUnknownTotal && left <= 0;
+    final color = isUnknownTotal
+        ? AppTheme.primaryGreen
+        : BookingHelper.availabilityColor(left, total);
+    final isMorning =
+        slot.caId.toLowerCase().contains('sang') ||
+        slot.tenCa.toLowerCase().contains('sáng');
+
+    return SelectionTile(
+      icon: isMorning ? Icons.wb_sunny_rounded : Icons.wb_twilight_rounded,
+      iconColor: isMorning ? const Color(0xFFD97706) : const Color(0xFF4F46E5),
+      iconBackground: isMorning
+          ? const Color(0xFFFEF3C7)
+          : const Color(0xFFE0E7FF),
+      title: slot.tenCa,
+      subtitle: '${slot.gioBatDau} - ${slot.gioKetThuc}',
+      selected: selectedCaId == slot.caId,
+      disabled: isFull,
+      onTap: () => onSlotSelected(activeId, roomId, slot.caId),
+      footer: Row(
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: total > 0 ? left / total : 1.0,
+                minHeight: 6,
+                backgroundColor: AppTheme.tint(color, 0.15),
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            isFull
+                ? 'Hết chỗ'
+                : isUnknownTotal
+                ? 'Còn trống'
+                : 'Còn $left/$total chỗ',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    const primaryBlue = Color(0xFF2196F3);
-    const primaryGreen = Color(0xFF5B8C3E);
-    const textGrey = Color(0xFF757575);
-    const textDark = Color(0xFF1A1A1A);
-    const borderColor = Color(0xFFE0E0E0);
-
-    // 1. Chưa chọn ngày
     if (selectedDay == null) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: const Row(
-          children: [
-            Icon(Icons.touch_app_rounded, size: 30, color: textGrey),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Hãy chọn ngày khám để xem các khung giờ còn trống.',
-                style: TextStyle(fontSize: 13, height: 1.4, color: textGrey),
-              ),
-            ),
-          ],
-        ),
+      return const StatePanel(
+        icon: Icons.touch_app_rounded,
+        text: 'Chọn ngày khám để xem các khung giờ còn trống.',
+        color: AppTheme.textGrey,
       );
     }
 
@@ -1538,536 +1765,252 @@ class SlotSelectionList extends StatelessWidget {
     );
     final error = lichHen.slotsErrorOf(key);
 
-    // 2. Lỗi tải dữ liệu
     if (error != null) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 30,
-              color: Colors.redAccent,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    error,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      height: 1.4,
-                      color: textGrey,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () => lichHen.loadSlots(
-                      ngay: selectedDay!,
-                      benhVienId: hospitalId,
-                      khoaId: activeId,
-                      phongKhamId: roomId,
-                      soBenhNhanToiDa: getRoomMax(activeId, roomId),
-                      force: true,
-                    ),
-                    child: const Text(
-                      'Thử lại',
-                      style: TextStyle(
-                        color: primaryBlue,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+      return StatePanel(
+        icon: Icons.error_outline_rounded,
+        text: error,
+        color: AppTheme.danger,
+        onRetry: () => lichHen.loadSlots(
+          ngay: selectedDay!,
+          benhVienId: hospitalId,
+          khoaId: activeId,
+          phongKhamId: roomId,
+          soBenhNhanToiDa: getRoomMax(activeId, roomId),
+          force: true,
         ),
       );
     }
 
-    // 3. Đang tải
     if (lichHen.isLoadingSlots(key) || !lichHen.hasLoadedSlots(key)) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 20),
-        child: Center(child: CircularProgressIndicator()),
-      );
+      return const LoadingBox();
     }
 
     final slots = lichHen.slotsOf(key);
-
-    // 4. Không có ca nào trong ngày này
     if (slots.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: const Row(
-          children: [
-            Icon(Icons.event_busy_rounded, size: 30, color: textGrey),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Phòng khám chưa có lịch khám vào ngày này.\nVui lòng chọn ngày khác.',
-                style: TextStyle(fontSize: 13, height: 1.4, color: textGrey),
-              ),
-            ),
-          ],
-        ),
+      return const StatePanel(
+        icon: Icons.event_busy_rounded,
+        text: 'Phòng khám chưa có lịch khám vào ngày này.\nVui lòng chọn ngày khác.',
+        color: AppTheme.textGrey,
       );
     }
 
-    // 5. Hiển thị danh sách ca khám
     return Column(
-      children: List.generate(slots.length, (i) {
-        final slot = slots[i];
-        final left = slot.conLai;
-        final total = slot.tongSo;
-        final isUnknownTotal = total <= 0;
-        final isFull = !isUnknownTotal && left <= 0;
-
-        // Lấy selectedSlot từ provider để so sánh (hoặc bạn có thể truyền selectedCaId xuống)
-        final isSelected = selectedCaId == slot.caId;
-
-        final color = isUnknownTotal
-            ? primaryGreen
-            : BookingHelper.availabilityColor(left, total);
-        final isMorning =
-            slot.caId.toLowerCase().contains('sang') ||
-            slot.tenCa.toLowerCase().contains('sáng');
-
-        return Padding(
-          padding: EdgeInsets.only(bottom: i == slots.length - 1 ? 0 : 10),
-          child: Opacity(
-            opacity: isFull ? 0.55 : 1.0,
-            child: Material(
-              color: isSelected ? primaryBlue.withOpacity(0.07) : Colors.white,
-              clipBehavior: Clip.antiAlias,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(
-                  color: isSelected ? primaryBlue : borderColor,
-                  width: isSelected ? 1.5 : 1,
-                ),
-              ),
-              child: InkWell(
-                onTap: isFull
-                    ? null
-                    : () => onSlotSelected(activeId, roomId, slot.caId),
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: isMorning
-                                  ? const Color(0xFFFEF3C7)
-                                  : const Color(0xFFE0E7FF),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(
-                              isMorning
-                                  ? Icons.wb_sunny_rounded
-                                  : Icons.wb_twilight_rounded,
-                              size: 22,
-                              color: isMorning
-                                  ? const Color(0xFFF59E0B)
-                                  : const Color(0xFF6366F1),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  slot.tenCa,
-                                  style: TextStyle(
-                                    fontSize: 14.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: isSelected ? primaryBlue : textDark,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '${slot.gioBatDau} - ${slot.gioKetThuc}',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: textGrey,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            width: 24,
-                            height: 24,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: isSelected
-                                  ? primaryBlue
-                                  : Colors.transparent,
-                              border: Border.all(
-                                color: isSelected
-                                    ? primaryBlue
-                                    : Colors.grey.shade400,
-                                width: 1.5,
-                              ),
-                            ),
-                            child: isSelected
-                                ? const Icon(
-                                    Icons.check_rounded,
-                                    size: 16,
-                                    color: Colors.white,
-                                  )
-                                : null,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: LinearProgressIndicator(
-                                value: total > 0 ? left / total : 1,
-                                minHeight: 6,
-                                backgroundColor: color.withOpacity(0.15),
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  color,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            isFull
-                                ? 'Hết chỗ'
-                                : isUnknownTotal
-                                ? 'Còn trống'
-                                : 'Còn $left/$total chỗ',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: color,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+      children: [
+        if (slots.length >= 2) ...[
+          SlotCrowdChart(
+            slots: slots,
+            selectedCaId: selectedCaId,
+            waitingByCa: waitingByCa,
+            onSelect: (caId) => onSlotSelected(activeId, roomId, caId),
           ),
-        );
-      }),
+          const SizedBox(height: 16),
+        ],
+        for (var i = 0; i < slots.length; i++)
+          Padding(
+            padding: EdgeInsets.only(bottom: i == slots.length - 1 ? 0 : 10),
+            child: _buildSlotTile(slots[i]),
+          ),
+      ],
     );
   }
 }
 
-// ──────────────────────────────────────────────────────────────
-// 4. LOCATION & REVIEW (Rút gọn để fit trong giới hạn, bạn có thể copy nguyên bản từ code cũ vào đây)
-// ──────────────────────────────────────────────────────────────
-
+/// LocationSection: bản đồ minh họa vị trí, nút chỉ đường và sao chép địa chỉ.
 class LocationSection extends StatelessWidget {
   final Map<String, dynamic> hospitalData;
+
   const LocationSection({super.key, required this.hospitalData});
+
+  static double? _toCoordinate(dynamic v) =>
+      v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
+
+  /// _openGoogleMaps: mở Google Maps chỉ đường tới bệnh viện.
+  Future<void> _openGoogleMaps(
+    BuildContext context,
+    double? latitude,
+    double? longitude,
+  ) async {
+    if (latitude == null || longitude == null) {
+      context.showAppSnackBar(
+        title: 'Thiếu tọa độ bản đồ',
+        message: 'Bệnh viện chưa có tọa độ bản đồ',
+        type: SnackBarType.warning,
+      );
+      return;
+    }
+    final uri = Uri.https('www.google.com', '/maps/dir/', {
+      'api': '1',
+      'destination': '$latitude,$longitude',
+    });
+    var launched = false;
+    try {
+      launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched) {
+        launched = await launchUrl(uri, mode: LaunchMode.platformDefault);
+      }
+    } catch (_) {
+      launched = false;
+    }
+    if (!launched && context.mounted) {
+      context.showAppSnackBar(
+        title: 'Không thể mở bản đồ',
+        message: 'Không thể mở bản đồ',
+        type: SnackBarType.error,
+      );
+    }
+  }
+
+  /// _copyAddress: sao chép địa chỉ bệnh viện vào clipboard.
+  Future<void> _copyAddress(BuildContext context, String address) async {
+    await Clipboard.setData(ClipboardData(text: address));
+    if (context.mounted) {
+      context.showAppSnackBar(
+        title: 'Sao chép thành công',
+        message: 'Đã sao chép địa chỉ',
+        type: SnackBarType.success,
+        duration: const Duration(seconds: 2),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final latitudeValue = hospitalData['vi_do'];
-    final longitudeValue = hospitalData['kinh_do'];
-    final latitude = latitudeValue is num
-        ? latitudeValue.toDouble()
-        : double.tryParse(latitudeValue?.toString() ?? '');
-    final longitude = longitudeValue is num
-        ? longitudeValue.toDouble()
-        : double.tryParse(longitudeValue?.toString() ?? '');
+    final latitude = _toCoordinate(hospitalData['vi_do']);
+    final longitude = _toCoordinate(hospitalData['kinh_do']);
     final hasCoordinates = latitude != null && longitude != null;
-    final hospitalName =
-        hospitalData['ten_benh_vien']?.toString() ?? 'Bệnh viện';
-    final hospitalAddress =
+    final name = hospitalData['ten_benh_vien']?.toString() ?? 'Bệnh viện';
+    final address =
         hospitalData['dia_chi']?.toString() ?? 'Địa chỉ chưa cập nhật';
-
-    Future<void> openGoogleMaps() async {
-      if (!hasCoordinates) {
-        context.showAppSnackBar(
-          title: 'Thiếu tọa độ bản đồ',
-          message: 'Bệnh viện chưa có tọa độ bản đồ',
-          type: SnackBarType.warning,
-        );
-        return;
-      }
-      final uri = Uri.https('www.google.com', '/maps/dir/', {
-        'api': '1',
-        'destination': '$latitude,$longitude',
-      });
-      try {
-        var launched = await launchUrl(
-          uri,
-          mode: LaunchMode.externalApplication,
-        );
-        if (!launched)
-          launched = await launchUrl(uri, mode: LaunchMode.platformDefault);
-        if (!launched && context.mounted) {
-          context.showAppSnackBar(
-            title: 'Không thể mở bản đồ',
-            message: 'Không thể mở bản đồ',
-            type: SnackBarType.error,
-          );
-        }
-      } catch (error) {
-        if (context.mounted)
-          context.showAppSnackBar(
-            title: 'Không thể mở bản đồ',
-            message: 'Không thể mở bản đồ',
-            type: SnackBarType.error,
-          );
-      }
-    }
-
-    Future<void> copyAddress() async {
-      await Clipboard.setData(ClipboardData(text: hospitalAddress));
-      if (context.mounted) {
-        context.showAppSnackBar(
-          title: 'Sao chép thành công',
-          message: 'Đã sao chép địa chỉ',
-          type: SnackBarType.success,
-          duration: const Duration(seconds: 2),
-        );
-      }
-    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryBlue.withOpacity(0.10),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.map_rounded,
-                size: 18,
-                color: AppTheme.primaryBlue,
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'Vị trí bệnh viện',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                color: AppTheme.textDark,
-              ),
-            ),
-          ],
-        ),
+        const SectionTitle(icon: Icons.map_rounded, text: 'Vị trí bệnh viện'),
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(AppTheme.radiusCard),
             border: Border.all(color: AppTheme.borderColor),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.primaryBlue.withOpacity(0.08),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            boxShadow: AppTheme.softShadow,
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(AppTheme.radiusCard),
             child: Column(
               children: [
                 SizedBox(
-                  height: 176,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: openGoogleMaps,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          CustomPaint(
-                            painter: MiniMapPainter(
-                              accent: AppTheme.primaryBlue,
+                  height: 160,
+                  child: InkWell(
+                    onTap: () => _openGoogleMaps(context, latitude, longitude),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        const CustomPaint(
+                          painter: MiniMapPainter(accent: AppTheme.primaryBlue),
+                        ),
+                        Align(
+                          alignment: const Alignment(0, -0.15),
+                          child: Container(
+                            padding: const EdgeInsets.all(9),
+                            decoration: BoxDecoration(
+                              color: AppTheme.danger,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 3),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppTheme.danger.withOpacity(0.35),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.local_hospital_rounded,
+                              size: 20,
+                              color: Colors.white,
                             ),
                           ),
-                          Align(
-                            alignment: const Alignment(0, -0.12),
-                            child: Column(
+                        ),
+                        Positioned(
+                          top: 12,
+                          left: 12,
+                          right: 120,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.95),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE53935),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 3,
+                                Icon(
+                                  hasCoordinates
+                                      ? Icons.place_rounded
+                                      : Icons.location_off_rounded,
+                                  size: 15,
+                                  color: hasCoordinates
+                                      ? AppTheme.primaryBlue
+                                      : AppTheme.textGrey,
+                                ),
+                                const SizedBox(width: 5),
+                                Flexible(
+                                  child: Text(
+                                    hasCoordinates
+                                        ? name
+                                        : 'Chưa có tọa độ bản đồ',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppTheme.textDark,
                                     ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: const Color(
-                                          0xFFE53935,
-                                        ).withOpacity(0.35),
-                                        blurRadius: 12,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: const Icon(
-                                    Icons.local_hospital_rounded,
-                                    size: 20,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(
-                                  width: 3,
-                                  height: 10,
-                                  child: ColoredBox(color: Color(0xFFE53935)),
-                                ),
-                                Container(
-                                  width: 16,
-                                  height: 5,
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.18),
-                                    borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          Positioned(
-                            top: 12,
-                            left: 12,
-                            right: 120,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.94),
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.08),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    hasCoordinates
-                                        ? Icons.place_rounded
-                                        : Icons.location_off_rounded,
-                                    size: 15,
-                                    color: hasCoordinates
-                                        ? AppTheme.primaryBlue
-                                        : AppTheme.textGrey,
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Flexible(
-                                    child: Text(
-                                      hasCoordinates
-                                          ? hospitalName
-                                          : 'Chưa có tọa độ bản đồ',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppTheme.textDark,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                        ),
+                        Positioned(
+                          right: 12,
+                          bottom: 12,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 9,
                             ),
-                          ),
-                          Positioned(
-                            right: 12,
-                            bottom: 12,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 9,
-                              ),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: hasCoordinates
-                                      ? [
-                                          AppTheme.primaryBlue,
-                                          AppTheme.primaryBlue.withOpacity(
-                                            0.82,
-                                          ),
-                                        ]
-                                      : [
-                                          Colors.grey.shade500,
-                                          Colors.grey.shade400,
-                                        ],
+                            decoration: BoxDecoration(
+                              color: hasCoordinates
+                                  ? AppTheme.primaryBlue
+                                  : Colors.grey.shade500,
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.navigation_rounded,
+                                  color: Colors.white,
+                                  size: 16,
                                 ),
-                                borderRadius: BorderRadius.circular(24),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppTheme.primaryBlue.withOpacity(
-                                      hasCoordinates ? 0.35 : 0,
-                                    ),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.navigation_rounded,
+                                SizedBox(width: 6),
+                                Text(
+                                  'Chỉ đường',
+                                  style: TextStyle(
                                     color: Colors.white,
-                                    size: 16,
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
                                   ),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    'Chỉ đường',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -2075,20 +2018,12 @@ class LocationSection extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
                   child: Row(
                     children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryBlue.withOpacity(0.10),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.location_on_rounded,
-                          size: 20,
-                          color: AppTheme.primaryBlue,
-                        ),
+                      const Icon(
+                        Icons.location_on_rounded,
+                        size: 20,
+                        color: AppTheme.primaryBlue,
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2103,7 +2038,7 @@ class LocationSection extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              hospitalAddress,
+                              address,
                               style: const TextStyle(
                                 fontSize: 13.5,
                                 height: 1.35,
@@ -2116,7 +2051,7 @@ class LocationSection extends StatelessWidget {
                       ),
                       IconButton(
                         tooltip: 'Sao chép địa chỉ',
-                        onPressed: copyAddress,
+                        onPressed: () => _copyAddress(context, address),
                         icon: const Icon(
                           Icons.copy_rounded,
                           size: 19,
@@ -2135,11 +2070,11 @@ class LocationSection extends StatelessWidget {
   }
 }
 
+/// ReviewSection: tổng quan và danh sách đánh giá của chuyên khoa đang xem.
 class ReviewSection extends StatefulWidget {
   final String? activeId;
   final Set<String> selectedDepartmentIds;
   final String hospitalId;
-  final List<Map<String, dynamic>> departments;
   final String Function(String) getDepartmentName;
 
   const ReviewSection({
@@ -2147,12 +2082,11 @@ class ReviewSection extends StatefulWidget {
     required this.activeId,
     required this.selectedDepartmentIds,
     required this.hospitalId,
-    required this.departments,
     required this.getDepartmentName,
   });
 
   @override
-  State<ReviewSection> createState() => _ReviewSectionState(); // ✅ CHỈ GIỮ LẠI 1 STATE NÀY
+  State<ReviewSection> createState() => _ReviewSectionState();
 }
 
 class _ReviewSectionState extends State<ReviewSection> {
@@ -2162,7 +2096,9 @@ class _ReviewSectionState extends State<ReviewSection> {
   @override
   void initState() {
     super.initState();
-    _loadReviewsForActive();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadReviewsForActive();
+    });
   }
 
   @override
@@ -2173,10 +2109,13 @@ class _ReviewSectionState extends State<ReviewSection> {
         _selectedStar = 5;
         _reviewVisibleCount = 5;
       });
-      _loadReviewsForActive(force: true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _loadReviewsForActive(force: true);
+      });
     }
   }
 
+  /// _loadReviewsForActive: tải đánh giá của chuyên khoa đang xem, xóa nếu chưa chọn.
   void _loadReviewsForActive({bool force = false}) {
     final provider = context.read<ReviewProvider>();
     final id = widget.activeId;
@@ -2187,10 +2126,7 @@ class _ReviewSectionState extends State<ReviewSection> {
       provider.clearReviews();
       return;
     }
-
-    if (widget.hospitalId.isEmpty) {
-      return;
-    }
+    if (widget.hospitalId.isEmpty) return;
 
     provider.fetchReviews(
       hospitalId: widget.hospitalId,
@@ -2213,95 +2149,53 @@ class _ReviewSectionState extends State<ReviewSection> {
         final visible = starReviews.take(_reviewVisibleCount).toList();
 
         const avatarColors = [
-          Color(0xFFBBDEFB),
-          Color(0xFFFFE0B2),
-          Color(0xFFC8E6C9),
-          Color(0xFFE1BEE7),
+          Color(0xFFD6E8FA),
+          Color(0xFFFFE8CC),
+          Color(0xFFD3F0E3),
+          Color(0xFFE6DDF5),
         ];
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(7),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryBlue.withOpacity(0.10),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.rate_review_rounded,
-                    size: 18,
-                    color: AppTheme.primaryBlue,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Text(
-                    'Đánh giá và nhận xét',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.textDark,
-                    ),
-                  ),
-                ),
-                if (hasDepartment)
-                  Flexible(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
+            SectionTitle(
+              icon: Icons.rate_review_rounded,
+              text: 'Đánh giá và nhận xét',
+              trailing: hasDepartment
+                  ? ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 140),
+                      child: InfoPill(
+                        text: widget.getDepartmentName(widget.activeId!),
+                        color: AppTheme.primaryBlue,
                       ),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryBlue.withOpacity(0.10),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        widget.getDepartmentName(widget.activeId!),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.primaryBlue,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+                    )
+                  : null,
             ),
             const SizedBox(height: 14),
-
-            // ── CÁC TRẠNG THÁI HIỂN THỊ ──
             if (!hasDepartment)
-              _buildReviewMessage(
-                Icons.touch_app_rounded,
-                'Hãy chọn chuyên khoa để xem đánh giá của khoa đó.',
-                AppTheme.primaryBlue,
+              const StatePanel(
+                icon: Icons.touch_app_rounded,
+                text: 'Chọn chuyên khoa để xem đánh giá của khoa đó.',
+                color: AppTheme.primaryBlue,
               )
             else if (reviewProvider.isLoading)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 28),
-                child: Center(child: CircularProgressIndicator()),
-              )
+              const LoadingBox()
             else if (reviewProvider.error != null)
-              _buildReviewMessage(
-                Icons.error_outline_rounded,
-                reviewProvider.error!,
-                Colors.redAccent,
+              StatePanel(
+                icon: Icons.error_outline_rounded,
+                text: reviewProvider.error!,
+                color: AppTheme.danger,
                 onRetry: () => _loadReviewsForActive(force: true),
               )
             else if (total == 0)
-              _buildReviewMessage(
-                Icons.rate_review_outlined,
-                'Chưa có đánh giá nào cho chuyên khoa này.',
-                AppTheme.textGrey,
+              const StatePanel(
+                icon: Icons.rate_review_outlined,
+                text: 'Chưa có đánh giá nào cho chuyên khoa này.',
+                color: AppTheme.textGrey,
               )
             else ...[
               _buildReviewSummary(reviewProvider.averageRating, total, counts),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               Row(
                 children: [5, 4, 3, 2, 1]
                     .map(
@@ -2313,7 +2207,7 @@ class _ReviewSectionState extends State<ReviewSection> {
                     )
                     .toList(),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 250),
                 child: Column(
@@ -2321,10 +2215,10 @@ class _ReviewSectionState extends State<ReviewSection> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: starReviews.isEmpty
                       ? <Widget>[
-                          _buildReviewMessage(
-                            Icons.star_border_rounded,
-                            'Chưa có đánh giá $_selectedStar sao nào.',
-                            AppTheme.textGrey,
+                          StatePanel(
+                            icon: Icons.star_border_rounded,
+                            text: 'Chưa có đánh giá $_selectedStar sao nào.',
+                            color: AppTheme.textGrey,
                           ),
                         ]
                       : List<Widget>.generate(visible.length, (index) {
@@ -2360,11 +2254,13 @@ class _ReviewSectionState extends State<ReviewSection> {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppTheme.primaryBlue,
                       side: BorderSide(
-                        color: AppTheme.primaryBlue.withOpacity(0.35),
+                        color: AppTheme.tint(AppTheme.primaryBlue, 0.35),
                       ),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusItem,
+                        ),
                       ),
                     ),
                   ),
@@ -2377,92 +2273,13 @@ class _ReviewSectionState extends State<ReviewSection> {
     );
   }
 
-  // ── CÁC HÀM HỖ TRỢ REVIEW ──
-  Widget _buildReviewMessage(
-    IconData icon,
-    String text,
-    Color color, {
-    VoidCallback? onRetry,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 26),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.borderColor),
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.10),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 28, color: color),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            text,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 13.5,
-              height: 1.45,
-              color: AppTheme.textGrey,
-            ),
-          ),
-          if (onRetry != null) ...[
-            const SizedBox(height: 8),
-            TextButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded, size: 18),
-              label: const Text('Thử lại'),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
+  /// _buildReviewSummary: khối điểm trung bình và biểu đồ phân bố số sao.
   Widget _buildReviewSummary(double average, int total, Map<int, int> counts) {
-    const amber = Color(0xFFFFA000);
-    const orange = Color(0xFFFF7043);
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFF4D6), Color(0xFFFFFBF0)],
-        ),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: amber.withOpacity(0.25)),
-        boxShadow: [
-          BoxShadow(
-            color: amber.withOpacity(0.12),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
+    return AppCard(
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Container(
-            width: 108,
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
+          SizedBox(
+            width: 104,
             child: Column(
               children: [
                 Text(
@@ -2477,23 +2294,9 @@ class _ReviewSectionState extends State<ReviewSection> {
                 const SizedBox(height: 6),
                 BookingHelper.starRow(average, size: 15, center: true),
                 const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryGreen.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    BookingHelper.ratingLabelOfAverage(average),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.primaryGreen,
-                    ),
-                  ),
+                InfoPill(
+                  text: BookingHelper.ratingLabelOfAverage(average),
+                  color: AppTheme.primaryGreen,
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -2528,30 +2331,22 @@ class _ReviewSectionState extends State<ReviewSection> {
                         ),
                       ),
                       const SizedBox(width: 3),
-                      const Icon(Icons.star_rounded, size: 12, color: amber),
+                      const Icon(
+                        Icons.star_rounded,
+                        size: 12,
+                        color: AppTheme.amber,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(6),
-                          child: Stack(
-                            children: [
-                              Container(
-                                height: 8,
-                                color: amber.withOpacity(0.16),
-                              ),
-                              FractionallySizedBox(
-                                widthFactor: fraction.clamp(0.0, 1.0),
-                                alignment: Alignment.centerLeft,
-                                child: Container(
-                                  height: 8,
-                                  decoration: const BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [amber, orange],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
+                          child: LinearProgressIndicator(
+                            value: fraction.clamp(0.0, 1.0),
+                            minHeight: 8,
+                            backgroundColor: AppTheme.mutedFill,
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              AppTheme.amber,
+                            ),
                           ),
                         ),
                       ),
@@ -2579,100 +2374,72 @@ class _ReviewSectionState extends State<ReviewSection> {
     );
   }
 
+  /// _buildStarTab: nút lọc đánh giá theo số sao.
   Widget _buildStarTab({
     required int star,
     required int count,
     required bool selected,
   }) {
+    const blue = AppTheme.primaryBlue;
     return Expanded(
       child: Padding(
         padding: EdgeInsets.only(right: star == 1 ? 0 : 8),
-        child: GestureDetector(
-          onTap: () => setState(() {
-            _selectedStar = star;
-            _reviewVisibleCount = 5;
-          }),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOut,
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(
-              gradient: selected
-                  ? LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AppTheme.primaryBlue,
-                        AppTheme.primaryBlue.withOpacity(0.78),
-                      ],
-                    )
-                  : null,
-              color: selected ? null : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: selected ? AppTheme.primaryBlue : AppTheme.borderColor,
-              ),
-              boxShadow: selected
-                  ? [
-                      BoxShadow(
-                        color: AppTheme.primaryBlue.withOpacity(0.30),
-                        blurRadius: 12,
-                        offset: const Offset(0, 5),
+        child: Material(
+          color: selected ? blue : Colors.white,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusItem),
+            side: BorderSide(color: selected ? blue : AppTheme.borderColor),
+          ),
+          child: InkWell(
+            onTap: () => setState(() {
+              _selectedStar = star;
+              _reviewVisibleCount = 5;
+            }),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 9),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '$star',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: selected
+                              ? Colors.white
+                              : (count == 0
+                                    ? AppTheme.textGrey
+                                    : AppTheme.textDark),
+                        ),
                       ),
-                    ]
-                  : null,
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      '$star',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
+                      const SizedBox(width: 2),
+                      Icon(
+                        Icons.star_rounded,
+                        size: 15,
                         color: selected
                             ? Colors.white
                             : (count == 0
-                                  ? AppTheme.textGrey
-                                  : AppTheme.textDark),
+                                  ? const Color(0xFFB8C4D2)
+                                  : AppTheme.amber),
                       ),
-                    ),
-                    const SizedBox(width: 2),
-                    Icon(
-                      Icons.star_rounded,
-                      size: 15,
-                      color: selected
-                          ? Colors.white
-                          : (count == 0
-                                ? Colors.grey.shade400
-                                : const Color(0xFFFFA000)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
+                    ],
                   ),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? Colors.white.withOpacity(0.25)
-                        : const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
+                  const SizedBox(height: 2),
+                  Text(
                     '$count',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w700,
-                      color: selected ? Colors.white : AppTheme.textGrey,
+                      color: selected
+                          ? Colors.white.withOpacity(0.85)
+                          : AppTheme.textGrey,
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -2680,6 +2447,7 @@ class _ReviewSectionState extends State<ReviewSection> {
     );
   }
 
+  /// _buildReviewCard: thẻ một đánh giá gồm người viết, số sao và nhận xét.
   Widget _buildReviewCard({
     required String name,
     required int rating,
@@ -2690,20 +2458,8 @@ class _ReviewSectionState extends State<ReviewSection> {
   }) {
     final chipText = BookingHelper.ratingChipText(rating);
     final chipColor = BookingHelper.ratingChipColor(rating);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2711,32 +2467,17 @@ class _ReviewSectionState extends State<ReviewSection> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      avatarColor,
-                      Color.lerp(avatarColor, Colors.white, 0.45)!,
-                    ],
-                  ),
+                  color: avatarColor,
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: avatarColor.withOpacity(0.6),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
                 ),
                 child: Center(
                   child: Text(
                     avatarText,
                     style: const TextStyle(
-                      fontSize: 17,
+                      fontSize: 16,
                       fontWeight: FontWeight.w800,
                       color: AppTheme.textDark,
                     ),
@@ -2777,24 +2518,7 @@ class _ReviewSectionState extends State<ReviewSection> {
                       children: [
                         BookingHelper.starRow(rating.toDouble(), size: 15),
                         const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: chipColor.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            chipText,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: chipColor,
-                            ),
-                          ),
-                        ),
+                        InfoPill(text: chipText, color: chipColor),
                       ],
                     ),
                   ],
@@ -2806,18 +2530,11 @@ class _ReviewSectionState extends State<ReviewSection> {
             const SizedBox(height: 12),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(14),
-                border: Border(
-                  left: BorderSide(
-                    color: AppTheme.primaryBlue.withOpacity(0.55),
-                    width: 3,
-                  ),
-                ),
+                color: AppTheme.bgColor,
+                borderRadius: BorderRadius.circular(12),
               ),
-              // ✅ Đảm bảo bạn đã đổi tên _ExpandableText thành ExpandableText (không có dấu gạch dưới) ở file widget
               child: ExpandableText(
                 text: comment.trim(),
                 accent: AppTheme.primaryBlue,
@@ -2835,67 +2552,56 @@ class _ReviewSectionState extends State<ReviewSection> {
   }
 }
 
+/// BookingBottomActionArea: thanh cố định phía dưới chứa nút tiếp tục đặt lịch.
 class BookingBottomActionArea extends StatelessWidget {
-  final Color primaryGreen;
+  final Color color;
   final VoidCallback onContinue;
+
   const BookingBottomActionArea({
     super.key,
-    required this.primaryGreen,
+    required this.color,
     required this.onContinue,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, -2),
-              ),
-            ],
-          ),
-          child: SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              onPressed: onContinue,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryGreen,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 0,
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Tiếp tục đặt lịch',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  Icon(Icons.arrow_forward, color: Colors.white, size: 20),
-                ],
-              ),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: AppTheme.borderColor)),
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        height: 52,
+        child: ElevatedButton(
+          onPressed: onContinue,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: color,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppTheme.radiusItem),
             ),
           ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Tiếp tục đặt lịch',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              SizedBox(width: 8),
+              Icon(Icons.arrow_forward_rounded, size: 20),
+            ],
+          ),
         ),
-      ],
+      ),
     );
   }
 }
 
+/// MiniMapPainter: vẽ bản đồ phác họa với đường phố, sông và lộ trình minh họa.
 class MiniMapPainter extends CustomPainter {
   final Color accent;
   const MiniMapPainter({required this.accent});
@@ -2906,7 +2612,7 @@ class MiniMapPainter extends CustomPainter {
     final h = size.height;
     canvas.drawRect(
       Offset.zero & size,
-      Paint()..color = const Color(0xFFEFEBE3),
+      Paint()..color = const Color(0xFFEAF0F6),
     );
     const cols = 6;
     const rows = 4;
@@ -2915,11 +2621,13 @@ class MiniMapPainter extends CustomPainter {
     final roadPaint = Paint()
       ..color = Colors.white
       ..strokeWidth = 9;
-    for (var c = 0; c <= cols; c++)
+    for (var c = 0; c <= cols; c++) {
       canvas.drawLine(Offset(c * cw, 0), Offset(c * cw, h), roadPaint);
-    for (var r = 0; r <= rows; r++)
+    }
+    for (var r = 0; r <= rows; r++) {
       canvas.drawLine(Offset(0, r * ch), Offset(w, r * ch), roadPaint);
-    final blockPaint = Paint()..color = const Color(0xFFE4DFD3);
+    }
+    final blockPaint = Paint()..color = const Color(0xFFDDE6EF);
     for (var r = 0; r < rows; r++) {
       for (var c = 0; c < cols; c++) {
         canvas.drawRRect(
@@ -2936,7 +2644,7 @@ class MiniMapPainter extends CustomPainter {
         Rect.fromLTWH(w * 0.06, h * 0.12, w * 0.22, h * 0.34),
         const Radius.circular(12),
       ),
-      Paint()..color = const Color(0xFFCDE7C2),
+      Paint()..color = const Color(0xFFCFE9DC),
     );
     final river = Path()
       ..moveTo(w * 0.66, -10)
@@ -2955,7 +2663,7 @@ class MiniMapPainter extends CustomPainter {
     canvas.drawPath(
       avenue,
       Paint()
-        ..color = const Color(0xFFD9D3C5)
+        ..color = const Color(0xFFD3DCE6)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 16,
     );
@@ -2991,10 +2699,12 @@ class MiniMapPainter extends CustomPainter {
       oldDelegate.accent != accent;
 }
 
+/// ExpandableText: đoạn văn dài tự rút gọn 3 dòng, bấm để xem thêm hoặc thu gọn.
 class ExpandableText extends StatefulWidget {
   final String text;
   final TextStyle style;
   final Color accent;
+
   const ExpandableText({
     super.key,
     required this.text,
