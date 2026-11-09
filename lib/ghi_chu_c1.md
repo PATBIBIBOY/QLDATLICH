@@ -393,3 +393,38 @@ Theo đúng nghiệp vụ y tế thực tế tại quầy tiếp đón:
 3. **Loại bỏ hoàn toàn demo / mock:**
    - Xóa bỏ file `lib/mock/mock_c1/dulieu_mau_letan_c1.dart`.
    - Trang chủ Lễ tân khởi tạo Chuyên khoa trực tiếp từ tài khoản nhân viên đang đăng nhập trên Firestore (`DuLieuProfileMauC1.thongTinHienTai.khoa`), đảm bảo nhân viên thuộc khoa nào sẽ tự động quản lý bệnh nhân của khoa đó trên dữ liệu thực tế 100%.
+
+
+## 💬 X. CHUẨN HÓA KẾT NỐI REALTIME CHAT CSKH - BỆNH NHÂN (PHƯƠNG ÁN 1)
+
+Theo cấu trúc Firestore chuẩn thống nhất 2 chiều giữa phía Phân hệ Bệnh nhân và Phân hệ CSKH Lễ tân C1:
+
+1. **Cấu trúc Root Collection `Conversations/{conversationId}`:**
+   - `id`: Mã cuộc hội thoại (ví dụ `CONV_BV001_BN123` hoặc auto id).
+   - `benhNhanId`: UID/Mã của Bệnh nhân.
+   - `benhVienId`: Mã bệnh viện (ví dụ `BV502` / `BV001`).
+   - `supportId`: UID nhân viên CSKH phụ trách phản hồi.
+   - `tenBenhNhan`: Tên bệnh nhân hiển thị.
+   - `tenBenhVien`: Tên cơ sở y tế.
+   - `lastMessage`: Nội dung tin nhắn gần nhất.
+   - `lastMessageAt`: `Timestamp` thời điểm gửi tin nhắn gần nhất.
+   - `unreadCountPatient`: Số lượng tin nhắn chưa đọc của bệnh nhân (tăng +1 khi CSKH gửi tin nhắn).
+   - `unreadCountSupport`: Số lượng tin nhắn chưa đọc của CSKH (tăng khi Bệnh nhân gửi, tự động reset về 0 khi CSKH mở cuộc trò chuyện).
+   - `status`: `'open'` | `'closed'`.
+   - `createdAt` & `updatedAt`: `Timestamp` khởi tạo và cập nhật.
+
+2. **Cấu trúc Subcollection `Conversations/{conversationId}/Messages/{messageId}`:**
+   - `id`: Mã định danh tin nhắn.
+   - `conversationId`: Mã cuộc trò chuyện cha.
+   - `senderId`: UID người gửi.
+   - `senderRole`: `'patient'` (Bệnh nhân) hoặc `'support'` (CSKH).
+   - `content`: Nội dung tin nhắn văn bản.
+   - `type`: Loại tin nhắn (`'text'` | `'image'` | `'system'`).
+   - `imageUrl`: URL ảnh đính kèm (nếu `type == 'image'`).
+   - `createdAt`: `Timestamp` thời gian tạo.
+   - `isRead`: Trạng thái đã đọc (`bool`).
+
+3. **Cơ chế đồng bộ và bảo đảm tính toàn vẹn:**
+   - **Xóa bỏ hoàn toàn dữ liệu Mock Fallback trong Chat:** Khi danh sách hội thoại hoặc tin nhắn trống, hiển thị `EmptyStateWidget` chuyên nghiệp, không còn trộn lẫn dữ liệu ảo `ht_01`, `ht_02` từ `dulieu_mau_cskh_c1.dart`.
+   - **Tự động đánh dấu đã đọc (`danhDauDaDoc`):** Ngay khi nhân viên CSKH mở màn hình chat chi tiết `CskhChatChitietScreenC1`, hệ thống cập nhật `unreadCountSupport = 0` và chuyển `isRead = true` cho toàn bộ tin nhắn từ phía bệnh nhân trong `Conversations/{conversationId}/Messages`.
+   - **An toàn chỉ mục (No Composite Index Error):** Thực hiện sắp xếp `Conversations` và `Messages` linh hoạt ở client-side trên Stream, tránh gây ra Exception thiếu Firestore Composite Index.

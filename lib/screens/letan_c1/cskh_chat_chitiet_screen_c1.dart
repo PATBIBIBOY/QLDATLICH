@@ -25,6 +25,13 @@ class _CskhChatChitietScreenC1State extends State<CskhChatChitietScreenC1> {
   final TextEditingController _noiDungController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
+  @override
+  void initState() {
+    super.initState();
+    // Đánh dấu đã đọc ngay khi mở cuộc trò chuyện
+    FirebaseServiceC1.danhDauDaDocCskh(widget.hoiThoai.id);
+  }
+
   void _guiTinNhan([String? noiDungGui]) async {
     final text = noiDungGui ?? _noiDungController.text.trim();
     if (text.isEmpty) return;
@@ -73,20 +80,51 @@ class _CskhChatChitietScreenC1State extends State<CskhChatChitietScreenC1> {
                       hoiThoaiId: widget.hoiThoai.id,
                     ),
                     builder: (context, snapshot) {
-                      List<TinNhanCskhModelC1> danhSachTin;
+                      if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF0284C7),
+                          ),
+                        );
+                      }
 
-                      if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-                        danhSachTin = snapshot.data!.map((m) {
-                          return TinNhanCskhModelC1(
-                            id: m['id'] ?? '',
-                            hoiThoaiId: widget.hoiThoai.id,
-                            noiDung: (m['noi_dung'] ?? '').toString(),
-                            thoiGian: (m['gio_hien_thi'] ?? 'Vừa xong').toString(),
-                            laCskhGui: m['la_cskh_gui'] == true,
-                          );
-                        }).toList();
-                      } else {
-                        danhSachTin = DuLieuCskhKhoaC1.layTinNhanTheoHoiThoai(widget.hoiThoai.id);
+                      final danhSachTin = (snapshot.data ?? []).map((m) {
+                        return TinNhanCskhModelC1.fromMap(m, m['id']);
+                      }).toList();
+
+                      if (danhSachTin.isEmpty) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24.0),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.chat_bubble_outline_rounded,
+                                  size: 48,
+                                  color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF94A3B8),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Chưa có tin nhắn nào',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF475569),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Hãy gửi tin nhắn đầu tiên để hỗ trợ bệnh nhân',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF94A3B8),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
                       }
 
                       return ListView.builder(

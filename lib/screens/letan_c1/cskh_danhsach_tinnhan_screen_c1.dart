@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../mock/mock_c1/dulieu_mau_cskh_c1.dart';
 import '../../models/letan_c1/cskh_model_c1.dart';
 import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
@@ -56,13 +55,17 @@ class _CskhDanhsachTinnhanScreenC1State extends State<CskhDanhsachTinnhanScreenC
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: FirebaseServiceC1.streamDanhSachHoiThoaiCskh(bvid),
       builder: (context, snapshot) {
-        List<HoiThoaiCskhModelC1> danhSachAll;
-
-        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-          danhSachAll = snapshot.data!.map((m) => HoiThoaiCskhModelC1.fromMap(m, m['id'])).toList();
-        } else {
-          danhSachAll = DuLieuCskhKhoaC1.danhSachHoiThoai;
+        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+          return const Center(
+            child: CircularProgressIndicator(
+              color: Color(0xFF0284C7),
+            ),
+          );
         }
+
+        final danhSachAll = (snapshot.data ?? [])
+            .map((m) => HoiThoaiCskhModelC1.fromMap(m, m['id']))
+            .toList();
 
         final danhSachHienThi = _locDanhSach(danhSachAll);
 
@@ -75,11 +78,47 @@ class _CskhDanhsachTinnhanScreenC1State extends State<CskhDanhsachTinnhanScreenC
             Expanded(
               child: danhSachHienThi.isEmpty
                   ? Center(
-                      child: Text(
-                        'Không có tin nhắn phù hợp',
-                        style: TextStyle(
-                          color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
-                          fontSize: 14,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.chat_bubble_outline_rounded,
+                                size: 40,
+                                color: Color(0xFF0284C7),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _timKiemController.text.trim().isNotEmpty
+                                  ? 'Không tìm thấy cuộc trò chuyện phù hợp'
+                                  : 'Chưa có tin nhắn hỗ trợ từ bệnh nhân',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1E293B),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _timKiemController.text.trim().isNotEmpty
+                                  ? 'Vui lòng kiểm tra lại từ khóa tìm kiếm'
+                                  : 'Khi bệnh nhân liên hệ hỗ trợ, các cuộc hội thoại sẽ hiển thị tại đây',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF94A3B8),
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     )

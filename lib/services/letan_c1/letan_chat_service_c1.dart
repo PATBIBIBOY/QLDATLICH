@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
 
 /// Module Chat CSKH thời gian thực (C1)
+/// Chuẩn hóa 100% theo kiến trúc Conversations/{conversationId}/Messages/{messageId}
 class LetanChatServiceC1 {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  /// Stream danh sách các cuộc hội thoại CSKH realtime
+  /// Lắng nghe danh sách các cuộc hội thoại CSKH realtime từ collection "Conversations"
   static Stream<List<Map<String, dynamic>>> streamDanhSachHoiThoaiCskh([String? benhVienId]) {
     final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty && benhVienId != 'BV01' && benhVienId != '1')
         ? benhVienId.trim()
@@ -16,106 +18,138 @@ class LetanChatServiceC1 {
             ? DuLieuProfileMauC1.thongTinHienTai.benhVienId
             : 'BV502');
 
-    return _firestore
-        .collection('Chat_CSKH')
-        .where('benh_vien_id', isEqualTo: bvid)
-        .snapshots()
-        .map((snap) {
+    return _firestore.collection('Conversations').snapshots().map((snap) {
       if (snap.docs.isEmpty) return [];
 
-      final list = snap.docs.map((doc) {
+      final list = <Map<String, dynamic>>[];
+
+      for (var doc in snap.docs) {
         final d = doc.data();
-        final rawTs = d['thoi_gian_cuoi'] ?? d['updated_at'] ?? d['timestamp'];
-        DateTime time;
-        if (rawTs is Timestamp) {
-          time = rawTs.toDate();
-        } else {
-          time = DateTime.now();
+        // Lọc theo bệnh viện
+        final docBv = (d['benhVienId'] ?? d['benh_vien_id'] ?? '').toString();
+        if (bvid.isNotEmpty && docBv.isNotEmpty) {
+          if (!docBv.toLowerCase().contains(bvid.toLowerCase()) && !bvid.toLowerCase().contains(docBv.toLowerCase())) {
+            continue;
+          }
         }
+        list.add({'id': doc.id, ...d});
+      }
 
-        return {
-          'id': doc.id,
-          'docPath': doc.reference.path,
-          'hoTen': d['ho_ten'] ?? d['hoTen'] ?? 'Bệnh nhân',
-          'tinNhanCuoi': d['tin_nhan_cuoi'] ?? d['noi_dung'] ?? '...',
-          'thoiGian': time,
-          'soChuaDoc': (d['so_chua_doc'] as num?)?.toInt() ?? 0,
-          'anhDaiDien': d['anh_dai_dien'] ?? '',
-          'sdt': d['sdt'] ?? '',
-          'benhNhanId': d['benh_nhan_id'] ?? '',
-        };
-      }).toList();
+      // Sắp xếp cuộc trò chuyện có tin nhắn mới nhất lên đầu trang (sort an toàn ở client)
+      list.sort((a, b) {
+        final tsA = a['lastMessageAt'] ?? a['updatedAt'] ?? a['createdAt'];
+        final tsB = b['lastMessageAt'] ?? b['updatedAt'] ?? b['createdAt'];
+        final dtA = tsA is Timestamp ? tsA.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+        final dtB = tsB is Timestamp ? tsB.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+        return dtB.compareTo(dtA);
+      });
 
-      list.sort((a, b) => (b['thoiGian'] as DateTime).compareTo(a['thoiGian'] as DateTime));
       return list;
     });
   }
 
-  /// Stream tin nhắn trong 1 hội thoại cụ thể
+  /// Lắng nghe danh sách tin nhắn trong 1 cuộc hội thoại:
+  /// Conversations/{hoiThoaiId}/Messages
   static Stream<List<Map<String, dynamic>>> streamTinNhanCskh({
     required String hoiThoaiId,
-    String? docPath,
+    String? benhVienId,
   }) {
-    CollectionReference<Map<String, dynamic>> ref;
-    if (docPath != null && docPath.isNotEmpty) {
-      ref = _firestore.doc(docPath).collection('tin_nhan');
-    } else {
-      ref = _firestore.collection('Chat_CSKH').doc(hoiThoaiId).collection('tin_nhan');
-    }
+    return _firestore
+        .collection('Conversations')
+        .doc(hoiThoaiId)
+        .collection('Messages')
+        .snapshots()
+        .map((snap) {
+      if (snap.docs.isEmpty) return [];
 
-    return ref.orderBy('timestamp', descending: false).snapshots().map((snap) {
-      return snap.docs.map((d) {
-        final data = d.data();
-        final rawTs = data['timestamp'];
-        DateTime time;
-        if (rawTs is Timestamp) {
-          time = rawTs.toDate();
-        } else {
-          time = DateTime.now();
-        }
+      final list = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
 
-        return {
-          'id': d.id,
-          'noiDung': data['noi_dung'] ?? '',
-          'laCskh': data['la_cskh'] ?? false,
-          'nguoiGui': data['nguoi_gui'] ?? '',
-          'thoiGian': time,
-        };
-      }).toList();
+      // Sắp xếp tin nhắn tăng dần theo thời gian (cũ ở trên, mới ở dưới)
+      list.sort((a, b) {
+        final tsA = a['createdAt'] ?? a['timestamp'];
+        final tsB = b['createdAt'] ?? b['timestamp'];
+        final dtA = tsA is Timestamp ? tsA.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+        final dtB = tsB is Timestamp ? tsB.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+        return dtA.compareTo(dtB);
+      });
+
+      return list;
     });
   }
 
-  /// Gửi tin nhắn từ phía CSKH
+  /// Gửi tin nhắn từ phía CSKH (support)
   static Future<void> guiTinNhanCskh({
     required String hoiThoaiId,
-    String? docPath,
     required String noiDung,
-    required String maNv,
-    required String tenNv,
+    String? benhVienId,
+    String? maNv,
+    String? tenNv,
   }) async {
-    if (noiDung.trim().isEmpty) return;
+    final text = noiDung.trim();
+    if (text.isEmpty) return;
 
-    DocumentReference<Map<String, dynamic>> parentRef;
-    if (docPath != null && docPath.isNotEmpty) {
-      parentRef = _firestore.doc(docPath);
-    } else {
-      parentRef = _firestore.collection('Chat_CSKH').doc(hoiThoaiId);
-    }
+    final profile = DuLieuProfileMauC1.thongTinHienTai;
+    final staffId = (maNv != null && maNv.isNotEmpty) ? maNv : profile.maNhanVien;
+    final staffName = (tenNv != null && tenNv.isNotEmpty) ? tenNv : profile.hoTen;
+    final senderUid = FirebaseAuth.instance.currentUser?.uid ?? staffId;
 
-    // 1. Thêm vào subcollection tin_nhan
-    await parentRef.collection('tin_nhan').add({
-      'noi_dung': noiDung.trim(),
-      'la_cskh': true,
-      'nguoi_gui': '$tenNv ($maNv)',
-      'ma_nhan_vien': maNv,
-      'timestamp': FieldValue.serverTimestamp(),
+    final convRef = _firestore.collection('Conversations').doc(hoiThoaiId);
+    final msgRef = convRef.collection('Messages').doc();
+
+    final now = FieldValue.serverTimestamp();
+
+    // 1. Thêm tin nhắn mới vào Messages
+    await msgRef.set({
+      'id': msgRef.id,
+      'conversationId': hoiThoaiId,
+      'senderId': senderUid,
+      'senderRole': 'support',
+      'senderName': staffName,
+      'content': text,
+      'type': 'text',
+      'imageUrl': '',
+      'createdAt': now,
+      'isRead': false,
     });
 
-    // 2. Cập nhật tin nhắn cuối trên doc cha
-    await parentRef.set({
-      'tin_nhan_cuoi': noiDung.trim(),
-      'thoi_gian_cuoi': FieldValue.serverTimestamp(),
-      'so_chua_doc': 0,
+    // 2. Cập nhật Document cha Conversations
+    await convRef.set({
+      'id': hoiThoaiId,
+      'lastMessage': text,
+      'lastMessageAt': now,
+      'supportId': senderUid,
+      'unreadCountPatient': FieldValue.increment(1),
+      'unreadCountSupport': 0, // Reset số tin chưa đọc của Support về 0
+      'status': 'open',
+      'updatedAt': now,
     }, SetOptions(merge: true));
+  }
+
+  /// Đánh dấu CSKH đã đọc tin nhắn trong cuộc trò chuyện
+  static Future<void> danhDauDaDoc(String hoiThoaiId) async {
+    try {
+      final convRef = _firestore.collection('Conversations').doc(hoiThoaiId);
+
+      // Reset unreadCountSupport về 0
+      await convRef.set({
+        'unreadCountSupport': 0,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // Đánh dấu isRead = true cho các tin nhắn từ bệnh nhân (patient)
+      final unreadSnap = await convRef
+          .collection('Messages')
+          .where('senderRole', isEqualTo: 'patient')
+          .where('isRead', isEqualTo: false)
+          .get();
+
+      if (unreadSnap.docs.isNotEmpty) {
+        final batch = _firestore.batch();
+        for (var doc in unreadSnap.docs) {
+          batch.update(doc.reference, {'isRead': true});
+        }
+        await batch.commit();
+      }
+    } catch (_) {}
   }
 }

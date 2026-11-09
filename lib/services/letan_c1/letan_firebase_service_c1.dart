@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../models/letan_c1/letan_qr_model_c1.dart';
+import 'letan_chat_service_c1.dart';
 
 /// Service kết nối Firebase Firestore cho Module Lễ tân & CSKH C1 (Đinh Hoàng Cước)
 /// Tuân thủ nguyên tắc ghi_chu_c1.md:
@@ -1119,97 +1120,39 @@ class FirebaseServiceC1 {
   // ==========================================
 
   /// Lắng nghe danh sách hội thoại CSKH trực tiếp từ Firestore:
-  /// /HoiThoaiCskh/{benhVienId}/danh_sach hoặc collectionGroup('hoi_thoai_cskh')
+  /// Chuẩn hóa Conversations/{conversationId} đồng bộ Bệnh nhân
   static Stream<List<Map<String, dynamic>>> streamDanhSachHoiThoaiCskh([String? benhVienId]) {
-    final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty && benhVienId != 'BV01' && benhVienId != '1')
-        ? benhVienId.trim()
-        : (DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty &&
-                DuLieuProfileMauC1.thongTinHienTai.benhVienId != 'BV01' &&
-                DuLieuProfileMauC1.thongTinHienTai.benhVienId != '1'
-            ? DuLieuProfileMauC1.thongTinHienTai.benhVienId
-            : 'BV502');
-
-    return _firestore
-        .collection('HoiThoaiCskh')
-        .doc(bvid)
-        .collection('danh_sach')
-        .orderBy('thoi_gian_cap_nhat', descending: true)
-        .snapshots()
-        .map((snap) {
-      if (snap.docs.isEmpty) return [];
-      return snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
-    });
+    return LetanChatServiceC1.streamDanhSachHoiThoaiCskh(benhVienId);
   }
 
   /// Lắng nghe tin nhắn trong một phòng chat cụ thể:
-  /// /HoiThoaiCskh/{benhVienId}/danh_sach/{hoiThoaiId}/tin_nhan
+  /// Chuẩn hóa Conversations/{hoiThoaiId}/Messages/{messageId}
   static Stream<List<Map<String, dynamic>>> streamTinNhanCskh({
     String? benhVienId,
     required String hoiThoaiId,
   }) {
-    final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty && benhVienId != 'BV01' && benhVienId != '1')
-        ? benhVienId.trim()
-        : (DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty &&
-                DuLieuProfileMauC1.thongTinHienTai.benhVienId != 'BV01' &&
-                DuLieuProfileMauC1.thongTinHienTai.benhVienId != '1'
-            ? DuLieuProfileMauC1.thongTinHienTai.benhVienId
-            : 'BV502');
-
-    return _firestore
-        .collection('HoiThoaiCskh')
-        .doc(bvid)
-        .collection('danh_sach')
-        .doc(hoiThoaiId)
-        .collection('tin_nhan')
-        .orderBy('thoi_gian', descending: false)
-        .snapshots()
-        .map((snap) {
-      if (snap.docs.isEmpty) return [];
-      return snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
-    });
+    return LetanChatServiceC1.streamTinNhanCskh(
+      hoiThoaiId: hoiThoaiId,
+      benhVienId: benhVienId,
+    );
   }
 
-  /// Gửi tin nhắn từ phía CSKH lên Firestore
+  /// Gửi tin nhắn từ phía CSKH lên Firestore chuẩn Conversations/{id}/Messages
   static Future<void> guiTinNhanCskh({
     String? benhVienId,
     required String hoiThoaiId,
     required String noiDung,
   }) async {
-    final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty && benhVienId != 'BV01' && benhVienId != '1')
-        ? benhVienId.trim()
-        : (DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty &&
-                DuLieuProfileMauC1.thongTinHienTai.benhVienId != 'BV01' &&
-                DuLieuProfileMauC1.thongTinHienTai.benhVienId != '1'
-            ? DuLieuProfileMauC1.thongTinHienTai.benhVienId
-            : 'BV502');
+    await LetanChatServiceC1.guiTinNhanCskh(
+      hoiThoaiId: hoiThoaiId,
+      noiDung: noiDung,
+      benhVienId: benhVienId,
+    );
+  }
 
-    final now = DateTime.now();
-    final gioStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-
-    final docHoiThoaiRef = _firestore
-        .collection('HoiThoaiCskh')
-        .doc(bvid)
-        .collection('danh_sach')
-        .doc(hoiThoaiId);
-
-    // 1. Thêm tin nhắn mới vào subcollection tin_nhan
-    await docHoiThoaiRef.collection('tin_nhan').add({
-      'noi_dung': noiDung,
-      'thoi_gian': FieldValue.serverTimestamp(),
-      'gio_hien_thi': gioStr,
-      'la_cskh_gui': true,
-      'nguoi_gui': DuLieuProfileMauC1.thongTinHienTai.hoTen,
-      'ma_nhan_vien': DuLieuProfileMauC1.thongTinHienTai.maNhanVien,
-    });
-
-    // 2. Cập nhật trạng thái hội thoại bên ngoài
-    await docHoiThoaiRef.set({
-      'tin_nhan_cuoi': noiDung,
-      'thoi_gian_hien_thi': gioStr,
-      'thoi_gian_cap_nhat': FieldValue.serverTimestamp(),
-      'dang_cho_phan_hoi': false,
-      'tin_chua_doc': 0,
-    }, SetOptions(merge: true));
+  /// Đánh dấu đã đọc tin nhắn CSKH
+  static Future<void> danhDauDaDocCskh(String hoiThoaiId) async {
+    await LetanChatServiceC1.danhDauDaDoc(hoiThoaiId);
   }
 
   // ==========================================
