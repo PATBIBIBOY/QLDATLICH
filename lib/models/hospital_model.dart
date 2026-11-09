@@ -37,7 +37,7 @@ class HospitalModel {
     this.diaChi,
     this.moTa,
     this.hinhAnh,
-    this.trangThaiHopTacId = TrangThaiId.choDuyet,
+    this.trangThaiHopTacId,
     this.diemDanhGiaTb = 0.0,
     this.tongSoDanhGia = 0,
     this.ngayHopTac,
@@ -63,7 +63,9 @@ class HospitalModel {
       'dia_chi': diaChi,
       'mo_ta': moTa,
       'hinh_anh': hinhAnh,
-      'trang_thai_hop_tac_id': trangThaiHopTacId,
+      if (trangThaiHopTacId != null) 'trang_thai_hop_tac_id': trangThaiHopTacId,
+      'da_gui_don': false,
+      'da_xac_thuc': false,
       'diem_danh_gia_tb': diemDanhGiaTb,
       'tong_so_danh_gia': tongSoDanhGia,
       'ngay_hop_tac': ngayHopTac?.toIso8601String(),
@@ -107,13 +109,20 @@ class HospitalModel {
       }
     }
 
+    // Nếu rawUid là Auth UID (không bắt đầu bằng BV), chuyển sang authUid
+    String? cleanAuthUid = rawAuthUid;
+    if (rawUid != null && !rawUid.startsWith('BV') && cleanAuthUid == null) {
+      cleanAuthUid = rawUid;
+    }
+
     final maBv = rawMaBv ?? (parsedId != null ? 'BV${parsedId.toString().padLeft(3, '0')}' : null);
+    final effectiveUid = maBv ?? (rawUid != null && rawUid.startsWith('BV') ? rawUid : (parsedId != null ? 'BV${parsedId.toString().padLeft(3, '0')}' : rawUid));
 
     return HospitalModel(
       id: parsedId,
-      maBenhVien: maBv,
-      uid: rawUid ?? maBv,
-      authUid: rawAuthUid,
+      maBenhVien: maBv ?? effectiveUid,
+      uid: effectiveUid ?? maBv,
+      authUid: cleanAuthUid,
       tenBenhVien: rawTen.isNotEmpty ? rawTen : null,
       diaChi: map['dia_chi'] ?? map['diaChi'],
       moTa: map['mo_ta'] ?? map['moTa'],
@@ -219,7 +228,7 @@ class HospitalModel {
       tenBenhVien: tenBenhVien,
       email: email,
       diaChi: diaChi,
-      trangThaiHopTacId: TrangThaiId.choDuyet,
+      trangThaiHopTacId: null,
       ngayTao: DateTime.now(),
       coSo: 'Tu_nhan',
       bhyt: 'Co_BHYT',

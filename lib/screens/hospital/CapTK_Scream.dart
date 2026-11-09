@@ -15,8 +15,7 @@ class CapTaiKhoanNhanVienScreen extends StatefulWidget {
       _CapTaiKhoanNhanVienScreenState();
 }
 
-class _CapTaiKhoanNhanVienScreenState
-    extends State<CapTaiKhoanNhanVienScreen> {
+class _CapTaiKhoanNhanVienScreenState extends State<CapTaiKhoanNhanVienScreen> {
   static const _blue = Color(0xFF2F83FF);
   final NhanVienService _nhanVienService = NhanVienService();
 
@@ -55,7 +54,8 @@ class _CapTaiKhoanNhanVienScreenState
         _isLoadingDepartments = false;
         if (_departments.isNotEmpty) {
           // Nếu khoa đang chọn vẫn có trong danh sách mới thì giữ nguyên, ngược lại chọn khoa đầu tiên
-          if (_selectedDepartment == null || !_departments.contains(_selectedDepartment)) {
+          if (_selectedDepartment == null ||
+              !_departments.contains(_selectedDepartment)) {
             _selectedDepartment = _departments.first;
           }
         } else {
@@ -139,25 +139,27 @@ class _CapTaiKhoanNhanVienScreenState
               Flexible(
                 child: ListView(
                   shrinkWrap: true,
-                  children: _departments.map(
-                    (department) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        department,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      trailing: department == _selectedDepartment
-                          ? const Icon(Icons.check_circle, color: _blue)
-                          : const Icon(
-                              Icons.radio_button_unchecked,
-                              color: Color(0xFFB8C0CC),
+                  children: _departments
+                      .map(
+                        (department) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                            department,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
                             ),
-                      onTap: () => Navigator.pop(context, department),
-                    ),
-                  ).toList(),
+                          ),
+                          trailing: department == _selectedDepartment
+                              ? const Icon(Icons.check_circle, color: _blue)
+                              : const Icon(
+                                  Icons.radio_button_unchecked,
+                                  color: Color(0xFFB8C0CC),
+                                ),
+                          onTap: () => Navigator.pop(context, department),
+                        ),
+                      )
+                      .toList(),
                 ),
               ),
             ],
@@ -191,7 +193,8 @@ class _CapTaiKhoanNhanVienScreenState
     if (lower.contains('ung bướu') || lower.contains('ung buou')) return 'UB';
     if (lower.contains('tai mũi họng')) return 'TMH';
     if (lower.contains('da liễu') || lower.contains('da lieu')) return 'DL';
-    if (lower.contains('xét nghiệm') || lower.contains('xet nghiem')) return 'XN';
+    if (lower.contains('xét nghiệm') || lower.contains('xet nghiem'))
+      return 'XN';
 
     // Rút gọn theo chữ cái đầu
     final words = dept
@@ -231,10 +234,14 @@ class _CapTaiKhoanNhanVienScreenState
   }
 
   Future<void> _taoTaiKhoan() async {
-    if (_departments.isEmpty || _selectedDepartment == null || _selectedDepartment!.trim().isEmpty) {
+    if (_departments.isEmpty ||
+        _selectedDepartment == null ||
+        _selectedDepartment!.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Bệnh viện chưa có khoa khám nào được tạo. Vui lòng thêm khoa trước!'),
+          content: Text(
+            'Bệnh viện chưa có khoa khám nào được tạo. Vui lòng thêm khoa trước!',
+          ),
           backgroundColor: Color(0xFFD97706),
         ),
       );
@@ -268,7 +275,9 @@ class _CapTaiKhoanNhanVienScreenState
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Đã tạo thành công $_accountCount tài khoản cho ${_selectedDepartment!}!'),
+          content: Text(
+            'Đã tạo thành công $_accountCount tài khoản cho ${_selectedDepartment!}!',
+          ),
           backgroundColor: const Color(0xFF10B981),
         ),
       );
@@ -317,7 +326,10 @@ class _CapTaiKhoanNhanVienScreenState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildSectionLabel('Chọn khoa làm việc', required: true),
+                        _buildSectionLabel(
+                          'Chọn khoa làm việc',
+                          required: true,
+                        ),
                         const SizedBox(height: 6),
                         _buildDepartmentSelector(),
                         const SizedBox(height: 12),
@@ -328,7 +340,10 @@ class _CapTaiKhoanNhanVienScreenState
                           const SizedBox(height: 7),
                         ],
                         const SizedBox(height: 3),
-                        _buildSectionLabel('Số lượng tài khoản', required: true),
+                        _buildSectionLabel(
+                          'Số lượng tài khoản',
+                          required: true,
+                        ),
                         const SizedBox(height: 7),
                         _buildCounter(),
                         const SizedBox(height: 9),
@@ -348,20 +363,22 @@ class _CapTaiKhoanNhanVienScreenState
                       onPressed: _isLoading
                           ? null
                           : (_departments.isEmpty
-                              ? () async {
-                                  await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => ThemKhoaScreen(
-                                        benhVienId: _getBenhVienId(),
+                                ? () async {
+                                    await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => ThemKhoaScreen(
+                                          benhVienId: _getBenhVienId(),
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                  if (mounted) _loadDepartments();
-                                }
-                              : _taoTaiKhoan),
+                                    );
+                                    if (mounted) _loadDepartments();
+                                  }
+                                : _taoTaiKhoan),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _departments.isEmpty ? const Color(0xFF0284C7) : _blue,
+                        backgroundColor: _departments.isEmpty
+                            ? const Color(0xFF0284C7)
+                            : _blue,
                         foregroundColor: Colors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
@@ -721,12 +738,12 @@ enum _StaffRole {
     icon: Icons.people_alt_outlined,
   ),
   doctorAssistant(
-    title: 'Hỗ trợ bác sĩ',
+    title: 'Support',
     description: 'Hồ sơ, điều phối khám',
     icon: Icons.person_outline_rounded,
   ),
   customerSupport(
-    title: 'Support',
+    title: 'CSKH',
     description: 'Đặt lịch hẹn, hỗ trợ bệnh nhân',
     icon: Icons.support_agent_rounded,
   );
@@ -787,12 +804,14 @@ class _PresetButton extends StatelessWidget {
         child: OutlinedButton(
           onPressed: onTap,
           style: OutlinedButton.styleFrom(
-            foregroundColor:
-                selected ? const Color(0xFF2679EE) : const Color(0xFF656D78),
-            backgroundColor:
-                selected ? const Color(0xFFEAF3FF) : Colors.white,
+            foregroundColor: selected
+                ? const Color(0xFF2679EE)
+                : const Color(0xFF656D78),
+            backgroundColor: selected ? const Color(0xFFEAF3FF) : Colors.white,
             side: BorderSide(
-              color: selected ? _CapTaiKhoanNhanVienScreenState._blue : const Color(0xFFD9DDE3),
+              color: selected
+                  ? _CapTaiKhoanNhanVienScreenState._blue
+                  : const Color(0xFFD9DDE3),
             ),
             padding: EdgeInsets.zero,
             shape: RoundedRectangleBorder(

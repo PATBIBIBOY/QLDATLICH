@@ -254,24 +254,28 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
                   ? rawStatus
                   : int.tryParse(rawStatus.toString()) ?? 1;
 
-              if (_currentStatusId != newStatus) {
-                if (mounted) {
-                  setState(() {
-                    _currentStatusId = newStatus;
-                  });
-                }
+              // 🛡️ CHẶN HẠ TRẠNG THÁI: Nếu đã là 10 (Hợp tác), không bao giờ bị hạ xuống 1 hoặc 9!
+              if (_currentStatusId == TrangThaiId.hopTac && newStatus != TrangThaiId.hopTac) {
+                debugPrint('🛡️ [HOME] Bỏ qua hạ trạng thái từ YeuCauHopTac ($newStatus) vì đã được duyệt 10');
+                return;
               }
 
-              // Đồng bộ ngay sang BenhVien/{bvid}
-              HospitalSyncService.dongBoSangBenhVien(bvid, newStatus, data);
-
-              // Tự động kiểm tra và gửi email thông báo khi được duyệt (10) hoặc hủy/từ chối (9)
-              _kiemTraVaGuiEmailThongBao(
-                bvid: bvid,
-                statusId: newStatus,
-                docData: data,
-                docRef: snap.reference,
-              );
+              if (newStatus == TrangThaiId.hopTac) {
+                if (_currentStatusId != TrangThaiId.hopTac && mounted) {
+                  setState(() => _currentStatusId = TrangThaiId.hopTac);
+                }
+                HospitalSyncService.dongBoSangBenhVien(bvid, newStatus, data);
+                _kiemTraVaGuiEmailThongBao(
+                  bvid: bvid,
+                  statusId: newStatus,
+                  docData: data,
+                  docRef: snap.reference,
+                );
+              } else {
+                if (_currentStatusId != newStatus && mounted) {
+                  setState(() => _currentStatusId = newStatus);
+                }
+              }
             }
           }
         });
@@ -295,16 +299,22 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
                   ? rawStatus
                   : int.tryParse(rawStatus.toString()) ?? 1;
 
-              if (_currentStatusId != newStatus) {
-                if (mounted) {
-                  setState(() {
-                    _currentStatusId = newStatus;
-                  });
-                }
+              // 🛡️ CHẶN HẠ TRẠNG THÁI: Nếu đã là 10 (Hợp tác), không bao giờ bị hạ xuống 1 hoặc 9!
+              if (_currentStatusId == TrangThaiId.hopTac && newStatus != TrangThaiId.hopTac) {
+                debugPrint('🛡️ [HOME] Bỏ qua hạ trạng thái từ BenhVien ($newStatus) vì đã được duyệt 10');
+                return;
               }
 
-              // Đồng bộ ngay sang YeuCauHopTac/{bvid}
-              HospitalSyncService.dongBoSangYeuCauHopTac(bvid, newStatus, data);
+              if (newStatus == TrangThaiId.hopTac) {
+                if (_currentStatusId != TrangThaiId.hopTac && mounted) {
+                  setState(() => _currentStatusId = TrangThaiId.hopTac);
+                }
+                HospitalSyncService.dongBoSangYeuCauHopTac(bvid, newStatus, data);
+              } else {
+                if (_currentStatusId != newStatus && mounted) {
+                  setState(() => _currentStatusId = newStatus);
+                }
+              }
             }
           }
         });
@@ -328,28 +338,32 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
 
   /// Tìm và xác định chính xác Document ID của Bệnh viện (BVxxx)
   Future<void> _timVaKhoiTaoHospitalId() async {
-    if (AppSession.benhVienId.isNotEmpty) {
+    // 0. Quét dọn collection YeuCauHopTac và BenhVien đưa về mã chuẩn BVxxx
+    HospitalSyncService.quetVaChuanHoaBenhVienDaGuiDon().catchError((_) {});
+
+    if (AppSession.benhVienId.startsWith('BV')) {
       _khoiTaoDongBoRealtime(AppSession.benhVienId);
       return;
     }
 
     final auth = context.read<AuthProvider>();
     final maBv = auth.hospital?.maBenhVien ?? auth.hospital?.uid;
-    if (maBv != null && maBv.isNotEmpty) {
+    if (maBv != null && maBv.startsWith('BV')) {
       _khoiTaoDongBoRealtime(maBv);
       return;
     }
 
     final user = FirebaseAuth.instance.currentUser;
-    if (user != null && user.email != null && user.email!.isNotEmpty) {
+    if (user != null) {
       try {
-        final snapBv = await FirebaseFirestore.instance
+        // Tra cứu theo auth_uid trước
+        final snapAuth = await FirebaseFirestore.instance
             .collection('BenhVien')
-            .where('email', isEqualTo: user.email)
+            .where('auth_uid', isEqualTo: user.uid)
             .limit(1)
             .get();
-        if (snapBv.docs.isNotEmpty) {
-          final foundId = snapBv.docs.first.id;
+        if (snapAuth.docs.isNotEmpty && snapAuth.docs.first.id.startsWith('BV')) {
+          final foundId = snapAuth.docs.first.id;
           if (mounted) {
             setState(() {
               _resolvedHospitalId = foundId;
@@ -359,20 +373,42 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
           return;
         }
 
-        final snapYc = await FirebaseFirestore.instance
-            .collection('YeuCauHopTac')
-            .where('email', isEqualTo: user.email)
-            .limit(1)
-            .get();
-        if (snapYc.docs.isNotEmpty) {
-          final foundId = snapYc.docs.first.id;
-          if (mounted) {
-            setState(() {
-              _resolvedHospitalId = foundId;
-            });
-            _khoiTaoDongBoRealtime(foundId);
+        if (user.email != null && user.email!.isNotEmpty) {
+          final snapBv = await FirebaseFirestore.instance
+              .collection('BenhVien')
+              .where('email', isEqualTo: user.email)
+              .limit(1)
+              .get();
+          for (final doc in snapBv.docs) {
+            if (doc.id.startsWith('BV')) {
+              final foundId = doc.id;
+              if (mounted) {
+                setState(() {
+                  _resolvedHospitalId = foundId;
+                });
+                _khoiTaoDongBoRealtime(foundId);
+              }
+              return;
+            }
           }
-          return;
+
+          final snapYc = await FirebaseFirestore.instance
+              .collection('YeuCauHopTac')
+              .where('email', isEqualTo: user.email)
+              .limit(1)
+              .get();
+          for (final doc in snapYc.docs) {
+            if (doc.id.startsWith('BV')) {
+              final foundId = doc.id;
+              if (mounted) {
+                setState(() {
+                  _resolvedHospitalId = foundId;
+                });
+                _khoiTaoDongBoRealtime(foundId);
+              }
+              return;
+            }
+          }
         }
       } catch (e) {
         debugPrint('⚠️ [HomeHospital] Lỗi tìm ID bệnh viện theo email: $e');
@@ -392,12 +428,12 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
     final auth = context.watch<AuthProvider>();
     final user = FirebaseAuth.instance.currentUser;
 
-    final maBv =
-        auth.hospital?.maBenhVien ?? auth.hospital?.uid ?? AppSession.benhVienId;
+    final candidate = auth.hospital?.maBenhVien ??
+        (_resolvedHospitalId != null && _resolvedHospitalId!.startsWith('BV')
+            ? _resolvedHospitalId
+            : (AppSession.benhVienId.startsWith('BV') ? AppSession.benhVienId : null));
 
-    final targetId = (maBv.isNotEmpty)
-        ? maBv
-        : (_resolvedHospitalId ?? user?.uid ?? '');
+    final targetId = candidate ?? (_resolvedHospitalId ?? user?.uid ?? '');
     if (targetId.isNotEmpty) {
       return FirebaseFirestore.instance
           .collection('BenhVien')
@@ -405,28 +441,24 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
           .snapshots();
     }
 
-    if (user != null) {
-      return FirebaseFirestore.instance
-          .collection('BenhVien')
-          .doc(user.uid)
-          .snapshots();
-    }
-
     return const Stream.empty();
   }
 
   String _getHospitalUid(BuildContext context) {
+    if (_resolvedHospitalId != null && _resolvedHospitalId!.startsWith('BV')) {
+      return _resolvedHospitalId!;
+    }
     final auth = context.read<AuthProvider>();
-    if (auth.hospital?.maBenhVien != null && auth.hospital!.maBenhVien!.isNotEmpty) {
+    if (auth.hospital?.maBenhVien != null && auth.hospital!.maBenhVien!.startsWith('BV')) {
       return auth.hospital!.maBenhVien!;
     }
-    if (auth.hospital?.uid != null && auth.hospital!.uid!.isNotEmpty) {
-      return auth.hospital!.uid!;
-    }
-    if (AppSession.benhVienId.isNotEmpty) {
+    if (AppSession.benhVienId.startsWith('BV')) {
       return AppSession.benhVienId;
     }
-    return FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (auth.hospital?.uid != null && auth.hospital!.uid!.startsWith('BV')) {
+      return auth.hospital!.uid!;
+    }
+    return _resolvedHospitalId ?? (AppSession.benhVienId.isNotEmpty ? AppSession.benhVienId : (FirebaseAuth.instance.currentUser?.uid ?? ''));
   }
 
   void _thongBaoChuaKichHoat(String chucNang) {
@@ -474,29 +506,40 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
             FirebaseAuth.instance.currentUser?.displayName ??
             'Bệnh viện';
 
-        // Trạng thái hợp tác: Ưu tiên _currentStatusId (lắng nghe realtime từ YeuCauHopTac & BenhVien)
-        final rawTrangThaiId = _currentStatusId ??
-            data?['trang_thai_hop_tac_id'] ??
-            authProvider.hospital?.trangThaiHopTacId ??
-            1;
-        final int trangThaiId = (rawTrangThaiId is int)
-            ? rawTrangThaiId
-            : int.tryParse(rawTrangThaiId.toString()) ?? 1;
+        // Trạng thái hợp tác: Ưu tiên trạng thái đã được phê duyệt (10)
+        final int? bvStatus = data?['trang_thai_hop_tac_id'] is int
+            ? data!['trang_thai_hop_tac_id']
+            : int.tryParse(data?['trang_thai_hop_tac_id']?.toString() ?? '');
 
-        if (_currentStatusId != null && _currentStatusId != trangThaiId) {
-          _currentStatusId = trangThaiId;
+        final int? trangThaiId;
+        if (bvStatus == TrangThaiId.hopTac ||
+            _currentStatusId == TrangThaiId.hopTac ||
+            data?['da_xac_thuc'] == true) {
+          trangThaiId = TrangThaiId.hopTac;
+          if (_currentStatusId != TrangThaiId.hopTac) {
+            _currentStatusId = TrangThaiId.hopTac;
+          }
+        } else if (bvStatus != null) {
+          trangThaiId = bvStatus;
+        } else {
+          trangThaiId = _currentStatusId ?? authProvider.hospital?.trangThaiHopTacId;
         }
 
         // Trạng thái 9: Bị từ chối hoặc hủy hợp tác
         final bool isBiTuChoiHoacHuy = (trangThaiId == TrangThaiId.huyHopTac);
 
-        // Bệnh viện đã gửi đơn hay chưa
+        // Bệnh viện đã gửi đơn hay chưa:
+        // CHỈ ĐƯỢC XEM LÀ ĐÃ GỬI ĐƠN NẾU:
+        // 1. data['da_gui_don'] == true HOẶC
+        // 2. data['so_giay_phep'] có giá trị hợp lệ HOẶC
+        // 3. data['ma_ho_so'] có giá trị hợp lệ
+        // Tuyệt đối không dùng trạng thái để gán bừa là đã gửi đơn khi vừa đăng ký mới!
         final bool daGuiDon = !isBiTuChoiHoacHuy &&
-            ((_currentStatusId != null &&
-                    _currentStatusId != TrangThaiId.huyHopTac) ||
-                (data?['da_gui_don'] == true) ||
+            ((data?['da_gui_don'] == true) ||
                 (data?['so_giay_phep'] != null &&
-                    data!['so_giay_phep'].toString().isNotEmpty));
+                    data!['so_giay_phep'].toString().trim().isNotEmpty) ||
+                (data?['ma_ho_so'] != null &&
+                    data!['ma_ho_so'].toString().trim().isNotEmpty));
 
         // Đã được Admin phê duyệt hợp tác hay chưa (10: Hợp tác theo Firebase, hoặc 2: Đã xác nhận)
         final bool daXacThuc =
@@ -522,7 +565,7 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
                       tenBenhVien: tenBenhVien,
                       daGuiDon: daGuiDon,
                       daXacThuc: daXacThuc,
-                      trangThaiId: trangThaiId,
+                      trangThaiId: trangThaiId ?? 0,
                       email: hospitalEmail,
                     ),
 
@@ -533,7 +576,7 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
                               hospitalUid: realId,
                               tenBenhVien: tenBenhVien,
                               daGuiDon: daGuiDon,
-                              trangThaiId: trangThaiId,
+                              trangThaiId: trangThaiId ?? 0,
                               data: data,
                             )
                           : _buildBodyForCurrentTab(hospitalUid: realId),

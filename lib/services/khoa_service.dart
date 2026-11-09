@@ -114,8 +114,10 @@ class KhoaService {
     }
 
     final cleanName = tKhoa.replaceAll(RegExp(r'^[Kk]hoa\s+'), '').trim();
-    final words =
-        cleanName.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final words = cleanName
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
     if (words.isNotEmpty) {
       final prefix = words.map((w) => w[0].toUpperCase()).join();
       if (prefix.isNotEmpty) return prefix;
@@ -132,8 +134,7 @@ class KhoaService {
     try {
       final doc = await _db.collection('BenhVien').doc(trimmed).get();
       if (doc.exists) {
-        final ma = (doc.data()?['ma_benh_vien'] ??
-                doc.data()?['maBenhVien'])
+        final ma = (doc.data()?['ma_benh_vien'] ?? doc.data()?['maBenhVien'])
             ?.toString();
         if (ma != null && ma.isNotEmpty) return ma;
       }
@@ -144,9 +145,9 @@ class KhoaService {
           .limit(1)
           .get();
       if (query.docs.isNotEmpty) {
-        final ma = (query.docs.first.data()['ma_benh_vien'] ??
-                query.docs.first.id)
-            .toString();
+        final ma =
+            (query.docs.first.data()['ma_benh_vien'] ?? query.docs.first.id)
+                .toString();
         if (ma.isNotEmpty) return ma;
       }
     } catch (_) {}
@@ -215,13 +216,16 @@ class KhoaService {
         .map((e) => e.ketThuc)
         .reduce((a, b) => a.compareTo(b) >= 0 ? a : b);
 
-    final gioMoCua =
-        gioMoRaw.split(':').length == 2 ? '$gioMoRaw:00' : gioMoRaw;
-    final gioDongCua =
-        gioDongRaw.split(':').length == 2 ? '$gioDongRaw:00' : gioDongRaw;
+    final gioMoCua = gioMoRaw.split(':').length == 2
+        ? '$gioMoRaw:00'
+        : gioMoRaw;
+    final gioDongCua = gioDongRaw.split(':').length == 2
+        ? '$gioDongRaw:00'
+        : gioDongRaw;
 
-    final thoiGianKham =
-        (ds.first.soPhut ~/ gioiHanBenhNhan).clamp(1, 1000).toInt();
+    final thoiGianKham = (ds.first.soPhut ~/ gioiHanBenhNhan)
+        .clamp(1, 1000)
+        .toInt();
 
     final prefix = layPrefixKhoa(tenKhoa, tenChuyenKhoa);
 
@@ -307,7 +311,13 @@ class KhoaService {
         'thoi_gian_kham': thoiGianKham,
         'so_benh_nhan_toi_da': gioiHanBenhNhan,
         'nhan_vien_id': null,
-        'trangThai': 'san_sang',
+        'trangThai': 'dang_kham',
+        'trang_thai': 'dang_kham',
+        'trang_thai_id': 13,
+        'trangThaiId': 13,
+        'id_trang_thai': 13,
+        'ten_trang_thai': 'Đang khám',
+        'mo_ta_trang_thai': 'Phòng khám đang trong trạng thái khám',
       });
 
       // 2b. Lưu vào subcollection Khoa/.../phongKham để màn ChiTietKhoaScreen hiển thị
@@ -321,7 +331,13 @@ class KhoaService {
         'khungGio': ds.map((e) => e.toMap()).toList(),
         'thoiGianKham': thoiGianKham,
         'soBenhNhanToiDa': gioiHanBenhNhan,
-        'trangThai': 'san_sang',
+        'trangThai': 'dang_kham',
+        'trang_thai': 'dang_kham',
+        'trang_thai_id': 13,
+        'trangThaiId': 13,
+        'id_trang_thai': 13,
+        'ten_trang_thai': 'Đang khám',
+        'mo_ta_trang_thai': 'Phòng khám đang trong trạng thái khám',
         'nhanVienId': null,
       });
 
@@ -388,13 +404,16 @@ class KhoaService {
         .map((e) => e.ketThuc)
         .reduce((a, b) => a.compareTo(b) >= 0 ? a : b);
 
-    final gioMoCua =
-        gioMoRaw.split(':').length == 2 ? '$gioMoRaw:00' : gioMoRaw;
-    final gioDongCua =
-        gioDongRaw.split(':').length == 2 ? '$gioDongRaw:00' : gioDongRaw;
+    final gioMoCua = gioMoRaw.split(':').length == 2
+        ? '$gioMoRaw:00'
+        : gioMoRaw;
+    final gioDongCua = gioDongRaw.split(':').length == 2
+        ? '$gioDongRaw:00'
+        : gioDongRaw;
 
-    final thoiGianKham =
-        (ds.first.soPhut ~/ gioiHanBenhNhan).clamp(1, 1000).toInt();
+    final thoiGianKham = (ds.first.soPhut ~/ gioiHanBenhNhan)
+        .clamp(1, 1000)
+        .toInt();
 
     final prefix = layPrefixKhoa(tenKhoa, tenChuyenKhoa);
 
@@ -435,7 +454,9 @@ class KhoaService {
       final oldName = (d.data()['tenPhong'] ?? d.id).toString();
       if (!danhSachTenPhong.contains(oldName)) {
         batch.delete(d.reference);
-        batch.delete(_db.collection('PhongKham').doc('${bvId}_${khoaId}_$oldName'));
+        batch.delete(
+          _db.collection('PhongKham').doc('${bvId}_${khoaId}_$oldName'),
+        );
       }
     }
 
@@ -457,7 +478,13 @@ class KhoaService {
         'tenKhoaGoc': tenKhoa,
         'thoiGianKham': thoiGianKham,
         'soBenhNhanToiDa': gioiHanBenhNhan,
-        'trangThai': 'san_sang',
+        'trangThai': 'dang_kham',
+        'trang_thai': 'dang_kham',
+        'trang_thai_id': 13,
+        'trangThaiId': 13,
+        'id_trang_thai': 13,
+        'ten_trang_thai': 'Đang khám',
+        'mo_ta_trang_thai': 'Phòng khám đang trong trạng thái khám',
         'ngayCapNhat': FieldValue.serverTimestamp(),
       };
 

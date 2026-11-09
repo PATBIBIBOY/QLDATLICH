@@ -196,6 +196,10 @@ class AppRoutes {
             tenBenhVien: args?['tenBenhVien'] ?? 'Bệnh viện',
             loaiHinh: args?['loaiHinh'] ?? 'Bệnh viện Tư lập',
             coBhyt: args?['coBhyt'] ?? true,
+            hospitalUid: args?['hospitalUid'] ??
+                args?['maBenhVien'] ??
+                args?['extraData']?['ma_benh_vien'] ??
+                args?['extraData']?['uid'],
             extraData: args?['extraData'],
           );
         },

@@ -1,7 +1,15 @@
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:flutter/material.dart';
-import '../../config/app_routes.dart';
+import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-class GuiDonThanhCongScreen extends StatelessWidget {
+import '../../config/app_routes.dart';
+import '../../config/app_session.dart';
+import '../../providers/auth_provider.dart';
+
+class GuiDonThanhCongScreen extends StatefulWidget {
   final String maHoSo;
   final String tenBenhVien;
   final String loaiHinh;
@@ -18,6 +26,227 @@ class GuiDonThanhCongScreen extends StatelessWidget {
     this.hospitalUid,
     this.extraData,
   });
+
+  @override
+  State<GuiDonThanhCongScreen> createState() => _GuiDonThanhCongScreenState();
+}
+
+class _GuiDonThanhCongScreenState extends State<GuiDonThanhCongScreen> {
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _yeuCauSub;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _benhVienSub;
+  bool _hasNavigated = false;
+  String _bvid = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _khoiTaoLangNgheTrangThai();
+    });
+  }
+
+  @override
+  void dispose() {
+    _yeuCauSub?.cancel();
+    _benhVienSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _khoiTaoLangNgheTrangThai() async {
+    // 1. Xác định mã bệnh viện chuẩn dạng BVxxx
+    String bvid = (widget.hospitalUid ?? '').trim();
+    if (bvid.isEmpty || !bvid.startsWith('BV')) {
+      if (AppSession.benhVienId.startsWith('BV')) {
+        bvid = AppSession.benhVienId;
+      }
+    }
+    if (bvid.isEmpty || !bvid.startsWith('BV')) {
+      final auth = context.read<AuthProvider>();
+      final maBv = auth.hospital?.maBenhVien ?? auth.hospital?.uid;
+      if (maBv != null && maBv.startsWith('BV')) {
+        bvid = maBv;
+      }
+    }
+
+    final curUser = FirebaseAuth.instance.currentUser;
+    if ((bvid.isEmpty || !bvid.startsWith('BV')) && curUser != null) {
+      try {
+        final snapAuth = await FirebaseFirestore.instance
+            .collection('BenhVien')
+            .where('auth_uid', isEqualTo: curUser.uid)
+            .limit(1)
+            .get();
+        if (snapAuth.docs.isNotEmpty && snapAuth.docs.first.id.startsWith('BV')) {
+          bvid = snapAuth.docs.first.id;
+        } else if (curUser.email != null && curUser.email!.isNotEmpty) {
+          final snapEmail = await FirebaseFirestore.instance
+              .collection('BenhVien')
+              .where('email', isEqualTo: curUser.email)
+              .limit(1)
+              .get();
+          for (final doc in snapEmail.docs) {
+            if (doc.id.startsWith('BV')) {
+              bvid = doc.id;
+              break;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (bvid.isEmpty) {
+      bvid = curUser?.uid ?? '';
+    }
+
+    if (!mounted || bvid.isEmpty) return;
+    _bvid = bvid;
+
+    // 2. Lắng nghe realtime từ collection YeuCauHopTac
+    _yeuCauSub = FirebaseFirestore.instance
+        .collection('YeuCauHopTac')
+        .doc(bvid)
+        .snapshots()
+        .listen((snap) {
+          if (snap.exists && snap.data() != null) {
+            _kiemTraVaDieuHuongKhiTrangThaiDoi(snap.data()!);
+          }
+        });
+
+    // 3. Lắng nghe realtime từ collection BenhVien
+    _benhVienSub = FirebaseFirestore.instance
+        .collection('BenhVien')
+        .doc(bvid)
+        .snapshots()
+        .listen((snap) {
+          if (snap.exists && snap.data() != null) {
+            _kiemTraVaDieuHuongKhiTrangThaiDoi(snap.data()!);
+          }
+        });
+  }
+
+  void _kiemTraVaDieuHuongKhiTrangThaiDoi(Map<String, dynamic> data) {
+    if (_hasNavigated || !mounted) return;
+
+    final rawStatus = data['trang_thai_hop_tac_id'];
+    final int? statusId = rawStatus is int
+        ? rawStatus
+        : int.tryParse(rawStatus?.toString() ?? '');
+
+    final String upper = (data['trangThai'] ?? '').toString().toUpperCase();
+    final String lower = (data['trang_thai'] ?? '').toString().toLowerCase();
+
+    // Trạng thái 10: Đã phê duyệt / Hợp tác thành công
+    final bool isApproved = statusId == 10 ||
+        statusId == 2 ||
+        data['da_xac_thuc'] == true ||
+        upper == 'HOP_TAC' ||
+        lower == 'hop_tac';
+
+    // Trạng thái 9: Bị từ chối hoặc hủy hợp tác
+    final bool isRejected = statusId == 9 ||
+        upper == 'HUY_HOP_TAC' ||
+        lower == 'huy_hop_tac' ||
+        data['da_bi_tu_choi'] == true;
+
+    if (isApproved) {
+      _hasNavigated = true;
+      _yeuCauSub?.cancel();
+      _benhVienSub?.cancel();
+
+      if (_bvid.isNotEmpty) {
+        AppSession.benhVienId = _bvid;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle_rounded, color: Colors.white, size: 22),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '🎉 Hồ sơ hợp tác đã được phê duyệt thành công!',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Color(0xFF16A34A),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 4),
+        ),
+      );
+
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.hospitalDashboard,
+        (route) => false,
+      );
+    } else if (isRejected) {
+      _hasNavigated = true;
+      _yeuCauSub?.cancel();
+      _benhVienSub?.cancel();
+
+      if (_bvid.isNotEmpty) {
+        AppSession.benhVienId = _bvid;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.info_outline_rounded, color: Colors.white, size: 22),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Hồ sơ hợp tác đã được cập nhật trạng thái. Vui lòng kiểm tra lại.',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 4),
+        ),
+      );
+
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.hospitalDashboard,
+        (route) => false,
+      );
+    }
+  }
+
+  Future<void> _moFile(BuildContext context, String? url) async {
+    if (url == null || url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chưa có liên kết tệp trên Firebase Storage hoặc tệp chưa hoàn tất tải lên.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final uri = Uri.parse(url);
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched) {
+        await launchUrl(uri, mode: LaunchMode.platformDefault);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Không thể mở liên kết file: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   void _xemChiTiet(BuildContext context) {
     showModalBottomSheet<void>(
@@ -54,20 +283,46 @@ class GuiDonThanhCongScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            _rowChiTiet('Mã hồ sơ', maHoSo),
-            _rowChiTiet('Tên cơ sở', tenBenhVien),
-            _rowChiTiet('Loại hình', loaiHinh),
-            _rowChiTiet('Khám BHYT', coBhyt ? 'Có áp dụng BHYT' : 'Không BHYT'),
-            if (extraData?['ma_co_so_byt'] != null)
-              _rowChiTiet('Mã cơ sở (BYT)', extraData!['ma_co_so_byt'].toString()),
-            if (extraData?['ma_so_thue'] != null)
-              _rowChiTiet('Mã số thuế', extraData!['ma_so_thue'].toString()),
-            if (extraData?['dia_chi'] != null)
-              _rowChiTiet('Địa chỉ trụ sở', extraData!['dia_chi'].toString()),
-            if (extraData?['file_giay_phep'] != null)
-              _rowChiTiet('Giấy phép hoạt động', extraData!['file_giay_phep'].toString()),
-            if (extraData?['vi_do'] != null && extraData?['kinh_do'] != null)
-              _rowChiTiet('Tọa độ GPS', '${extraData!['vi_do']}, ${extraData!['kinh_do']}'),
+            _rowChiTiet('Mã hồ sơ', widget.maHoSo),
+            _rowChiTiet('Tên cơ sở', widget.tenBenhVien),
+            _rowChiTiet('Loại hình', widget.loaiHinh),
+            _rowChiTiet('Khám BHYT', widget.coBhyt ? 'Có áp dụng BHYT' : 'Không BHYT'),
+            if (widget.extraData?['ma_co_so_byt'] != null)
+              _rowChiTiet('Mã cơ sở (BYT)', widget.extraData!['ma_co_so_byt'].toString()),
+            if (widget.extraData?['ma_so_thue'] != null)
+              _rowChiTiet('Mã số thuế', widget.extraData!['ma_so_thue'].toString()),
+            if (widget.extraData?['dia_chi'] != null)
+              _rowChiTiet('Địa chỉ trụ sở', widget.extraData!['dia_chi'].toString()),
+            if (widget.extraData?['file_giay_phep'] != null) ...[
+              _rowChiTiet('Giấy phép hoạt động', widget.extraData!['file_giay_phep'].toString()),
+              if ((widget.extraData?['file_giay_phep_url'] ?? widget.extraData?['file_url']) != null &&
+                  (widget.extraData?['file_giay_phep_url'] ?? widget.extraData?['file_url']).toString().isNotEmpty) ...[
+                const SizedBox(height: 6),
+                SizedBox(
+                  width: double.infinity,
+                  height: 42,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _moFile(
+                      context,
+                      (widget.extraData?['file_giay_phep_url'] ?? widget.extraData?['file_url']).toString(),
+                    ),
+                    icon: const Icon(Icons.download_rounded, size: 18),
+                    label: const Text(
+                      'Xem & Tải File Giấy Phép (Firebase Storage)',
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF0284C7),
+                      side: const BorderSide(color: Color(0xFF0284C7)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+              ],
+            ],
+            if (widget.extraData?['vi_do'] != null && widget.extraData?['kinh_do'] != null)
+              _rowChiTiet('Tọa độ GPS', '${widget.extraData!['vi_do']}, ${widget.extraData!['kinh_do']}'),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
@@ -254,7 +509,7 @@ class GuiDonThanhCongScreen extends StatelessWidget {
 
                         // Tên bệnh viện
                         Text(
-                          tenBenhVien,
+                          widget.tenBenhVien,
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
@@ -271,7 +526,7 @@ class GuiDonThanhCongScreen extends StatelessWidget {
                         _buildInfoRow(
                           label: 'Mã hồ sơ:',
                           valueWidget: Text(
-                            maHoSo,
+                            widget.maHoSo,
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w800,
@@ -285,7 +540,7 @@ class GuiDonThanhCongScreen extends StatelessWidget {
                         _buildInfoRow(
                           label: 'Loại hình:',
                           valueWidget: Text(
-                            loaiHinh,
+                            widget.loaiHinh,
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
@@ -308,7 +563,7 @@ class GuiDonThanhCongScreen extends StatelessWidget {
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
-                              coBhyt ? 'Có áp dụng BHYT' : 'Không BHYT',
+                              widget.coBhyt ? 'Có áp dụng BHYT' : 'Không BHYT',
                               style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
@@ -328,6 +583,52 @@ class GuiDonThanhCongScreen extends StatelessWidget {
                               fontSize: 13,
                               fontWeight: FontWeight.w800,
                               color: Color(0xFF16A34A),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Dòng: Giấy phép đính kèm & Xem/Tải về từ Firebase
+                        _buildInfoRow(
+                          label: 'Giấy phép hoạt động:',
+                          valueWidget: InkWell(
+                            onTap: () {
+                              final fileUrl = (widget.extraData?['file_giay_phep_url'] ??
+                                      widget.extraData?['file_url'])
+                                  ?.toString();
+                              _moFile(context, fileUrl);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF0FDF4),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: const Color(0xFF86EFAC)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.download_rounded,
+                                    size: 15,
+                                    color: Color(0xFF16A34A),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    (widget.extraData?['file_giay_phep'] != null)
+                                        ? 'Xem / Tải file'
+                                        : 'Tệp đính kèm',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF16A34A),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),

@@ -39,6 +39,12 @@ class TrangThaiId {
   static const int huyHopTac = 9; // Hủy Hợp Tác (Doc 9 trên Firebase)
   static const int hopTac = 10; // Hợp tác (Doc 10 trên Firebase)
   static const int khongHopTac = 9; // Alias cho Hủy hợp tác
+
+  // Trạng thái Phòng khám (Khớp Document trong collection TrangThai trên Firebase)
+  static const int phongSanSang = 11; // Sẵn sàng (Doc 11)
+  static const int phongTamDung = 12; // Tạm dừng (Doc 12)
+  static const int phongDangKham = 13; // Đang khám (Doc 13)
+  static const int phongDong = 14; // Đóng (Doc 14)
 }
 
 // ============================================
@@ -57,6 +63,10 @@ class TrangThaiHelper {
     TrangThaiId.khongHoatDong: 'Không hoạt động',
     TrangThaiId.huyHopTac: 'Hủy Hợp Tác',
     TrangThaiId.hopTac: 'Hợp tác',
+    TrangThaiId.phongSanSang: 'Sẵn sàng',
+    TrangThaiId.phongTamDung: 'Tạm dừng',
+    TrangThaiId.phongDangKham: 'Đang khám',
+    TrangThaiId.phongDong: 'Đóng',
   };
 
   // Map từ ID sang mã màu (ARGB)

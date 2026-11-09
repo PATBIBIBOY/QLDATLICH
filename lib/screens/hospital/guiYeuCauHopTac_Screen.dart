@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show File;
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -12,8 +13,11 @@ import 'package:provider/provider.dart';
 
 import '../../config/app_routes.dart';
 import '../../config/app_session.dart';
+import '../../config/constants.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/auth_service.dart';
 import '../../services/email_service.dart';
+import '../../services/hospital_sync_service.dart';
 import 'guiDonThanhCong_Screen.dart';
 
 class GuiYeuCauHopTacScreen extends StatefulWidget {
@@ -47,9 +51,11 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
   String _coSo = 'Tu_nhan'; // 'Cong_lap' hoặc 'Tu_nhan' theo collection CoSo
   String _bhyt = 'Co_BHYT'; // 'Co_BHYT' hoặc 'Khong_BHYT' theo collection BHYT
   String _tenFileDinhKem = 'giay_phep_byt.pdf';
-  String _dungLuongFile = '2.4 MB • Đã tải lên';
+  String _dungLuongFile = '62.0 KB • Đã tải lên';
   Uint8List? _fileBytes;
+  String? _pickedFilePath;
   bool _isSubmitting = false;
+  String _submittingStatus = '';
 
   @override
   void initState() {
@@ -99,13 +105,73 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     super.dispose();
   }
 
-  String _getHospitalUid() {
+  /// Tra cứu hoặc sinh chuẩn mã bệnh viện (luôn có định dạng BVxxx, ví dụ BV502, BV503)
+  Future<String> _resolveHospitalId() async {
     final auth = context.read<AuthProvider>();
-    return auth.hospital?.maBenhVien ??
-        auth.hospital?.uid ??
-        (AppSession.benhVienId.isNotEmpty ? AppSession.benhVienId : null) ??
-        FirebaseAuth.instance.currentUser?.uid ??
-        '';
+    final curUser = FirebaseAuth.instance.currentUser;
+    final curUid = curUser?.uid ?? '';
+    final curEmail = curUser?.email ?? '';
+
+    // 1. Kiểm tra từ AuthProvider hoặc AppSession nếu đã chuẩn BVxxx
+    final candidate = (auth.hospital?.maBenhVien ??
+            auth.hospital?.uid ??
+            AppSession.benhVienId)
+        .trim();
+    if (candidate.startsWith('BV') && RegExp(r'^BV\d+$', caseSensitive: false).hasMatch(candidate)) {
+      return candidate.toUpperCase();
+    }
+
+    // 2. Tra cứu trong Firestore collection 'BenhVien' theo auth_uid hoặc email
+    final firestore = FirebaseFirestore.instance;
+    try {
+      if (curUid.isNotEmpty) {
+        final snapAuth = await firestore
+            .collection('BenhVien')
+            .where('auth_uid', isEqualTo: curUid)
+            .limit(1)
+            .get();
+        if (snapAuth.docs.isNotEmpty) {
+          final doc = snapAuth.docs.first;
+          final docId = doc.id;
+          final maBv = doc.data()['ma_benh_vien']?.toString() ?? docId;
+          if (maBv.startsWith('BV')) {
+            return maBv.toUpperCase();
+          }
+          if (docId.startsWith('BV')) {
+            return docId.toUpperCase();
+          }
+        }
+      }
+
+      if (curEmail.isNotEmpty) {
+        final snapEmail = await firestore
+            .collection('BenhVien')
+            .where('email', isEqualTo: curEmail)
+            .limit(1)
+            .get();
+        for (final doc in snapEmail.docs) {
+          final docId = doc.id;
+          final maBv = doc.data()['ma_benh_vien']?.toString() ?? docId;
+          if (maBv.startsWith('BV')) {
+            return maBv.toUpperCase();
+          }
+          if (docId.startsWith('BV')) {
+            return docId.toUpperCase();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Tra cứu ID bệnh viện thất bại: $e');
+    }
+
+    // 3. Tự động sinh ID BV mới nếu chưa có
+    try {
+      final genData = await AuthService().generateHospitalId();
+      final genMa = genData['ma_benh_vien']?.toString() ?? 'BV503';
+      return genMa.toUpperCase();
+    } catch (_) {
+      return 'BV503';
+    }
   }
 
   /// Lấy vị trí GPS thực tế từ thiết bị để quy ra vĩ độ & kinh độ
@@ -240,9 +306,82 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     return const Color(0xFF0284C7);
   }
 
+  Uint8List _generateSamplePdfBytes({
+    required String tenBenhVien,
+    required String maHoSo,
+    String? maCoSo,
+    String? maSoThue,
+    String? diaChi,
+  }) {
+    final now = DateTime.now();
+    final ngayStr = '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
+    final safeTen = tenBenhVien.isNotEmpty ? tenBenhVien : 'Benh vien hop tac';
+    final safeHoSo = maHoSo.isNotEmpty ? maHoSo : '#HS-BV-2026';
+    final safeCs = (maCoSo != null && maCoSo.isNotEmpty) ? maCoSo : 'CS-BYT-2026';
+    final safeMst = (maSoThue != null && maSoThue.isNotEmpty) ? maSoThue : '0102030405';
+    final safeDc = (diaChi != null && diaChi.isNotEmpty) ? diaChi : 'Viet Nam';
+
+    final content = '''%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 430 >>
+stream
+BT
+/F1 16 Tf
+50 730 Td
+(BO Y TE - HE THONG MEDICONNECT) Tj
+/F1 13 Tf
+0 -30 Td
+(GIAY PHEP HOAT DONG CO SO Y TE & DANG KY HOP TAC) Tj
+/F1 11 Tf
+0 -35 Td
+(Ten co so: $safeTen) Tj
+0 -22 Td
+(Ma ho so: $safeHoSo) Tj
+0 -22 Td
+(Ma co so BYT: $safeCs) Tj
+0 -22 Td
+(Ma so thue: $safeMst) Tj
+0 -22 Td
+(Dia chi: $safeDc) Tj
+0 -22 Td
+(Ngay nop don: $ngayStr) Tj
+0 -22 Td
+(Trang thai: Dang cho xet duyet boi Ban Quan Tri) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000010 00000 n 
+0000000060 00000 n 
+0000000117 00000 n 
+0000000227 00000 n 
+0000000710 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+793
+%%EOF
+''';
+    return Uint8List.fromList(utf8.encode(content));
+  }
+
   Future<void> _chonTepTuThietBi() async {
     try {
-      List<PlatformFile> files;
+      List<PlatformFile> files = [];
       try {
         files = await FilePicker.pickFiles(
           type: FileType.custom,
@@ -257,14 +396,26 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
 
       if (files.isNotEmpty) {
         final file = files.first;
-        final bytes = await file.readAsBytes();
-        final sizeBytes = file.lengthSync() ?? (await file.length()) ?? bytes.length;
+        Uint8List? bytes;
+        try {
+          bytes = await file.readAsBytes();
+        } catch (_) {}
+        if (bytes == null || bytes.isEmpty) {
+          if (file.path != null && file.path!.isNotEmpty) {
+            try {
+              bytes = await File(file.path!).readAsBytes();
+            } catch (_) {}
+          }
+        }
+
+        final sizeBytes = file.lengthSync() ?? (await file.length()) ?? bytes?.length ?? 0;
         final sizeText = _formatFileSize(sizeBytes);
 
         setState(() {
           _tenFileDinhKem = file.name;
-          _dungLuongFile = '$sizeText • Đã tải lên từ máy';
+          _dungLuongFile = '$sizeText • Đã chọn từ thiết bị';
           _fileBytes = bytes;
+          _pickedFilePath = file.path;
         });
 
         if (mounted) {
@@ -432,12 +583,20 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
                 'giay_phep_kinh_doanh_byt_2026.pdf',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
-              subtitle: const Text('3.1 MB • Giấy phép kinh doanh BYT'),
+              subtitle: const Text('128 KB • Giấy phép kinh doanh BYT mẫu'),
               onTap: () {
+                final sampleBytes = _generateSamplePdfBytes(
+                  tenBenhVien: _tenBenhVienCtrl.text.trim(),
+                  maHoSo: '#HS-BYT-2026',
+                  maCoSo: _maCoSoCtrl.text.trim(),
+                  maSoThue: _maSoThueCtrl.text.trim(),
+                  diaChi: _diaChiCtrl.text.trim(),
+                );
                 setState(() {
                   _tenFileDinhKem = 'giay_phep_kinh_doanh_byt_2026.pdf';
-                  _dungLuongFile = '3.1 MB • Đã tải lên';
-                  _fileBytes = null;
+                  _dungLuongFile = '${_formatFileSize(sampleBytes.length)} • Tệp PDF chuẩn BYT';
+                  _fileBytes = sampleBytes;
+                  _pickedFilePath = null;
                 });
                 Navigator.pop(ctx);
               },
@@ -456,12 +615,20 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
                 'chung_chi_hanh_nghe_coso.pdf',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
-              subtitle: const Text('1.8 MB • Chứng chỉ hành nghề cơ sở'),
+              subtitle: const Text('128 KB • Chứng chỉ hành nghề cơ sở mẫu'),
               onTap: () {
+                final sampleBytes = _generateSamplePdfBytes(
+                  tenBenhVien: _tenBenhVienCtrl.text.trim(),
+                  maHoSo: '#CCHN-COSO-2026',
+                  maCoSo: _maCoSoCtrl.text.trim(),
+                  maSoThue: _maSoThueCtrl.text.trim(),
+                  diaChi: _diaChiCtrl.text.trim(),
+                );
                 setState(() {
                   _tenFileDinhKem = 'chung_chi_hanh_nghe_coso.pdf';
-                  _dungLuongFile = '1.8 MB • Đã tải lên';
-                  _fileBytes = null;
+                  _dungLuongFile = '${_formatFileSize(sampleBytes.length)} • Chứng chỉ cơ sở mẫu';
+                  _fileBytes = sampleBytes;
+                  _pickedFilePath = null;
                 });
                 Navigator.pop(ctx);
               },
@@ -478,11 +645,10 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      String hospitalUid = _getHospitalUid();
-      if (hospitalUid.isEmpty) {
-        hospitalUid = FirebaseAuth.instance.currentUser?.uid ??
-            'BV_${DateTime.now().millisecondsSinceEpoch}';
-      }
+      final String hospitalBvId = await _resolveHospitalId();
+      final int? parsedId = int.tryParse(hospitalBvId.replaceAll(RegExp(r'[^0-9]'), ''));
+      final int idNumber = parsedId ?? 502;
+      final curAuthUid = FirebaseAuth.instance.currentUser?.uid ?? hospitalBvId;
       final randSuffix = Random().nextInt(900) + 100;
       final maHoSo = '#HS-BV-2026$randSuffix';
 
@@ -501,42 +667,91 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
         } catch (_) {}
       }
 
-      // Upload file lên Firebase Storage nếu có bytes từ máy
-      // Đặt timeout 3 giây: Nếu mạng lag hoặc Storage chưa kích hoạt thì không bao giờ bị treo ứng dụng
-      String? fileDownloadUrl;
+      // 1. Chuẩn bị dữ liệu tệp để upload lên Firebase Storage
+      Uint8List fileData;
+      String fileName = _tenFileDinhKem.trim();
+      if (fileName.isEmpty) fileName = 'giay_phep_byt.pdf';
+
       if (_fileBytes != null && _fileBytes!.isNotEmpty) {
-        UploadTask? uploadTask;
-        try {
-          final safeUid = hospitalUid.replaceAll(RegExp(r'[^\w\-]'), '_');
-          final safeName = _tenFileDinhKem.replaceAll(RegExp(r'[^\w\.\-]'), '_');
-          final storagePath = 'giay_phep/$safeUid/${DateTime.now().millisecondsSinceEpoch}_$safeName';
-          final storageRef = FirebaseStorage.instance.ref().child(storagePath);
+        fileData = _fileBytes!;
+      } else {
+        fileData = _generateSamplePdfBytes(
+          tenBenhVien: _tenBenhVienCtrl.text.trim(),
+          maHoSo: maHoSo,
+          maCoSo: _maCoSoCtrl.text.trim(),
+          maSoThue: _maSoThueCtrl.text.trim(),
+          diaChi: _diaChiCtrl.text.trim(),
+        );
+        if (!fileName.toLowerCase().endsWith('.pdf')) {
+          fileName = '$fileName.pdf';
+        }
+        _fileBytes = fileData;
+      }
 
-          String contentType = 'application/octet-stream';
-          final lower = safeName.toLowerCase();
-          if (lower.endsWith('.pdf')) {
-            contentType = 'application/pdf';
-          } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
-            contentType = 'image/jpeg';
-          } else if (lower.endsWith('.png')) {
-            contentType = 'image/png';
-          } else if (lower.endsWith('.doc') || lower.endsWith('.docx')) {
-            contentType = 'application/msword';
+      String contentType = 'application/pdf';
+      final lower = fileName.toLowerCase();
+      if (lower.endsWith('.pdf')) {
+        contentType = 'application/pdf';
+      } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+        contentType = 'image/jpeg';
+      } else if (lower.endsWith('.png')) {
+        contentType = 'image/png';
+      } else if (lower.endsWith('.doc') || lower.endsWith('.docx')) {
+        contentType = 'application/msword';
+      }
+
+      // 2. Upload file lên Firebase Storage
+      // Đường dẫn chuẩn: giay_phep_hop_tac/{hospitalBvId}/{timestamp}_{safeName}
+      String? fileDownloadUrl;
+      final safeUid = hospitalBvId.replaceAll(RegExp(r'[^\w\-]'), '_');
+      final safeName = fileName.replaceAll(RegExp(r'[^\w\.\-]'), '_');
+      final storagePath = 'giay_phep_hop_tac/$safeUid/${DateTime.now().millisecondsSinceEpoch}_$safeName';
+      final storageRef = FirebaseStorage.instance.ref().child(storagePath);
+
+      final metadata = SettableMetadata(
+        contentType: contentType,
+        customMetadata: {
+          'hospitalId': hospitalBvId,
+          'hospitalName': _tenBenhVienCtrl.text.trim(),
+          'maHoSo': maHoSo,
+          'originalName': fileName,
+          'uploadedAt': DateTime.now().toIso8601String(),
+        },
+      );
+
+      try {
+        setState(() => _submittingStatus = 'Đang tải tệp lên máy chủ lưu trữ...');
+        debugPrint('📤 [STORAGE] Đang tải file lên Firebase Storage: $storagePath (${fileData.length} bytes)...');
+
+        UploadTask uploadTask;
+        if (_pickedFilePath != null && _pickedFilePath!.isNotEmpty && File(_pickedFilePath!).existsSync()) {
+          uploadTask = storageRef.putFile(File(_pickedFilePath!), metadata);
+        } else {
+          uploadTask = storageRef.putData(fileData, metadata);
+        }
+
+        uploadTask.snapshotEvents.listen((TaskSnapshot snap) {
+          if (snap.totalBytes > 0 && mounted) {
+            final progress = (snap.bytesTransferred / snap.totalBytes * 100).toInt();
+            setState(() {
+              _submittingStatus = 'Đang tải tệp: $progress% (${_formatFileSize(snap.bytesTransferred)}/${_formatFileSize(snap.totalBytes)})';
+            });
           }
+        });
 
-          final metadata = SettableMetadata(
-            contentType: contentType,
-            customMetadata: {'hospitalUid': hospitalUid, 'originalName': _tenFileDinhKem},
-          );
-
-          uploadTask = storageRef.putData(_fileBytes!, metadata);
-          final snapshot = await uploadTask.timeout(const Duration(seconds: 3));
-          fileDownloadUrl = await snapshot.ref.getDownloadURL().timeout(const Duration(seconds: 2));
-        } catch (storageError) {
-          try {
-            uploadTask?.cancel();
-          } catch (_) {}
-          debugPrint('⚠️ Không thể tải file lên Firebase Storage (tiếp tục lưu vào Firestore): $storageError');
+        final timeoutSec = max(90, (fileData.length / (1024 * 1024) * 8).toInt());
+        final snapshot = await uploadTask.timeout(Duration(seconds: timeoutSec));
+        fileDownloadUrl = await snapshot.ref.getDownloadURL().timeout(const Duration(seconds: 30));
+        debugPrint('✅ [STORAGE] Tải file lên Firebase Storage thành công: $fileDownloadUrl');
+      } catch (storageError) {
+        debugPrint('⚠️ [STORAGE] Upload Firebase Storage: $storageError');
+        final errStr = storageError.toString().toLowerCase();
+        if (errStr.contains('object-not-found') || errStr.contains('does not exist') || errStr.contains('404')) {
+          throw Exception('Dự án Firebase chưa kích hoạt dịch vụ Storage (Bucket chưa được tạo). Vui lòng vào Firebase Console > Storage > bấm "Bắt đầu" (Get started).');
+        } else if (errStr.contains('unauthorized') || errStr.contains('permission-denied') || errStr.contains('permission denied')) {
+          throw Exception('Bị từ chối quyền truy cập Firebase Storage. Vui lòng kiểm tra Storage Rules trên Firebase Console.');
+        } else {
+          throw Exception('Không thể tải tệp lên Firebase Storage ($storageError). Vui lòng kiểm tra kết nối mạng hoặc thử lại.');
         }
       }
 
@@ -546,9 +761,11 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
       final String loaiHinh = coSo == 'Cong_lap' ? 'Công lập' : 'Tư nhân';
 
       final dataToSave = <String, dynamic>{
-        'uid': hospitalUid,
-        'auth_uid': hospitalUid,
-        'benh_vien_id': hospitalUid,
+        'id': idNumber,
+        'ma_benh_vien': hospitalBvId,
+        'benh_vien_id': hospitalBvId,
+        'uid': hospitalBvId,
+        'auth_uid': curAuthUid,
         'ten_benh_vien': _tenBenhVienCtrl.text.trim(),
         'ma_co_so_byt': _maCoSoCtrl.text.trim(),
         'so_giay_phep': _maCoSoCtrl.text.trim(),
@@ -562,11 +779,17 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
         'loai_hinh': loaiHinh,
         'chuyen_khoa_ids': <String>[], // ✅ Khởi tạo mảng rỗng chuẩn, không để null
         'ten_cac_khoa': <String>[],
-        'file_giay_phep': _tenFileDinhKem,
-        'dung_luong_file': _dungLuongFile,
+        'file_giay_phep': fileName,
+        'file_giay_phep_url': fileDownloadUrl,
+        'file_url': fileDownloadUrl,
+        'dung_luong_file': _dungLuongFile.isNotEmpty ? _dungLuongFile : _formatFileSize(fileData.length),
+        'dung_luong_bytes': fileData.length,
+        'loai_file': contentType,
+        'storage_path': storagePath,
+        'ngay_tai_file': FieldValue.serverTimestamp(),
         'ma_ho_so': maHoSo,
         'da_gui_don': true,
-        'trang_thai_hop_tac_id': 1, // 1: Chờ duyệt
+        'trang_thai_hop_tac_id': TrangThaiId.choDuyet, // 1: Chờ duyệt
         'trangThai': 'CHO_DUYET',
         'trang_thai': 'cho_duyet',
         'da_xac_thuc': false,
@@ -578,35 +801,44 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
         if (FirebaseAuth.instance.currentUser?.email != null)
           'email': FirebaseAuth.instance.currentUser!.email,
       };
-      if (fileDownloadUrl != null && fileDownloadUrl.isNotEmpty) {
-        dataToSave['file_giay_phep_url'] = fileDownloadUrl;
-      } else if (_fileBytes != null && _fileBytes!.length < 350 * 1024) {
-        // Lưu dự phòng chuỗi Base64 trực tiếp vào Firestore nếu dung lượng file nhỏ hơn 350KB
+      if (fileData.length < 350 * 1024) {
+        // Lưu dự phòng chuỗi Base64 trực tiếp vào Firestore
         try {
-          dataToSave['file_giay_phep_base64'] = base64Encode(_fileBytes!);
+          dataToSave['file_giay_phep_base64'] = base64Encode(fileData);
         } catch (_) {}
       }
 
-      // 1. Lưu trực tiếp vào doc BenhVien/{uid}
+      // 1. Lưu trực tiếp vào doc BenhVien/{hospitalBvId} (luôn là dạng BVxxx)
       await FirebaseFirestore.instance
           .collection('BenhVien')
-          .doc(hospitalUid)
+          .doc(hospitalBvId)
           .set(dataToSave, SetOptions(merge: true))
           .timeout(const Duration(seconds: 8));
 
-      // 2. Lưu vào collection YeuCauHopTac để Admin quản lý phê duyệt
+      // 2. Lưu vào collection YeuCauHopTac/{hospitalBvId} để Admin quản lý phê duyệt
       try {
         await FirebaseFirestore.instance
             .collection('YeuCauHopTac')
-            .doc(hospitalUid)
+            .doc(hospitalBvId)
             .set(dataToSave, SetOptions(merge: true))
             .timeout(const Duration(seconds: 8));
       } catch (e) {
         debugPrint('⚠️ Lưu YeuCauHopTac: $e');
       }
 
+      // Xóa các document rác mang ID Auth UID nếu có trong BenhVien hoặc YeuCauHopTac
+      if (curAuthUid.isNotEmpty && curAuthUid != hospitalBvId && !curAuthUid.startsWith('BV')) {
+        try {
+          await FirebaseFirestore.instance.collection('BenhVien').doc(curAuthUid).delete();
+          await FirebaseFirestore.instance.collection('YeuCauHopTac').doc(curAuthUid).delete();
+        } catch (_) {}
+      }
+
       // Cập nhật AppSession
-      AppSession.benhVienId = hospitalUid;
+      AppSession.benhVienId = hospitalBvId;
+
+      // Đồng bộ dọn dẹp các tài liệu cũ trong nền
+      HospitalSyncService.chuanHoaVaDonDepYeuCauHopTac().catchError((_) {});
 
       // Gửi đúng 1 email xác nhận tiếp nhận hồ sơ yêu cầu hợp tác đến Gmail của bệnh viện
       final emailGui = (dataToSave['email'] ??
@@ -618,7 +850,7 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
         EmailService.guiEmailXacNhanGuiYeuCauHopTac(
           emailNguoiNhan: emailGui,
           tenBenhVien: _tenBenhVienCtrl.text.trim(),
-          maBenhVien: hospitalUid,
+          maBenhVien: hospitalBvId,
           maHoSo: maHoSo,
         ).catchError((_) => false);
       }
@@ -634,7 +866,7 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
             tenBenhVien: _tenBenhVienCtrl.text.trim(),
             loaiHinh: loaiHinh,
             coBhyt: coBhyt,
-            hospitalUid: hospitalUid,
+            hospitalUid: hospitalBvId,
             extraData: dataToSave,
           ),
         ),
@@ -650,7 +882,10 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
       );
     } finally {
       if (mounted && _isSubmitting) {
-        setState(() => _isSubmitting = false);
+        setState(() {
+          _isSubmitting = false;
+          _submittingStatus = '';
+        });
       }
     }
   }
@@ -1022,13 +1257,32 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
                           ),
                         ),
                         child: _isSubmitting
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
+                            ? Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Flexible(
+                                    child: Text(
+                                      _submittingStatus.isNotEmpty
+                                          ? _submittingStatus
+                                          : 'Đang xử lý hồ sơ...',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
                               )
                             : const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
