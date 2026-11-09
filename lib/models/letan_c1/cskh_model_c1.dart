@@ -180,6 +180,16 @@ class HoiThoaiCskhModelC1 {
         (map['tin_chua_doc'] as num?)?.toInt() ??
         0;
 
+    // Xác định hội thoại có đang chờ phản hồi từ CSKH hay không
+    // 1. unreadCountSupport > 0
+    // 2. Hoặc status == 'open'
+    // 3. Hoặc chưa có CSKH phụ trách (supportId rỗng)
+    final String statusStr = (map['status'] ?? 'open').toString().toLowerCase();
+    final String supportIdStr = (map['supportId'] ?? '').toString();
+    final bool isWaiting = unreadSupport > 0 ||
+        statusStr == 'open' ||
+        supportIdStr.isEmpty;
+
     return HoiThoaiCskhModelC1(
       id: docId ?? (map['id'] ?? ''),
       benhNhanId: (map['benhNhanId'] ?? map['benh_nhan_id'] ?? '').toString(),
@@ -190,8 +200,8 @@ class HoiThoaiCskhModelC1 {
       khoa: (map['tenKhoa'] ?? map['khoa'] ?? map['tenBenhVien'] ?? 'CSKH Bệnh viện').toString(),
       tuoi: (map['tuoi'] as num?)?.toInt() ?? 0,
       maBhyt: (map['maBhyt'] ?? map['ma_bhyt'] ?? '').toString(),
-      tinChuaDoc: unreadSupport,
-      dangChoPhanHoi: unreadSupport > 0 || (map['status'] == 'open'),
+      tinChuaDoc: unreadSupport > 0 ? unreadSupport : (isWaiting ? 1 : 0),
+      dangChoPhanHoi: isWaiting,
     );
   }
 }
