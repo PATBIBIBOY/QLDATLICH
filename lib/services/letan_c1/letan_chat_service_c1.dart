@@ -30,8 +30,8 @@ class LetanChatServiceC1 {
 
         // Kiểm tra khớp bệnh viện:
         // 1. Nếu docBv hoặc docId có chứa bvid (ví dụ 'BV502')
-        // 2. Hoặc nếu tài khoản hiện tại là BV502 và doc thuộc BV502
-        // 3. Không lọc nếu cuộc trò chuyện thuộc cùng bệnh viện
+        // 2. Hoặc document ID có format CONV_{benhVienId}_{benhNhanId} chứa mã bệnh viện
+        // 3. Fallback: Nếu không truyền bvid hoặc chưa xác định thì nạp tất cả hội thoại
         if (bvid.isNotEmpty && docBv.isNotEmpty) {
           final isSameBv = docBv.toLowerCase() == bvid.toLowerCase() ||
               docBv.toLowerCase().contains(bvid.toLowerCase()) ||

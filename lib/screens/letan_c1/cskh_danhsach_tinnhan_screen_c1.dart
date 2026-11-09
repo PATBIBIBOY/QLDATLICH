@@ -22,16 +22,17 @@ class _CskhDanhsachTinnhanScreenC1State extends State<CskhDanhsachTinnhanScreenC
   List<HoiThoaiCskhModelC1> _locDanhSach(List<HoiThoaiCskhModelC1> nguon) {
     final tuKhoa = _timKiemController.text.trim().toLowerCase();
     return nguon.where((item) {
-      final khopTuKhoa = item.hoTen.toLowerCase().contains(tuKhoa) ||
-          item.khoa.toLowerCase().contains(tuKhoa) ||
-          item.tinNhanCuoi.toLowerCase().contains(tuKhoa);
-
-      if (!khopTuKhoa) return false;
+      if (tuKhoa.isNotEmpty) {
+        final khopTuKhoa = item.hoTen.toLowerCase().contains(tuKhoa) ||
+            item.khoa.toLowerCase().contains(tuKhoa) ||
+            item.tinNhanCuoi.toLowerCase().contains(tuKhoa);
+        if (!khopTuKhoa) return false;
+      }
 
       if (_tabDangChon == 'chua_doc') {
-        return item.tinChuaDoc > 0;
+        return item.tinChuaDoc > 0 || item.dangChoPhanHoi;
       } else if (_tabDangChon == 'dang_cho') {
-        return item.dangChoPhanHoi;
+        return item.dangChoPhanHoi || item.tinChuaDoc > 0;
       }
       return true;
     }).toList();
