@@ -487,16 +487,18 @@ class AppointmentPendingSection extends StatelessWidget {
   }
 }
 
-/// AppointmentApprovedSection: số thứ tự, thời gian chờ ước tính và các nút theo dõi.
+/// AppointmentApprovedSection: số thứ tự, thời gian chờ ước tính (nhận từ hàng chờ thời gian thực) và các nút theo dõi.
 class AppointmentApprovedSection extends StatelessWidget {
-  final Future<Map<String, dynamic>?> Function() fetchDetails;
+  final Future<Map<String, dynamic>?> detailsFuture;
+  final String waitLabel;
   final VoidCallback onRefresh;
   final VoidCallback onTrack;
   final void Function(Map<String, dynamic> data) onShareTicket;
 
   const AppointmentApprovedSection({
     super.key,
-    required this.fetchDetails,
+    required this.detailsFuture,
+    required this.waitLabel,
     required this.onRefresh,
     required this.onTrack,
     required this.onShareTicket,
@@ -521,7 +523,7 @@ class AppointmentApprovedSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, dynamic>?>(
-      future: fetchDetails(),
+      future: detailsFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Row(
@@ -566,8 +568,6 @@ class AppointmentApprovedSection extends StatelessWidget {
 
         final data = snapshot.data!;
         final soThuTu = data['so_thu_tu']?.toString() ?? 'Chưa có';
-        final thoiGianCho =
-            data['thoi_gian_cho_uoc_tinh']?.toString() ?? '~15 phút';
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -588,7 +588,7 @@ class AppointmentApprovedSection extends StatelessWidget {
                   child: AppointmentStatTile(
                     icon: Icons.timer_outlined,
                     label: 'Thời gian chờ ước tính',
-                    value: thoiGianCho,
+                    value: waitLabel,
                     color: AppTheme.warning,
                   ),
                 ),

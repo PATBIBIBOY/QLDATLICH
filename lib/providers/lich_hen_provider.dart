@@ -1,17 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import '../models/lichhen_model.dart';
 import '../services/lichhen_service.dart';
-import 'dart:async';
 
+/// LichHenProvider: quản lý trạng thái tình trạng ca, danh sách lịch hẹn, lịch hẹn của tôi và hàng chờ thời gian thực.
 class LichHenProvider extends ChangeNotifier {
   final LichHenService _service = LichHenService();
 
-  // ── Tình trạng các ca (Còn x/y chỗ) ──
   final Map<String, List<CaSlotModel>> _slotsCache = {};
   final Set<String> _loadingSlotKeys = {};
   final Map<String, String> _slotErrors = {};
 
-  // ── Danh sách lịch hẹn ──
   final Map<String, List<LichHenModel>> _lichHenCache = {};
   final Set<String> _loadingLichHenKeys = {};
   final Map<String, String> _lichHenErrors = {};
@@ -22,16 +22,14 @@ class LichHenProvider extends ChangeNotifier {
   StreamSubscription<List<LichHenModel>>? _queueSubscription;
   bool _isListeningToQueue = false;
 
-  // ── Lịch hẹn của tôi ──
   List<LichHenModel> _myBookings = [];
-
   bool _isLoadingMyBookings = false;
   String? _myBookingsError;
   int _myBookingsToken = 0;
 
   static const Set<String> _historyStatusIds = {'5', '6'};
 
-  /// Khoá để tra cứu cache: bệnh viện | khoa | phòng | ngày | (ca)
+  /// makeKey: tạo khóa cache theo bệnh viện, khoa, phòng, ngày và ca (nếu có).
   static String makeKey({
     required DateTime ngay,
     required String benhVienId,
@@ -48,13 +46,19 @@ class LichHenProvider extends ChangeNotifier {
     ].join('|');
   }
 
-  // ───────────────────────── Tình trạng các ca ─────────────────────────
-
+  /// slotsOf: lấy danh sách tình trạng ca đã cache theo khóa.
   List<CaSlotModel> slotsOf(String key) => _slotsCache[key] ?? const [];
+
+  /// hasLoadedSlots: kiểm tra tình trạng ca của khóa đã được tải chưa.
   bool hasLoadedSlots(String key) => _slotsCache.containsKey(key);
+
+  /// isLoadingSlots: kiểm tra tình trạng ca của khóa có đang được tải không.
   bool isLoadingSlots(String key) => _loadingSlotKeys.contains(key);
+
+  /// slotsErrorOf: lấy thông báo lỗi khi tải tình trạng ca của khóa.
   String? slotsErrorOf(String key) => _slotErrors[key];
 
+  /// loadSlots: tải tình trạng các ca (còn x/y chỗ) của một phòng khám trong một ngày.
   Future<void> loadSlots({
     required DateTime ngay,
     required String benhVienId,
@@ -94,19 +98,25 @@ class LichHenProvider extends ChangeNotifier {
     }
   }
 
-  // ───────────────────────── Danh sách lịch hẹn ─────────────────────────
-
+  /// lichHenOf: lấy danh sách lịch hẹn đã cache theo khóa.
   List<LichHenModel> lichHenOf(String key) => _lichHenCache[key] ?? const [];
+
+  /// hasLoadedLichHen: kiểm tra danh sách lịch hẹn của khóa đã được tải chưa.
   bool hasLoadedLichHen(String key) => _lichHenCache.containsKey(key);
+
+  /// isLoadingLichHen: kiểm tra danh sách lịch hẹn của khóa có đang được tải không.
   bool isLoadingLichHen(String key) => _loadingLichHenKeys.contains(key);
+
+  /// lichHenErrorOf: lấy thông báo lỗi khi tải danh sách lịch hẹn của khóa.
   String? lichHenErrorOf(String key) => _lichHenErrors[key];
 
   @override
   void dispose() {
-    stopListeningQueue(); // Dọn dẹp khi Provider bị hủy
+    stopListeningQueue();
     super.dispose();
   }
 
+  /// loadLichHenList: tải danh sách lịch hẹn của một phòng khám trong một ngày (và ca nếu có).
   Future<void> loadLichHenList({
     required DateTime ngay,
     required String benhVienId,
@@ -147,8 +157,6 @@ class LichHenProvider extends ChangeNotifier {
     }
   }
 
-  // ───────────────────────── Lịch hẹn của tôi ─────────────────────────
-
   List<LichHenModel> get myBookings => _myBookings;
   bool get isLoadingMyBookings => _isLoadingMyBookings;
   String? get myBookingsError => _myBookingsError;
@@ -157,25 +165,27 @@ class LichHenProvider extends ChangeNotifier {
   bool get queueLoaded => _queueLoaded;
   String? get queueError => _queueError;
 
-  /// Lịch hẹn đang theo dõi (Chờ duyệt, Đã xác nhận, Đã hủy...).
+  /// activeBookings: lịch hẹn chưa kết thúc (chờ duyệt, đã xác nhận, đã hủy, đến trễ).
   List<LichHenModel> get activeBookings => _myBookings
       .where((b) => !_historyStatusIds.contains(b.trangThaiId))
       .toList();
 
-  /// Lịch hẹn đã khám xong (lịch sử).
+  /// historyBookings: lịch hẹn đã kết thúc (hoàn thành, vắng mặt).
   List<LichHenModel> get historyBookings => _myBookings
       .where((b) => _historyStatusIds.contains(b.trangThaiId))
       .toList();
 
+  /// activeBookingsOf: lịch hẹn chưa kết thúc của một hồ sơ (null là tất cả hồ sơ).
   List<LichHenModel> activeBookingsOf(String? profileId) => profileId == null
       ? activeBookings
       : activeBookings.where((b) => b.profileKey == profileId).toList();
 
+  /// historyBookingsOf: lịch hẹn đã kết thúc của một hồ sơ (null là tất cả hồ sơ).
   List<LichHenModel> historyBookingsOf(String? profileId) => profileId == null
       ? historyBookings
       : historyBookings.where((b) => b.profileKey == profileId).toList();
 
-  /// Tải tất cả lịch hẹn của bệnh nhân [benhNhanId].
+  /// loadMyBookings: tải tất cả lịch hẹn của bệnh nhân.
   Future<void> loadMyBookings(String benhNhanId) async {
     final token = ++_myBookingsToken;
     _isLoadingMyBookings = true;
@@ -184,7 +194,7 @@ class LichHenProvider extends ChangeNotifier {
 
     try {
       final result = await _service.getLichHenCuaBenhNhan(benhNhanId);
-      if (token != _myBookingsToken) return; // đã có lần tải mới hơn
+      if (token != _myBookingsToken) return;
       _myBookings = result;
     } catch (e) {
       if (token != _myBookingsToken) return;
@@ -197,6 +207,7 @@ class LichHenProvider extends ChangeNotifier {
     }
   }
 
+  /// huyLichHen: hủy lịch hẹn, tải lại danh sách lịch hẹn và xóa cache số chỗ.
   Future<void> huyLichHen({
     required String benhNhanId,
     required String lichHenId,
@@ -216,9 +227,10 @@ class LichHenProvider extends ChangeNotifier {
       debugPrint('Không tải lại được lịch hẹn sau khi hủy: $e');
     }
 
-    clearCache(); // số chỗ của ca vừa hủy có thể thay đổi (đã notifyListeners)
+    clearCache();
   }
 
+  /// xoaLichHen: xóa lịch hẹn đã hủy rồi tải lại danh sách lịch hẹn.
   Future<void> xoaLichHen({
     required String benhNhanId,
     required String lichHenId,
@@ -238,16 +250,16 @@ class LichHenProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Gọi khi đăng xuất để không lộ lịch hẹn của tài khoản trước.
+  /// clearMyBookings: xóa lịch hẹn của tôi khi đăng xuất để không lộ dữ liệu tài khoản trước.
   void clearMyBookings() {
-    _myBookingsToken++; // huỷ mọi lần tải đang chạy
+    _myBookingsToken++;
     _myBookings = [];
     _myBookingsError = null;
     _isLoadingMyBookings = false;
     notifyListeners();
   }
 
-  /// Xoá cache (ví dụ sau khi đặt lịch xong để lần sau tải lại số chỗ mới).
+  /// clearCache: xóa cache số chỗ và danh sách lịch hẹn để lần sau tải lại dữ liệu mới.
   void clearCache() {
     _slotsCache.clear();
     _lichHenCache.clear();
@@ -256,13 +268,14 @@ class LichHenProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// startListeningQueue: bắt đầu lắng nghe hàng chờ thời gian thực của một phòng khám.
   void startListeningQueue({
     required DateTime ngay,
     required String benhVienId,
     required String khoaId,
     required String phongKhamId,
   }) {
-    _queueSubscription?.cancel(); // cho phép đổi sang phòng khác
+    _queueSubscription?.cancel();
     _isListeningToQueue = true;
     _queueLoaded = false;
     _queueError = null;
@@ -279,7 +292,7 @@ class LichHenProvider extends ChangeNotifier {
         .listen(
           (queue) {
             _activeQueue = queue;
-            _queueLoaded = true; // đã nhận dữ liệu thật từ Firestore
+            _queueLoaded = true;
             _queueError = null;
             notifyListeners();
           },
@@ -292,6 +305,7 @@ class LichHenProvider extends ChangeNotifier {
         );
   }
 
+  /// stopListeningQueue: ngừng lắng nghe hàng chờ và xóa dữ liệu hàng chờ.
   void stopListeningQueue() {
     _queueSubscription?.cancel();
     _queueSubscription = null;

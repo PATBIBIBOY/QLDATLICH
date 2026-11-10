@@ -11,11 +11,11 @@ import '../../models/lichhen_model.dart';
 import '../../models/appointment_item.dart';
 import '../../utils/queue_time_estimator.dart';
 import '../../services/hospital_service.dart';
+import '../../services/khoa_service.dart';
+import '../../providers/khoa_provider.dart';
 import '../../widgets/family_widgets.dart';
 
-/// ---------------------------------------------------------------------------
-/// Design tokens
-/// ---------------------------------------------------------------------------
+/// AppColors: bảng màu dùng chung cho màn hình theo dõi lịch khám.
 class AppColors {
   static const background = Color(0xFFF2F6F8);
   static const surface = Colors.white;
@@ -31,13 +31,16 @@ class AppColors {
   static const warnText = Color(0xFF8A5A00);
   static const danger = Color(0xFFD64545);
 
-  // Trạng thái "Đến trễ"
   static const late = Color(0xFFF97316);
   static const lateDark = Color(0xFF9A3412);
   static const lateBg = Color(0xFFFFF3E0);
   static const lateBorder = Color(0xFFFED7AA);
+
+  static const closed = Color(0xFF475569);
+  static const closedBg = Color(0xFFEEF1F4);
 }
 
+/// _font: tạo TextStyle với font Be Vietnam Pro.
 TextStyle _font(
   double size, {
   FontWeight weight = FontWeight.w400,
@@ -50,13 +53,13 @@ TextStyle _font(
   height: height,
 );
 
-/// Các trạng thái được hiển thị trên màn hình theo dõi.
-/// 1 chờ duyệt, 2 đã xác nhận, 5 hoàn thành, 6 vắng mặt, 7 đến trễ.
+/// _trackableStatuses: các trạng thái được hiển thị ở màn theo dõi (1, 2, 5, 6, 7).
 const Set<String> _trackableStatuses = {'1', '2', '5', '6', '7'};
 
-/// Các trạng thái KHÔNG còn nằm trong hàng chờ khám.
+/// _outOfQueueStatuses: các trạng thái không còn nằm trong hàng chờ khám.
 const Set<String> _outOfQueueStatuses = {'3', '4', '5', '6', '7'};
 
+/// _statusIcon: trả về biểu tượng tương ứng với trạng thái lịch hẹn.
 IconData _statusIcon(AppointmentStatus s) {
   switch (s) {
     case AppointmentStatus.pending:
@@ -74,6 +77,7 @@ IconData _statusIcon(AppointmentStatus s) {
   }
 }
 
+/// ClinicApp: ứng dụng mẫu để chạy riêng màn hình theo dõi lịch khám.
 class ClinicApp extends StatelessWidget {
   const ClinicApp({super.key});
 
@@ -92,12 +96,8 @@ class ClinicApp extends StatelessWidget {
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// Màn hình chính
-/// ---------------------------------------------------------------------------
+/// AppointmentTrackingScreen: màn hình theo dõi số thứ tự và thời gian chờ theo thời gian thực.
 class AppointmentTrackingScreen extends StatefulWidget {
-  /// Id lịch hẹn cần theo dõi. Có thể truyền qua constructor hoặc qua
-  /// `arguments` của route (String, LichHenModel hoặc MyAppointmentItem).
   final String? bookingId;
 
   const AppointmentTrackingScreen({super.key, this.bookingId});
@@ -109,14 +109,13 @@ class AppointmentTrackingScreen extends StatefulWidget {
 
 class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
   late final LichHenProvider _provider;
+  late final KhoaProvider _khoaProvider;
   final QueueTimeEstimator _queueTimeEstimator = QueueTimeEstimator();
   final HospitalService _hospitalService = HospitalService();
-  int? _thoiGianKham; // phút / bệnh nhân, lấy từ Firestore
+  int? _thoiGianKham;
   Timer? _queueEstimateTimer;
 
   String? _listeningKey;
-
-  // Lịch hẹn đang được chọn để theo dõi
   String? _selectedId;
   bool _argsRead = false;
 
@@ -124,6 +123,7 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
   void initState() {
     super.initState();
     _provider = context.read<LichHenProvider>();
+    _khoaProvider = context.read<KhoaProvider>();
     _queueEstimateTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
     });
@@ -156,9 +156,12 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
     _queueEstimateTimer?.cancel();
     final provider = _provider;
     Future.microtask(provider.stopListeningQueue);
+    final khoaProvider = _khoaProvider;
+    Future.microtask(khoaProvider.stopListeningPhong);
     super.dispose();
   }
 
+  /// _loadBookings: tải danh sách lịch hẹn của người dùng đang đăng nhập.
   Future<void> _loadBookings() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId != null) {
@@ -166,8 +169,9 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
     }
   }
 
-  // Bắt đầu lắng nghe hàng chờ thời gian thực (chỉ 1 lần / lịch).
+  /// _ensureListening: bắt đầu lắng nghe hàng chờ và trạng thái phòng khám của lịch hẹn (mỗi lịch chỉ một lần).
   void _ensureListening(LichHenModel booking) {
+    // Bước 1: bỏ qua nếu thiếu phòng khám, ngày khám hoặc đang lắng nghe đúng lịch này.
     if (booking.phongKhamId.isEmpty || booking.ngayDat == null) return;
 
     final key =
@@ -177,7 +181,7 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
     _queueTimeEstimator.reset();
     _thoiGianKham = null;
 
-    // Lấy thời gian khám của phòng (có cache sẵn trong service)
+    // Bước 2: lấy thời gian khám mỗi bệnh nhân của phòng.
     _hospitalService
         .getThoiGianKhamPhong(
           hospitalId: booking.benhVienId,
@@ -185,10 +189,11 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
           phongKhamId: booking.phongKhamId,
         )
         .then((minutes) {
-          if (!mounted || _listeningKey != key) return; // đã đổi sang lịch khác
+          if (!mounted || _listeningKey != key) return;
           setState(() => _thoiGianKham = minutes);
         });
 
+    // Bước 3: sau khung hình hiện tại, bắt đầu lắng nghe hàng chờ và trạng thái phòng khám.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _provider.startListeningQueue(
@@ -197,10 +202,15 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
         khoaId: booking.khoaId,
         phongKhamId: booking.phongKhamId,
       );
+      _khoaProvider.startListeningPhong(
+        benhVienId: booking.benhVienId,
+        khoaId: booking.khoaId,
+        phongKhamId: booking.phongKhamId,
+      );
     });
   }
 
-  /// Ghép giờ "HH:mm" với một ngày cụ thể.
+  /// _atTime: ghép giờ "HH:mm" với một ngày cụ thể.
   DateTime? _atTime(DateTime day, String? hhmm) {
     if (hhmm == null) return null;
     final p = hhmm.split(':');
@@ -211,16 +221,19 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
     return DateTime(day.year, day.month, day.day, h, m);
   }
 
+  /// _hhmm: định dạng thời gian thành "HH:mm".
   String _hhmm(DateTime t) =>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
-  /// Tính giờ dự kiến đến lượt dựa trên giờ ca khám.
+  /// _estimateTurn: tính giờ dự kiến đến lượt từ giờ ca khám, số phút chờ và số phút phòng đã tạm dừng.
   ({DateTime eta, bool exceeds, bool shiftNotStarted}) _estimateTurn({
     required DateTime ngayKham,
     required String? gioBatDau,
     required String? gioKetThuc,
     required int waitMinutes,
+    required int pauseMinutes,
   }) {
+    // Bước 1: xác định giờ bắt đầu, giờ kết thúc ca và mốc tính (giờ bắt đầu nếu ca chưa mở, ngược lại là hiện tại).
     final now = DateTime.now();
     final start = _atTime(ngayKham, gioBatDau);
     final end = _atTime(ngayKham, gioKetThuc);
@@ -228,12 +241,16 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
     final notStarted = start != null && now.isBefore(start);
     final base = notStarted ? start : now;
 
-    final eta = base.add(Duration(minutes: waitMinutes));
+    // Bước 2: cộng số phút chờ và số phút tạm dừng để ra giờ dự kiến.
+    final eta = base.add(Duration(minutes: waitMinutes + pauseMinutes));
+
+    // Bước 3: kiểm tra giờ dự kiến có vượt quá giờ kết thúc ca không.
     final exceeds = end != null && eta.isAfter(end);
 
     return (eta: eta, exceeds: exceeds, shiftNotStarted: notStarted);
   }
 
+  /// _appBar: thanh tiêu đề của màn hình.
   PreferredSizeWidget _appBar(BuildContext context) => AppBar(
     backgroundColor: AppColors.background,
     surfaceTintColor: Colors.transparent,
@@ -281,12 +298,14 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
     ),
   );
 
+  /// _formatDate: định dạng ngày thành "dd/MM/yyyy".
   String _formatDate(DateTime d) {
     final dd = d.day.toString().padLeft(2, '0');
     final mm = d.month.toString().padLeft(2, '0');
     return '$dd/$mm/${d.year}';
   }
 
+  /// _statusPriority: độ ưu tiên sắp xếp của trạng thái (số nhỏ hiển thị trước).
   int _statusPriority(String s) {
     switch (s) {
       case '2':
@@ -302,8 +321,7 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
     }
   }
 
-  /// Lịch còn hiệu lực (1, 2, 7) lên trước, lịch đã kết thúc (5, 6) xuống cuối.
-  /// Cùng nhóm thì theo ngày, cùng ngày thì theo độ ưu tiên trạng thái.
+  /// _compareBookings: sắp xếp lịch còn hiệu lực lên trước, sau đó theo ngày rồi theo độ ưu tiên trạng thái.
   int _compareBookings(LichHenModel a, LichHenModel b) {
     final sa = a.trangThaiId.toString();
     final sb = b.trangThaiId.toString();
@@ -318,7 +336,9 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Bước 1: lấy dữ liệu từ các provider và lọc các lịch hẹn sắp tới.
     final provider = context.watch<LichHenProvider>();
+    final khoaProvider = context.watch<KhoaProvider>();
     final family = context.watch<FamilyProfileProvider>();
     final profile = family.current;
 
@@ -331,7 +351,7 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
           !b.ngayDat!.isBefore(startOfDay);
     }).toList()..sort(_compareBookings);
 
-    // 1. Đang tải lần đầu
+    // Bước 2: hiển thị màn hình đang tải, lỗi hoặc không có lịch nếu cần.
     if (provider.isLoadingMyBookings && upcomingBookings.isEmpty) {
       return Scaffold(
         appBar: _appBar(context),
@@ -351,7 +371,6 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
       );
     }
 
-    // 2. Lỗi và chưa có dữ liệu
     if (provider.myBookingsError != null && upcomingBookings.isEmpty) {
       return Scaffold(
         appBar: _appBar(context),
@@ -367,7 +386,6 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
       );
     }
 
-    // 3. Không có lịch hẹn sắp tới
     if (upcomingBookings.isEmpty) {
       return Scaffold(
         appBar: _appBar(context),
@@ -384,23 +402,30 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
       );
     }
 
-    // 4. Lịch hẹn cần theo dõi: ưu tiên lịch được chọn, không có thì lấy
-    //    lịch đầu tiên theo thứ tự ưu tiên.
+    // Bước 3: chọn lịch cần theo dõi và bắt đầu lắng nghe nếu lịch đã xác nhận hoặc đến trễ.
     var booking = upcomingBookings.first;
     if (_selectedId != null) {
       final matches = upcomingBookings.where((b) => b.id == _selectedId);
       if (matches.isNotEmpty) booking = matches.first;
     }
     final status = statusFromTrangThaiId(booking.trangThaiId);
+    final isTracking =
+        status == AppointmentStatus.approved ||
+        status == AppointmentStatus.late;
 
-    // Chỉ cần lắng nghe hàng chờ khi đang chờ khám (2) hoặc đến trễ (7)
-    if (status == AppointmentStatus.approved ||
-        status == AppointmentStatus.late) {
+    if (isTracking) {
       _ensureListening(booking);
     }
 
+    // Bước 4: lấy trạng thái phòng khám (chỉ áp dụng khi lịch đang được theo dõi).
+    final room = isTracking
+        ? khoaProvider.phongTrangThai
+        : PhongKhamTrangThai.macDinh;
+    final roomClosed = room.trangThai == TrangThaiPhong.dongCua;
+
+    // Bước 5: chuẩn bị nội dung hiển thị của lịch hẹn.
     final department = booking.tenKhoa ?? 'Khoa chưa cập nhật';
-    final room = booking.tenPhongKham ?? 'Phòng khám chưa cập nhật';
+    final roomName = booking.tenPhongKham ?? 'Phòng khám chưa cập nhật';
     final hospital = booking.tenBenhVien ?? 'Bệnh viện';
     final dateLabel = _formatDate(booking.ngayDat!);
     final hasTime = booking.gioBatDau != null && booking.gioKetThuc != null;
@@ -408,17 +433,17 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
         ? '${booking.gioBatDau} - ${booking.gioKetThuc}'
         : 'Chưa có giờ khám';
 
-    // Hàng chờ thật sự: loại những người đã xong (5), vắng (6), đến trễ (7)...
-    // → bệnh nhân trạng thái 7 không bao giờ nằm trong danh sách này.
     final List<LichHenModel> queue = provider.activeQueue
         .where((b) => !_outOfQueueStatuses.contains(b.trangThaiId.toString()))
         .toList();
 
     final showPrep =
-        status == AppointmentStatus.pending ||
-        status == AppointmentStatus.approved ||
-        status == AppointmentStatus.late;
+        (status == AppointmentStatus.pending ||
+            status == AppointmentStatus.approved ||
+            status == AppointmentStatus.late) &&
+        !roomClosed;
 
+    // Bước 6: dựng danh sách widget của màn hình.
     final children = <Widget>[
       if (profile != null) ...[
         Container(
@@ -456,7 +481,6 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
         ),
         const SizedBox(height: 14),
       ],
-      // Thanh chọn lịch khi có nhiều hơn 1 lịch
       if (upcomingBookings.length > 1) ...[
         _BookingSelector(
           bookings: upcomingBookings,
@@ -468,10 +492,13 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
       _HospitalInfoCard(
         hospital: hospital,
         department: department,
-        room: room,
+        room: roomName,
         date: dateLabel,
         time: timeLabel,
         status: status,
+        roomStatus: isTracking && khoaProvider.phongLoaded
+            ? room.trangThai
+            : null,
       ),
       const SizedBox(height: 16),
       ..._statusSection(
@@ -480,6 +507,7 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
         status: status,
         queue: queue,
         timeLabel: timeLabel,
+        room: room,
       ),
       if (showPrep) ...const [
         SizedBox(height: 24),
@@ -505,16 +533,18 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
     );
   }
 
-  /// Phần nội dung thay đổi theo trạng thái của lịch hẹn.
+  /// _statusSection: dựng phần nội dung thay đổi theo trạng thái của lịch hẹn và trạng thái phòng khám.
   List<Widget> _statusSection({
     required LichHenProvider provider,
     required LichHenModel booking,
     required AppointmentStatus status,
     required List<LichHenModel> queue,
     required String timeLabel,
+    required PhongKhamTrangThai room,
   }) {
-    // Số đang khám = số nhỏ nhất còn trong hàng chờ (đã loại người đến trễ).
     final currentServing = queue.isNotEmpty ? queue.first.soThuTu : 0;
+    final paused = room.trangThai == TrangThaiPhong.tamDung;
+    final closed = room.trangThai == TrangThaiPhong.dongCua;
 
     switch (status) {
       case AppointmentStatus.pending:
@@ -555,10 +585,16 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
         ];
 
       case AppointmentStatus.late:
-        // "Đang khám số" hiện số tiếp theo của hàng chờ,
-        // phần số của bạn / dự kiến chuyển sang giao diện đến trễ.
+        if (closed) return const [_RoomClosedCard()];
         return [
-          _NowServingCard(number: currentServing),
+          if (paused) ...[
+            _RoomPausedCard(minutes: room.phutDangTamDung(DateTime.now())),
+            const SizedBox(height: 16),
+          ],
+          _LockedSection(
+            locked: paused,
+            child: _NowServingCard(number: currentServing),
+          ),
           const SizedBox(height: 16),
           _LateTicketCard(number: booking.soThuTu),
           const SizedBox(height: 16),
@@ -568,40 +604,56 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
         ];
 
       case AppointmentStatus.approved:
+        if (closed) return const [_RoomClosedCard()];
         return _approvedSection(
           provider: provider,
           booking: booking,
           queue: queue,
           currentServing: currentServing,
           timeLabel: timeLabel,
+          room: room,
         );
     }
   }
 
-  /// Trạng thái 2: đang chờ khám theo hàng chờ thời gian thực.
+  /// _approvedSection: dựng phần hàng chờ thời gian thực cho lịch đã xác nhận, khóa phần theo dõi khi phòng tạm dừng.
   List<Widget> _approvedSection({
     required LichHenProvider provider,
     required LichHenModel booking,
     required List<LichHenModel> queue,
     required int currentServing,
     required String timeLabel,
+    required PhongKhamTrangThai room,
   }) {
-    final queueReady = provider.queueLoaded;
+    final now = DateTime.now();
+    final paused = room.trangThai == TrangThaiPhong.tamDung;
+    final pausedBanner = <Widget>[
+      if (paused) ...[
+        _RoomPausedCard(minutes: room.phutDangTamDung(now)),
+        const SizedBox(height: 16),
+      ],
+    ];
 
+    // Bước 1: xác định vị trí và số thứ tự của bệnh nhân trong hàng chờ.
     final myIndex = queue.indexWhere((b) => b.id == booking.id);
     final myNumber = myIndex != -1
         ? queue[myIndex].soThuTu
         : (booking.soThuTu > 0 ? booking.soThuTu : 0);
 
     if (myNumber <= 0) {
-      return [_NoTicketCard(timeLabel: timeLabel)];
+      return [...pausedBanner, _NoTicketCard(timeLabel: timeLabel)];
     }
 
     final widgets = <Widget>[
-      _NowServingCard(number: currentServing),
+      ...pausedBanner,
+      _LockedSection(
+        locked: paused,
+        child: _NowServingCard(number: currentServing),
+      ),
       const SizedBox(height: 16),
     ];
 
+    // Bước 2: hiển thị thẻ lỗi, đang đồng bộ hoặc chưa thấy số nếu hàng chờ chưa sẵn sàng.
     if (provider.queueError != null) {
       widgets.add(
         _QueueStatusCard(loading: false, message: provider.queueError!),
@@ -609,7 +661,7 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
       return widgets;
     }
 
-    if (!queueReady) {
+    if (!provider.queueLoaded) {
       widgets.add(
         _QueueStatusCard(
           loading: true,
@@ -633,32 +685,40 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
       return widgets;
     }
 
+    // Bước 3: tính số người phía trước và số phút chờ.
     final peopleAhead = myIndex;
-
-    // Vẫn gọi update để estimator tiếp tục cập nhật trạng thái bên trong.
     final estimator = _queueTimeEstimator.update(currentServing);
-    // Ưu tiên thời gian khám cấu hình của phòng, không có mới dùng estimator.
     final perPatient = _thoiGianKham ?? estimator.perPatient;
     final waitMinutes = _queueTimeEstimator.waitMinutes(
       peopleAhead,
       perPatient,
     );
 
+    // Bước 4: tính giờ dự kiến đến lượt, cộng thêm số phút phòng đã tạm dừng.
     final estimate = _estimateTurn(
       ngayKham: booking.ngayDat!,
       gioBatDau: booking.gioBatDau,
       gioKetThuc: booking.gioKetThuc,
       waitMinutes: waitMinutes,
+      pauseMinutes: room.phutTamDung(now),
     );
 
+    // Bước 5: dựng thẻ số của bạn, tiến độ hàng chờ (khóa khi tạm dừng) và thẻ giờ dự kiến.
     widgets.addAll([
-      _MyTurnCard(
-        number: myNumber,
-        peopleAhead: peopleAhead,
-        waitMinutes: waitMinutes,
+      _LockedSection(
+        locked: paused,
+        child: Column(
+          children: [
+            _MyTurnCard(
+              number: myNumber,
+              peopleAhead: peopleAhead,
+              waitMinutes: waitMinutes,
+            ),
+            const SizedBox(height: 16),
+            _QueueTrack(serving: currentServing, mine: myNumber),
+          ],
+        ),
       ),
-      const SizedBox(height: 16),
-      _QueueTrack(serving: currentServing, mine: myNumber),
       const SizedBox(height: 16),
       _EstimateCard(
         waitMinutes: waitMinutes,
@@ -666,15 +726,14 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
         isExceedingShift: estimate.exceeds,
         shiftNotStarted: estimate.shiftNotStarted,
         shiftStart: booking.gioBatDau,
+        pausedMinutes: room.phutTamDung(now),
       ),
     ]);
     return widgets;
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// Thanh chọn lịch hẹn (hiện khi có nhiều hơn 1 lịch cần theo dõi)
-/// ---------------------------------------------------------------------------
+/// _BookingSelector: thanh chọn lịch hẹn khi có nhiều hơn một lịch cần theo dõi.
 class _BookingSelector extends StatelessWidget {
   const _BookingSelector({
     required this.bookings,
@@ -751,9 +810,7 @@ class _BookingSelector extends StatelessWidget {
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// Trạng thái toàn màn hình (lỗi / không có lịch)
-/// ---------------------------------------------------------------------------
+/// _StateView: giao diện toàn màn hình cho trạng thái lỗi hoặc không có lịch.
 class _StateView extends StatelessWidget {
   const _StateView({
     required this.icon,
@@ -843,9 +900,7 @@ class _StateView extends StatelessWidget {
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// Thông tin bệnh viện / phòng khám (có đủ mọi trạng thái lịch hẹn)
-/// ---------------------------------------------------------------------------
+/// _HospitalInfoCard: thẻ thông tin bệnh viện, phòng khám, ngày giờ và trạng thái lịch hẹn.
 class _HospitalInfoCard extends StatelessWidget {
   const _HospitalInfoCard({
     required this.hospital,
@@ -854,6 +909,7 @@ class _HospitalInfoCard extends StatelessWidget {
     required this.date,
     required this.time,
     required this.status,
+    this.roomStatus,
   });
 
   final String hospital;
@@ -862,6 +918,7 @@ class _HospitalInfoCard extends StatelessWidget {
   final String date;
   final String time;
   final AppointmentStatus status;
+  final TrangThaiPhong? roomStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -870,7 +927,6 @@ class _HospitalInfoCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          // Đầu thẻ: tên bệnh viện + trạng thái
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
@@ -927,7 +983,6 @@ class _HospitalInfoCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                // Badge trạng thái: lấy màu + nhãn từ AppointmentStatus
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
@@ -961,12 +1016,10 @@ class _HospitalInfoCard extends StatelessWidget {
               ],
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                // Phòng khám nổi bật để bệnh nhân dễ tìm
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(14),
@@ -1054,6 +1107,10 @@ class _HospitalInfoCard extends StatelessWidget {
                           ],
                         ),
                       ),
+                      if (roomStatus != null) ...[
+                        const SizedBox(width: 8),
+                        _RoomStatusChip(status: roomStatus!),
+                      ],
                     ],
                   ),
                 ),
@@ -1086,6 +1143,7 @@ class _HospitalInfoCard extends StatelessWidget {
   }
 }
 
+/// _TimeTile: ô hiển thị một thông tin ngày hoặc giờ khám.
 class _TimeTile extends StatelessWidget {
   const _TimeTile({
     required this.icon,
@@ -1138,9 +1196,7 @@ class _TimeTile extends StatelessWidget {
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// Số đang khám (thẻ nổi bật có họa tiết nhịp tim)
-/// ---------------------------------------------------------------------------
+/// _NowServingCard: thẻ nổi bật hiển thị số thứ tự đang được khám.
 class _NowServingCard extends StatelessWidget {
   const _NowServingCard({required this.number});
 
@@ -1171,7 +1227,6 @@ class _NowServingCard extends StatelessWidget {
           children: [
             Positioned(right: -50, top: -50, child: _ring(180)),
             Positioned(right: -15, top: -15, child: _ring(110)),
-            // Đường nhịp tim chạy dưới nền
             const Positioned(
               left: 0,
               right: 0,
@@ -1258,7 +1313,7 @@ class _NowServingCard extends StatelessWidget {
   );
 }
 
-// Vẽ đường điện tim (ECG) lặp lại, rất mờ, làm họa tiết y tế.
+/// _PulsePainter: vẽ đường điện tim mờ làm họa tiết nền.
 class _PulsePainter extends CustomPainter {
   const _PulsePainter();
 
@@ -1293,6 +1348,7 @@ class _PulsePainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+/// _LiveChip: nhãn "Trực tiếp" có chấm nhấp nháy.
 class _LiveChip extends StatefulWidget {
   const _LiveChip();
 
@@ -1347,9 +1403,7 @@ class _LiveChipState extends State<_LiveChip>
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// Số của bạn + thông báo mức độ gần đến lượt
-/// ---------------------------------------------------------------------------
+/// _MyTurnCard: thẻ số của bạn, số người phía trước, thời gian chờ và thông báo mức độ gần đến lượt.
 class _MyTurnCard extends StatelessWidget {
   const _MyTurnCard({
     required this.number,
@@ -1361,7 +1415,6 @@ class _MyTurnCard extends StatelessWidget {
   final int peopleAhead;
   final int waitMinutes;
 
-  // Mức độ khẩn: sắp đến lượt / gần đến lượt / còn lâu.
   ({Color color, Color bg, IconData icon, String text}) get _banner {
     if (peopleAhead == 0) {
       return (
@@ -1406,7 +1459,6 @@ class _MyTurnCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        // Số của bạn
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 18,
@@ -1554,9 +1606,7 @@ class _MyTurnCard extends StatelessWidget {
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// Tiến độ hàng chờ: từ số đang khám tới số của bạn
-/// ---------------------------------------------------------------------------
+/// _QueueTrack: thanh tiến độ hàng chờ từ số đang khám tới số của bạn.
 class _QueueTrack extends StatelessWidget {
   const _QueueTrack({required this.serving, required this.mine});
 
@@ -1600,8 +1650,6 @@ class _QueueTrack extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 18),
-
-          // Đường tiến độ có đầu tròn chạy theo
           TweenAnimationBuilder<double>(
             tween: Tween(begin: 0, end: progress),
             duration: const Duration(milliseconds: 700),
@@ -1707,9 +1755,7 @@ class _QueueTrack extends StatelessWidget {
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// Dự kiến giờ đến lượt
-/// ---------------------------------------------------------------------------
+/// _EstimateCard: thẻ giờ dự kiến đến lượt, đổi màu cảnh báo khi vượt quá giờ ca khám.
 class _EstimateCard extends StatelessWidget {
   const _EstimateCard({
     required this.waitMinutes,
@@ -1717,8 +1763,10 @@ class _EstimateCard extends StatelessWidget {
     this.isExceedingShift = false,
     this.shiftNotStarted = false,
     this.shiftStart,
+    this.pausedMinutes = 0,
   });
 
+  final int pausedMinutes;
   final int waitMinutes;
   final String estimatedTimeStr;
   final bool isExceedingShift;
@@ -1727,7 +1775,6 @@ class _EstimateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Nếu vượt quá giờ khám, đổi màu sắc để cảnh báo
     final mainColor = isExceedingShift
         ? AppColors.warnText
         : AppColors.primaryDark;
@@ -1741,6 +1788,9 @@ class _EstimateCard extends StatelessWidget {
     final iconBgColor = isExceedingShift
         ? AppColors.warnBorder.withValues(alpha: 0.35)
         : AppColors.primary.withValues(alpha: 0.12);
+    final pauseNote = pausedMinutes > 0
+        ? ' Đã cộng $pausedMinutes phút phòng tạm dừng.'
+        : '';
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1793,8 +1843,8 @@ class _EstimateCard extends StatelessWidget {
                   ? 'Số lượng bệnh nhân đông, vui lòng liên hệ quầy tiếp đón.'
                   : shiftNotStarted
                   ? 'Ca khám bắt đầu lúc ${shiftStart ?? ''}. '
-                        'Còn ~$waitMinutes phút phục vụ trước bạn.'
-                  : 'Còn ~$waitMinutes phút (tham khảo)',
+                        'Còn ~$waitMinutes phút phục vụ trước bạn.$pauseNote'
+                  : 'Còn ~$waitMinutes phút (tham khảo).$pauseNote',
               textAlign: TextAlign.right,
               style: _font(11.5, color: AppColors.muted, height: 1.4),
             ),
@@ -1805,9 +1855,7 @@ class _EstimateCard extends StatelessWidget {
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// ĐẾN TRỄ (trạng thái 7): thẻ số cũ bị gạch + không tính được số người trước
-/// ---------------------------------------------------------------------------
+/// _LateTicketCard: thẻ số cũ bị gạch ngang của người đến trễ, chưa xác định số người phía trước.
 class _LateTicketCard extends StatelessWidget {
   const _LateTicketCard({required this.number});
 
@@ -1830,7 +1878,6 @@ class _LateTicketCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        // Số cũ - bị gạch ngang, màu nhạt
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 18,
@@ -1977,7 +2024,7 @@ class _LateTicketCard extends StatelessWidget {
 
 enum _StepState { done, current, upcoming }
 
-/// Các bước xử lý khi đến trễ (dạng timeline dọc)
+/// _LateSteps: danh sách các bước xử lý khi đến trễ dạng timeline dọc.
 class _LateSteps extends StatelessWidget {
   const _LateSteps();
 
@@ -2029,6 +2076,7 @@ class _LateSteps extends StatelessWidget {
   }
 }
 
+/// _TimelineStep: một bước trong timeline với trạng thái đã xong, hiện tại hoặc sắp tới.
 class _TimelineStep extends StatelessWidget {
   const _TimelineStep({
     required this.state,
@@ -2131,7 +2179,7 @@ class _TimelineStep extends StatelessWidget {
   }
 }
 
-/// Dự kiến đến lượt: chưa xác định vì đang đến trễ
+/// _LateEstimateCard: thẻ báo thời gian dự kiến chưa xác định khi đang đến trễ.
 class _LateEstimateCard extends StatelessWidget {
   const _LateEstimateCard();
 
@@ -2193,9 +2241,7 @@ class _LateEstimateCard extends StatelessWidget {
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// Đã hoàn thành khám
-/// ---------------------------------------------------------------------------
+/// _CompletedCard: thẻ thông báo đã hoàn thành lượt khám.
 class _CompletedCard extends StatelessWidget {
   const _CompletedCard();
 
@@ -2252,9 +2298,7 @@ class _CompletedCard extends StatelessWidget {
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// Thẻ thông báo trạng thái chung (chờ duyệt / vắng mặt / đã hủy / ...)
-/// ---------------------------------------------------------------------------
+/// _StatusMessageCard: thẻ thông báo trạng thái chung (chờ duyệt, vắng mặt, đã hủy).
 class _StatusMessageCard extends StatelessWidget {
   const _StatusMessageCard({
     required this.icon,
@@ -2303,9 +2347,7 @@ class _StatusMessageCard extends StatelessWidget {
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// Chưa được cấp số
-/// ---------------------------------------------------------------------------
+/// _NoTicketCard: thẻ thông báo chưa được cấp số thứ tự kèm các bước nhận số.
 class _NoTicketCard extends StatelessWidget {
   const _NoTicketCard({required this.timeLabel});
 
@@ -2344,7 +2386,6 @@ class _NoTicketCard extends StatelessWidget {
             style: _font(14, color: AppColors.muted, height: 1.5),
           ),
           const SizedBox(height: 18),
-          // Các bước nhận số
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: const [
@@ -2376,6 +2417,7 @@ class _NoTicketCard extends StatelessWidget {
   }
 }
 
+/// _StepDot: biểu tượng và nhãn của một bước nhận số.
 class _StepDot extends StatelessWidget {
   const _StepDot({required this.icon, required this.label});
 
@@ -2406,6 +2448,7 @@ class _StepDot extends StatelessWidget {
   }
 }
 
+/// _StepArrow: mũi tên nối giữa các bước nhận số.
 class _StepArrow extends StatelessWidget {
   const _StepArrow();
 
@@ -2418,9 +2461,7 @@ class _StepArrow extends StatelessWidget {
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// Chuẩn bị trước khi khám
-/// ---------------------------------------------------------------------------
+/// _PrepareChecklist: danh sách việc cần chuẩn bị trước khi khám.
 class _PrepareChecklist extends StatelessWidget {
   const _PrepareChecklist();
 
@@ -2469,6 +2510,7 @@ class _PrepareChecklist extends StatelessWidget {
   }
 }
 
+/// _CheckItem: một dòng trong danh sách chuẩn bị trước khi khám.
 class _CheckItem extends StatelessWidget {
   const _CheckItem({
     required this.icon,
@@ -2513,9 +2555,7 @@ class _CheckItem extends StatelessWidget {
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// Lưu ý quan trọng
-/// ---------------------------------------------------------------------------
+/// _ImportantNotice: khung lưu ý quan trọng về giờ có mặt trước khi khám.
 class _ImportantNotice extends StatelessWidget {
   const _ImportantNotice();
 
@@ -2572,6 +2612,7 @@ class _ImportantNotice extends StatelessWidget {
   }
 }
 
+/// _QueueStatusCard: thẻ hiển thị trạng thái đang đồng bộ hoặc lỗi của hàng chờ.
 class _QueueStatusCard extends StatelessWidget {
   const _QueueStatusCard({required this.loading, required this.message});
 
@@ -2610,7 +2651,7 @@ class _QueueStatusCard extends StatelessWidget {
   }
 }
 
-/// Style thẻ dùng chung
+/// _cardDecoration: kiểu trang trí thẻ dùng chung.
 BoxDecoration _cardDecoration() => BoxDecoration(
   color: AppColors.surface,
   borderRadius: BorderRadius.circular(22),
@@ -2623,3 +2664,336 @@ BoxDecoration _cardDecoration() => BoxDecoration(
     ),
   ],
 );
+
+/// _roomLabel: nhãn hiển thị của trạng thái phòng khám.
+String _roomLabel(TrangThaiPhong s) {
+  switch (s) {
+    case TrangThaiPhong.tamDung:
+      return 'Tạm dừng';
+    case TrangThaiPhong.dangKham:
+      return 'Đang khám';
+    case TrangThaiPhong.dongCua:
+      return 'Đóng cửa';
+  }
+}
+
+/// _roomColor: màu chủ đạo của trạng thái phòng khám.
+Color _roomColor(TrangThaiPhong s) {
+  switch (s) {
+    case TrangThaiPhong.tamDung:
+      return AppColors.warnText;
+    case TrangThaiPhong.dangKham:
+      return AppColors.tealDark;
+    case TrangThaiPhong.dongCua:
+      return AppColors.closed;
+  }
+}
+
+/// _roomIcon: biểu tượng của trạng thái phòng khám.
+IconData _roomIcon(TrangThaiPhong s) {
+  switch (s) {
+    case TrangThaiPhong.tamDung:
+      return Icons.pause_circle_rounded;
+    case TrangThaiPhong.dangKham:
+      return Icons.play_circle_rounded;
+    case TrangThaiPhong.dongCua:
+      return Icons.lock_rounded;
+  }
+}
+
+/// _RoomStatusChip: nhãn nhỏ hiển thị trạng thái của phòng khám cạnh tên phòng.
+class _RoomStatusChip extends StatelessWidget {
+  const _RoomStatusChip({required this.status});
+
+  final TrangThaiPhong status;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _roomColor(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_roomIcon(status), size: 13, color: color),
+          const SizedBox(width: 4),
+          Text(
+            _roomLabel(status),
+            style: _font(11, weight: FontWeight.w700, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// _LockedSection: làm mờ, chuyển xám và khóa thao tác phần bên trong, kèm nhãn "Tạm khóa theo dõi" khi bị khóa.
+class _LockedSection extends StatelessWidget {
+  const _LockedSection({required this.locked, required this.child});
+
+  final bool locked;
+  final Widget child;
+
+  static const ColorFilter _grayscale = ColorFilter.matrix(<double>[
+    0.2126, 0.7152, 0.0722, 0, 0,
+    0.2126, 0.7152, 0.0722, 0, 0,
+    0.2126, 0.7152, 0.0722, 0, 0,
+    0, 0, 0, 1, 0,
+  ]);
+
+  @override
+  Widget build(BuildContext context) {
+    if (!locked) return child;
+
+    return Stack(
+      children: [
+        IgnorePointer(
+          child: Opacity(
+            opacity: 0.45,
+            child: ColorFiltered(colorFilter: _grayscale, child: child),
+          ),
+        ),
+        Positioned.fill(
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              decoration: BoxDecoration(
+                color: AppColors.ink.withValues(alpha: 0.88),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.lock_rounded, size: 16, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Tạm khóa theo dõi',
+                    style: _font(
+                      13,
+                      weight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// _RoomPausedCard: thẻ thông báo phòng khám đang tạm dừng, kèm số phút đã tạm dừng.
+class _RoomPausedCard extends StatelessWidget {
+  const _RoomPausedCard({required this.minutes});
+
+  final int minutes;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.warnBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.warnBorder),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.warnBorder.withValues(alpha: 0.4),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.pause_circle_filled_rounded,
+              size: 28,
+              color: AppColors.warnText,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Phòng khám đang tạm dừng',
+                  style: _font(
+                    15.5,
+                    weight: FontWeight.w800,
+                    color: AppColors.warnText,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Việc khám tạm thời gián đoạn. Giờ dự kiến đến lượt sẽ '
+                  'tự động cộng thêm thời gian tạm dừng.',
+                  style: _font(13, color: AppColors.warnText, height: 1.45),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.warnBorder),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.timer_outlined,
+                        size: 14,
+                        color: AppColors.warnText,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Đã tạm dừng $minutes phút',
+                        style: _font(
+                          12.5,
+                          weight: FontWeight.w700,
+                          color: AppColors.warnText,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// _RoomClosedCard: thẻ thông báo phòng khám đã đóng cửa, thay thế toàn bộ phần theo dõi hàng chờ.
+class _RoomClosedCard extends StatelessWidget {
+  const _RoomClosedCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: _cardDecoration(),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 22),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF64748B), AppColors.closed],
+              ),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.16),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      width: 2,
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.lock_rounded,
+                    size: 36,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Phòng khám đã đóng cửa',
+                  textAlign: TextAlign.center,
+                  style: _font(
+                    18.5,
+                    weight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Hiện không tiếp nhận bệnh nhân',
+                  style: _font(13, color: Colors.white.withValues(alpha: 0.8)),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              children: const [
+                _ClosedInfoRow(
+                  icon: Icons.sync_disabled_rounded,
+                  text: 'Theo dõi số thứ tự và giờ dự kiến đã dừng.',
+                ),
+                SizedBox(height: 12),
+                _ClosedInfoRow(
+                  icon: Icons.support_agent_rounded,
+                  text: 'Vui lòng liên hệ quầy tiếp đón để được hỗ trợ.',
+                ),
+                SizedBox(height: 12),
+                _ClosedInfoRow(
+                  icon: Icons.event_repeat_rounded,
+                  text: 'Bạn có thể đặt lại lịch khám vào ngày khác.',
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// _ClosedInfoRow: một dòng hướng dẫn trong thẻ phòng khám đã đóng cửa.
+class _ClosedInfoRow extends StatelessWidget {
+  const _ClosedInfoRow({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: AppColors.closedBg,
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Icon(icon, size: 19, color: AppColors.closed),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: _font(13.5, weight: FontWeight.w500, height: 1.4),
+          ),
+        ),
+      ],
+    );
+  }
+}

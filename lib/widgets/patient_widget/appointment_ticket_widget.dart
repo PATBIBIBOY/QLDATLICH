@@ -404,27 +404,39 @@ class _AppointmentTicketSheetState extends State<AppointmentTicketSheet> {
     return data?.buffer.asUint8List();
   }
 
-  /// _shareTicket: chụp vé rồi mở hộp thoại chia sẻ hệ thống để gửi ảnh vé.
+    /// _shareTicket: Chụp vé, tạo link web theo dõi và mở hộp thoại chia sẻ hệ thống.
   Future<void> _shareTicket() async {
     if (_isSharing) return;
     setState(() => _isSharing = true);
     final box = context.findRenderObject() as RenderBox?;
+    
     try {
+      // 1. Chụp ảnh vé
       final bytes = await _captureTicket();
       if (bytes == null) throw Exception('Không chụp được vé khám');
 
-      final safeId = widget.appointmentId.replaceAll(
-        RegExp(r'[^A-Za-z0-9_-]'),
-        '',
-      );
+      // Làm sạch ID để dùng làm tên file
+      final safeId = widget.appointmentId.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '');
+      
+      // 2. TẠO LINK THEO DÕI CÔNG KHAI (Thay đúng domain web bạn vừa deploy)
+      final trackingLink = 'https://datlichkham-37558.web.app/?id=${widget.appointmentId}';
+
+      // 3. SOẠN THẢO TIN NHẮN CHIA SẺ (Có định dạng in đậm cho Zalo/Messenger)
+      final shareMessage = 
+          '🎫 *VÉ KHÁM ĐIỆN TỬ*\n'
+          '👤 Người khám: ${widget.patientName}\n'
+          '🏥 Bệnh viện: ${widget.hospitalName}\n'
+          '📅 Ngày: ${widget.dateLabel} | ⏰ Giờ: ${widget.timeLabel}\n\n'
+          '📱 *BẤM VÀO LINK ĐỂ XEM SỐ THỨ TỰ CẬP NHẬT REAL-TIME:*\n'
+          '$trackingLink\n\n'
+          '💡 *Lưu ý:* Khi đến bệnh viện, vui lòng đưa *hình ảnh mã QR* trong tin nhắn này cho nhân viên tiếp đón để được quét và vào khám.';
+
+      // 4. THỰC HIỆN CHIA SẺ (Cả ảnh và text)
       await SharePlus.instance.share(
         ShareParams(
           files: [XFile.fromData(bytes, mimeType: 'image/png')],
           fileNameOverrides: ['ve_kham_$safeId.png'],
-          text:
-              'Vé khám của ${widget.patientName} tại ${widget.hospitalName}, '
-              'ngày ${widget.dateLabel}, ${widget.timeLabel}. '
-              'Đưa mã QR cho nhân viên tiếp đón khi đến bệnh viện.',
+          text: shareMessage, // Gửi kèm đoạn text có chứa link
           sharePositionOrigin: box == null
               ? null
               : box.localToGlobal(Offset.zero) & box.size,
@@ -438,6 +450,7 @@ class _AppointmentTicketSheetState extends State<AppointmentTicketSheet> {
           type: SnackBarType.error,
         );
       }
+      debugPrint('Lỗi chia sẻ vé: $e');
     } finally {
       if (mounted) setState(() => _isSharing = false);
     }
