@@ -64,6 +64,307 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
     }
   }
 
+  /// Mở màn hình/BottomSheet danh sách ListView các ngày có lịch khám bệnh trên Firebase
+  void _moDanhSachNgayKham({bool chiLichSu = false}) {
+    AppDesignSystemC1.hapticLight();
+    final isDark = AppDesignSystemC1.laCheDoToi;
+    final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          height: MediaQuery.of(ctx).size.height * 0.75,
+          decoration: BoxDecoration(
+            color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              // Thanh kéo
+              Container(
+                margin: const EdgeInsets.only(top: 10, bottom: 6),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white24 : Colors.black12,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+
+              // Header Modal
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: chiLichSu ? const Color(0xFFFEF3C7) : const Color(0xFFE0F2FE),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            chiLichSu ? Icons.history_rounded : Icons.calendar_month_rounded,
+                            color: chiLichSu ? const Color(0xFFD97706) : const Color(0xFF0284C7),
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              chiLichSu ? 'Lịch sử khám bệnh' : 'Danh sách ngày có lịch khám',
+                              style: TextStyle(
+                                color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              chiLichSu
+                                  ? 'Các ngày khám đã qua (từ hôm nay trở về trước)'
+                                  : 'Chỉ hiển thị các ngày thực tế có bệnh nhân đặt hẹn',
+                              style: TextStyle(
+                                color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        IconButton(
+                          tooltip: 'Chọn ngày bất kỳ qua lịch',
+                          icon: const Icon(Icons.edit_calendar_rounded),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _chonNgay();
+                          },
+                          color: const Color(0xFF0284C7),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () => Navigator.pop(ctx),
+                          color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+
+              // Danh sách ListView ngày có lịch khám
+              Expanded(
+                child: StreamBuilder<List<DateTime>>(
+                  stream: FirebaseServiceC1.streamNgayCoLichKham(
+                    tenKhoa: widget.tenKhoa,
+                    benhVienId: bvid,
+                    chiLichSuTuHomNayTroVeTruoc: chiLichSu,
+                  ),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: Color(0xFF0284C7)),
+                      );
+                    }
+
+                    final listNgay = snapshot.data ?? [];
+                    if (listNgay.isEmpty) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.event_busy_rounded,
+                                size: 48,
+                                color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF94A3B8),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                chiLichSu ? 'Chưa có lịch sử khám bệnh nào' : 'Chưa có ngày nào có lịch khám',
+                                style: TextStyle(
+                                  color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1E293B),
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Các ngày có lịch khám từ Firebase sẽ xuất hiện ở đây',
+                                style: TextStyle(
+                                  color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF94A3B8),
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    return ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      itemCount: listNgay.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final dt = listNgay[index];
+                        final bool laNgayDangChon = dt.year == _ngayChon.year &&
+                            dt.month == _ngayChon.month &&
+                            dt.day == _ngayChon.day;
+                        final bool laHomNay = dt.year == DateTime.now().year &&
+                            dt.month == DateTime.now().month &&
+                            dt.day == DateTime.now().day;
+
+                        final thuTrongTuan = [
+                          'Chủ nhật',
+                          'Thứ hai',
+                          'Thứ ba',
+                          'Thứ tư',
+                          'Thứ năm',
+                          'Thứ sáu',
+                          'Thứ bảy'
+                        ][dt.weekday % 7];
+
+                        return InkWell(
+                          onTap: () {
+                            AppDesignSystemC1.hapticLight();
+                            setState(() {
+                              _ngayChon = dt;
+                            });
+                            Navigator.pop(ctx);
+                          },
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: laNgayDangChon
+                                  ? (isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE))
+                                  : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC)),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: laNgayDangChon
+                                    ? const Color(0xFF0284C7)
+                                    : (isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0)),
+                                width: laNgayDangChon ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: laNgayDangChon
+                                        ? const Color(0xFF0284C7)
+                                        : (isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        dt.day.toString().padLeft(2, '0'),
+                                        style: TextStyle(
+                                          color: laNgayDangChon
+                                              ? Colors.white
+                                              : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      Text(
+                                        'T${dt.month}',
+                                        style: TextStyle(
+                                          color: laNgayDangChon
+                                              ? Colors.white70
+                                              : (isDark ? Colors.white60 : const Color(0xFF64748B)),
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(
+                                            '$thuTrongTuan, ${dt.day}/${dt.month}/${dt.year}',
+                                            style: TextStyle(
+                                              color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
+                                              fontSize: 14.5,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                          if (laHomNay) ...[
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: const Text(
+                                                'Hôm nay',
+                                                style: TextStyle(
+                                                  color: Color(0xFF059669),
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Nhấn để xem các lịch hẹn của ngày này',
+                                        style: TextStyle(
+                                          color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  laNgayDangChon ? Icons.check_circle_rounded : Icons.chevron_right_rounded,
+                                  color: laNgayDangChon
+                                      ? const Color(0xFF0284C7)
+                                      : (isDark ? Colors.white38 : const Color(0xFF94A3B8)),
+                                  size: laNgayDangChon ? 22 : 20,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -182,52 +483,95 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
               ),
             ),
 
-            // Dòng hiển thị Ngày và Tổng số lịch hẹn
+            // Dòng hiển thị Ngày và Tổng số lịch hẹn & Nút Lịch sử khám bệnh
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  InkWell(
-                    onTap: _chonNgay,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFCBD5E1),
-                        ),
-                      ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.calendar_month_rounded, size: 15, color: Color(0xFF1E88E5)),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Ngày ${_ngayChon.day.toString().padLeft(2, '0')}/${_ngayChon.month.toString().padLeft(2, '0')}/${_ngayChon.year}',
-                            style: TextStyle(
-                              color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                          // Nút mở ListView chọn ngày có lịch khám
+                          InkWell(
+                            onTap: () => _moDanhSachNgayKham(chiLichSu: false),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFCBD5E1),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.calendar_month_rounded, size: 15, color: Color(0xFF1E88E5)),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '${_ngayChon.day.toString().padLeft(2, '0')}/${_ngayChon.month.toString().padLeft(2, '0')}/${_ngayChon.year}',
+                                    style: TextStyle(
+                                      color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    Icons.arrow_drop_down,
+                                    size: 18,
+                                    color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.arrow_drop_down,
-                            size: 18,
-                            color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                          const SizedBox(width: 8),
+
+                          // Nút Lịch sử khám bệnh (ngày giảm dần từ hôm nay trở về trước)
+                          InkWell(
+                            onTap: () => _moDanhSachNgayKham(chiLichSu: true),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF451A03).withValues(alpha: 0.5) : const Color(0xFFFEF3C7),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: const Color(0xFFF59E0B).withValues(alpha: isDark ? 0.6 : 0.4),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.history_rounded, size: 15, color: Color(0xFFD97706)),
+                                  const SizedBox(width: 5),
+                                  const Text(
+                                    'Lịch sử khám bệnh',
+                                    style: TextStyle(
+                                      color: Color(0xFFB45309),
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Text(
                     '$tongSo lịch hẹn',
                     style: const TextStyle(
                       color: Color(0xFFFF9500),
-                      fontSize: 14,
+                      fontSize: 13.5,
                       fontWeight: FontWeight.w700,
                     ),
                   ),

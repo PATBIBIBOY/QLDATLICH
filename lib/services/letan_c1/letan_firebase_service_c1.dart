@@ -755,6 +755,140 @@ class FirebaseServiceC1 {
     return controller.stream;
   }
 
+  /// Lấy danh sách các ngày có lịch khám (chỉ những ngày thực sự có lịch hẹn trên Firebase),
+  /// sắp xếp giảm dần từ ngày hôm nay trở về trước (Lịch sử khám bệnh).
+  static Stream<List<DateTime>> streamNgayCoLichKham({
+    String? tenKhoa,
+    String? benhVienId,
+    bool chiLichSuTuHomNayTroVeTruoc = true,
+  }) {
+    final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty && benhVienId != 'BV01' && benhVienId != '1')
+        ? benhVienId.trim()
+        : (DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty &&
+                DuLieuProfileMauC1.thongTinHienTai.benhVienId != 'BV01' &&
+                DuLieuProfileMauC1.thongTinHienTai.benhVienId != '1'
+            ? DuLieuProfileMauC1.thongTinHienTai.benhVienId
+            : 'BV502');
+
+    final controller = StreamController<List<DateTime>>();
+    Map<String, QueryDocumentSnapshot<Map<String, dynamic>>> allDocs = {};
+
+    void recompute() {
+      final now = DateTime.now();
+      final todayMidnight = DateTime(now.year, now.month, now.day);
+      final isAll = laCheDoTong(tenKhoa);
+      final Set<String> dateStrings = {};
+
+      for (var doc in allDocs.values) {
+        final data = doc.data();
+
+        // 0. LỌC THEO BỆNH VIỆN
+        final docBv = (data['benh_vien_id'] ?? data['benhVienId'] ?? data['ma_benh_vien'] ?? '').toString();
+        if (docBv.isNotEmpty && bvid.isNotEmpty) {
+          if (!docBv.toLowerCase().contains(bvid.toLowerCase()) && !bvid.toLowerCase().contains(docBv.toLowerCase())) {
+            continue;
+          }
+        }
+
+        // 1. Lọc theo Khoa nếu có
+        final rawKhoaId = (data['khoa_id'] ?? data['khoaId'] ?? '').toString();
+        final docKhoa = (data['ten_khoa'] ?? data['tenKhoa'] ?? data['khoa'] ?? rawKhoaId).toString();
+        if (!isAll && tenKhoa != null && tenKhoa.isNotEmpty && !laCungKhoa(docKhoa, tenKhoa) && !laCungKhoa(rawKhoaId, tenKhoa)) {
+          continue;
+        }
+
+        // 2. Trích xuất ngày từ data (ngay_hen, ngay_kham, ngay_dat, ngay_hien_thi, Timestamp)
+        DateTime? extractedDate;
+        if (data['ngay_hen'] is Timestamp) {
+          final dt = (data['ngay_hen'] as Timestamp).toDate();
+          extractedDate = DateTime(dt.year, dt.month, dt.day);
+        } else if (data['ngay_dat'] is Timestamp) {
+          final dt = (data['ngay_dat'] as Timestamp).toDate().toLocal();
+          extractedDate = DateTime(dt.year, dt.month, dt.day);
+        } else {
+          final s = (data['ngay_hen'] ?? data['ngay_kham'] ?? data['ngay_dat'] ?? data['ngay_hien_thi'] ?? '').toString().trim();
+          // Kiểm tra dạng YYYY-MM-DD
+          final ymdMatch = RegExp(r'(\d{4})-(\d{1,2})-(\d{1,2})').firstMatch(s);
+          if (ymdMatch != null) {
+            extractedDate = DateTime(
+              int.parse(ymdMatch.group(1)!),
+              int.parse(ymdMatch.group(2)!),
+              int.parse(ymdMatch.group(3)!),
+            );
+          } else {
+            // Kiểm tra dạng DD/MM/YYYY
+            final dmyMatch = RegExp(r'(\d{1,2})/(\d{1,2})/(\d{4})').firstMatch(s);
+            if (dmyMatch != null) {
+              extractedDate = DateTime(
+                int.parse(dmyMatch.group(3)!),
+                int.parse(dmyMatch.group(2)!),
+                int.parse(dmyMatch.group(1)!),
+              );
+            }
+          }
+        }
+
+        if (extractedDate != null) {
+          // Nếu chỉ lấy lịch sử từ hôm nay trở về trước:
+          if (chiLichSuTuHomNayTroVeTruoc) {
+            if (extractedDate.isAfter(todayMidnight)) {
+              continue;
+            }
+          }
+          final key = '${extractedDate.year}-${extractedDate.month.toString().padLeft(2, '0')}-${extractedDate.day.toString().padLeft(2, '0')}';
+          dateStrings.add(key);
+        }
+      }
+
+      final List<DateTime> result = dateStrings.map((str) {
+        final parts = str.split('-');
+        return DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+      }).toList();
+
+      // Sắp xếp giảm dần từ ngày gần nhất (hôm nay) trở về trước
+      result.sort((a, b) => b.compareTo(a));
+
+      if (!controller.isClosed) {
+        controller.add(result);
+      }
+    }
+
+    StreamSubscription? subTop;
+    StreamSubscription? subGroup;
+
+    controller.onListen = () {
+      Query<Map<String, dynamic>> topQuery = _firestore.collection('LichHen');
+      if (bvid.isNotEmpty) {
+        topQuery = topQuery.where('benh_vien_id', isEqualTo: bvid);
+      }
+      subTop = topQuery.snapshots().listen((snap) {
+        allDocs.clear();
+        for (var doc in snap.docs) {
+          allDocs[doc.id] = doc;
+        }
+        recompute();
+      });
+
+      Query<Map<String, dynamic>> groupQuery = _firestore.collectionGroup('lich_hen');
+      if (bvid.isNotEmpty) {
+        groupQuery = groupQuery.where('benh_vien_id', isEqualTo: bvid);
+      }
+      subGroup = groupQuery.snapshots().listen((snap) {
+        for (var doc in snap.docs) {
+          allDocs[doc.id] = doc;
+        }
+        recompute();
+      }, onError: (_) {});
+    };
+
+    controller.onCancel = () {
+      subTop?.cancel();
+      subGroup?.cancel();
+    };
+
+    return controller.stream;
+  }
+
   /// Lấy số thứ tự (so_thu_tu) tiếp theo cho từng Khoa trong ngày:
   /// - Chỉ lấy các số của các đơn ĐANG HỢP LỆ (trang_thai_id == '2' đã duyệt, '5' đã khám, hoặc da_tiep_nhan).
   /// - Tìm vị trí số nhỏ nhất còn trống (bắt đầu từ 1) để chèn vào nếu có đơn trước đó bị hủy (ví dụ: 1, 2, 3 mà số 1 bị hủy, duyệt đơn mới sẽ được cấp số 1).
