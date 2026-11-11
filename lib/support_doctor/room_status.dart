@@ -5,6 +5,7 @@
 /// `trangThai` (mã chuỗi). App đọc cả 4 để đối chiếu, **ưu tiên field số**
 /// khi dữ liệu lệch; khi bấm nút chỉ ghi 2 field snake_case
 /// `trang_thai_id` + `trang_thai` lên Firestore.
+library;
 
 /// 12 – bác sĩ tạm dừng khám, chưa gọi số mới.
 const int kRoomStatusPausedId = 12;
@@ -55,7 +56,7 @@ const List<String> kRoomStatusFieldVariants = <String>[
 /// Document cũ dùng `dang_kham` vẫn đọc được nhờ alias bên dưới.
 const Map<int, String> kRoomStatusCodes = <int, String>{
   kRoomStatusPausedId: 'tam_dung',
-  kRoomStatusOpenId: 'kham',
+  kRoomStatusOpenId: 'dang_kham',
   kRoomStatusClosedId: 'dong',
 };
 
