@@ -396,7 +396,7 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
       child: Row(
         children: [
           Icon(icon, color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93), size: 18),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Text(
             label,
             style: TextStyle(
@@ -404,13 +404,18 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
               fontSize: 13,
             ),
           ),
-          const Spacer(),
-          Text(
-            value,
-            style: TextStyle(
-              color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
-              fontSize: 13.5,
-              fontWeight: FontWeight.w600,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

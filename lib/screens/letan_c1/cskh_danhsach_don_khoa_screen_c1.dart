@@ -205,6 +205,64 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
       valueListenable: AppDesignSystemC1.isDarkMode,
       builder: (context, isDark, child) {
         final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
+        final khoaHienTaiProfile = DuLieuProfileMauC1.thongTinHienTai.khoa;
+
+        // KIỂM TRA PHÂN QUYỀN CHẶN DUYỆT CHÉO KHOA:
+        // Nhân viên thuộc khoa nào chỉ được phép xem & duyệt đúng khoa đó
+        final bool laKhoaHopLe = FirebaseServiceC1.laCheDoTong(khoaHienTaiProfile) ||
+            FirebaseServiceC1.laCungKhoa(widget.tenKhoa, khoaHienTaiProfile);
+
+        if (!laKhoaHopLe) {
+          return Scaffold(
+            backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF8FAFC),
+            appBar: AppBar(
+              title: const Text('Truy cập bị từ chối'),
+              backgroundColor: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+              foregroundColor: isDark ? Colors.white : Colors.black87,
+              elevation: 0,
+            ),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.gpp_bad_rounded, size: 64, color: Color(0xFFEF4444)),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Không có quyền truy cập khoa này!',
+                      style: TextStyle(
+                        color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Tài khoản của bạn được phân công tại "$khoaHienTaiProfile". Bạn không được phép xem hoặc duyệt đơn của "${widget.tenKhoa}".',
+                      style: TextStyle(
+                        color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                        fontSize: 13.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.arrow_back),
+                      label: const Text('Quay lại'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppDesignSystemC1.primary,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
 
         return StreamBuilder<List<Map<String, dynamic>>>(
           stream: FirebaseServiceC1.streamDanhSachLichHen(

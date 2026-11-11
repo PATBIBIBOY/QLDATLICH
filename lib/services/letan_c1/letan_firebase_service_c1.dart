@@ -2215,6 +2215,47 @@ class FirebaseServiceC1 {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
+    // Hàm chuẩn hóa định dạng ngày hiển thị dd/MM/yyyy từ chuỗi bất kỳ
+    String formatNgayChuan(dynamic rawVal, [String fallback = 'Hôm nay']) {
+      if (rawVal == null) return fallback;
+      if (rawVal is Timestamp) {
+        final dt = rawVal.toDate();
+        return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+      }
+      final s = rawVal.toString().trim();
+      if (s.isEmpty) return fallback;
+
+      // 1. Thử parse DateTime chuẩn ISO
+      final dt = DateTime.tryParse(s);
+      if (dt != null) {
+        return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+      }
+
+      // 2. Thử dạng dd/MM/yyyy hoặc d/M/yyyy
+      final dmyMatch = RegExp(r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})').firstMatch(s);
+      if (dmyMatch != null) {
+        final d = dmyMatch.group(1)!.padLeft(2, '0');
+        final m = dmyMatch.group(2)!.padLeft(2, '0');
+        final y = dmyMatch.group(3)!;
+        return '$d/$m/$y';
+      }
+
+      // 3. Thử dạng YYYYMMDD hoặc DDMMYYYY từ mã QR (ví dụ: LH_04112026_...)
+      final num8Match = RegExp(r'(\d{2})(\d{2})(\d{4})').firstMatch(s);
+      if (num8Match != null) {
+        final d = int.tryParse(num8Match.group(1)!);
+        final m = int.tryParse(num8Match.group(2)!);
+        final y = int.tryParse(num8Match.group(3)!);
+        if (d != null && m != null && y != null && d >= 1 && d <= 31 && m >= 1 && m <= 12 && y >= 2020 && y <= 2035) {
+          return '${d.toString().padLeft(2, '0')}/${m.toString().padLeft(2, '0')}/$y';
+        }
+      }
+
+      // Nếu không parse được thì trả về ngày hôm nay thay vì in code thô
+      final n = DateTime.now();
+      return '${n.day.toString().padLeft(2, '0')}/${n.month.toString().padLeft(2, '0')}/${n.year}';
+    }
+
     try {
       DocumentSnapshot<Map<String, dynamic>>? lhDoc;
 
@@ -2277,9 +2318,7 @@ class FirebaseServiceC1 {
         final stt = (d['so_thu_tu'] as num?)?.toInt() ?? qrSoThuTu ?? 1;
         final gioKham = (d['gio_kham'] ?? d['khung_gio'] ?? (qrJson?['ca_id'] == 'ca_sang' ? '08:00 - 11:30' : '13:30 - 16:30')).toString();
 
-        final displayDate = appointmentDate != null
-            ? '${appointmentDate.day.toString().padLeft(2, '0')}/${appointmentDate.month.toString().padLeft(2, '0')}/${appointmentDate.year}'
-            : (rawDateStr.isNotEmpty ? rawDateStr : 'Hôm nay');
+        final displayDate = formatNgayChuan(appointmentDate ?? d['ngay_kham'] ?? d['ngay_dat'] ?? d['ngay_hen'] ?? qrNgayDat ?? rawData);
 
         // KIỂM TRA 3 TRƯỜNG HỢP:
         // Đã khám (trang_thai_id == '5' hoặc chứa da_kham)
@@ -2363,11 +2402,8 @@ class FirebaseServiceC1 {
           } catch (_) {}
         }
 
-        final displayDate = appointmentDate != null
-            ? '${appointmentDate.day.toString().padLeft(2, '0')}/${appointmentDate.month.toString().padLeft(2, '0')}/${appointmentDate.year}'
-            : (rawDateStr.isNotEmpty ? rawDateStr : 'Hôm nay');
-
         final hoTenBn = 'BỆNH NHÂN TIẾP NHẬN';
+        final displayDate = formatNgayChuan(appointmentDate ?? qrNgayDat ?? rawData);
         final stt = qrSoThuTu ?? 1;
         final gioKham = qrJson['ca_id'] == 'ca_sang' ? '08:00 - 11:30' : '13:30 - 16:30';
 

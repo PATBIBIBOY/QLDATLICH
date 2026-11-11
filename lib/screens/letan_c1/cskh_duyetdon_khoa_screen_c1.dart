@@ -440,18 +440,43 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
                 return FirebaseServiceC1.laCungKhoa(tenKhoa, _tenKhoaHienTai);
               }).toList();
 
+              // NẾU KHOA ĐÃ BỊ BỆNH VIỆN XÓA / KHÔNG TỒN TẠI TRÊN FIREBASE:
+              // Khóa chặt, không hiển thị thẻ khoa giả và không cho phép xem/duyệt khoa khác!
               if (danhSachLoc.isEmpty) {
-                final model = KhoaKhamModelC1(
-                  tenKhoa: _tenKhoaHienTai,
-                  moTaPhong: 'Chuyên khoa phân công của bạn',
-                  soLuongDon: 'Duyệt đơn',
-                  icon: Icons.local_hospital_rounded,
-                  laKhoaDangChon: true,
-                );
-
-                return CskhDepartmentCardC1(
-                  khoa: model,
-                  onTap: () => _onSelectKhoa(model),
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF450A0A).withValues(alpha: 0.4) : const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(0xFFEF4444).withValues(alpha: isDark ? 0.6 : 0.4),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.block_rounded, size: 40, color: Color(0xFFEF4444)),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Khoa "$_tenKhoaHienTai" không còn hoạt động',
+                        style: const TextStyle(
+                          color: Color(0xFFDC2626),
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Bệnh viện đã xóa hoặc ngừng tiếp nhận tại chuyên khoa này. Bạn không có quyền truy cập hay duyệt đơn của các chuyên khoa khác.',
+                        style: TextStyle(
+                          color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                          fontSize: 12.5,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 );
               }
 
