@@ -1510,6 +1510,7 @@ class _EmptyNotices extends StatelessWidget {
   }
 }
 
+/// _HomeNoticeTile: thẻ thông báo gọn hiển thị ở trang chủ.
 class _HomeNoticeTile extends StatelessWidget {
   final NotificationModel notification;
   final bool unread;
@@ -1521,6 +1522,7 @@ class _HomeNoticeTile extends StatelessWidget {
     this.onTap,
   });
 
+  /// _icon: biểu tượng theo loại thông báo.
   IconData get _icon {
     switch (notification.type) {
       case NotificationType.appointmentConfirmed:
@@ -1531,11 +1533,18 @@ class _HomeNoticeTile extends StatelessWidget {
         return Icons.alarm_rounded;
       case NotificationType.appointmentCompleted:
         return Icons.workspace_premium_rounded;
+      case NotificationType.roomPaused:
+        return Icons.pause_circle_rounded;
+      case NotificationType.roomResumed:
+        return Icons.play_circle_rounded;
+      case NotificationType.roomClosed:
+        return Icons.lock_rounded;
       case NotificationType.system:
         return Icons.notifications_active_rounded;
     }
   }
 
+  /// _color: màu theo loại thông báo.
   Color get _color {
     switch (notification.type) {
       case NotificationType.appointmentConfirmed:
@@ -1546,11 +1555,18 @@ class _HomeNoticeTile extends StatelessWidget {
         return AppTheme.success;
       case NotificationType.appointmentCancelled:
         return AppTheme.danger;
+      case NotificationType.roomPaused:
+        return AppTheme.warning;
+      case NotificationType.roomResumed:
+        return AppTheme.success;
+      case NotificationType.roomClosed:
+        return const Color(0xFF475569);
       case NotificationType.system:
         return const Color(0xFF8B5CF6);
     }
   }
 
+  /// _typeLabel: nhãn theo loại thông báo.
   String get _typeLabel {
     switch (notification.type) {
       case NotificationType.appointmentConfirmed:
@@ -1561,11 +1577,18 @@ class _HomeNoticeTile extends StatelessWidget {
         return 'HOÀN THÀNH';
       case NotificationType.appointmentCancelled:
         return 'HỦY LỊCH';
+      case NotificationType.roomPaused:
+        return 'PHÒNG TẠM DỪNG';
+      case NotificationType.roomResumed:
+        return 'TIẾP TỤC KHÁM';
+      case NotificationType.roomClosed:
+        return 'PHÒNG ĐÓNG CỬA';
       case NotificationType.system:
         return 'HỆ THỐNG';
     }
   }
 
+  /// _timeAgo: đổi thời điểm tạo thông báo thành chuỗi "x phút trước", "x giờ trước"...
   String get _timeAgo {
     final diff = DateTime.now().difference(notification.createdAt);
     if (diff.inMinutes < 1) return 'Vừa xong';
@@ -1576,8 +1599,10 @@ class _HomeNoticeTile extends StatelessWidget {
     return '${diff.inDays ~/ 7} tuần trước';
   }
 
+  /// _has: kiểm tra chuỗi có giá trị (không null và không rỗng).
   bool _has(String? v) => v != null && v.isNotEmpty;
 
+  /// _chip: nhãn nhỏ gồm biểu tượng và chữ (bệnh viện, số thứ tự).
   Widget _chip(IconData icon, String text) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1642,7 +1667,6 @@ class _HomeNoticeTile extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Dải màu bên trái theo loại thông báo
                   Container(
                     width: 5,
                     color: unread ? color : color.withOpacity(0.22),

@@ -58,67 +58,58 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// fetchCurrentUser: nạp hồ sơ của tài khoản đang đăng nhập theo vai trò đã chọn (bệnh viện hoặc bệnh nhân).
   Future<void> fetchCurrentUser({String? preferredRole}) async {
     _isLoading = true;
     notifyListeners();
     try {
       final currentUser = _authService.currentUser;
-      if (currentUser != null) {
-        if (preferredRole == 'benh_vien') {
-          var hospital = await _authService.getHospitalFromFirestore(
-            currentUser.uid,
-          );
-          hospital ??= await _authService.findHospitalByEmail(
-            currentUser.email ?? '',
-          );
+      if (currentUser == null) return;
 
-          if (hospital == null) {
-            final fallbackName =
-                (currentUser.displayName?.trim().isNotEmpty ?? false)
-                ? currentUser.displayName!
-                : (currentUser.email?.split('@').first ?? 'Bệnh Viện Mới');
-            final newHospital = HospitalModel(
-              uid: currentUser.uid,
-              tenBenhVien: fallbackName,
-              email: currentUser.email,
-              role: 'benh_vien',
-              trangThaiHopTacId: TrangThaiId.choDuyet,
-              daXacThucEmail: true,
-            );
-            try {
-              await _authService.saveHospitalToFirestore(newHospital);
-            } catch (e) {
-              print('⚠️ Không thể lưu document BenhVien: $e');
-            }
-            hospital = newHospital;
-
-            await FCMService().init();
-          }
-
-          _hospital = hospital;
-          _user = null;
-          AppSession.benhVienId = hospital.uid ?? currentUser.uid;
-          _selectedRole = 'benh_vien';
-          return;
-        }
-
-        final patientModel = await _authService.getPatientFromFirestore(
+      // Bước 1: tab Bệnh viện chỉ nhận tài khoản đã có hồ sơ bệnh viện, không tự tạo hồ sơ mới.
+      if (preferredRole == 'benh_vien') {
+        var hospital = await _authService.getHospitalFromFirestore(
           currentUser.uid,
         );
-        _user = patientModel;
-        if (patientModel == null) {
-          _hospital = await _authService.getHospitalFromFirestore(
-            currentUser.uid,
-          );
-          _hospital ??= await _authService.findHospitalByEmail(
-            currentUser.email ?? '',
-          );
-          if (_hospital != null) {
-            AppSession.benhVienId = _hospital!.uid ?? currentUser.uid;
-          }
+        hospital ??= await _authService.findHospitalByEmail(
+          currentUser.email ?? '',
+        );
+
+        // Bước 2: tài khoản đã có hồ sơ bệnh nhân thì không được xem là bệnh viện.
+        final patient = await _authService.getPatientFromFirestore(
+          currentUser.uid,
+        );
+        if (patient != null) hospital = null;
+
+        // Bước 3: lưu kết quả (không có hồ sơ bệnh viện thì để rỗng để màn đăng nhập từ chối).
+        _hospital = hospital;
+        _user = null;
+        _selectedRole = hospital != null ? 'benh_vien' : null;
+        if (hospital != null) {
+          AppSession.benhVienId = hospital.uid ?? currentUser.uid;
         }
-        _selectedRole = patientModel?.role ?? _hospital?.role;
+        return;
       }
+
+      // Bước 4: các tab còn lại ưu tiên hồ sơ bệnh nhân, không có mới thử hồ sơ bệnh viện.
+      final patientModel = await _authService.getPatientFromFirestore(
+        currentUser.uid,
+      );
+      _user = patientModel;
+      if (patientModel == null) {
+        _hospital = await _authService.getHospitalFromFirestore(
+          currentUser.uid,
+        );
+        _hospital ??= await _authService.findHospitalByEmail(
+          currentUser.email ?? '',
+        );
+        if (_hospital != null) {
+          AppSession.benhVienId = _hospital!.uid ?? currentUser.uid;
+        }
+      } else {
+        _hospital = null;
+      }
+      _selectedRole = patientModel?.role ?? _hospital?.role;
     } catch (e) {
       print('❌ Lỗi khi lấy thông tin user hiện tại: $e');
     } finally {

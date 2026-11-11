@@ -2,7 +2,6 @@ import '../config/constants.dart';
 
 class PatientModel {
   final String uid;
-  final String? maBenhNhan;
   final String? hoTen;
   final String? email;
   final String? soDienThoai;
@@ -19,7 +18,6 @@ class PatientModel {
 
   PatientModel({
     required this.uid,
-    this.maBenhNhan,
     this.hoTen,
     this.email,
     this.soDienThoai,
@@ -38,7 +36,6 @@ class PatientModel {
   Map<String, dynamic> toMap() {
     return {
       'uid': uid,
-      'ma_benh_nhan': maBenhNhan,
       'ho_ten': hoTen,
       'email': email,
       'so_dien_thoai': soDienThoai,
@@ -58,7 +55,6 @@ class PatientModel {
   factory PatientModel.fromMap(Map<String, dynamic> map) {
     return PatientModel(
       uid: map['uid'] ?? '',
-      maBenhNhan: map['ma_benh_nhan'],
       hoTen: map['ho_ten'],
       email: map['email'],
       soDienThoai: map['so_dien_thoai'],
@@ -81,7 +77,6 @@ class PatientModel {
 
   PatientModel copyWith({
     String? uid,
-    String? maBenhNhan,
     String? hoTen,
     String? email,
     String? soDienThoai,
@@ -98,7 +93,6 @@ class PatientModel {
   }) {
     return PatientModel(
       uid: uid ?? this.uid,
-      maBenhNhan: maBenhNhan ?? this.maBenhNhan,
       hoTen: hoTen ?? this.hoTen,
       email: email ?? this.email,
       soDienThoai: soDienThoai ?? this.soDienThoai,

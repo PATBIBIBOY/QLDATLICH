@@ -467,7 +467,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // thẻ mức độ hoàn thiện hồ sơ nổi đè lên mép dưới.
   Widget _buildHeader(PatientModel? p) {
     final name = _str(p?.hoTen);
-    final id = _str(p?.maBenhNhan);
+    final id = _str(p?.uid);
     final completion = _completion(p);
     final percent = (completion * 100).round();
     final canPop = Navigator.of(context).canPop();

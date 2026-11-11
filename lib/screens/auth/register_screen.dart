@@ -523,7 +523,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       Icons.location_on_outlined,
                       'Số nhà, đường, phường/xã, tỉnh/thành phố',
                     ),
-                    validator: validatePassword,
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Vui lòng nhập địa chỉ bệnh viện'
+                        : null,
                   ),
                   const SizedBox(height: 16),
 
@@ -542,9 +544,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         onPressed: () => setState(() => _obscure = !_obscure),
                       ),
                     ),
-                    validator: (v) => (v == null || v.length < 6)
-                        ? 'Mật khẩu tối thiểu 6 ký tự'
-                        : null,
+                    validator: validatePassword,
                   ),
                   const SizedBox(height: 16),
 
@@ -568,14 +568,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     validator: (v) {
                       final passwordError = validatePassword(v);
-                      if (passwordError != null) {
-                        return passwordError;
-                      }
-                      if (v != _patientPassCtrl.text) {
+                      if (passwordError != null) return passwordError;
+                      if (v != _hospitalPassCtrl.text)
                         return 'Mật khẩu nhập lại không khớp';
-                      }
-
-                      return null; // Hợp lệ
+                      return null;
                     },
                   ),
                 ],

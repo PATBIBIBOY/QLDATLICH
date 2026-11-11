@@ -1,18 +1,21 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
 
-/// Loại thông báo.
+/// NotificationType: loại thông báo.
 enum NotificationType {
-  appointmentConfirmed, // Xác nhận lịch
-  appointmentReminder,  // Nhắc lịch (trễ giờ, v.v.)
-  appointmentCompleted, // Hoàn thành & đánh giá
-  appointmentCancelled, // Hủy lịch
-  system,               // Hệ thống
+  appointmentConfirmed,
+  appointmentReminder,
+  appointmentCompleted,
+  appointmentCancelled,
+  roomPaused,
+  roomResumed,
+  roomClosed,
+  system,
 }
 
-/// Trạng thái đọc.
+/// NotificationStatus: trạng thái đọc của thông báo.
 enum NotificationStatus { unread, read }
 
+/// NotificationModel: dữ liệu một thông báo của bệnh nhân.
 class NotificationModel {
   final String id;
   final String title;
@@ -25,8 +28,6 @@ class NotificationModel {
   final String? appointmentDate;
   final String? appointmentTime;
   final String? queueNumber;
-  
-  // ✅ THÊM 3 TRƯỜNG MỚI ĐỂ TRUYỀN DỮ LIỆU CHO DIALOG ĐÁNH GIÁ
   final String? lichHenId;
   final String? benhVienId;
   final String? khoaId;
@@ -43,12 +44,12 @@ class NotificationModel {
     this.appointmentDate,
     this.appointmentTime,
     this.queueNumber,
-    this.lichHenId,       // ✅
-    this.benhVienId,      // ✅
-    this.khoaId,          // ✅
+    this.lichHenId,
+    this.benhVienId,
+    this.khoaId,
   });
 
-  // ───────────── Đọc từ Firestore ─────────────
+  /// _str: lấy chuỗi không rỗng đầu tiên theo danh sách tên trường.
   static String? _str(Map<String, dynamic> m, List<String> keys) {
     for (final k in keys) {
       final v = m[k];
@@ -57,6 +58,7 @@ class NotificationModel {
     return null;
   }
 
+  /// _date: lấy thời gian đầu tiên đọc được theo danh sách tên trường (không có thì trả về hiện tại).
   static DateTime _date(Map<String, dynamic> m, List<String> keys) {
     for (final k in keys) {
       final v = m[k];
@@ -71,29 +73,42 @@ class NotificationModel {
     return DateTime.now();
   }
 
+  /// _typeFrom: đổi giá trị loai_thong_bao đọc từ Firestore thành NotificationType.
   static NotificationType _typeFrom(String? raw) {
     if (raw == null) return NotificationType.system;
     final v = raw.toLowerCase().trim();
 
-    if (v == 'benh_vien_xac_nhan' || v.contains('xac_nhan') || v.contains('confirm')) {
+    if (v == 'phong_kham_tam_dung' || v == 'roompaused') {
+      return NotificationType.roomPaused;
+    }
+    if (v == 'phong_kham_tiep_tuc' || v == 'roomresumed') {
+      return NotificationType.roomResumed;
+    }
+    if (v == 'phong_kham_dong_cua' || v == 'roomclosed') {
+      return NotificationType.roomClosed;
+    }
+    if (v == 'benh_vien_xac_nhan' ||
+        v.contains('xac_nhan') ||
+        v.contains('confirm')) {
       return NotificationType.appointmentConfirmed;
     }
     if (v == 'benh_vien_huy_lich' || v.contains('huy') || v.contains('cancel')) {
       return NotificationType.appointmentCancelled;
     }
-    if (v == 'benh_vien_nhan_nho' || v.contains('nhac') || v.contains('remind')) {
+    if (v == 'benh_vien_nhan_nho' ||
+        v.contains('nhac') ||
+        v.contains('remind')) {
       return NotificationType.appointmentReminder;
     }
-    if (v == 'benh_vien_thong_bao' || v.contains('hoan_thanh') || v.contains('complete')) {
+    if (v == 'benh_vien_thong_bao' ||
+        v.contains('hoan_thanh') ||
+        v.contains('complete')) {
       return NotificationType.appointmentCompleted;
     }
-    if (v == 'he_thong' || v.contains('system')) {
-      return NotificationType.system;
-    }
-
-    return NotificationType.system; // Fallback mặc định
+    return NotificationType.system;
   }
 
+  /// _statusFrom: xác định thông báo đã đọc hay chưa đọc từ dữ liệu Firestore.
   static NotificationStatus _statusFrom(Map<String, dynamic> m) {
     final daDoc = m['da_doc'] ?? m['isRead'] ?? m['is_read'];
     if (daDoc is bool) {
@@ -107,6 +122,7 @@ class NotificationModel {
     return NotificationStatus.unread;
   }
 
+  /// fromMap: dựng thông báo từ dữ liệu document Firestore.
   factory NotificationModel.fromMap(Map<String, dynamic> map, String id) {
     return NotificationModel(
       id: id,
@@ -126,12 +142,12 @@ class NotificationModel {
     );
   }
 
-  /// Ghi lên Firestore.
+  /// toMap: đổi thông báo thành dữ liệu để ghi lên Firestore.
   Map<String, dynamic> toMap() => {
     'tieu_de': title,
     'noi_dung': message,
-    'loai_thong_bao': type.name, 
-    'da_doc': status == NotificationStatus.read ? 1 : 0, 
+    'loai_thong_bao': type.name,
+    'da_doc': status == NotificationStatus.read ? 1 : 0,
     'ngay_tao': Timestamp.fromDate(createdAt),
     if (hospitalName != null) 'ten_benh_vien': hospitalName,
     if (departmentName != null) 'ten_khoa': departmentName,
@@ -143,6 +159,7 @@ class NotificationModel {
     if (khoaId != null) 'khoa_id': khoaId,
   };
 
+  /// copyWith: tạo bản sao thông báo với các giá trị được thay đổi.
   NotificationModel copyWith({
     NotificationStatus? status,
     String? lichHenId,
@@ -161,9 +178,9 @@ class NotificationModel {
       appointmentDate: appointmentDate,
       appointmentTime: appointmentTime,
       queueNumber: queueNumber,
-      lichHenId: lichHenId ?? this.lichHenId,       
-      benhVienId: benhVienId ?? this.benhVienId,    
-      khoaId: khoaId ?? this.khoaId,                
+      lichHenId: lichHenId ?? this.lichHenId,
+      benhVienId: benhVienId ?? this.benhVienId,
+      khoaId: khoaId ?? this.khoaId,
     );
   }
 }

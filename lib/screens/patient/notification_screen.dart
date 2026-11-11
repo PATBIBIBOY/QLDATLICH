@@ -12,19 +12,21 @@ import '../../providers/lich_hen_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../../utils/app_snackbar.dart';
 
-// Màu dùng riêng cho màn hình này.
+/// _C: bảng màu dùng riêng cho màn hình thông báo.
 class _C {
   static const primary = Color(0xFF2196F3);
   static const primaryDark = Color(0xFF1976D2);
   static const success = Color(0xFF16A34A);
   static const warning = Color(0xFFF59E0B);
   static const danger = Color(0xFFE53935);
+  static const closed = Color(0xFF475569);
   static const bg = Color(0xFFF5F7FA);
   static const textDark = Color(0xFF0F172A);
   static const textGrey = Color(0xFF64748B);
   static const border = Color(0xFFE8ECF3);
 }
 
+/// _formatTimeAgo: đổi một thời điểm thành chuỗi "x phút trước", "x giờ trước"...
 String _formatTimeAgo(DateTime time, {DateTime? now}) {
   final diff = (now ?? DateTime.now()).difference(time);
   if (diff.isNegative) return 'Vừa xong';
@@ -50,14 +52,13 @@ String _formatTimeAgo(DateTime time, {DateTime? now}) {
   return '${days ~/ 365} năm trước';
 }
 
-// Giờ chính xác: "14:05 24/09/2026".
+/// _formatExact: định dạng giờ chính xác "HH:mm dd/MM/yyyy".
 String _formatExact(DateTime t) {
   String two(int n) => n.toString().padLeft(2, '0');
   return '${two(t.hour)}:${two(t.minute)} ${two(t.day)}/${two(t.month)}/${t.year}';
 }
 
-// ───────────────────────── Màn hình ─────────────────────────
-
+/// NotificationScreen: màn hình gồm hai tab Lịch cũ và Thông báo.
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
 
@@ -90,6 +91,7 @@ class _NotificationScreenState extends State<NotificationScreen>
     super.dispose();
   }
 
+  /// _initNotifications: bắt đầu lắng nghe thông báo của người dùng đang đăng nhập.
   void _initNotifications() {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId != null) {
@@ -97,6 +99,7 @@ class _NotificationScreenState extends State<NotificationScreen>
     }
   }
 
+  /// _loadBookings: tải danh sách lịch hẹn của người dùng đang đăng nhập.
   Future<void> _loadBookings() async {
     final id = FirebaseAuth.instance.currentUser?.uid;
     if (id == null) return;
@@ -160,9 +163,7 @@ class _NotificationScreenState extends State<NotificationScreen>
     );
   }
 
-  // ───────────────────────── Tab Lịch cũ ─────────────────────────
-
-  // Gom lịch cũ theo tháng, tháng mới nhất lên đầu.
+  /// _groupHistoryByMonth: gom lịch cũ theo tháng, tháng mới nhất lên đầu.
   List<MapEntry<String, List<LichHenModel>>> _groupHistoryByMonth(
     List<LichHenModel> list,
   ) {
@@ -181,6 +182,7 @@ class _NotificationScreenState extends State<NotificationScreen>
     return map.entries.toList();
   }
 
+  /// _buildHistoryTab: dựng tab Lịch cũ gồm trạng thái tải, lỗi, rỗng hoặc danh sách theo tháng.
   Widget _buildHistoryTab(List<LichHenModel> history) {
     final provider = context.watch<LichHenProvider>();
     final loading = provider.isLoadingMyBookings && history.isEmpty;
@@ -261,8 +263,7 @@ class _NotificationScreenState extends State<NotificationScreen>
     );
   }
 
-  // ───────────────────────── Tab Thông báo ─────────────────────────
-
+  /// _buildNotificationsTab: dựng tab Thông báo gồm trạng thái tải, lỗi, rỗng hoặc danh sách theo ngày.
   Widget _buildNotificationsTab(NotificationProvider provider) {
     if (provider.isLoading && provider.notifications.isEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -389,6 +390,7 @@ class _NotificationScreenState extends State<NotificationScreen>
     );
   }
 
+  /// _groupNotifications: gom thông báo thành các nhóm Hôm nay, Hôm qua, Trước đó (mới nhất lên đầu).
   List<MapEntry<String, List<NotificationModel>>> _groupNotifications(
     List<NotificationModel> list,
   ) {
@@ -416,8 +418,7 @@ class _NotificationScreenState extends State<NotificationScreen>
   }
 }
 
-// ───────────────────────── Đầu trang và thanh tab ─────────────────────────
-
+/// _Header: phần đầu trang có nền gradient, tiêu đề và chuông thông báo.
 class _Header extends StatelessWidget {
   final double height;
   final int unreadCount;
@@ -504,6 +505,7 @@ class _Header extends StatelessWidget {
   }
 }
 
+/// _Bubble: hình tròn mờ trang trí nền.
 class _Bubble extends StatelessWidget {
   final double size;
   final double opacity;
@@ -521,6 +523,7 @@ class _Bubble extends StatelessWidget {
   }
 }
 
+/// _BellBadge: biểu tượng chuông kèm số thông báo chưa đọc.
 class _BellBadge extends StatelessWidget {
   final int count;
   const _BellBadge({required this.count});
@@ -572,6 +575,7 @@ class _BellBadge extends StatelessWidget {
   }
 }
 
+/// _TabInfo: thông tin một tab (nhãn, số đếm, có phải tab cảnh báo không).
 class _TabInfo {
   final String label;
   final int count;
@@ -579,6 +583,7 @@ class _TabInfo {
   const _TabInfo(this.label, this.count, this.alert);
 }
 
+/// _SegmentedTabs: thanh chuyển tab dạng viên thuốc có hiệu ứng trượt.
 class _SegmentedTabs extends StatelessWidget {
   final TabController controller;
   final List<_TabInfo> tabs;
@@ -691,8 +696,7 @@ class _SegmentedTabs extends StatelessWidget {
   }
 }
 
-// ───────────────────────── Thành phần dùng chung ─────────────────────────
-
+/// _SectionLabel: tiêu đề nhóm thông báo (Hôm nay, Hôm qua, Trước đó).
 class _SectionLabel extends StatelessWidget {
   final String text;
   const _SectionLabel(this.text);
@@ -726,6 +730,7 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
+/// _FadeIn: hiệu ứng mờ dần và trượt lên khi một mục xuất hiện.
 class _FadeIn extends StatelessWidget {
   final int index;
   final Widget child;
@@ -749,6 +754,7 @@ class _FadeIn extends StatelessWidget {
   }
 }
 
+/// _EmptyState: khung hiển thị khi không có dữ liệu hoặc gặp lỗi, có thể kèm nút hành động.
 class _EmptyState extends StatelessWidget {
   final IconData icon;
   final Color color;
@@ -834,6 +840,7 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
+/// _InfoChip: nhãn nhỏ gồm biểu tượng và chữ (tên bệnh viện, chuyên khoa).
 class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String text;
@@ -852,7 +859,6 @@ class _InfoChip extends StatelessWidget {
         children: [
           Icon(icon, size: 13, color: _C.textGrey),
           const SizedBox(width: 5),
-
           Flexible(
             child: Text(
               text,
@@ -871,8 +877,7 @@ class _InfoChip extends StatelessWidget {
   }
 }
 
-// ───────────────────────── Thẻ thông báo (Đã tối ưu hóa UI & Icon) ─────────────────────────
-
+/// _NotificationCard: thẻ một thông báo, bấm vào để đánh dấu đã đọc (thông báo hoàn thành sẽ mở hộp thoại đánh giá).
 class _NotificationCard extends StatelessWidget {
   final NotificationModel notification;
   final bool unread;
@@ -884,7 +889,7 @@ class _NotificationCard extends StatelessWidget {
     required this.onTap,
   });
 
-  // Icon theo loại thông báo.
+  /// _icon: biểu tượng theo loại thông báo.
   IconData get _icon {
     switch (notification.type) {
       case NotificationType.appointmentConfirmed:
@@ -895,12 +900,18 @@ class _NotificationCard extends StatelessWidget {
         return Icons.notifications_rounded;
       case NotificationType.appointmentCompleted:
         return Icons.workspace_premium_rounded;
+      case NotificationType.roomPaused:
+        return Icons.pause_circle_rounded;
+      case NotificationType.roomResumed:
+        return Icons.play_circle_rounded;
+      case NotificationType.roomClosed:
+        return Icons.lock_rounded;
       case NotificationType.system:
         return Icons.notifications_active_rounded;
     }
   }
 
-  // Màu theo loại thông báo.
+  /// _color: màu theo loại thông báo.
   Color get _color {
     switch (notification.type) {
       case NotificationType.appointmentConfirmed:
@@ -911,12 +922,18 @@ class _NotificationCard extends StatelessWidget {
         return _C.warning;
       case NotificationType.appointmentCompleted:
         return const Color(0xFF8B5CF6);
+      case NotificationType.roomPaused:
+        return _C.warning;
+      case NotificationType.roomResumed:
+        return _C.success;
+      case NotificationType.roomClosed:
+        return _C.closed;
       case NotificationType.system:
         return _C.textGrey;
     }
   }
 
-  // Nhãn loại thông báo.
+  /// _typeLabel: nhãn theo loại thông báo.
   String get _typeLabel {
     switch (notification.type) {
       case NotificationType.appointmentConfirmed:
@@ -927,12 +944,58 @@ class _NotificationCard extends StatelessWidget {
         return 'NHẮC LỊCH';
       case NotificationType.appointmentCompleted:
         return 'HOÀN THÀNH';
+      case NotificationType.roomPaused:
+        return 'PHÒNG TẠM DỪNG';
+      case NotificationType.roomResumed:
+        return 'TIẾP TỤC KHÁM';
+      case NotificationType.roomClosed:
+        return 'PHÒNG ĐÓNG CỬA';
       case NotificationType.system:
         return 'HỆ THỐNG';
     }
   }
 
+  /// _has: kiểm tra chuỗi có giá trị (không null và không rỗng).
   bool _has(String? v) => v != null && v.isNotEmpty;
+
+  /// _handleTap: xử lý khi bấm vào thẻ.
+  Future<void> _handleTap(BuildContext context) async {
+    // Bước 1: các loại khác ngoài hoàn thành chỉ cần đánh dấu đã đọc.
+    if (notification.type != NotificationType.appointmentCompleted) {
+      onTap();
+      return;
+    }
+
+    // Bước 2: kiểm tra lịch khám này đã được đánh giá chưa.
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    final lichHenId = notification.lichHenId ?? notification.id;
+
+    if (userId != null) {
+      final alreadyReviewed = await ReviewService().hasReviewed(
+        lichHenId,
+        userId,
+      );
+      if (alreadyReviewed) {
+        if (!context.mounted) return;
+        context.showAppSnackBar(
+          title: 'Đã đánh giá lịch khám',
+          message: 'Bạn đã đánh giá lịch khám này rồi!',
+          type: SnackBarType.warning,
+        );
+        onTap();
+        return;
+      }
+    }
+
+    // Bước 3: mở hộp thoại đánh giá rồi đánh dấu đã đọc.
+    if (!context.mounted) return;
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _ReviewDialog(notification: notification),
+    );
+    onTap();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -979,46 +1042,7 @@ class _NotificationCard extends StatelessWidget {
                   : null,
             ),
             child: InkWell(
-              onTap: () async {
-                if (notification.type ==
-                    NotificationType.appointmentCompleted) {
-                  final userId = FirebaseAuth.instance.currentUser?.uid;
-                  final lichHenId = notification.lichHenId ?? notification.id;
-
-                  if (userId != null && lichHenId != null) {
-                    final reviewService = ReviewService();
-                    final alreadyReviewed = await reviewService.hasReviewed(
-                      lichHenId,
-                      userId,
-                    );
-                    if (alreadyReviewed) {
-                      context.showAppSnackBar(
-                        title: 'Đã đánh giá lịch khám',
-                        message: 'Bạn đã đánh giá lịch khám này rồi!',
-                        type: SnackBarType.warning,
-                      );
-                      onTap(); 
-                      return;
-                    }
-                  }
-
-                  await showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (ctx) => _ReviewDialog(notification: notification),
-                  );
-                  onTap(); 
-                }
-                else if (notification.type ==
-                        NotificationType.appointmentReminder ||
-                    notification.type ==
-                        NotificationType.appointmentConfirmed) {
-                  onTap();
-                }
-                else {
-                  onTap();
-                }
-              },
+              onTap: () => _handleTap(context),
               child: Stack(
                 children: [
                   Positioned(
@@ -1037,7 +1061,6 @@ class _NotificationCard extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Thanh màu bên trái (đậm khi chưa đọc)
                         AnimatedContainer(
                           duration: const Duration(milliseconds: 250),
                           width: 5,
@@ -1062,8 +1085,6 @@ class _NotificationCard extends StatelessWidget {
                               children: [
                                 _buildHeader(color),
                                 const SizedBox(height: 14),
-
-                                // Tiêu đề
                                 Text(
                                   notification.title,
                                   style: TextStyle(
@@ -1076,8 +1097,6 @@ class _NotificationCard extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(height: 6),
-
-                                // Nội dung
                                 Text(
                                   notification.message,
                                   maxLines: 4,
@@ -1088,8 +1107,6 @@ class _NotificationCard extends StatelessWidget {
                                     color: _C.textGrey,
                                   ),
                                 ),
-
-                                // Nơi khám
                                 if (hasPlace) ...[
                                   const SizedBox(height: 12),
                                   Wrap(
@@ -1109,8 +1126,6 @@ class _NotificationCard extends StatelessWidget {
                                     ],
                                   ),
                                 ],
-
-                                // Bảng ngày / giờ / số thứ tự
                                 if (hasStats) ...[
                                   const SizedBox(height: 12),
                                   _buildStats(color, date, time, queue),
@@ -1131,6 +1146,7 @@ class _NotificationCard extends StatelessWidget {
     );
   }
 
+  /// _buildHeader: dòng đầu thẻ gồm biểu tượng, nhãn loại, nhãn MỚI và thời gian.
   Widget _buildHeader(Color color) {
     return Row(
       children: [
@@ -1223,7 +1239,6 @@ class _NotificationCard extends StatelessWidget {
                     color: _C.textGrey,
                   ),
                   const SizedBox(width: 4),
-                  // "5 phút trước · 14:05 24/09/2026" — tự cập nhật theo thời gian
                   Expanded(
                     child: _TimeAgoText(
                       time: notification.createdAt,
@@ -1244,7 +1259,7 @@ class _NotificationCard extends StatelessWidget {
     );
   }
 
-  // Bảng thông tin: ngày, giờ, số thứ tự (có vạch ngăn).
+  /// _buildStats: bảng thông tin ngày, giờ, số thứ tự có vạch ngăn.
   Widget _buildStats(Color color, String? date, String? time, String? queue) {
     return Container(
       width: double.infinity,
@@ -1293,8 +1308,7 @@ class _NotificationCard extends StatelessWidget {
   }
 }
 
-// ───────────────────────── DIALOG ĐÁNH GIÁ (MỚI) ─────────────────────────
-
+/// _ReviewDialog: hộp thoại đánh giá trải nghiệm khám (số sao, gợi ý nhanh, nhận xét, ẩn danh).
 class _ReviewDialog extends StatefulWidget {
   final NotificationModel notification;
   const _ReviewDialog({required this.notification});
@@ -1313,7 +1327,6 @@ class _ReviewDialogState extends State<_ReviewDialog> {
   final ReviewService _reviewService = ReviewService();
   final Set<String> _selectedTags = {};
 
-  // Gợi ý nhanh theo mức sao
   static const _positiveTags = [
     'Bác sĩ tận tình',
     'Phục vụ nhanh',
@@ -1374,7 +1387,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
     super.dispose();
   }
 
-  // Đổi số sao: các gợi ý của mức cũ không còn phù hợp nên bỏ chọn.
+  /// _setRating: đổi số sao, bỏ chọn các gợi ý không còn phù hợp với mức sao mới.
   void _setRating(int value) {
     if (_isSubmitting) return;
     setState(() {
@@ -1385,7 +1398,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
     });
   }
 
-  // Nội dung nhận xét gửi đi = các gợi ý đã chọn + phần người dùng tự viết.
+  /// _buildComment: ghép nội dung nhận xét từ các gợi ý đã chọn và phần người dùng tự viết.
   String _buildComment() {
     final parts = <String>[
       if (_selectedTags.isNotEmpty) _selectedTags.join(', '),
@@ -1395,7 +1408,9 @@ class _ReviewDialogState extends State<_ReviewDialog> {
     return parts.join('. ');
   }
 
+  /// _submitReview: kiểm tra nhận xét, gửi đánh giá lên Firestore rồi hiện hộp thoại cảm ơn.
   Future<void> _submitReview() async {
+    // Bước 1: kiểm tra có nhận xét hoặc gợi ý.
     final comment = _buildComment();
     if (comment.isEmpty) {
       setState(() => _showError = true);
@@ -1407,10 +1422,10 @@ class _ReviewDialogState extends State<_ReviewDialog> {
       _isSubmitting = true;
     });
 
-    // Lấy sẵn Navigator để còn mở hộp thoại thành công sau khi đóng hộp này
     final navigator = Navigator.of(context);
 
     try {
+      // Bước 2: lấy người dùng đang đăng nhập và tên bệnh nhân.
       final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId == null) throw Exception('Bạn chưa đăng nhập');
 
@@ -1423,6 +1438,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
         patientName = userDoc.data()!['ho_ten']?.toString() ?? 'Bệnh nhân';
       }
 
+      // Bước 3: dựng đánh giá từ thông tin thông báo.
       final bvId = widget.notification.benhVienId ?? 'unknown_bv';
       final kId = widget.notification.khoaId ?? 'unknown_khoa';
       final lhId = widget.notification.lichHenId ?? widget.notification.id;
@@ -1443,6 +1459,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
         tenBenhNhan: patientName,
       );
 
+      // Bước 4: gửi đánh giá, đóng hộp thoại và hiện hộp thoại cảm ơn.
       await _reviewService.submitReview(review);
 
       if (!mounted) return;
@@ -1459,7 +1476,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
     }
   }
 
-  // Hộp thoại cảm ơn sau khi gửi thành công.
+  /// _showSuccessDialog: hộp thoại cảm ơn sau khi gửi đánh giá thành công.
   void _showSuccessDialog(BuildContext hostContext) {
     final hospital = _hospitalName;
     showDialog(
@@ -1584,8 +1601,6 @@ class _ReviewDialogState extends State<_ReviewDialog> {
     );
   }
 
-  // ───────────────────────── Giao diện ─────────────────────────
-
   @override
   Widget build(BuildContext context) {
     final maxHeight = MediaQuery.of(context).size.height * 0.88;
@@ -1630,7 +1645,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
     );
   }
 
-  // Đầu hộp thoại: nền gradient xanh, biểu tượng y tế, tiêu đề, nút đóng.
+  /// _buildHeader: đầu hộp thoại gồm nền gradient, biểu tượng, tiêu đề và nút đóng.
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
@@ -1716,7 +1731,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
     );
   }
 
-  // Thẻ thông tin lần khám: bệnh viện, chuyên khoa, ngày giờ (nếu có).
+  /// _buildVisitCard: thẻ thông tin lần khám gồm bệnh viện, chuyên khoa, ngày giờ (nếu có).
   Widget _buildVisitCard() {
     final date = widget.notification.appointmentDate;
     final time = widget.notification.appointmentTime;
@@ -1767,6 +1782,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
     );
   }
 
+  /// _visitRow: một dòng thông tin lần khám gồm biểu tượng, nhãn và giá trị.
   Widget _visitRow(IconData icon, String label, String value) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1813,7 +1829,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
     );
   }
 
-  // Chấm sao + nhãn mức độ hài lòng.
+  /// _buildRatingSection: hàng sao chọn điểm và nhãn mức độ hài lòng.
   Widget _buildRatingSection() {
     return Column(
       children: [
@@ -1877,7 +1893,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
     );
   }
 
-  // Gợi ý nhanh theo mức sao.
+  /// _buildTagsSection: các gợi ý nhanh theo mức sao.
   Widget _buildTagsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1948,7 +1964,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
     );
   }
 
-  // Ô nhận xét + thông báo lỗi nếu bỏ trống.
+  /// _buildCommentSection: ô nhập nhận xét và thông báo lỗi nếu bỏ trống.
   Widget _buildCommentSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2025,7 +2041,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
     );
   }
 
-  // Công tắc ẩn danh kèm giải thích bảo mật.
+  /// _buildAnonymousTile: công tắc ẩn danh kèm giải thích.
   Widget _buildAnonymousTile() {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
@@ -2080,7 +2096,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
     );
   }
 
-  // Chân hộp thoại: nút Để sau / Gửi đánh giá.
+  /// _buildFooter: chân hộp thoại gồm nút Để sau và Gửi đánh giá.
   Widget _buildFooter() {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
@@ -2151,6 +2167,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
   }
 }
 
+/// _StatTile: ô thông tin gồm nhãn nhỏ và giá trị (ngày, giờ, số thứ tự).
 class _StatTile extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -2203,18 +2220,16 @@ class _StatTile extends StatelessWidget {
   }
 }
 
-// ───────────────────────── Thẻ lịch cũ ─────────────────────────
-
+/// _HistoryCard: thẻ một lịch khám cũ (hoàn thành hoặc vắng mặt) kèm nút đặt lại lịch.
 class _HistoryCard extends StatelessWidget {
   final LichHenModel booking;
   final VoidCallback onRebook;
 
   const _HistoryCard({required this.booking, required this.onRebook});
 
-  // Đã khám xong (trạng thái '5') hay vắng mặt (trạng thái '6').
   bool get _completed => booking.trangThaiId.toString() == '5';
 
-  // 6 ký tự cuối của mã lịch (mã Firestore rất dài nên chỉ hiện gọn).
+  /// _shortId: lấy 6 ký tự cuối của mã lịch để hiển thị gọn.
   String get _shortId {
     final id = booking.id.replaceAll('#', '').trim();
     if (id.isEmpty) return '—';
@@ -2249,7 +2264,6 @@ class _HistoryCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Dải màu theo trạng thái
               Container(width: 5, color: accent),
               Expanded(
                 child: Padding(
@@ -2260,7 +2274,6 @@ class _HistoryCard extends StatelessWidget {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Ô ngày kiểu tờ lịch
                           Container(
                             width: 56,
                             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -2331,7 +2344,6 @@ class _HistoryCard extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(height: 7),
-                                // Nhãn trạng thái
                                 Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 10,
@@ -2369,8 +2381,6 @@ class _HistoryCard extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 12),
-
-                      // Chuyên khoa + khung giờ
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
@@ -2387,12 +2397,9 @@ class _HistoryCard extends StatelessWidget {
                             ),
                         ],
                       ),
-
                       const SizedBox(height: 12),
                       const Divider(height: 1, color: _C.border),
                       const SizedBox(height: 6),
-
-                      // Chân thẻ: mã lịch + đặt lại
                       Row(
                         children: [
                           Container(
@@ -2448,6 +2455,7 @@ class _HistoryCard extends StatelessWidget {
   }
 }
 
+/// _HistoryInfo: nhãn thông tin trong thẻ lịch cũ (chuyên khoa, khung giờ).
 class _HistoryInfo extends StatelessWidget {
   final IconData icon;
   final String text;
@@ -2484,7 +2492,7 @@ class _HistoryInfo extends StatelessWidget {
   }
 }
 
-// Thẻ tổng quan: tổng lượt khám, số hoàn thành / vắng mặt, thanh tỉ lệ.
+/// _HistorySummary: thẻ tổng quan lịch sử gồm tổng lượt khám, số hoàn thành, số vắng mặt và thanh tỉ lệ.
 class _HistorySummary extends StatelessWidget {
   final int total;
   final int completed;
@@ -2560,7 +2568,6 @@ class _HistorySummary extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          // Thanh tỉ lệ hoàn thành
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
@@ -2597,6 +2604,7 @@ class _HistorySummary extends StatelessWidget {
   }
 }
 
+/// _SummaryStat: một số liệu trong thẻ tổng quan lịch sử.
 class _SummaryStat extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -2639,7 +2647,7 @@ class _SummaryStat extends StatelessWidget {
   }
 }
 
-// Tiêu đề nhóm tháng, kèm số lượt khám trong tháng.
+/// _MonthLabel: tiêu đề nhóm tháng kèm số lượt khám trong tháng.
 class _MonthLabel extends StatelessWidget {
   final String text;
   final int count;
@@ -2685,6 +2693,7 @@ class _MonthLabel extends StatelessWidget {
   }
 }
 
+/// _TimeAgoText: văn bản "x phút trước · giờ chính xác" tự cập nhật theo thời gian.
 class _TimeAgoText extends StatefulWidget {
   final DateTime time;
   final String? suffix;
@@ -2705,7 +2714,7 @@ class _TimeAgoTextState extends State<_TimeAgoText> {
     _schedule();
   }
 
-  // Hẹn lần cập nhật kế tiếp theo "tuổi" của thông báo.
+  /// _schedule: hẹn lần cập nhật kế tiếp theo "tuổi" của thông báo.
   void _schedule() {
     final age = DateTime.now().difference(widget.time);
     final wait = age.inSeconds < 60
