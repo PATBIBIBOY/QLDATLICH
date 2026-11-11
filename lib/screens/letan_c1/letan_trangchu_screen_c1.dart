@@ -292,170 +292,162 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
     final textCol = isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E);
     final subTextCol = isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93);
 
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        DuLieuProfileMauC1.thongTinHienTai.tenBenhVien.isNotEmpty
-                            ? DuLieuProfileMauC1.thongTinHienTai.tenBenhVien
-                            : 'Bệnh viện BV502',
-                        style: const TextStyle(
-                          color: Color(0xFFFF9500),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        'Xin chào, Lễ tân $_tenKhoaHienTai',
-                        style: TextStyle(
-                          color: subTextCol,
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Text(
-                      'Trang chủ Lễ tân',
-                      style: TextStyle(
-                        color: textCol,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.lock_outline_rounded,
-                            size: 11,
-                            color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Cố định: $_tenKhoaHienTai',
-                            style: TextStyle(
-                              color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            IconButton(
-              onPressed: () => AppDesignSystemC1.batTatCheDoSangToi(),
-              tooltip: isDark ? 'Chuyển giao diện Sáng' : 'Chuyển giao diện Tối',
-              icon: Icon(
-                isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-                color: isDark ? Colors.amber : const Color(0xFF475569),
-                size: 24,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    DuLieuProfileMauC1.thongTinHienTai.tenBenhVien.isNotEmpty
+                        ? DuLieuProfileMauC1.thongTinHienTai.tenBenhVien
+                        : 'Bệnh viện BV502',
+                    style: const TextStyle(
+                      color: Color(0xFFFF9500),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Trang chủ Lễ tân',
+                    style: TextStyle(
+                      color: textCol,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 4),
-            InkWell(
-              onTap: () => CskhThongBaoBottomSheetC1.show(
-                context,
-                vaiTro: 'letan',
-                tieuDe: 'Thông Báo Lễ Tân',
-                tenKhoaHienTai: _tenKhoaHienTai,
-                khoaIdHienTai: _khoaIdHienTai,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
-                    width: 1.2,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  onPressed: () => AppDesignSystemC1.batTatCheDoSangToi(),
+                  tooltip: isDark ? 'Chuyển giao diện Sáng' : 'Chuyển giao diện Tối',
+                  icon: Icon(
+                    isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                    color: isDark ? Colors.amber : const Color(0xFF475569),
+                    size: 22,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        const Icon(
-                          Icons.notifications_active_outlined,
-                          color: Color(0xFF007AFF),
-                          size: 20,
+                const SizedBox(width: 2),
+                InkWell(
+                  onTap: () => CskhThongBaoBottomSheetC1.show(
+                    context,
+                    vaiTro: 'letan',
+                    tieuDe: 'Thông Báo Lễ Tân',
+                    tenKhoaHienTai: _tenKhoaHienTai,
+                    khoaIdHienTai: _khoaIdHienTai,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
                         ),
-                        Positioned(
-                          right: -2,
-                          top: -2,
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFFF3B30),
-                              shape: BoxShape.circle,
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            const Icon(
+                              Icons.notifications_active_outlined,
+                              color: Color(0xFF007AFF),
+                              size: 18,
                             ),
+                            Positioned(
+                              right: -2,
+                              top: -2,
+                              child: Container(
+                                width: 7,
+                                height: 7,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFFF3B30),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Thông báo',
+                          style: TextStyle(
+                            color: textCol,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Thông báo',
-                      style: TextStyle(
-                        color: textCol,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            Text(
+              'Xin chào, Lễ tân ${DuLieuProfileMauC1.thongTinHienTai.hoTen}',
+              style: TextStyle(
+                color: subTextCol,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.lock_outline_rounded,
+                    size: 11,
+                    color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Khoa: $_tenKhoaHienTai',
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
