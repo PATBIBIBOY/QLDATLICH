@@ -520,8 +520,10 @@ class AdminStore extends ChangeNotifier {
   void _processPatientsSnapshot(QuerySnapshot<Map<String, dynamic>> snapshot) {
     final List<AdminPatient> list = [];
     int idx = 0;
+    debugPrint('Đang xử lý ${snapshot.docs.length} tài khoản BenhNhan từ Firestore...');
     for (final doc in snapshot.docs) {
-      final data = doc.data();
+      try {
+        final data = doc.data();
       final uid = data['uid']?.toString() ?? doc.id;
       final maBenhNhan = data['ma_benh_nhan']?.toString() ?? 'BN${doc.id.length >= 4 ? doc.id.substring(0, 4) : doc.id}';
       final hoTen = data['ho_ten']?.toString() ?? 'Bệnh nhân ${doc.id}';
@@ -615,8 +617,12 @@ class AdminStore extends ChangeNotifier {
         avatarBg: palette[0],
         avatarText: palette[1],
       ));
+      } catch (err) {
+        debugPrint('Lỗi phân tích bệnh nhân ${doc.id}: $err');
+      }
     }
     patients = list;
+    debugPrint('Đã cập nhật thành công ${patients.length} bệnh nhân vào bộ nhớ AdminStore');
     lastSync = DateTime.now();
     isConnected = true;
     notifyListeners();
