@@ -204,6 +204,8 @@ class _CskhChatChitietScreenC1State extends State<CskhChatChitietScreenC1> {
               children: [
                 Text(
                   widget.hoiThoai.hoTen,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
                     fontSize: 16,
@@ -212,6 +214,8 @@ class _CskhChatChitietScreenC1State extends State<CskhChatChitietScreenC1> {
                 ),
                 Text(
                   '${widget.hoiThoai.tuoi} tuổi • ${widget.hoiThoai.khoa}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
                     fontSize: 12,
@@ -273,6 +277,8 @@ class _CskhChatChitietScreenC1State extends State<CskhChatChitietScreenC1> {
           const SizedBox(height: 3),
           Text(
             'BHYT: ${widget.hoiThoai.maBhyt} • Lịch khám gần nhất: 18/09',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF334155),
               fontSize: 11.5,

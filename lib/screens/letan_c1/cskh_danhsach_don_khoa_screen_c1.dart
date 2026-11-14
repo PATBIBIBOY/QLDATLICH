@@ -373,41 +373,47 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
                                         : null,
                                   ),
                                   alignment: Alignment.center,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        tab,
-                                        style: TextStyle(
-                                          color: isSelected
-                                              ? (isDark ? Colors.white : AppDesignSystemC1.primary)
-                                              : (isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B)),
-                                          fontSize: 12.5,
-                                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                        decoration: BoxDecoration(
-                                          color: isSelected
-                                              ? (isDark ? const Color(0xFF0284C7) : const Color(0xFFE0F2FE))
-                                              : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Text(
-                                          '$count',
-                                          style: TextStyle(
-                                            color: isSelected
-                                                ? (isDark ? Colors.white : const Color(0xFF0284C7))
-                                                : (isDark ? Colors.white70 : const Color(0xFF475569)),
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w700,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            tab,
+                                            style: TextStyle(
+                                              color: isSelected
+                                                  ? (isDark ? Colors.white : AppDesignSystemC1.primary)
+                                                  : (isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B)),
+                                              fontSize: 12.5,
+                                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                            ),
                                           ),
-                                        ),
+                                          const SizedBox(width: 4),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                            decoration: BoxDecoration(
+                                              color: isSelected
+                                                  ? (isDark ? const Color(0xFF0284C7) : const Color(0xFFE0F2FE))
+                                                  : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              '$count',
+                                              style: TextStyle(
+                                                color: isSelected
+                                                    ? (isDark ? Colors.white : const Color(0xFF0284C7))
+                                                    : (isDark ? Colors.white70 : const Color(0xFF475569)),
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ],
+                                    ),
                                   ),
                                 ),
                               ),
@@ -505,27 +511,36 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
               ),
             ),
           ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                widget.tenKhoa,
-                style: TextStyle(
-                  color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
-                  fontSize: 16.5,
-                  fontWeight: FontWeight.w700,
-                ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    widget.tenKhoa,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
+                      fontSize: 16.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$_phongHienTai • ${widget.caKham}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 2),
-              Text(
-                '$_phongHienTai • ${widget.caKham}',
-                style: TextStyle(
-                  color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ],
+            ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),

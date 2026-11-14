@@ -542,39 +542,6 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
                         height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    if (!FirebaseServiceC1.laCheDoTong(_tenKhoaHienTai))
-                      InkWell(
-                        onTap: () {
-                          AppDesignSystemC1.hapticLight();
-                          setState(() {
-                            _tenKhoaHienTai = 'Toàn viện';
-                          });
-                        },
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0284C7),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.domain_rounded, color: Colors.white, size: 16),
-                              SizedBox(width: 6),
-                              Text(
-                                'Xem danh sách Toàn viện',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               )

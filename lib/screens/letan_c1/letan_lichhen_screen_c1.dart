@@ -610,14 +610,21 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           alignment: Alignment.center,
-                          child: Text(
-                            tab,
-                            style: TextStyle(
-                              color: isSelected
-                                  ? (isDark ? Colors.white : AppDesignSystemC1.primary)
-                                  : (isDark ? AppDesignSystemC1.darkTextSecondary : AppDesignSystemC1.textSecondary),
-                              fontSize: 13,
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 2),
+                              child: Text(
+                                tab,
+                                maxLines: 1,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? (isDark ? Colors.white : AppDesignSystemC1.primary)
+                                      : (isDark ? AppDesignSystemC1.darkTextSecondary : AppDesignSystemC1.textSecondary),
+                                  fontSize: 13,
+                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -740,6 +747,8 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
               children: [
                 Text(
                   hoTen,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: textCol,
                     fontSize: 15,
@@ -764,6 +773,8 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
                 const SizedBox(height: 3),
                 Text(
                   '${item['tenKhoa']} • ${item['phongKham']}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: subTextCol,
                     fontSize: 12,
@@ -775,6 +786,8 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
                   (item['so_thu_tu'] != null && item['so_thu_tu'].toString().isNotEmpty)
                       ? 'Giờ khám: ${item['gioKham']} • STT: ${item['so_thu_tu']}'
                       : 'Giờ khám: ${item['gioKham']}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: subTextCol,
                     fontSize: 12,

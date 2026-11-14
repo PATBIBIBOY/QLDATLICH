@@ -367,7 +367,15 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> with Si
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(maBaoCao, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF0284C7), fontSize: 13)),
+                      Expanded(
+                        child: Text(
+                          maBaoCao,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF0284C7), fontSize: 13),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
@@ -383,7 +391,12 @@ class _LetanBaocaoloiScreenC1State extends State<LetanBaocaoloiScreenC1> with Si
                     ],
                   ),
                   const SizedBox(height: 6),
-                  Text(tieuDe, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: isDark ? Colors.white : const Color(0xFF0F172A))),
+                  Text(
+                    tieuDe,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                  ),
                   if (moTa.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(moTa, style: TextStyle(fontSize: 13, color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B))),

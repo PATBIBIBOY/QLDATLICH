@@ -177,12 +177,17 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
           const SizedBox(height: 12),
 
           // Tên lễ tân
-          Text(
-            _thongTin.hoTen,
-            style: TextStyle(
-              color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              _thongTin.hoTen,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              style: TextStyle(
+                color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
           const SizedBox(height: 6),

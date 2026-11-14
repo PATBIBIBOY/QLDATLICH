@@ -108,7 +108,7 @@ class LetanQuickActionsC1 extends StatelessWidget {
               _buildItem(
                 context: context,
                 tieuDe: 'Hồ sơ lễ tân',
-                moTa: 'Đổi mật khẩu / Khoa',
+                moTa: 'Đổi mật khẩu / Thông tin',
                 iconData: Icons.person_outline,
                 mauIcon: const Color(0xFF8B5CF6),
                 mauNenIcon: isDark ? const Color(0xFF23143E) : const Color(0xFFF3E8FF),

@@ -147,6 +147,8 @@ class CskhAppointmentCardC1 extends StatelessWidget {
                   (item['so_thu_tu'] != null && item['so_thu_tu'].toString().isNotEmpty)
                       ? 'STT ${item['so_thu_tu']}: ${item['hoTen'] ?? 'Bệnh nhân'}'
                       : '${item['hoTen'] ?? 'Bệnh nhân'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
                     fontSize: 14,
@@ -156,6 +158,8 @@ class CskhAppointmentCardC1 extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   '${item['gioKham'] ?? ''} • ${item['gioiTinh'] ?? ''}, ${item['namSinh'] ?? ''} • ${item['tenKhoa'] ?? ''}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
                     fontSize: 11.5,

@@ -88,26 +88,36 @@ class CskhStatsRowC1 extends StatelessWidget {
           color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
         ),
       ),
-      child: Column(
-        children: [
-          Text(
-            soLuong,
-            style: TextStyle(
-              color: mauSo,
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          children: [
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                soLuong,
+                style: TextStyle(
+                  color: mauSo,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            nhanDe,
-            style: TextStyle(
-              color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-              fontSize: 11.5,
-              fontWeight: FontWeight.w500,
+            const SizedBox(height: 3),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                nhanDe,
+                maxLines: 1,
+                style: TextStyle(
+                  color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

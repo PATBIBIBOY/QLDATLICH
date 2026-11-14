@@ -169,26 +169,36 @@ class LetanStatsWidgetC1 extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE5E5EA)),
       ),
-      child: Column(
-        children: [
-          Text(
-            soLuong,
-            style: TextStyle(
-              color: mauSo,
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          children: [
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                soLuong,
+                style: TextStyle(
+                  color: mauSo,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            nhanDe,
-            style: TextStyle(
-              color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
-              fontSize: 12,
-              fontWeight: FontWeight.w400,
+            const SizedBox(height: 4),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                nhanDe,
+                maxLines: 1,
+                style: TextStyle(
+                  color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

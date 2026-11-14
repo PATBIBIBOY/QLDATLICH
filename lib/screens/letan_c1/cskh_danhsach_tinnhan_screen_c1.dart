@@ -413,14 +413,19 @@ class _CskhDanhsachTinnhanScreenC1State extends State<CskhDanhsachTinnhanScreenC
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            hoTen,
-                            style: TextStyle(
-                              color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
+                          Expanded(
+                            child: Text(
+                              hoTen,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
+                          const SizedBox(width: 8),
                           Text(
                             thoiGianStr,
                             style: TextStyle(
@@ -443,6 +448,8 @@ class _CskhDanhsachTinnhanScreenC1State extends State<CskhDanhsachTinnhanScreenC
                       const SizedBox(height: 4),
                       Text(
                         tenBvHoacKhoa,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
                           fontSize: 11.5,

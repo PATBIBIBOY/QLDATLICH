@@ -109,6 +109,8 @@ class LetanPatientCardC1 extends StatelessWidget {
                 children: [
                   Text(
                     hoTen,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: textCol,
                       fontSize: 15,
@@ -120,6 +122,8 @@ class LetanPatientCardC1 extends StatelessWidget {
                     (item['so_thu_tu'] != null && item['so_thu_tu'].toString().isNotEmpty)
                         ? '${item['gioKham']} • STT: ${item['so_thu_tu']} • ${item['tenKhoa']}'
                         : '${item['gioKham']} • ${item['tenKhoa']}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: subTextCol,
                       fontSize: 12,
