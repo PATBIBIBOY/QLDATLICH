@@ -62,14 +62,13 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     super.initState();
     final auth = context.read<AuthProvider>();
     final currentFbUser = FirebaseAuth.instance.currentUser;
-    final tenBv = widget.initialTenBenhVien ??
+    final tenBv =
+        widget.initialTenBenhVien ??
         auth.hospital?.tenBenhVien ??
         (currentFbUser?.displayName?.isNotEmpty == true
             ? currentFbUser!.displayName!
             : '');
-    final diaChi = widget.initialDiaChi ??
-        auth.hospital?.diaChi ??
-        '';
+    final diaChi = widget.initialDiaChi ?? auth.hospital?.diaChi ?? '';
 
     _tenBenhVienCtrl = TextEditingController(text: tenBv);
     _maCoSoCtrl = TextEditingController(text: 'BV-79-102');
@@ -79,7 +78,8 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     if (auth.hospital?.coSo == 'Cong_lap' || auth.hospital?.coSo == 'Tu_nhan') {
       _coSo = auth.hospital!.coSo!;
     }
-    if (auth.hospital?.bhyt == 'Co_BHYT' || auth.hospital?.bhyt == 'Khong_BHYT') {
+    if (auth.hospital?.bhyt == 'Co_BHYT' ||
+        auth.hospital?.bhyt == 'Khong_BHYT') {
       _bhyt = auth.hospital!.bhyt!;
     }
 
@@ -87,7 +87,8 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     _viDo = auth.hospital?.viDo;
     _kinhDo = auth.hospital?.kinhDo;
     if (_viDo != null && _kinhDo != null) {
-      _viTriStatus = 'Đã có tọa độ: ${_viDo!.toStringAsFixed(5)}, ${_kinhDo!.toStringAsFixed(5)}';
+      _viTriStatus =
+          'Đã có tọa độ: ${_viDo!.toStringAsFixed(5)}, ${_kinhDo!.toStringAsFixed(5)}';
     }
 
     // Tự động yêu cầu định vị GPS từ thiết bị khi mở màn hình
@@ -113,11 +114,13 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     final curEmail = curUser?.email ?? '';
 
     // 1. Kiểm tra từ AuthProvider hoặc AppSession nếu đã chuẩn BVxxx
-    final candidate = (auth.hospital?.maBenhVien ??
-            auth.hospital?.uid ??
-            AppSession.benhVienId)
-        .trim();
-    if (candidate.startsWith('BV') && RegExp(r'^BV\d+$', caseSensitive: false).hasMatch(candidate)) {
+    final candidate =
+        (auth.hospital?.maBenhVien ??
+                auth.hospital?.uid ??
+                AppSession.benhVienId)
+            .trim();
+    if (candidate.startsWith('BV') &&
+        RegExp(r'^BV\d+$', caseSensitive: false).hasMatch(candidate)) {
       return candidate.toUpperCase();
     }
 
@@ -195,7 +198,9 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
         if (!isAuto && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Vui lòng bật định vị GPS trên thiết bị để lấy tọa độ'),
+              content: Text(
+                'Vui lòng bật định vị GPS trên thiết bị để lấy tọa độ',
+              ),
               backgroundColor: Colors.orange,
             ),
           );
@@ -236,7 +241,9 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
           ),
         );
       } catch (e) {
-        debugPrint('⚠️ getCurrentPosition chậm hoặc lỗi, thử getLastKnownPosition: $e');
+        debugPrint(
+          '⚠️ getCurrentPosition chậm hoặc lỗi, thử getLastKnownPosition: $e',
+        );
         position = await Geolocator.getLastKnownPosition();
       }
 
@@ -248,7 +255,8 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
           _viDo = pos.latitude;
           _kinhDo = pos.longitude;
           _dangLayViTri = false;
-          _viTriStatus = 'Đã định vị: ${_viDo!.toStringAsFixed(5)}, ${_kinhDo!.toStringAsFixed(5)}';
+          _viTriStatus =
+              'Đã định vị: ${_viDo!.toStringAsFixed(5)}, ${_kinhDo!.toStringAsFixed(5)}';
         });
 
         if (!isAuto && mounted) {
@@ -288,7 +296,9 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
   IconData _getFileIcon(String fileName) {
     final lower = fileName.toLowerCase();
     if (lower.endsWith('.pdf')) return Icons.picture_as_pdf_rounded;
-    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.png')) {
+    if (lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.png')) {
       return Icons.image_rounded;
     }
     if (lower.endsWith('.doc') || lower.endsWith('.docx')) {
@@ -300,7 +310,9 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
   Color _getFileColor(String fileName) {
     final lower = fileName.toLowerCase();
     if (lower.endsWith('.pdf')) return const Color(0xFFE11D48);
-    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.png')) {
+    if (lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.png')) {
       return const Color(0xFF16A34A);
     }
     return const Color(0xFF0284C7);
@@ -314,14 +326,20 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     String? diaChi,
   }) {
     final now = DateTime.now();
-    final ngayStr = '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
+    final ngayStr =
+        '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
     final safeTen = tenBenhVien.isNotEmpty ? tenBenhVien : 'Benh vien hop tac';
     final safeHoSo = maHoSo.isNotEmpty ? maHoSo : '#HS-BV-2026';
-    final safeCs = (maCoSo != null && maCoSo.isNotEmpty) ? maCoSo : 'CS-BYT-2026';
-    final safeMst = (maSoThue != null && maSoThue.isNotEmpty) ? maSoThue : '0102030405';
+    final safeCs = (maCoSo != null && maCoSo.isNotEmpty)
+        ? maCoSo
+        : 'CS-BYT-2026';
+    final safeMst = (maSoThue != null && maSoThue.isNotEmpty)
+        ? maSoThue
+        : '0102030405';
     final safeDc = (diaChi != null && diaChi.isNotEmpty) ? diaChi : 'Viet Nam';
 
-    final content = '''%PDF-1.4
+    final content =
+        '''%PDF-1.4
 1 0 obj
 << /Type /Catalog /Pages 2 0 R >>
 endobj
@@ -389,9 +407,7 @@ startxref
         );
       } catch (err) {
         debugPrint('⚠️ Không thể mở custom type, fallback sang any: $err');
-        files = await FilePicker.pickFiles(
-          type: FileType.any,
-        );
+        files = await FilePicker.pickFiles(type: FileType.any);
       }
 
       if (files.isNotEmpty) {
@@ -408,7 +424,8 @@ startxref
           }
         }
 
-        final sizeBytes = file.lengthSync() ?? (await file.length()) ?? bytes?.length ?? 0;
+        final sizeBytes =
+            file.lengthSync() ?? (await file.length()) ?? bytes?.length ?? 0;
         final sizeText = _formatFileSize(sizeBytes);
 
         setState(() {
@@ -423,7 +440,11 @@ startxref
             SnackBar(
               content: Row(
                 children: [
-                  const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text('Đã chọn tệp: ${file.name} ($sizeText)'),
@@ -486,10 +507,7 @@ startxref
             const SizedBox(height: 6),
             const Text(
               'Chọn tệp giấy phép từ bộ nhớ máy hoặc dùng tài liệu mẫu:',
-              style: TextStyle(
-                fontSize: 12,
-                color: Color(0xFF64748B),
-              ),
+              style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
             ),
             const SizedBox(height: 16),
 
@@ -505,7 +523,10 @@ startxref
                 decoration: BoxDecoration(
                   color: const Color(0xFFF0F9FF),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFF0284C7), width: 1.5),
+                  border: Border.all(
+                    color: const Color(0xFF0284C7),
+                    width: 1.5,
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -577,7 +598,11 @@ startxref
                   color: const Color(0xFFFEE2E2),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.picture_as_pdf, color: Color(0xFFDC2626), size: 20),
+                child: const Icon(
+                  Icons.picture_as_pdf,
+                  color: Color(0xFFDC2626),
+                  size: 20,
+                ),
               ),
               title: const Text(
                 'giay_phep_kinh_doanh_byt_2026.pdf',
@@ -594,7 +619,8 @@ startxref
                 );
                 setState(() {
                   _tenFileDinhKem = 'giay_phep_kinh_doanh_byt_2026.pdf';
-                  _dungLuongFile = '${_formatFileSize(sampleBytes.length)} • Tệp PDF chuẩn BYT';
+                  _dungLuongFile =
+                      '${_formatFileSize(sampleBytes.length)} • Tệp PDF chuẩn BYT';
                   _fileBytes = sampleBytes;
                   _pickedFilePath = null;
                 });
@@ -609,7 +635,11 @@ startxref
                   color: const Color(0xFFE0F2FE),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.description, color: Color(0xFF0284C7), size: 20),
+                child: const Icon(
+                  Icons.description,
+                  color: Color(0xFF0284C7),
+                  size: 20,
+                ),
               ),
               title: const Text(
                 'chung_chi_hanh_nghe_coso.pdf',
@@ -626,7 +656,8 @@ startxref
                 );
                 setState(() {
                   _tenFileDinhKem = 'chung_chi_hanh_nghe_coso.pdf';
-                  _dungLuongFile = '${_formatFileSize(sampleBytes.length)} • Chứng chỉ cơ sở mẫu';
+                  _dungLuongFile =
+                      '${_formatFileSize(sampleBytes.length)} • Chứng chỉ cơ sở mẫu';
                   _fileBytes = sampleBytes;
                   _pickedFilePath = null;
                 });
@@ -646,7 +677,9 @@ startxref
 
     try {
       final String hospitalBvId = await _resolveHospitalId();
-      final int? parsedId = int.tryParse(hospitalBvId.replaceAll(RegExp(r'[^0-9]'), ''));
+      final int? parsedId = int.tryParse(
+        hospitalBvId.replaceAll(RegExp(r'[^0-9]'), ''),
+      );
       final int idNumber = parsedId ?? 502;
       final curAuthUid = FirebaseAuth.instance.currentUser?.uid ?? hospitalBvId;
       final randSuffix = Random().nextInt(900) + 100;
@@ -655,7 +688,8 @@ startxref
       // Nếu chưa có tọa độ, thử lấy nhanh trước khi gửi
       if (_viDo == null || _kinhDo == null) {
         try {
-          final pos = await Geolocator.getLastKnownPosition() ??
+          final pos =
+              await Geolocator.getLastKnownPosition() ??
               await Geolocator.getCurrentPosition(
                 locationSettings: const LocationSettings(
                   accuracy: LocationAccuracy.low,
@@ -705,7 +739,8 @@ startxref
       String? fileDownloadUrl;
       final safeUid = hospitalBvId.replaceAll(RegExp(r'[^\w\-]'), '_');
       final safeName = fileName.replaceAll(RegExp(r'[^\w\.\-]'), '_');
-      final storagePath = 'giay_phep_hop_tac/$safeUid/${DateTime.now().millisecondsSinceEpoch}_$safeName';
+      final storagePath =
+          'giay_phep_hop_tac/$safeUid/${DateTime.now().millisecondsSinceEpoch}_$safeName';
       final storageRef = FirebaseStorage.instance.ref().child(storagePath);
 
       final metadata = SettableMetadata(
@@ -720,11 +755,17 @@ startxref
       );
 
       try {
-        setState(() => _submittingStatus = 'Đang tải tệp lên máy chủ lưu trữ...');
-        debugPrint('📤 [STORAGE] Đang tải file lên Firebase Storage: $storagePath (${fileData.length} bytes)...');
+        setState(
+          () => _submittingStatus = 'Đang tải tệp lên máy chủ lưu trữ...',
+        );
+        debugPrint(
+          '📤 [STORAGE] Đang tải file lên Firebase Storage: $storagePath (${fileData.length} bytes)...',
+        );
 
         UploadTask uploadTask;
-        if (_pickedFilePath != null && _pickedFilePath!.isNotEmpty && File(_pickedFilePath!).existsSync()) {
+        if (_pickedFilePath != null &&
+            _pickedFilePath!.isNotEmpty &&
+            File(_pickedFilePath!).existsSync()) {
           uploadTask = storageRef.putFile(File(_pickedFilePath!), metadata);
         } else {
           uploadTask = storageRef.putData(fileData, metadata);
@@ -732,26 +773,47 @@ startxref
 
         uploadTask.snapshotEvents.listen((TaskSnapshot snap) {
           if (snap.totalBytes > 0 && mounted) {
-            final progress = (snap.bytesTransferred / snap.totalBytes * 100).toInt();
+            final progress = (snap.bytesTransferred / snap.totalBytes * 100)
+                .toInt();
             setState(() {
-              _submittingStatus = 'Đang tải tệp: $progress% (${_formatFileSize(snap.bytesTransferred)}/${_formatFileSize(snap.totalBytes)})';
+              _submittingStatus =
+                  'Đang tải tệp: $progress% (${_formatFileSize(snap.bytesTransferred)}/${_formatFileSize(snap.totalBytes)})';
             });
           }
         });
 
-        final timeoutSec = max(90, (fileData.length / (1024 * 1024) * 8).toInt());
-        final snapshot = await uploadTask.timeout(Duration(seconds: timeoutSec));
-        fileDownloadUrl = await snapshot.ref.getDownloadURL().timeout(const Duration(seconds: 30));
-        debugPrint('✅ [STORAGE] Tải file lên Firebase Storage thành công: $fileDownloadUrl');
+        final timeoutSec = max(
+          90,
+          (fileData.length / (1024 * 1024) * 8).toInt(),
+        );
+        final snapshot = await uploadTask.timeout(
+          Duration(seconds: timeoutSec),
+        );
+        fileDownloadUrl = await snapshot.ref.getDownloadURL().timeout(
+          const Duration(seconds: 30),
+        );
+        debugPrint(
+          '✅ [STORAGE] Tải file lên Firebase Storage thành công: $fileDownloadUrl',
+        );
       } catch (storageError) {
         debugPrint('⚠️ [STORAGE] Upload Firebase Storage: $storageError');
         final errStr = storageError.toString().toLowerCase();
-        if (errStr.contains('object-not-found') || errStr.contains('does not exist') || errStr.contains('404')) {
-          throw Exception('Dự án Firebase chưa kích hoạt dịch vụ Storage (Bucket chưa được tạo). Vui lòng vào Firebase Console > Storage > bấm "Bắt đầu" (Get started).');
-        } else if (errStr.contains('unauthorized') || errStr.contains('permission-denied') || errStr.contains('permission denied')) {
-          throw Exception('Bị từ chối quyền truy cập Firebase Storage. Vui lòng kiểm tra Storage Rules trên Firebase Console.');
+        if (errStr.contains('object-not-found') ||
+            errStr.contains('does not exist') ||
+            errStr.contains('404')) {
+          throw Exception(
+            'Dự án Firebase chưa kích hoạt dịch vụ Storage (Bucket chưa được tạo). Vui lòng vào Firebase Console > Storage > bấm "Bắt đầu" (Get started).',
+          );
+        } else if (errStr.contains('unauthorized') ||
+            errStr.contains('permission-denied') ||
+            errStr.contains('permission denied')) {
+          throw Exception(
+            'Bị từ chối quyền truy cập Firebase Storage. Vui lòng kiểm tra Storage Rules trên Firebase Console.',
+          );
         } else {
-          throw Exception('Không thể tải tệp lên Firebase Storage ($storageError). Vui lòng kiểm tra kết nối mạng hoặc thử lại.');
+          throw Exception(
+            'Không thể tải tệp lên Firebase Storage ($storageError). Vui lòng kiểm tra kết nối mạng hoặc thử lại.',
+          );
         }
       }
 
@@ -774,15 +836,18 @@ startxref
         'vi_do': _viDo,
         'kinh_do': _kinhDo,
         'co_so': coSo, // ✅ Khớp collection CoSo: Cong_lap / Tu_nhan
-        'bhyt': bhyt,   // ✅ Khớp collection BHYT: Co_BHYT / Khong_BHYT
+        'bhyt': bhyt, // ✅ Khớp collection BHYT: Co_BHYT / Khong_BHYT
         'co_bhyt': coBhyt,
         'loai_hinh': loaiHinh,
-        'chuyen_khoa_ids': <String>[], // ✅ Khởi tạo mảng rỗng chuẩn, không để null
+        'chuyen_khoa_ids':
+            <String>[], // ✅ Khởi tạo mảng rỗng chuẩn, không để null
         'ten_cac_khoa': <String>[],
         'file_giay_phep': fileName,
         'file_giay_phep_url': fileDownloadUrl,
         'file_url': fileDownloadUrl,
-        'dung_luong_file': _dungLuongFile.isNotEmpty ? _dungLuongFile : _formatFileSize(fileData.length),
+        'dung_luong_file': _dungLuongFile.isNotEmpty
+            ? _dungLuongFile
+            : _formatFileSize(fileData.length),
         'dung_luong_bytes': fileData.length,
         'loai_file': contentType,
         'storage_path': storagePath,
@@ -827,10 +892,18 @@ startxref
       }
 
       // Xóa các document rác mang ID Auth UID nếu có trong BenhVien hoặc YeuCauHopTac
-      if (curAuthUid.isNotEmpty && curAuthUid != hospitalBvId && !curAuthUid.startsWith('BV')) {
+      if (curAuthUid.isNotEmpty &&
+          curAuthUid != hospitalBvId &&
+          !curAuthUid.startsWith('BV')) {
         try {
-          await FirebaseFirestore.instance.collection('BenhVien').doc(curAuthUid).delete();
-          await FirebaseFirestore.instance.collection('YeuCauHopTac').doc(curAuthUid).delete();
+          await FirebaseFirestore.instance
+              .collection('BenhVien')
+              .doc(curAuthUid)
+              .delete();
+          await FirebaseFirestore.instance
+              .collection('YeuCauHopTac')
+              .doc(curAuthUid)
+              .delete();
         } catch (_) {}
       }
 
@@ -841,11 +914,12 @@ startxref
       HospitalSyncService.chuanHoaVaDonDepYeuCauHopTac().catchError((_) {});
 
       // Gửi đúng 1 email xác nhận tiếp nhận hồ sơ yêu cầu hợp tác đến Gmail của bệnh viện
-      final emailGui = (dataToSave['email'] ??
-              FirebaseAuth.instance.currentUser?.email ??
-              '')
-          .toString()
-          .trim();
+      final emailGui =
+          (dataToSave['email'] ??
+                  FirebaseAuth.instance.currentUser?.email ??
+                  '')
+              .toString()
+              .trim();
       if (emailGui.isNotEmpty) {
         EmailService.guiEmailXacNhanGuiYeuCauHopTac(
           emailNguoiNhan: emailGui,
@@ -984,17 +1058,18 @@ startxref
                               fontWeight: FontWeight.w600,
                               color: Color(0xFF334155),
                             ),
-                            decoration: _inputDecoration(
-                              hintText: 'Tên bệnh viện',
-                            ).copyWith(
-                              filled: true,
-                              fillColor: const Color(0xFFF1F5F9),
-                              prefixIcon: const Icon(
-                                Icons.lock_outline_rounded,
-                                size: 18,
-                                color: Color(0xFF64748B),
-                              ),
-                            ),
+                            decoration:
+                                _inputDecoration(
+                                  hintText: 'Tên bệnh viện',
+                                ).copyWith(
+                                  filled: true,
+                                  fillColor: const Color(0xFFF1F5F9),
+                                  prefixIcon: const Icon(
+                                    Icons.lock_outline_rounded,
+                                    size: 18,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
                           ),
                           const SizedBox(height: 16),
 
@@ -1072,7 +1147,8 @@ startxref
                               color: Color(0xFF0F172A),
                             ),
                             decoration: _inputDecoration(
-                              hintText: 'Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/TP',
+                              hintText:
+                                  'Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/TP',
                             ),
                             validator: (v) {
                               if (v == null || v.trim().isEmpty) {
@@ -1086,7 +1162,9 @@ startxref
                           // Tọa độ GPS cơ sở (Kinh độ & Vĩ độ từ thiết bị)
                           _buildSectionHeaderWithNote(
                             title: 'Tọa độ GPS cơ sở',
-                            note: _viDo != null && _kinhDo != null ? 'Đã định vị' : 'Từ thiết bị',
+                            note: _viDo != null && _kinhDo != null
+                                ? 'Đã định vị'
+                                : 'Từ thiết bị',
                           ),
                           const SizedBox(height: 8),
                           _buildLocationCard(),
@@ -1101,15 +1179,16 @@ startxref
                           DropdownButtonFormField<String>(
                             initialValue: _coSo,
                             isExpanded: true,
-                            decoration: _inputDecoration(
-                              hintText: 'Chọn loại hình cơ sở',
-                            ).copyWith(
-                              prefixIcon: const Icon(
-                                Icons.business_outlined,
-                                size: 20,
-                                color: Color(0xFF0284C7),
-                              ),
-                            ),
+                            decoration:
+                                _inputDecoration(
+                                  hintText: 'Chọn loại hình cơ sở',
+                                ).copyWith(
+                                  prefixIcon: const Icon(
+                                    Icons.business_outlined,
+                                    size: 20,
+                                    color: Color(0xFF0284C7),
+                                  ),
+                                ),
                             icon: const Icon(
                               Icons.keyboard_arrow_down_rounded,
                               color: Color(0xFF64748B),
@@ -1157,15 +1236,16 @@ startxref
                           DropdownButtonFormField<String>(
                             initialValue: _bhyt,
                             isExpanded: true,
-                            decoration: _inputDecoration(
-                              hintText: 'Chọn chính sách BHYT',
-                            ).copyWith(
-                              prefixIcon: const Icon(
-                                Icons.health_and_safety_outlined,
-                                size: 20,
-                                color: Color(0xFF16A34A),
-                              ),
-                            ),
+                            decoration:
+                                _inputDecoration(
+                                  hintText: 'Chọn chính sách BHYT',
+                                ).copyWith(
+                                  prefixIcon: const Icon(
+                                    Icons.health_and_safety_outlined,
+                                    size: 20,
+                                    color: Color(0xFF16A34A),
+                                  ),
+                                ),
                             icon: const Icon(
                               Icons.keyboard_arrow_down_rounded,
                               color: Color(0xFF64748B),
@@ -1391,13 +1471,19 @@ startxref
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: hasCoords ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
+              color: hasCoords
+                  ? const Color(0xFFDCFCE7)
+                  : const Color(0xFFF1F5F9),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
-              hasCoords ? Icons.location_on_rounded : Icons.location_searching_rounded,
+              hasCoords
+                  ? Icons.location_on_rounded
+                  : Icons.location_searching_rounded,
               size: 22,
-              color: hasCoords ? const Color(0xFF16A34A) : const Color(0xFF64748B),
+              color: hasCoords
+                  ? const Color(0xFF16A34A)
+                  : const Color(0xFF64748B),
             ),
           ),
           const SizedBox(width: 12),
@@ -1412,7 +1498,9 @@ startxref
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: hasCoords ? const Color(0xFF166534) : const Color(0xFF1E293B),
+                    color: hasCoords
+                        ? const Color(0xFF166534)
+                        : const Color(0xFF1E293B),
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -1425,7 +1513,9 @@ startxref
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
-                    color: hasCoords ? const Color(0xFF15803D) : const Color(0xFF64748B),
+                    color: hasCoords
+                        ? const Color(0xFF15803D)
+                        : const Color(0xFF64748B),
                   ),
                 ),
               ],
@@ -1522,11 +1612,7 @@ startxref
                 color: fileColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(
-                fileIcon,
-                size: 22,
-                color: fileColor,
-              ),
+              child: Icon(fileIcon, size: 22, color: fileColor),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1558,7 +1644,10 @@ startxref
             TextButton(
               onPressed: _doiFileDinhKem,
               style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),

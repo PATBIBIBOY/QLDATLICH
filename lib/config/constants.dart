@@ -45,6 +45,10 @@ class TrangThaiId {
   static const int phongTamDung = 12; // Tạm dừng (Doc 12)
   static const int phongDangKham = 13; // Đang khám (Doc 13)
   static const int phongDong = 14; // Đóng (Doc 14)
+
+  // Trạng thái Phân công Nhân viên (Khớp Document 15, 16 trong collection TrangThai trên Firebase)
+  static const int nhanVienCho = 15; // "chờ" (Doc 15: nhân viên chờ nhận lịch làm)
+  static const int nhanVienDaPhanCong = 16; // "đã phân công" (Doc 16: nhân viên được phân công)
 }
 
 // ============================================

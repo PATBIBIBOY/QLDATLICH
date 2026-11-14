@@ -259,14 +259,26 @@ Future<void> _xacNhanXoaKhoa(
 // trangThai -> (nhãn, màu nền, màu chữ)
 (String, Color, Color) _trangThai(String? ma) {
   switch (ma) {
+    case 'tam_dung':
+    case '12':
+      return (
+        'Tạm dừng',
+        const Color(0xFFFEF3C7),
+        const Color(0xFFD97706),
+      );
+    case 'dong':
+    case 'dong_cua':
+    case '14':
+      return ('Đóng cửa', const Color(0xFFFEE2E2), const Color(0xFFDC2626));
     case 'day_lich_sang':
       return (
         'Đầy lịch sáng',
         const Color(0xFFFEF3C7),
         const Color(0xFFD97706),
       );
-    case 'dong_cua':
-      return ('Đóng cửa', const Color(0xFFFEE2E2), const Color(0xFFDC2626));
+    case 'dang_kham':
+    case 'dang_mo':
+    case '13':
     default:
       return ('Đang mở', const Color(0xFFDCFCE7), const Color(0xFF16A34A));
   }
@@ -284,6 +296,63 @@ class KhoaCard extends StatelessWidget {
   final Map<String, dynamic> data;
   final VoidCallback? onTap;
 
+  Widget _buildBadge(String nhan, Color nen, Color chu) => Container(
+    padding: const EdgeInsets.symmetric(
+      horizontal: 10,
+      vertical: 4,
+    ),
+    decoration: BoxDecoration(
+      color: nen,
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      nhan,
+      style: TextStyle(
+        color: chu,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
+
+  Widget _badgeTrangThaiKhoa(String? trangThaiDoc) {
+    if (khoaId == null || khoaId!.isEmpty) {
+      final (nhan, nen, chu) = _trangThai(trangThaiDoc);
+      return _buildBadge(nhan, nen, chu);
+    }
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('Khoa')
+          .doc(_getBenhVienId())
+          .collection('danh_sach')
+          .doc(khoaId)
+          .collection('phongKham')
+          .snapshots(),
+      builder: (context, snap) {
+        String? ma = trangThaiDoc;
+        if (snap.hasData && snap.data!.docs.isNotEmpty) {
+          final docs = snap.data!.docs;
+          final statuses = docs.map((d) {
+            final p = d.data();
+            final raw = p['trang_thai_id'] ?? p['trang_thai'];
+            return DanhSachTrangThaiPhong.parse(raw);
+          }).toList();
+
+          if (statuses.any((s) => s.id == 13 || s.ma == 'dang_kham')) {
+            ma = 'dang_mo';
+          } else if (statuses.any((s) => s.id == 12 || s.ma == 'tam_dung')) {
+            ma = 'tam_dung';
+          } else if (statuses.every((s) => s.id == 14 || s.ma == 'dong')) {
+            ma = 'dong_cua';
+          }
+        }
+        final (nhan, nen, chu) = _trangThai(ma);
+        return _buildBadge(nhan, nen, chu);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
@@ -292,7 +361,6 @@ class KhoaCard extends StatelessWidget {
   );
 
   Widget _noiDung(BuildContext context) {
-    final (nhan, nen, chu) = _trangThai(data['trangThai'] as String?);
     final soPhong = data['soPhong'] ?? 0;
     final phongDau = (data['phongDau'] ?? '') as String;
     final phuDe = phongDau.isEmpty
@@ -352,24 +420,7 @@ class KhoaCard extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: nen,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      nhan,
-                      style: TextStyle(
-                        color: chu,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
+                  _badgeTrangThaiKhoa(data['trangThai'] as String?),
                   if (khoaId != null && khoaId!.isNotEmpty) ...[
                     const SizedBox(width: 2),
                     PopupMenuButton<String>(

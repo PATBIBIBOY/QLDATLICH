@@ -127,6 +127,9 @@ class KhoaService {
   }
 
   /// Chuẩn hóa ID bệnh viện: ưu tiên mã dạng `BV001`
+  Future<String> chuanHoaBenhVienId(String benhVienId) =>
+      _chuanHoaBenhVienId(benhVienId);
+
   Future<String> _chuanHoaBenhVienId(String benhVienId) async {
     final trimmed = benhVienId.trim();
     if (trimmed.startsWith('BV')) return trimmed;
@@ -311,13 +314,8 @@ class KhoaService {
         'thoi_gian_kham': thoiGianKham,
         'so_benh_nhan_toi_da': gioiHanBenhNhan,
         'nhan_vien_id': null,
-        // 'trangThai': 'dang_kham',
         'trang_thai': 'dang_kham',
         'trang_thai_id': 13,
-        // 'trangThaiId': 13,
-        'id_trang_thai': 13,
-        'ten_trang_thai': 'Đang khám',
-        'mo_ta_trang_thai': 'Phòng khám đang trong trạng thái khám',
       });
 
       // 2b. Lưu vào subcollection Khoa/.../phongKham để màn ChiTietKhoaScreen hiển thị
@@ -331,13 +329,8 @@ class KhoaService {
         'khungGio': ds.map((e) => e.toMap()).toList(),
         'thoiGianKham': thoiGianKham,
         'soBenhNhanToiDa': gioiHanBenhNhan,
-        // 'trangThai': 'dang_kham',
         'trang_thai': 'dang_kham',
         'trang_thai_id': 13,
-        // 'trangThaiId': 13,
-        'id_trang_thai': 13,
-        'ten_trang_thai': 'Đang khám',
-        'mo_ta_trang_thai': 'Phòng khám đang trong trạng thái khám',
         'nhanVienId': null,
       });
 
@@ -478,13 +471,8 @@ class KhoaService {
         'tenKhoaGoc': tenKhoa,
         'thoiGianKham': thoiGianKham,
         'soBenhNhanToiDa': gioiHanBenhNhan,
-        // 'trangThai': 'dang_kham',
         'trang_thai': 'dang_kham',
         'trang_thai_id': 13,
-        // 'trangThaiId': 13,
-        'id_trang_thai': 13,
-        'ten_trang_thai': 'Đang khám',
-        'mo_ta_trang_thai': 'Phòng khám đang trong trạng thái khám',
         'ngayCapNhat': FieldValue.serverTimestamp(),
       };
 
