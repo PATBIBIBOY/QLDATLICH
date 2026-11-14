@@ -524,6 +524,12 @@ class FirebaseServiceC1 {
             khopNgay = true;
           }
         }
+        if (!khopNgay && data['ngay_kham'] is Timestamp) {
+          final dt = (data['ngay_kham'] as Timestamp).toDate().toLocal();
+          if (dt.year == targetDate.year && dt.month == targetDate.month && dt.day == targetDate.day) {
+            khopNgay = true;
+          }
+        }
 
         if (!khopNgay) continue;
 
@@ -534,8 +540,8 @@ class FirebaseServiceC1 {
           continue;
         }
 
-        // 2.1. Lọc theo Phòng khám (nếu có chọn phòng cụ thể)
-        final docPhong = (data['phong_kham_id'] ?? data['phong_kham'] ?? data['tenPhong'] ?? data['phongKham'] ?? '').toString();
+        // 2.1. Lọc theo Phòng khám (hỗ trợ cả phong_id, ten_phong, phong_kham_id)
+        final docPhong = (data['phong_id'] ?? data['ten_phong'] ?? data['phong_kham_id'] ?? data['phong_kham'] ?? data['tenPhong'] ?? data['phongKham'] ?? '').toString();
         if (phongKham != null &&
             phongKham.trim().isNotEmpty &&
             !phongKham.toLowerCase().contains('tất cả') &&
@@ -656,6 +662,8 @@ class FirebaseServiceC1 {
           'gioKham': gioHienThi,
           'tenKhoa': docKhoa.isNotEmpty ? docKhoa : 'Khoa Khám',
           'phongKham': docPhong.isNotEmpty ? docPhong : 'Phòng khám',
+          'phong_id': docPhong,
+          'phong_kham_id': docPhong,
           'bacSi': (data['bac_si'] ?? 'BS. Trực ban').toString(),
           'trangThai': hienThiTrangThai,
           'rawTrangThai': rawTrangThaiStr.isNotEmpty
@@ -2828,6 +2836,11 @@ class FirebaseServiceC1 {
         final docTenNv = (data['ten_nhan_vien'] ?? '').toString().trim();
         final docNgay = (data['ngay'] ?? '').toString().trim();
 
+        final currentRole = DuLieuProfileMauC1.thongTinHienTai.chucVu.toUpperCase();
+        final isCskhRole = currentRole.contains('CSKH') || currentRole.contains('CHĂM SÓC') || targetMa.toUpperCase().contains('CSKH');
+        final isLetanRole = currentRole.contains('LỄ TÂN') || targetMa.toUpperCase().contains('LT');
+        final docVaiTro = (data['vai_tro'] ?? '').toString().toUpperCase();
+
         bool khopNv = false;
         if (targetMa.isNotEmpty && docMaNv.toLowerCase() == targetMa.toLowerCase()) {
           khopNv = true;
@@ -2836,7 +2849,9 @@ class FirebaseServiceC1 {
         } else if (targetTen.isNotEmpty && docTenNv.isNotEmpty &&
             (docTenNv.toLowerCase().contains(targetTen.toLowerCase()) || targetTen.toLowerCase().contains(docTenNv.toLowerCase()))) {
           khopNv = true;
-        } else if (docMaNv.toLowerCase().contains('cskh') || docMaNv.toLowerCase().contains('cuoc') || docMaNv == 'BV502_CSKH_CXK_01') {
+        } else if (isCskhRole && (docVaiTro.contains('CSKH') || docMaNv.toLowerCase().contains('cskh') || docMaNv == 'BV502_CSKH_CXK_01')) {
+          khopNv = true;
+        } else if (isLetanRole && (docVaiTro.contains('LỄ TÂN') || docVaiTro.contains('LETAN') || docMaNv.toLowerCase().contains('letan') || docMaNv.toLowerCase().contains('lt'))) {
           khopNv = true;
         }
 

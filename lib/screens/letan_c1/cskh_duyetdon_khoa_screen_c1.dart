@@ -59,9 +59,6 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
     });
     _dangKyLangNgheLoiDaSua();
     _dangKyLangNgheDonKhamMoi();
-    // Tự động dọn dẹp Document rác ở cấp 1 chuyển vào /NhanVien/BV502/danh_sach/
-    FirebaseServiceC1.donDepDocumentNhanVienCap1('CSKH_02');
-    FirebaseServiceC1.donDepDocumentNhanVienCap1();
   }
 
   void _dangKyLangNgheDonKhamMoi() {
@@ -641,7 +638,7 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
                     Expanded(
                       child: Text(
                         isAssigned
-                            ? '✓ Ca trực: ${phongName.isNotEmpty ? phongName : _tenKhoaHienTai} (TT: 16)'
+                            ? '✓ Ca trực: ${phongName.isNotEmpty ? phongName : _tenKhoaHienTai}${phanCong?.ngay.isNotEmpty == true ? ' • Ngày ${phanCong!.ngay}' : ''} (TT: 16)'
                             : (statusId != 0
                                 ? 'Chờ ca trực (TT: $statusId - $statusStr)'
                                 : 'Chưa phân công ca trực hôm nay'),

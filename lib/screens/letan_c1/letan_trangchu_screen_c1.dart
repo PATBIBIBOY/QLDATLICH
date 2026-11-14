@@ -59,10 +59,6 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
         }
       }
     });
-
-    // Tự động dọn dẹp Document rác ở cấp 1 chuyển vào /NhanVien/BV502/danh_sach/
-    FirebaseServiceC1.donDepDocumentNhanVienCap1('CSKH_02');
-    FirebaseServiceC1.donDepDocumentNhanVienCap1();
   }
 
   void _dangKyLangNgheDonKhamMoi() {
@@ -484,7 +480,7 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
                   const SizedBox(width: 4),
                   Text(
                     (phanCong?.duocPhanCong == true)
-                        ? 'Ca trực: ${phanCong!.tenPhong.isNotEmpty ? phanCong.tenPhong : _tenKhoaHienTai} (TT: 16)'
+                        ? 'Ca trực: ${phanCong!.tenPhong.isNotEmpty ? phanCong.tenPhong : _tenKhoaHienTai}${phanCong.ngay.isNotEmpty ? ' • Ngày ${phanCong.ngay}' : ''} (TT: 16)'
                         : (phanCong?.trangThaiId != 0
                             ? 'Chờ ca trực (TT: ${phanCong?.trangThaiId} != 16)'
                             : 'Chưa phân công ca trực'),
