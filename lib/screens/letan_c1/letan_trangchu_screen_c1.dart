@@ -211,6 +211,12 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
     return StreamBuilder<PhanCongCaTrucModelC1>(
       stream: FirebaseServiceC1.streamPhanCongCaTruc(ngayChon: _ngayChon),
       builder: (context, phanCongSnap) {
+        if (phanCongSnap.connectionState == ConnectionState.waiting && !phanCongSnap.hasData) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator(color: Color(0xFF0284C7))),
+          );
+        }
+
         final phanCong = phanCongSnap.data ?? PhanCongCaTrucModelC1.chuaPhanCong();
         final bool duocPhanCong = phanCong.duocPhanCong;
 

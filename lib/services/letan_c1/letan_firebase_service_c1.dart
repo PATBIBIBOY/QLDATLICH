@@ -249,6 +249,11 @@ class FirebaseServiceC1 {
     final bool bNhi = b.contains('NHI');
     if (aNhi && bNhi) return true;
 
+    // So sánh alias Cơ Xương Khớp (CXK)
+    final bool aCxk = a.contains('CO XUONG KHOP') || a.contains('CXK') || a.contains('XUONG');
+    final bool bCxk = b.contains('CO XUONG KHOP') || b.contains('CXK') || b.contains('XUONG');
+    if (aCxk && bCxk) return true;
+
     return false;
   }
 
@@ -1147,34 +1152,26 @@ class FirebaseServiceC1 {
       return timeA.compareTo(timeB);
     });
 
-    // 3. Lấy số thứ tự bắt đầu RIÊNG CHO KHOA NÀY
-    final firstKhoaId = khoaId ??
+    // 3. Lấy mã khoa mặc định nếu chưa truyền
+    final defaultKhoaId = khoaId ??
         (danhSachChoDuyet.first['khoa_id'] ?? danhSachChoDuyet.first['tenKhoa'] ?? danhSachChoDuyet.first['khoa'] ?? '')
             .toString();
 
-    int currentStt = await laySoThuTuTiepTheo(
-      benhVienId: bvid,
-      khoaId: firstKhoaId.isNotEmpty ? firstKhoaId : null,
-      phongKhamId: phongKhamId,
-      ngayChon: ngayChon,
-    );
-
-    // 4. Cập nhật tuần tự từng đơn với số thứ tự tăng dần
+    // 4. Cập nhật tuần tự từng đơn: capNhatTrangThaiLichHen tự động tính STT và lấp đúng các lỗ trống cho từng khoa
     for (var don in danhSachChoDuyet) {
       final id = don['id']?.toString();
       final docPath = don['docPath']?.toString();
+      final donKhoaId = (don['khoa_id'] ?? don['tenKhoa'] ?? defaultKhoaId).toString();
       if (id != null && id.isNotEmpty) {
         await capNhatTrangThaiLichHen(
           appointmentId: id,
           docPath: docPath,
           trangThaiMoi: 'da_duyet',
-          soThuTuChiDinh: currentStt,
           benhVienId: bvid,
-          khoaId: firstKhoaId.isNotEmpty ? firstKhoaId : null,
+          khoaId: donKhoaId.isNotEmpty ? donKhoaId : defaultKhoaId,
           phongKhamId: phongKhamId,
           ngayChon: ngayChon,
         );
-        currentStt++;
       }
     }
   }
@@ -2853,22 +2850,14 @@ class FirebaseServiceC1 {
         }
       }
 
-      // 2. Fallback: Nếu snapshot có dữ liệu phân công nhưng chưa khớp nhân viên chính xác,
-      // kiểm tra xem có bản ghi phân công nào có mã CSKH / Lễ tân / Cuoc trong danh sách
+      // 2. Nếu không tìm thấy bản ghi phân công của tài khoản này, trả về chưa phân công
       if (matchedData == null) {
-        for (var doc in snapshot.docs) {
-          final data = doc.data();
-          final docMa = (data['ma_nhan_vien'] ?? data['nhan_vien_id'] ?? '').toString().toLowerCase();
-          final docTen = (data['ten_nhan_vien'] ?? '').toString().toLowerCase();
-          if (docMa.contains('cskh') || docMa.contains('letan') || docMa.contains('cxk') || docTen.contains('cuoc')) {
-            matchedData = data;
-            break;
-          }
-        }
+        return PhanCongCaTrucModelC1.chuaPhanCong(
+          lyDo: 'Tài khoản ($targetMa) chưa được Bệnh viện phân công ca trực tại $bvid (Chờ mã TT = 16)',
+          maNhanVien: targetMa,
+          tenNhanVien: targetTen,
+        );
       }
-
-      // 3. Nếu vẫn không thấy, lấy bản ghi đầu tiên nếu có để hiển thị trạng thái thực tế
-      matchedData ??= snapshot.docs.first.data();
 
       final phanCong = PhanCongCaTrucModelC1.fromMap(matchedData);
 

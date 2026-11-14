@@ -37,33 +37,32 @@ class CskhStatsRowC1 extends StatelessWidget {
 
         final dangCho = thongKe['dangCho'] ?? 0;
         final daDuyet = thongKe['daTiepNhan'] ?? 0;
-        final tongSo = thongKe['tongSo'] ?? 0;
 
         return Row(
           children: [
             Expanded(
               child: _buildItem(
                 soLuong: '$dangCho',
-                nhanDe: 'Đang chờ',
+                nhanDe: 'Cần duyệt',
                 mauSo: const Color(0xFFD97706),
                 isDark: isDark,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Expanded(
               child: _buildItem(
-                soLuong: '$daDuyet',
-                nhanDe: 'Đã duyệt',
-                mauSo: const Color(0xFF10B981),
+                soLuong: '$dangCho',
+                nhanDe: 'Được phép duyệt',
+                mauSo: const Color(0xFF0284C7),
                 isDark: isDark,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Expanded(
               child: _buildItem(
-                soLuong: '$tongSo',
-                nhanDe: 'Tổng đơn',
-                mauSo: const Color(0xFF0284C7),
+                soLuong: '$daDuyet',
+                nhanDe: 'Đã cấp STT',
+                mauSo: const Color(0xFF10B981),
                 isDark: isDark,
               ),
             ),

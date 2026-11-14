@@ -74,6 +74,8 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
         required int soDonChuaDuyet,
       }) {
         if (!mounted) return;
+        // Chỉ thông báo đơn mới nếu thuộc đúng chuyên khoa phân công
+        if (!FirebaseServiceC1.laCungKhoa(tenKhoa, _tenKhoaHienTai)) return;
         AppDesignSystemC1.hapticSuccess();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -244,6 +246,12 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
     return StreamBuilder<PhanCongCaTrucModelC1>(
       stream: FirebaseServiceC1.streamPhanCongCaTruc(ngayChon: _ngayChon),
       builder: (context, phanCongSnap) {
+        if (phanCongSnap.connectionState == ConnectionState.waiting && !phanCongSnap.hasData) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator(color: Color(0xFF0284C7))),
+          );
+        }
+
         final phanCong = phanCongSnap.data ?? PhanCongCaTrucModelC1.chuaPhanCong();
         final bool duocPhanCong = phanCong.duocPhanCong;
 

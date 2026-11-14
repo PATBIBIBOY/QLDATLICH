@@ -286,22 +286,30 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              TextButton.icon(
-                onPressed: _moTrangChinhSua,
-                icon: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFFFF9500)),
-                label: const Text(
-                  'Chỉnh sửa',
-                  style: TextStyle(
-                    color: Color(0xFFFF9500),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
+              StreamBuilder<PhanCongCaTrucModelC1>(
+                stream: FirebaseServiceC1.streamPhanCongCaTruc(),
+                builder: (context, snap) {
+                  if (snap.data?.duocPhanCong != true) {
+                    return const SizedBox.shrink();
+                  }
+                  return TextButton.icon(
+                    onPressed: _moTrangChinhSua,
+                    icon: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFFFF9500)),
+                    label: const Text(
+                      'Chỉnh sửa',
+                      style: TextStyle(
+                        color: Color(0xFFFF9500),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  );
+                },
               ),
             ],
           ),
