@@ -309,6 +309,7 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
             tenKhoaHienTai: _tenKhoaHienTai,
             ngayChon: _ngayChon,
             onSelectDate: _chonNgayLichHen,
+            onOpenLichSu: () => setState(() => _currentIndex = 2),
           ),
           const SizedBox(height: 16),
           _buildDanhSachCho(),

@@ -17,6 +17,8 @@ class CskhDanhsachDonKhoaScreenC1 extends StatefulWidget {
   final String phongKham;
   final String caKham;
   final int tongDon;
+  final DateTime? ngayChonBanDau;
+  final String? tabBanDau;
 
   const CskhDanhsachDonKhoaScreenC1({
     super.key,
@@ -24,6 +26,8 @@ class CskhDanhsachDonKhoaScreenC1 extends StatefulWidget {
     this.phongKham = 'Phòng 201',
     this.caKham = 'Ca sáng',
     this.tongDon = 25,
+    this.ngayChonBanDau,
+    this.tabBanDau,
   });
 
   @override
@@ -31,7 +35,7 @@ class CskhDanhsachDonKhoaScreenC1 extends StatefulWidget {
 }
 
 class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC1> {
-  DateTime _ngayChon = DateTime.now();
+  late DateTime _ngayChon;
   late String _phongHienTai;
   String _tabBoLocHienTai = 'Tất cả'; // 'Tất cả', 'Chờ duyệt', 'Đã duyệt', 'Đã hủy'
   final List<String> _danhSachTabs = ['Tất cả', 'Chờ duyệt', 'Đã duyệt', 'Đã hủy'];
@@ -40,6 +44,10 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
   void initState() {
     super.initState();
     _phongHienTai = widget.phongKham;
+    _ngayChon = widget.ngayChonBanDau ?? DateTime.now();
+    if (widget.tabBanDau != null && _danhSachTabs.contains(widget.tabBanDau)) {
+      _tabBoLocHienTai = widget.tabBanDau!;
+    }
   }
 
   Future<void> _chonNgayLichHen() async {

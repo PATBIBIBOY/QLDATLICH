@@ -9,12 +9,14 @@ class LetanStatsWidgetC1 extends StatelessWidget {
   final String tenKhoaHienTai;
   final DateTime ngayChon;
   final VoidCallback onSelectDate;
+  final VoidCallback? onOpenLichSu;
 
   const LetanStatsWidgetC1({
     super.key,
     required this.tenKhoaHienTai,
     required this.ngayChon,
     required this.onSelectDate,
+    this.onOpenLichSu,
   });
 
   @override
@@ -82,6 +84,36 @@ class LetanStatsWidgetC1 extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
+                if (onOpenLichSu != null) ...[
+                  InkWell(
+                    onTap: onOpenLichSu,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: isDark ? 0.6 : 0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.history_rounded, size: 13, color: Color(0xFFD97706)),
+                          SizedBox(width: 4),
+                          Text(
+                            'Lịch sử',
+                            style: TextStyle(
+                              color: Color(0xFFB45309),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
                 InkWell(
                   onTap: onSelectDate,
                   borderRadius: BorderRadius.circular(8),

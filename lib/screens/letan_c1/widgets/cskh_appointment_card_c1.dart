@@ -19,6 +19,7 @@ class CskhAppointmentCardC1 extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = AppDesignSystemC1.laCheDoToi;
     final rawTrangThai = (item['rawTrangThai'] ?? '').toString();
+    final bool laDaKham = rawTrangThai == '5' || rawTrangThai.contains('kham') || item['trangThai'] == 'Đã khám';
     final bool laDaDuyet = rawTrangThai == 'da_duyet' || item['trangThai'] == 'Đã duyệt';
     final bool laTuChoi = rawTrangThai == 'tu_choi' || item['trangThai'] == 'Không duyệt';
 
@@ -26,7 +27,21 @@ class CskhAppointmentCardC1 extends StatelessWidget {
     Color borderCard;
     Widget badgeTrangThai;
 
-    if (laDaDuyet) {
+    if (laDaKham) {
+      cardBg = isDark ? const Color(0xFF0C2444).withValues(alpha: 0.3) : const Color(0xFFEFF6FF);
+      borderCard = const Color(0xFF3B82F6);
+      badgeTrangThai = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0C2444) : const Color(0xFFDBEAFE),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: const Text(
+          '✓ Đã khám',
+          style: TextStyle(color: Color(0xFF1D4ED8), fontSize: 11, fontWeight: FontWeight.w700),
+        ),
+      );
+    } else if (laDaDuyet) {
       cardBg = isDark ? const Color(0xFF064E3B).withValues(alpha: 0.3) : const Color(0xFFECFDF5);
       borderCard = const Color(0xFF10B981);
       badgeTrangThai = Container(
@@ -92,7 +107,7 @@ class CskhAppointmentCardC1 extends StatelessWidget {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: laDaDuyet
+                    color: (laDaDuyet || laDaKham)
                         ? const Color(0xFF10B981)
                         : (isDark ? const Color(0xFF064E3B).withValues(alpha: 0.5) : const Color(0xFFECFDF5)),
                     borderRadius: BorderRadius.circular(10),
@@ -102,7 +117,7 @@ class CskhAppointmentCardC1 extends StatelessWidget {
                     child: Text(
                       '✓',
                       style: TextStyle(
-                        color: laDaDuyet ? Colors.white : const Color(0xFF059669),
+                        color: (laDaDuyet || laDaKham) ? Colors.white : const Color(0xFF059669),
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                       ),
