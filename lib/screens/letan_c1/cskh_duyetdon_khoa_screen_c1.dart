@@ -15,6 +15,7 @@ import 'widgets/cskh_department_selector_card_c1.dart';
 import 'widgets/cskh_stats_row_c1.dart';
 import 'widgets/cskh_tab_duyet_phong_c1.dart';
 import 'widgets/cskh_thong_bao_bottom_sheet_c1.dart';
+import 'widgets/letan_khoa_ca_truc_widget_c1.dart';
 
 export 'widgets/cskh_department_card_c1.dart' show KhoaKhamModelC1;
 
@@ -240,40 +241,83 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: AppDesignSystemC1.isDarkMode,
-      builder: (context, isDark, child) {
-        return PopScope(
-          canPop: _currentBottomNavIndex == 0,
-          onPopInvokedWithResult: (didPop, result) {
-            if (didPop) return;
-            if (_currentBottomNavIndex != 0) {
-              setState(() => _currentBottomNavIndex = 0);
-            }
-          },
-          child: Scaffold(
-            backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF8FAFC),
-            body: SafeArea(
-              child: Column(
-                children: [
-                  _buildHeader(isDark),
-                  Expanded(
-                    child: _buildBodyContent(isDark),
+    return StreamBuilder<PhanCongCaTrucModelC1>(
+      stream: FirebaseServiceC1.streamPhanCongCaTruc(ngayChon: _ngayChon),
+      builder: (context, phanCongSnap) {
+        final phanCong = phanCongSnap.data ?? PhanCongCaTrucModelC1.chuaPhanCong();
+        final bool duocPhanCong = phanCong.duocPhanCong;
+
+        // Nếu ca trực đã được phân công (trang_thai_id == 16) và có tên khoa, tự động đồng bộ
+        if (duocPhanCong && phanCong.tenKhoa.isNotEmpty && phanCong.tenKhoa != _tenKhoaHienTai) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _tenKhoaHienTai = phanCong.tenKhoa);
+          });
+        }
+
+        return ValueListenableBuilder<bool>(
+          valueListenable: AppDesignSystemC1.isDarkMode,
+          builder: (context, isDark, child) {
+            return PopScope(
+              canPop: _currentBottomNavIndex == 0,
+              onPopInvokedWithResult: (didPop, result) {
+                if (didPop) return;
+                if (_currentBottomNavIndex != 0) {
+                  setState(() => _currentBottomNavIndex = 0);
+                }
+              },
+              child: Scaffold(
+                backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF8FAFC),
+                body: SafeArea(
+                  child: Column(
+                    children: [
+                      _buildHeader(isDark, phanCong),
+                      Expanded(
+                        child: _buildBodyContent(isDark, phanCong),
+                      ),
+                      CskhBottomNavC1(
+                        currentIndex: _currentBottomNavIndex,
+                        onTabSelected: (idx) => setState(() => _currentBottomNavIndex = idx),
+                      ),
+                    ],
                   ),
-                  CskhBottomNavC1(
-                    currentIndex: _currentBottomNavIndex,
-                    onTabSelected: (idx) => setState(() => _currentBottomNavIndex = idx),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
   }
 
-  Widget _buildBodyContent(bool isDark) {
+  Widget _buildBodyContent(bool isDark, PhanCongCaTrucModelC1 phanCong) {
+    // 1. Tab 3 (Profile): Luôn cho phép vào xem thông tin cá nhân và đăng xuất
+    if (_currentBottomNavIndex == 3) {
+      return CskhProfileTabC1(
+        onDangXuat: () {
+          if (Navigator.canPop(context)) {
+            Navigator.pop(context);
+          } else {
+            Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (route) => false);
+          }
+        },
+      );
+    }
+
+    // 2. NẾU CHƯA ĐƯỢC PHÂN CÔNG (trang_thai_id != 16):
+    // Tạm khóa chức năng Duyệt đơn, Chat, và Quản lý phòng
+    if (!phanCong.duocPhanCong) {
+      String tenChucNang = 'Trang chủ CSKH';
+      if (_currentBottomNavIndex == 1) tenChucNang = 'Duyệt đơn theo phòng';
+      if (_currentBottomNavIndex == 2) tenChucNang = 'Hỗ trợ bệnh nhân CSKH';
+
+      return LetanKhoaCaTrucWidgetC1(
+        phanCong: phanCong,
+        onChuyenProfile: () => setState(() => _currentBottomNavIndex = 3),
+        tenChucNangBiKhoa: tenChucNang,
+      );
+    }
+
+    // 3. NẾU ĐÃ ĐƯỢC PHÂN CÔNG (trang_thai_id == 16): Cho phép hoạt động bình thường
     if (_currentBottomNavIndex == 1) {
       return CskhTabDuyetPhongC1(
         tenKhoaHienTai: _tenKhoaHienTai,
@@ -286,18 +330,6 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
 
     if (_currentBottomNavIndex == 2) {
       return const CskhDanhsachTinnhanScreenC1();
-    }
-
-    if (_currentBottomNavIndex == 3) {
-      return CskhProfileTabC1(
-        onDangXuat: () {
-          if (Navigator.canPop(context)) {
-            Navigator.pop(context);
-          } else {
-            Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (route) => false);
-          }
-        },
-      );
     }
 
     final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
@@ -509,9 +541,14 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
     );
   }
 
-  Widget _buildHeader(bool isDark) {
+  Widget _buildHeader(bool isDark, [PhanCongCaTrucModelC1? phanCong]) {
     final textCol = isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A);
     final subTextCol = isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B);
+
+    final bool isAssigned = phanCong?.duocPhanCong ?? false;
+    final int statusId = phanCong?.trangThaiId ?? 0;
+    final String statusStr = phanCong?.trangThai ?? 'Chờ phân công';
+    final String phongName = phanCong?.tenPhong ?? '';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -537,19 +574,21 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
                     Container(
                       width: 8,
                       height: 8,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF10B981),
+                      decoration: BoxDecoration(
+                        color: isAssigned ? const Color(0xFF10B981) : const Color(0xFFEF4444),
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        DuLieuProfileMauC1.thongTinHienTai.tenBenhVien.isNotEmpty
-                            ? DuLieuProfileMauC1.thongTinHienTai.tenBenhVien
-                            : 'Bệnh viện BV502',
-                        style: const TextStyle(
-                          color: Color(0xFF0284C7),
+                        isAssigned
+                            ? '✓ Ca trực: ${phongName.isNotEmpty ? phongName : _tenKhoaHienTai} (TT: 16)'
+                            : (statusId != 0
+                                ? 'Chờ ca trực (TT: $statusId - $statusStr)'
+                                : 'Chưa phân công ca trực hôm nay'),
+                        style: TextStyle(
+                          color: isAssigned ? const Color(0xFF059669) : const Color(0xFFDC2626),
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                         ),
@@ -561,12 +600,14 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Xin chào, Chuyên viên CSKH',
+                  'Xin chào, Chuyên viên CSKH ${phanCong?.tenNhanVien ?? DuLieuProfileMauC1.thongTinHienTai.hoTen}',
                   style: TextStyle(
                     color: subTextCol,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 3),
                 Text(

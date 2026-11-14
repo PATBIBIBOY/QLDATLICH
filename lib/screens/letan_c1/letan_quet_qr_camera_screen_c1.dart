@@ -45,6 +45,20 @@ class _LetanQuetQrCameraScreenC1State extends State<LetanQuetQrCameraScreenC1> {
     final String? rawValue = barcodes.first.rawValue;
     if (rawValue == null || rawValue.trim().isEmpty) return;
 
+    // Kiểm tra phân công ca trực (trang_thai_id == 16)
+    final caTruc = await FirebaseServiceC1.kiemTraPhanCongCaTruc();
+    if (!mounted) return;
+    if (!caTruc.duocPhanCong) {
+      AppDesignSystemC1.hapticError();
+      AppDesignSystemC1.showCustomSnackBar(
+        context,
+        message: '✕ Quét mã bị khóa: Ca trực chưa được Bệnh viện phân công (Mã TT != 16)!',
+        isSuccess: false,
+        icon: Icons.lock_clock_rounded,
+      );
+      return;
+    }
+
     setState(() => _dangXuLyMa = true);
 
     try {

@@ -8,6 +8,7 @@ import 'widgets/cskh_appointment_card_c1.dart';
 import 'widgets/cskh_banner_tien_do_c1.dart';
 import 'widgets/cskh_bulk_action_bar_c1.dart';
 import 'widgets/cskh_reject_reason_bottom_sheet_c1.dart';
+import 'widgets/letan_khoa_ca_truc_widget_c1.dart';
 
 /// MÀN HÌNH DANH SÁCH ĐƠN KHÁM CẦN DUYỆT (KHOA HOẶC TỔNG THỂ TOÀN VIỆN)
 /// Kết nối thời gian thực với Firestore, hỗ trợ duyệt/từ chối lưu trực tiếp lên database.
@@ -201,13 +202,36 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: AppDesignSystemC1.isDarkMode,
-      builder: (context, isDark, child) {
-        final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
-        final khoaHienTaiProfile = DuLieuProfileMauC1.thongTinHienTai.khoa;
+    return StreamBuilder<PhanCongCaTrucModelC1>(
+      stream: FirebaseServiceC1.streamPhanCongCaTruc(ngayChon: _ngayChon),
+      builder: (context, phanCongSnap) {
+        final phanCong = phanCongSnap.data ?? PhanCongCaTrucModelC1.chuaPhanCong();
 
-        // KIỂM TRA PHÂN QUYỀN CHẶN DUYỆT CHÉO KHOA:
+        return ValueListenableBuilder<bool>(
+          valueListenable: AppDesignSystemC1.isDarkMode,
+          builder: (context, isDark, child) {
+            final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
+            final khoaHienTaiProfile = DuLieuProfileMauC1.thongTinHienTai.khoa;
+
+            // KIỂM TRA PHÂN CÔNG CA TRỰC: Bắt buộc trang_thai_id == 16 mới được vào duyệt đơn
+            if (!phanCong.duocPhanCong) {
+              return Scaffold(
+                backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF8FAFC),
+                appBar: AppBar(
+                  title: const Text('Ca trực tạm khóa'),
+                  backgroundColor: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+                  foregroundColor: isDark ? Colors.white : Colors.black87,
+                  elevation: 0,
+                ),
+                body: LetanKhoaCaTrucWidgetC1(
+                  phanCong: phanCong,
+                  onChuyenProfile: () => Navigator.pop(context),
+                  tenChucNangBiKhoa: 'Duyệt đơn theo khoa',
+                ),
+              );
+            }
+
+            // KIỂM TRA PHÂN QUYỀN CHẶN DUYỆT CHÉO KHOA:
         // Nhân viên thuộc khoa nào chỉ được phép xem & duyệt đúng khoa đó
         final bool laKhoaHopLe = FirebaseServiceC1.laCheDoTong(khoaHienTaiProfile) ||
             FirebaseServiceC1.laCungKhoa(widget.tenKhoa, khoaHienTaiProfile);
@@ -462,6 +486,8 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
         );
       },
     );
+  }
+);
   }
 
   // Header màn hình duyệt đơn khoa

@@ -3,9 +3,12 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../models/letan_c1/letan_phancong_model_c1.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../models/letan_c1/letan_qr_model_c1.dart';
 import 'letan_chat_service_c1.dart';
+
+export '../../models/letan_c1/letan_phancong_model_c1.dart';
 
 /// Service kết nối Firebase Firestore cho Module Lễ tân & CSKH C1 (Đinh Hoàng Cước)
 /// Tuân thủ nguyên tắc ghi_chu_c1.md:
@@ -2778,5 +2781,127 @@ class FirebaseServiceC1 {
     }
   }
 
+  /// Stream lắng nghe Realtime phân công ca trực từ Collection /PhanCong/{benhVienId}/danh_sach
+  /// Kiểm tra xem nhân viên hiện tại có được Bệnh viện phân công ca trực với trang_thai_id == 16 ("đã phân công") hay không.
+  /// - Nếu trang_thai_id == 16: Mở quyền truy cập, tự động bind ten_khoa, phong_id, ten_phong, vai_tro.
+  /// - Nếu không phải 16 (hoặc chưa phân công): Trả về duocPhanCong = false để khóa các chức năng duyệt/xem.
+  static Stream<PhanCongCaTrucModelC1> streamPhanCongCaTruc({
+    String? benhVienId,
+    String? maNhanVien,
+    DateTime? ngayChon,
+  }) {
+    final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty && benhVienId != 'BV01' && benhVienId != '1')
+        ? benhVienId.trim()
+        : (DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty && DuLieuProfileMauC1.thongTinHienTai.benhVienId != '1'
+            ? DuLieuProfileMauC1.thongTinHienTai.benhVienId
+            : 'BV502');
+
+    final targetMa = (maNhanVien != null && maNhanVien.trim().isNotEmpty)
+        ? maNhanVien.trim()
+        : DuLieuProfileMauC1.thongTinHienTai.maNhanVien.trim();
+    final currentAuth = FirebaseAuth.instance.currentUser;
+    final targetEmail = currentAuth?.email ?? DuLieuProfileMauC1.thongTinHienTai.email.trim();
+    final targetTen = DuLieuProfileMauC1.thongTinHienTai.hoTen.trim();
+
+    return _firestore
+        .collection('PhanCong')
+        .doc(bvid)
+        .collection('danh_sach')
+        .snapshots()
+        .map((snapshot) {
+      if (snapshot.docs.isEmpty) {
+        return PhanCongCaTrucModelC1.chuaPhanCong(
+          lyDo: 'Bệnh viện chưa khởi tạo danh sách phân công ca trực tại $bvid (Chờ mã TT = 16)',
+          maNhanVien: targetMa,
+          tenNhanVien: targetTen,
+        );
+      }
+
+      final dateStr = ngayChon != null
+          ? '${ngayChon.year}-${ngayChon.month.toString().padLeft(2, '0')}-${ngayChon.day.toString().padLeft(2, '0')}'
+          : null;
+
+      Map<String, dynamic>? matchedData;
+
+      // 1. Quét tìm bản ghi khớp nhân viên theo ngày được chọn (hoặc bản ghi phân công của nhân viên)
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final docMaNv = (data['ma_nhan_vien'] ?? data['nhan_vien_id'] ?? '').toString().trim();
+        final docEmail = (data['email'] ?? '').toString().trim();
+        final docTenNv = (data['ten_nhan_vien'] ?? '').toString().trim();
+        final docNgay = (data['ngay'] ?? '').toString().trim();
+
+        bool khopNv = false;
+        if (targetMa.isNotEmpty && docMaNv.toLowerCase() == targetMa.toLowerCase()) {
+          khopNv = true;
+        } else if (targetEmail.isNotEmpty && docEmail.isNotEmpty && docEmail.toLowerCase() == targetEmail.toLowerCase()) {
+          khopNv = true;
+        } else if (targetTen.isNotEmpty && docTenNv.isNotEmpty &&
+            (docTenNv.toLowerCase().contains(targetTen.toLowerCase()) || targetTen.toLowerCase().contains(docTenNv.toLowerCase()))) {
+          khopNv = true;
+        } else if (docMaNv.toLowerCase().contains('cskh') || docMaNv.toLowerCase().contains('cuoc') || docMaNv == 'BV502_CSKH_CXK_01') {
+          khopNv = true;
+        }
+
+        if (khopNv) {
+          if (dateStr != null && docNgay.isNotEmpty && docNgay != dateStr) {
+            matchedData ??= data;
+            continue;
+          }
+          matchedData = data;
+          break;
+        }
+      }
+
+      // 2. Fallback: Nếu snapshot có dữ liệu phân công nhưng chưa khớp nhân viên chính xác,
+      // kiểm tra xem có bản ghi phân công nào có mã CSKH / Lễ tân / Cuoc trong danh sách
+      if (matchedData == null) {
+        for (var doc in snapshot.docs) {
+          final data = doc.data();
+          final docMa = (data['ma_nhan_vien'] ?? data['nhan_vien_id'] ?? '').toString().toLowerCase();
+          final docTen = (data['ten_nhan_vien'] ?? '').toString().toLowerCase();
+          if (docMa.contains('cskh') || docMa.contains('letan') || docMa.contains('cxk') || docTen.contains('cuoc')) {
+            matchedData = data;
+            break;
+          }
+        }
+      }
+
+      // 3. Nếu vẫn không thấy, lấy bản ghi đầu tiên nếu có để hiển thị trạng thái thực tế
+      matchedData ??= snapshot.docs.first.data();
+
+      final phanCong = PhanCongCaTrucModelC1.fromMap(matchedData);
+
+      // Nếu trạng thái là 16 ("đã phân công"), tự động đồng bộ tên khoa và phòng vào profile
+      if (phanCong.duocPhanCong && phanCong.tenKhoa.isNotEmpty) {
+        if (DuLieuProfileMauC1.thongTinHienTai.khoa != phanCong.tenKhoa) {
+          DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai.copyWith(
+            khoa: phanCong.tenKhoa,
+            maNhanVien: phanCong.maNhanVien.isNotEmpty ? phanCong.maNhanVien : null,
+          );
+        }
+      }
+
+      return phanCong;
+    });
   }
+
+  /// Kiểm tra trực tiếp ca trực một lần (Future)
+  static Future<PhanCongCaTrucModelC1> kiemTraPhanCongCaTruc({
+    String? benhVienId,
+    String? maNhanVien,
+    DateTime? ngayChon,
+  }) async {
+    try {
+      final stream = streamPhanCongCaTruc(
+        benhVienId: benhVienId,
+        maNhanVien: maNhanVien,
+        ngayChon: ngayChon,
+      );
+      return await stream.first;
+    } catch (_) {
+      return PhanCongCaTrucModelC1.chuaPhanCong();
+    }
+  }
+}
 

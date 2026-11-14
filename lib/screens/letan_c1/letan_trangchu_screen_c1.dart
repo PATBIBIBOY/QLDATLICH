@@ -15,6 +15,7 @@ import 'widgets/letan_patient_card_c1.dart';
 import 'widgets/letan_qr_banner_c1.dart';
 import 'widgets/letan_quick_actions_c1.dart';
 import 'widgets/letan_stats_widget_c1.dart';
+import 'widgets/letan_khoa_ca_truc_widget_c1.dart';
 
 class LeTanHomeScreenC1 extends StatefulWidget {
   final String tenKhoa;
@@ -207,44 +208,49 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: AppDesignSystemC1.isDarkMode,
-      builder: (context, isDark, child) {
-        return PopScope(
-          canPop: _currentIndex == 0,
-          onPopInvokedWithResult: (didPop, result) {
-            if (didPop) return;
-            if (_currentIndex != 0) {
-              setState(() => _currentIndex = 0);
-            }
+    return StreamBuilder<PhanCongCaTrucModelC1>(
+      stream: FirebaseServiceC1.streamPhanCongCaTruc(ngayChon: _ngayChon),
+      builder: (context, phanCongSnap) {
+        final phanCong = phanCongSnap.data ?? PhanCongCaTrucModelC1.chuaPhanCong();
+        final bool duocPhanCong = phanCong.duocPhanCong;
+
+        // Nếu ca trực đã được phân công (trang_thai_id == 16) và có tên khoa, tự động cập nhật
+        if (duocPhanCong && phanCong.tenKhoa.isNotEmpty && phanCong.tenKhoa != _tenKhoaHienTai) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _tenKhoaHienTai = phanCong.tenKhoa);
+          });
+        }
+
+        return ValueListenableBuilder<bool>(
+          valueListenable: AppDesignSystemC1.isDarkMode,
+          builder: (context, isDark, child) {
+            return PopScope(
+              canPop: _currentIndex == 0,
+              onPopInvokedWithResult: (didPop, result) {
+                if (didPop) return;
+                if (_currentIndex != 0) {
+                  setState(() => _currentIndex = 0);
+                }
+              },
+              child: Scaffold(
+                backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF2F2F7),
+                body: SafeArea(
+                  child: _buildCurrentBody(isDark, phanCong),
+                ),
+                bottomNavigationBar: LetanBottomNavC1(
+                  currentIndex: _currentIndex,
+                  onTabSelected: (idx) => setState(() => _currentIndex = idx),
+                ),
+              ),
+            );
           },
-          child: Scaffold(
-            backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF2F2F7),
-            body: SafeArea(
-              child: _buildCurrentBody(),
-            ),
-            bottomNavigationBar: LetanBottomNavC1(
-              currentIndex: _currentIndex,
-              onTabSelected: (idx) => setState(() => _currentIndex = idx),
-            ),
-          ),
         );
       },
     );
   }
 
-  Widget _buildCurrentBody() {
-    if (_currentIndex == 1) {
-      return const LetanQuetQrCameraScreenC1();
-    }
-
-    if (_currentIndex == 2) {
-      return LetanLichhenScreenC1(
-        tenKhoa: _tenKhoaHienTai,
-        ngayChonBanDau: _ngayChon,
-      );
-    }
-
+  Widget _buildCurrentBody(bool isDark, PhanCongCaTrucModelC1 phanCong) {
+    // 1. Tab 3 (Profile): Luôn mở quyền để xem thông tin cá nhân và đăng xuất
     if (_currentIndex == 3) {
       return LetanProfileTabC1(
         tenKhoaHienTai: _tenKhoaHienTai,
@@ -258,12 +264,38 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
       );
     }
 
+    // 2. NẾU CHƯA ĐƯỢC PHÂN CÔNG (trang_thai_id != 16):
+    // Tạm khóa chức năng Trang chủ, Quét QR và Lịch hẹn
+    if (!phanCong.duocPhanCong) {
+      String tenChucNang = 'Trang chủ lễ tân';
+      if (_currentIndex == 1) tenChucNang = 'Quét mã QR bệnh nhân';
+      if (_currentIndex == 2) tenChucNang = 'Tra cứu lịch hẹn khám';
+
+      return LetanKhoaCaTrucWidgetC1(
+        phanCong: phanCong,
+        onChuyenProfile: () => setState(() => _currentIndex = 3),
+        tenChucNangBiKhoa: tenChucNang,
+      );
+    }
+
+    // 3. NẾU ĐÃ ĐƯỢC PHÂN CÔNG (trang_thai_id == 16): Cho phép sử dụng đầy đủ
+    if (_currentIndex == 1) {
+      return const LetanQuetQrCameraScreenC1();
+    }
+
+    if (_currentIndex == 2) {
+      return LetanLichhenScreenC1(
+        tenKhoa: _tenKhoaHienTai,
+        ngayChonBanDau: _ngayChon,
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeader(),
+          _buildHeader(phanCong),
           const SizedBox(height: 16),
           LetanQrBannerC1(onTap: _moManHinhQuetQr),
           const SizedBox(height: 16),
@@ -287,7 +319,7 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader([PhanCongCaTrucModelC1? phanCong]) {
     final isDark = AppDesignSystemC1.laCheDoToi;
     final textCol = isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E);
     final subTextCol = isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93);
@@ -424,25 +456,33 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                color: (phanCong?.duocPhanCong == true)
+                    ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5))
+                    : (isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2)),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                  color: (phanCong?.duocPhanCong == true)
+                      ? (isDark ? const Color(0xFF059669) : const Color(0xFFA7F3D0))
+                      : (isDark ? const Color(0xFFEF4444) : const Color(0xFFFECACA)),
                 ),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    Icons.lock_outline_rounded,
+                    (phanCong?.duocPhanCong == true) ? Icons.verified_rounded : Icons.lock_clock_rounded,
                     size: 11,
-                    color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
+                    color: (phanCong?.duocPhanCong == true) ? const Color(0xFF10B981) : const Color(0xFFEF4444),
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    'Khoa: $_tenKhoaHienTai',
+                    (phanCong?.duocPhanCong == true)
+                        ? 'Ca trực: ${phanCong!.tenPhong.isNotEmpty ? phanCong.tenPhong : _tenKhoaHienTai} (TT: 16)'
+                        : (phanCong?.trangThaiId != 0
+                            ? 'Chờ ca trực (TT: ${phanCong?.trangThaiId} != 16)'
+                            : 'Chưa phân công ca trực'),
                     style: TextStyle(
-                      color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
+                      color: (phanCong?.duocPhanCong == true) ? const Color(0xFF059669) : const Color(0xFFDC2626),
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
