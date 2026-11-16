@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import 'department_room_picker.dart';
+import 'duty_assignment_guard.dart';
+import 'duty_schedule.dart';
 import 'queue_screen.dart';
 import 'room_status.dart';
 
@@ -47,6 +49,12 @@ import 'room_status.dart';
 class ClinicFirestoreService {
   ClinicFirestoreService({FirebaseFirestore? firestore})
     : _firestore = firestore ?? FirebaseFirestore.instance;
+
+  /// Firestore instance dùng chung cho các tiện ích chỉ đọc trong
+  /// `support_doctor` (ví dụ kiểm tra phân công trực trước khi vào phòng).
+  /// Giữ cùng instance với service để luồng nào inject Firestore giả lập
+  /// cũng dùng chung nguồn.
+  FirebaseFirestore get firestore => _firestore;
 
   /// Collection bệnh viện: BenhVien/{hospitalId} (ví dụ BenhVien/BV001).
   static const String hospitalsCollection = 'BenhVien';
@@ -201,9 +209,9 @@ class ClinicFirestoreService {
   /// Ghi trạng thái mới lên `PhongKham/{roomId}`.
   ///
   /// Chỉ cập nhật 2 field snake_case: `trang_thai_id` = 12/13/14 và
-  /// `trang_thai` = mã chuỗi tương ứng, kèm mốc cập nhật. Không ghi
-  /// `trangThaiId` / `trangThai`. `set(merge: true)` giữ nguyên các field
-  /// khác của document.
+  /// `trang_thai` = `tam_dung` / `dang_kham` / `dong` tương ứng, kèm mốc
+  /// cập nhật. Không ghi `trangThaiId` / `trangThai`. `set(merge: true)`
+  /// giữ nguyên các field khác của document.
   Future<void> updateRoomStatusId({
     required String roomId,
     required int statusId,
@@ -577,13 +585,20 @@ class FirestoreClinicRoomPickerScreen extends StatefulWidget {
 class _FirestoreClinicRoomPickerScreenState
     extends State<FirestoreClinicRoomPickerScreen> {
   late final ClinicFirestoreService _service;
+  late final DutyAssignmentGuard _dutyGuard;
   late Stream<List<ClinicRoomData>> _roomsStream;
   Stream<String>? _hospitalNameStream;
+
+  /// Ngày có lịch trực hợp lệ của nhân viên đang đăng nhập, cập nhật từ
+  /// chính luồng realtime của thẻ lịch trực. `QueueScreen` dùng danh sách
+  /// này để chặn đổi sang ngày không có lịch trực.
+  Set<DateTime>? _dutyDays;
 
   @override
   void initState() {
     super.initState();
     _service = widget.service ?? ClinicFirestoreService();
+    _dutyGuard = DutyAssignmentGuard(firestore: _service.firestore);
     _roomsStream = _service.watchRooms(hospitalId: widget.hospitalId);
     if (widget.hospitalName == null) {
       _hospitalNameStream = _service.watchHospitalName(
@@ -631,6 +646,150 @@ class _FirestoreClinicRoomPickerScreenState
         ),
   );
 
+  /// Đổi `yyyy-MM-dd` của dòng lịch thành [DateTime] chỉ gồm phần ngày.
+  DateTime? _scheduleDay(DutyScheduleEntry schedule) => dutyDayOf(schedule);
+
+  /// Gom các ngày có lịch trực hợp lệ (`trang_thai_id = 16`) từ luồng lịch
+  /// trực realtime, để `QueueScreen` so sánh khi người dùng đổi ngày.
+  void _updateDutyDays(List<DutyScheduleEntry> entries) {
+    final days = <DateTime>{};
+    for (final entry in entries) {
+      if (entry.statusId != kDutyActiveStatusId) continue;
+      final day = dutyDayOf(entry);
+      if (day != null) days.add(day);
+    }
+    final previous = _dutyDays;
+    final unchanged = previous != null &&
+        previous.length == days.length &&
+        previous.containsAll(days);
+    if (unchanged) return;
+    if (!mounted) {
+      _dutyDays = days;
+      return;
+    }
+    // Callback chạy ngoài build (từ listener realtime) nên setState an toàn;
+    // nhờ vậy màn hình chọn khoa luôn truyền danh sách ngày trực mới nhất.
+    setState(() => _dutyDays = days);
+  }
+
+  void _showScheduleMessage(
+    ScaffoldMessengerState messenger,
+    String message,
+  ) {
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: const Color(0xFF191C26),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          margin: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+        ),
+      );
+  }
+
+  /// Tìm phòng theo MÃ trước (`benh_vien_id` + `khoa_id` + `phong_id`),
+  /// sau đó fallback theo `ten_khoa` / `ten_phong` nếu thiếu mã hoặc không
+  /// khớp. Các mã chỉ dùng nội bộ, không render lên giao diện.
+  ClinicRoomData? _findScheduleRoom(
+    List<ClinicRoomData> rooms,
+    DutyScheduleEntry schedule,
+  ) {
+    final hospitalId = schedule.hospitalId.trim();
+    final departmentId = schedule.departmentId.trim();
+    final roomId = schedule.roomId.trim();
+    final hasCodes =
+        hospitalId.isNotEmpty || departmentId.isNotEmpty || roomId.isNotEmpty;
+
+    if (hasCodes) {
+      for (final room in rooms) {
+        final hospitalOk = hospitalId.isEmpty ||
+            dutyIdentifierMatches(room.hospitalId, <String>{hospitalId});
+        final departmentOk = departmentId.isEmpty ||
+            dutyIdentifierMatches(room.departmentId, <String>{departmentId});
+        final roomOk = roomId.isEmpty ||
+            dutyIdentifierMatches(room.id, <String>{roomId});
+        if (hospitalOk && departmentOk && roomOk) return room;
+      }
+    }
+
+    final departmentName = schedule.departmentName.trim();
+    final roomName = schedule.roomName.trim();
+    if (departmentName.isEmpty && roomName.isEmpty) return null;
+    for (final room in rooms) {
+      final departmentOk = departmentName.isEmpty ||
+          dutyIdentifierMatches(room.department, <String>{departmentName});
+      final roomNameOk = roomName.isEmpty ||
+          dutyIdentifierMatches(room.name, <String>{roomName});
+      if (departmentOk && roomNameOk) return room;
+    }
+    return null;
+  }
+
+  /// Bấm một dòng lịch cụ thể: chỉ dòng có `trang_thai_id = 16` mới được
+  /// tìm phòng, qua guard rồi mở thẳng `QueueScreen`.
+  ///
+  /// Ngày của dòng lịch được dùng làm ngày nạp hàng chờ và cũng là ngày đối
+  /// chiếu phân công, nên bấm lịch của ngày nào thì lịch hẹn trong
+  /// `QueueScreen` đổi theo ngày đó (phục vụ test dữ liệu nhiều ngày).
+  Future<void> _openScheduleRoom(
+    BuildContext context, {
+    required List<ClinicRoomData> rooms,
+    required String hospitalName,
+    required DutyScheduleEntry schedule,
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    if (schedule.statusId != kDutyActiveStatusId) {
+      _showScheduleMessage(
+        messenger,
+        schedule.statusId == kDutyPendingStatusId
+            ? 'Lịch làm vẫn ở trạng thái chờ.'
+            : 'Lịch chưa được phân công.',
+      );
+      return;
+    }
+
+    final scheduleDay = _scheduleDay(schedule);
+    if (scheduleDay == null) {
+      _showScheduleMessage(messenger, 'Không đọc được ngày trực.');
+      return;
+    }
+
+    final room = _findScheduleRoom(rooms, schedule);
+    if (room == null) {
+      _showScheduleMessage(messenger, 'Không tìm thấy phòng.');
+      return;
+    }
+
+    final allowed = await _dutyGuard.checkAndNotify(
+      context,
+      DutyRoomContext(
+        hospitalId: room.hospitalId.trim().isNotEmpty
+            ? room.hospitalId
+            : widget.hospitalId,
+        departmentId: room.departmentId,
+        roomId: room.id,
+        departmentName: room.department,
+        roomName: room.name,
+        staffId: room.staffId,
+      ),
+      day: scheduleDay,
+    );
+    if (!allowed || !navigator.mounted) return;
+    await pushClinicQueueScreen(
+      navigator,
+      room: room,
+      hospitalName: hospitalName,
+      appointmentFeedFor: _appointmentFeedForRoom,
+      initialQueueDay: scheduleDay,
+      dutyDays: _dutyDays,
+    );
+  }
 
   Widget _roomsPicker(String hospitalName) =>
       StreamBuilder<List<ClinicRoomData>>(
@@ -646,12 +805,39 @@ class _FirestoreClinicRoomPickerScreenState
               !snapshot.hasData) {
             return const _FirestoreLoading();
           }
+          final rooms = snapshot.data!;
           return ClinicRoomPickerScreen(
-            rooms: snapshot.data!,
+            rooms: rooms,
             initialDepartment: widget.initialDepartment,
             hospitalName: hospitalName,
+            dutyDays: _dutyDays,
+            scheduleHeader: DutyScheduleBanner(
+              hospitalId: widget.hospitalId,
+              firestore: _service.firestore,
+              guard: _dutyGuard,
+              onEntriesChanged: _updateDutyDays,
+              onScheduleSelected: (schedule) => _openScheduleRoom(
+                context,
+                rooms: rooms,
+                hospitalName: hospitalName,
+                schedule: schedule,
+              ),
+            ),
             onLogout: widget.onLogout,
             appointmentFeedFor: _appointmentFeedForRoom,
+            beforeRoomSelected: (context, room) => _dutyGuard.checkAndNotify(
+              context,
+              DutyRoomContext(
+                hospitalId: room.hospitalId.trim().isNotEmpty
+                    ? room.hospitalId
+                    : widget.hospitalId,
+                departmentId: room.departmentId,
+                roomId: room.id,
+                departmentName: room.department,
+                roomName: room.name,
+                staffId: room.staffId,
+              ),
+            ),
           );
         },
       );
@@ -786,8 +972,9 @@ String clinicRoomDepartmentId(Map<String, Object?> data) =>
 /// Dùng [readClinicRoomStatus] để lấy toàn bộ 4 field
 /// `trang_thai_id` / `trangThaiId` / `trang_thai` / `trangThai`, sau đó
 /// trả id đã đối chiếu theo thứ tự ưu tiên: **field số → mã chuỗi**.
-/// Chấp nhận số, chuỗi số (`"12"`) và mã chuỗi (`"kham"`,
-/// `"tam_dung"`, `"dong"`; vẫn đọc alias cũ như `"dang_kham"`).
+/// Chấp nhận số, chuỗi số (`"12"`) và 3 mã chuỗi chuẩn (`"dang_kham"`,
+/// `"tam_dung"`, `"dong"`); vẫn đọc các alias cũ như `"tam_dung_kham"`
+/// và mã ngắn `"kham"`. Mã `"kham"` chỉ dùng để đọc, không được ghi.
 /// Trả về `null` khi không có field hợp lệ — lúc đó app dùng trạng thái
 /// phiên local như cũ.
 int? clinicRoomStatusId(Map<String, Object?> data) =>
