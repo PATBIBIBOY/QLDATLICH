@@ -354,6 +354,8 @@ class QueueScreen extends StatefulWidget {
     this.onRenumberAppointment,
     this.roomStatusStream,
     this.onRoomStatusChanged,
+    this.initialQueueDay,
+    this.dutyDays,
   });
 
   /// Mã phiên khám – gom các lượt của cùng một buổi/ngày.
@@ -420,6 +422,20 @@ class QueueScreen extends StatefulWidget {
   /// Tạm dừng / Tiếp tục hoặc Đóng / Mở phòng khám.
   final Future<void> Function(int statusId)? onRoomStatusChanged;
 
+  /// Ngày nạp lịch hẹn lúc mở màn hình. `null` = hôm nay.
+  ///
+  /// Dùng khi mở phòng từ một dòng lịch trực: truyền đúng ngày của dòng
+  /// lịch đó để hàng chờ nạp lịch hẹn của ngày trực thay vì ngày máy.
+  ///
+  /// Danh sách ngày trực hợp lệ do màn hình chọn khoa truyền vào qua
+  /// [dutyDays]; khi đổi sang ngày không có trong danh sách đó, màn hình
+  /// báo lỗi và thoát về màn chính để chọn lại đúng lịch trực.
+  final DateTime? initialQueueDay;
+
+  /// Các ngày có lịch trực hợp lệ (`trang_thai_id = 16`) của nhân viên
+  /// đang đăng nhập. `null` = không ràng buộc ngày (chế độ demo/offline).
+  final Set<DateTime>? dutyDays;
+
   @override
   State<QueueScreen> createState() => _QueueScreenState();
 }
@@ -469,9 +485,11 @@ class _QueueScreenState extends State<QueueScreen> {
   /// Mã trạng thái nhận gần nhất từ Firestore (`null` = chưa có field hợp lệ).
   int? _roomStatusId;
 
-  /// Ngày đang nạp lịch hẹn vào hàng chờ. Mặc định hôm nay; người đổi qua
-  /// bộ chọn lịch trên chính màn hình gọi số. Luôn chỉ còn phần ngày.
-  DateTime _selectedQueueDay = _queueDayOnly(DateTime.now());
+  /// Ngày đang nạp lịch hẹn vào hàng chờ. Mặc định hôm nay hoặc ngày trực
+  /// được truyền từ thẻ lịch; người đổi qua bộ chọn lịch trên chính màn
+  /// hình gọi số. Luôn chỉ còn phần ngày.
+  late DateTime _selectedQueueDay =
+      _queueDayOnly(widget.initialQueueDay ?? DateTime.now());
 
   /// Số hiệu lượt đăng ký luồng lịch hẹn. Tăng mỗi lần đổi ngày để bỏ qua
   /// các đợt emit muộn của luồng cũ.
@@ -744,6 +762,16 @@ class _QueueScreenState extends State<QueueScreen> {
     _feedState = QueueFeedState.connecting;
   }
 
+  /// Ngày [day] có lịch trực hợp lệ của nhân viên đang đăng nhập không.
+  ///
+  /// Màn hình chọn khoa truyền danh sách ngày trực qua [QueueScreen.dutyDays].
+  /// Không có danh sách (demo/offline) ⇒ không ràng buộc, luôn trả `true`.
+  bool _laNgayTruc(DateTime day) {
+    final dutyDays = widget.dutyDays;
+    if (dutyDays == null || dutyDays.isEmpty) return true;
+    return dutyDays.contains(_queueDayOnly(day));
+  }
+
   /// Mở lịch chọn ngày ngay trên màn hình gọi số.
   ///
   /// Cho chọn mọi ngày/tháng/năm trong khoảng rộng 1900–2100 để test; chỉ
@@ -761,6 +789,30 @@ class _QueueScreenState extends State<QueueScreen> {
     if (!mounted || picked == null) return;
     final day = _queueDayOnly(picked);
     if (day == _selectedQueueDay) return;
+
+    // Ngày không có lịch trực của nhân viên: không đổi ngày, báo lỗi rồi
+    // thoát về màn chính để chọn lại đúng lịch trực.
+    if (!_laNgayTruc(day)) {
+      final messenger = ScaffoldMessenger.of(context);
+      final navigator = Navigator.of(context);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'Không có ngày trực hôm ${_formatQueueDay(day)}',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: _Ui.textPrimary,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+        );
+      if (navigator.canPop()) navigator.pop();
+      return;
+    }
 
     setState(() {
       _selectedQueueDay = day;
