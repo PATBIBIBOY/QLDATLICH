@@ -8,6 +8,11 @@ import 'queue_screen.dart';
 import 'room_session_store.dart';
 import 'room_status.dart';
 
+/// Guard bất đồng bộ chạy ngay trước khi mở phòng: nhận `context` hiện tại
+/// và dữ liệu phòng, trả `false` để chặn `onRoomSelected`. Dùng cho kiểm tra
+/// phân công trực mà không đổi kiểu callback đồng bộ cũ của picker.
+typedef RoomEntryGuard<T> = Future<bool> Function(BuildContext context, T room);
+
 /// A reusable screen for choosing a department and then a clinic room.
 ///
 /// This widget is generic so it can use the `RoomInfo` model from an existing
@@ -30,6 +35,8 @@ class DepartmentRoomPicker<T> extends StatefulWidget {
     required this.waitingCountOf,
     required this.examinedCountOf,
     required this.onRoomSelected,
+    this.beforeRoomSelected,
+    this.scheduleHeader,
     this.initialDepartment,
     this.hospitalName = 'Bệnh viện',
     this.title = 'Chọn phòng khám',
@@ -57,6 +64,14 @@ class DepartmentRoomPicker<T> extends StatefulWidget {
 
   /// Called when the user taps an available room.
   final ValueChanged<T> onRoomSelected;
+
+  /// Kiểm tra điều kiện vào phòng (ví dụ đúng khoa / phòng được phân công).
+  /// Khi `null`, giữ nguyên hành vi bấm là vào phòng ngay.
+  final RoomEntryGuard<T>? beforeRoomSelected;
+
+  /// Widget lịch trực của nhân viên hiện tại, chèn ngay trên cùng sau tiêu đề.
+  /// `null` cho các luồng demo/offline không có dữ liệu Firestore.
+  final Widget? scheduleHeader;
 
   /// Khoa mặc định (giữ lại để tương thích với mã gọi cũ). Trang chọn nay
   /// luôn mở ở bước chọn khoa nên giá trị này không còn tự đưa người dùng
@@ -91,6 +106,7 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
       TextEditingController();
   String? _selectedDepartment;
   _RoomFilter _filter = _RoomFilter.all;
+  bool _checkingRoomEntry = false;
 
   List<String> get _departments {
     final values = widget.rooms
@@ -322,6 +338,10 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
                           ],
                         ),
                         SizedBox(height: compact ? 16 : 20),
+                        if (widget.scheduleHeader != null) ...[
+                          widget.scheduleHeader!,
+                          SizedBox(height: compact ? 16 : 20),
+                        ],
                         if (_choosingDepartment) ...[
                           const Text(
                             'CHỌN KHOA',
@@ -744,13 +764,24 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
         child: InkWell(
           // Phòng đã đóng VẪN vào được màn hình hàng chờ để bác sĩ bấm
           // "Mở phòng khám" ở nút dưới cùng; nếu chặn tap thì phòng bị kẹt.
-          onTap: () {
-            if (closed) {
-              _showMessage(
-                '${widget.roomNameOf(room)} đã đóng. Mở lại từ trong phòng.',
-              );
+          // Guard phân công chạy trước cả thông báo phòng đóng để sai khoa
+          // không lọt vào QueueScreen.
+          onTap: () async {
+            if (_checkingRoomEntry) return;
+            _checkingRoomEntry = true;
+            try {
+              final guard = widget.beforeRoomSelected;
+              if (guard != null && !await guard(context, room)) return;
+              if (!mounted) return;
+              if (closed) {
+                _showMessage(
+                  '${widget.roomNameOf(room)} đã đóng. Mở lại từ trong phòng.',
+                );
+              }
+              widget.onRoomSelected(room);
+            } finally {
+              _checkingRoomEntry = false;
             }
-            widget.onRoomSelected(room);
           },
           child: Padding(
             padding: EdgeInsets.all(compact ? 14 : 16),
@@ -1221,6 +1252,46 @@ typedef ClinicAppointmentFeed = ({
   Future<void> Function(int statusId) setRoomStatus,
 });
 
+/// Mở thẳng `QueueScreen` cho một phòng đã xác định.
+///
+/// Dùng chung cho việc bấm thẻ phòng và bấm một dòng lịch trực hợp lệ.
+/// Guard (nếu có) phải được gọi trước khi gọi hàm này. `NavigatorState`
+/// được truyền sẵn để không phải dùng lại `BuildContext` sau một `await`.
+///
+/// [initialQueueDay] là ngày nạp lịch hẹn lúc mở màn hình; `null` = hôm nay.
+/// [dutyDays] là các ngày có lịch trực hợp lệ; `null` = không ràng buộc.
+Future<void> pushClinicQueueScreen(
+  NavigatorState navigator, {
+  required ClinicRoomData room,
+  required String hospitalName,
+  required ClinicAppointmentFeed? Function(ClinicRoomData room)?
+  appointmentFeedFor,
+  DateTime? initialQueueDay,
+  Set<DateTime>? dutyDays,
+}) async {
+  final appointmentFeed = appointmentFeedFor?.call(room);
+  await navigator.push<void>(
+    MaterialPageRoute<void>(
+      builder: (_) => QueueScreen(
+        sessionId: room.sessionIdForToday(),
+        roomId: room.id,
+        staffId: room.staffId,
+        roomName: room.name,
+        departmentName: room.department,
+        hospitalName: hospitalName,
+        appointmentQueueStream: appointmentFeed?.updates,
+        appointmentQueueForDay: appointmentFeed?.updatesForDay,
+        onAppointmentOutcome: appointmentFeed?.reportOutcome,
+        onRenumberAppointment: appointmentFeed?.renumber,
+        roomStatusStream: appointmentFeed?.roomStatus,
+        onRoomStatusChanged: appointmentFeed?.setRoomStatus,
+        initialQueueDay: initialQueueDay,
+        dutyDays: dutyDays,
+      ),
+    ),
+  );
+}
+
 /// Màn hình chọn khoa/phòng đã kết nối với QueueScreen trong queue_screen.dart.
 /// Dữ liệu phòng lấy trực tiếp từ danh sách [rooms] do bên gọi cung cấp.
 /// Để lấy từ Cloud Firestore theo thời gian thực, dùng
@@ -1233,6 +1304,9 @@ class ClinicRoomPickerScreen extends StatelessWidget {
     this.hospitalName = 'Bệnh viện Bạch Mai',
     this.onLogout,
     this.appointmentFeedFor,
+    this.beforeRoomSelected,
+    this.scheduleHeader,
+    this.dutyDays,
   });
 
   final List<ClinicRoomData> rooms;
@@ -1263,6 +1337,19 @@ class ClinicRoomPickerScreen extends StatelessWidget {
   /// bệnh nhân nào ngoài trạng thái phiên đã có trong cùng lần chạy app.
   final ClinicAppointmentFeed? Function(ClinicRoomData room)?
   appointmentFeedFor;
+
+  /// Guard tuỳ chọn do luồng Firestore truyền vào để chặn phòng không đúng
+  /// phân công. Luồng demo/offline không truyền thì giữ nguyên hành vi cũ.
+  final RoomEntryGuard<ClinicRoomData>? beforeRoomSelected;
+
+  /// Thẻ lịch trực realtime của nhân viên đang đăng nhập. Luồng Firestore
+  /// truyền vào; luồng demo/offline để `null` nên không thay đổi giao diện.
+  final Widget? scheduleHeader;
+
+  /// Các ngày có lịch trực hợp lệ do luồng Firestore cập nhật realtime.
+  /// `QueueScreen` dùng để chặn đổi sang ngày không có lịch trực. `null` =
+  /// không ràng buộc (demo/offline).
+  final Set<DateTime>? dutyDays;
 
   /// Danh sách phòng kèm trạng thái/số liệu thật lấy từ [RoomSessionStore]
   /// (phòng chưa mở lần nào thì giữ nguyên dữ liệu ban đầu).
@@ -1313,24 +1400,16 @@ class ClinicRoomPickerScreen extends StatelessWidget {
         currentNumberOf: (room) => room.currentNumber,
         waitingCountOf: (room) => room.waitingCount,
         examinedCountOf: (room) => room.examinedCount,
+        beforeRoomSelected: beforeRoomSelected,
+        scheduleHeader: scheduleHeader,
         onRoomSelected: (room) {
-          final appointmentFeed = appointmentFeedFor?.call(room);
-          Navigator.of(context).push<void>(
-            MaterialPageRoute<void>(
-              builder: (_) => QueueScreen(
-                sessionId: room.sessionIdForToday(),
-                roomId: room.id,
-                staffId: room.staffId,
-                roomName: room.name,
-                departmentName: room.department,
-                hospitalName: hospitalName,
-                appointmentQueueStream: appointmentFeed?.updates,
-                appointmentQueueForDay: appointmentFeed?.updatesForDay,
-                onAppointmentOutcome: appointmentFeed?.reportOutcome,
-                onRenumberAppointment: appointmentFeed?.renumber,
-                roomStatusStream: appointmentFeed?.roomStatus,
-                onRoomStatusChanged: appointmentFeed?.setRoomStatus,
-              ),
+          unawaited(
+            pushClinicQueueScreen(
+              Navigator.of(context),
+              room: room,
+              hospitalName: hospitalName,
+              appointmentFeedFor: appointmentFeedFor,
+              dutyDays: dutyDays,
             ),
           );
         },
