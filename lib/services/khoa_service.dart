@@ -1,5 +1,76 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// TrangThaiPhong: trạng thái hoạt động của phòng khám (12 tạm dừng, 13 đang khám, 14 đóng cửa).
+enum TrangThaiPhong {
+  tamDung(12),
+  dangKham(13),
+  dongCua(14);
+
+  final int ma;
+  const TrangThaiPhong(this.ma);
+
+  /// tuMa: đổi giá trị đọc từ Firestore (số hoặc chuỗi) thành trạng thái phòng, không khớp thì xem là đang khám.
+  static TrangThaiPhong tuMa(dynamic v) {
+    final int? maSo = v is int ? v : int.tryParse(v?.toString() ?? '');
+    switch (maSo) {
+      case 12:
+        return TrangThaiPhong.tamDung;
+      case 14:
+        return TrangThaiPhong.dongCua;
+      default:
+        return TrangThaiPhong.dangKham;
+    }
+  }
+}
+
+/// PhongKhamTrangThai: trạng thái phòng khám kèm thông tin thời gian tạm dừng trong ngày.
+class PhongKhamTrangThai {
+  final TrangThaiPhong trangThai;
+  final DateTime? tamDungTu;
+  final int tongPhutTamDung;
+  final String? ngayTamDung;
+
+  const PhongKhamTrangThai({
+    required this.trangThai,
+    this.tamDungTu,
+    this.tongPhutTamDung = 0,
+    this.ngayTamDung,
+  });
+
+  static const PhongKhamTrangThai macDinh = PhongKhamTrangThai(
+    trangThai: TrangThaiPhong.dangKham,
+  );
+
+  /// tuMap: dựng trạng thái phòng từ document PhongKham (trạng thái đọc từ trang_thai_id).
+  factory PhongKhamTrangThai.tuMap(Map<String, dynamic> d) {
+    final ts = d['tam_dung_tu'];
+    final tong = d['tong_phut_tam_dung'];
+    return PhongKhamTrangThai(
+      trangThai: TrangThaiPhong.tuMa(d['trang_thai_id']),
+      tamDungTu: ts is Timestamp ? ts.toDate() : null,
+      tongPhutTamDung: tong is num ? tong.toInt() : int.tryParse('$tong') ?? 0,
+      ngayTamDung: d['ngay_tam_dung']?.toString(),
+    );
+  }
+
+  /// phutDangTamDung: số phút của đợt tạm dừng hiện tại (0 nếu phòng không đang tạm dừng).
+  int phutDangTamDung(DateTime now) {
+    if (trangThai != TrangThaiPhong.tamDung || tamDungTu == null) return 0;
+    final phut = now.difference(tamDungTu!).inMinutes;
+    return phut < 0 ? 0 : phut;
+  }
+
+  /// phutTamDung: tổng số phút phòng đã tạm dừng trong ngày, gồm các đợt đã kết thúc và đợt đang diễn ra.
+  int phutTamDung(DateTime now) {
+    final daTichLuy = ngayTamDung == _ngayId(now) ? tongPhutTamDung : 0;
+    return daTichLuy + phutDangTamDung(now);
+  }
+}
+
+/// _ngayId: định dạng ngày thành chuỗi "yyyy-MM-dd".
+String _ngayId(DateTime d) =>
+    '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
 class KhungGio {
   final String batDau; // "07:30"
   final String ketThuc; // "11:30"
@@ -576,5 +647,68 @@ class KhoaService {
     } catch (_) {}
 
     return [];
+  }
+
+  /// theoDoiTrangThaiPhong: lắng nghe trực tiếp trạng thái phòng khám từ collection PhongKham.
+  Stream<PhongKhamTrangThai> theoDoiTrangThaiPhong({
+    required String benhVienId,
+    required String khoaId,
+    required String phongKhamId,
+  }) {
+    return _db.collection('PhongKham').doc(phongKhamId).snapshots().map((
+      snap,
+    ) {
+      final data = snap.data();
+      if (!snap.exists || data == null) return PhongKhamTrangThai.macDinh;
+      return PhongKhamTrangThai.tuMap(data);
+    });
+  }
+
+  /// capNhatTrangThaiPhong: đổi trạng thái phòng khám và cộng dồn số phút tạm dừng trong ngày khi phòng thoát khỏi trạng thái tạm dừng.
+  Future<void> capNhatTrangThaiPhong({
+    required String benhVienId,
+    required String khoaId,
+    required String phongKhamId,
+    required TrangThaiPhong trangThaiMoi,
+  }) async {
+    final ref = _db.collection('PhongKham').doc(phongKhamId);
+
+    await _db.runTransaction((tx) async {
+      // Bước 1: đọc trạng thái hiện tại của phòng.
+      final snap = await tx.get(ref);
+      if (!snap.exists) throw Exception('Không tìm thấy phòng khám.');
+      final data = snap.data()!;
+      final hienTai = PhongKhamTrangThai.tuMap(data);
+      final now = DateTime.now();
+      final homNay = _ngayId(now);
+
+      // Bước 2: lấy số phút đã tích lũy của hôm nay (sang ngày mới thì tính lại từ 0).
+      var tong = hienTai.ngayTamDung == homNay ? hienTai.tongPhutTamDung : 0;
+
+      // Bước 3: nếu phòng đang tạm dừng và chuyển sang trạng thái khác thì cộng đợt tạm dừng vừa kết thúc.
+      final dangTamDung = hienTai.trangThai == TrangThaiPhong.tamDung;
+      if (dangTamDung && trangThaiMoi != TrangThaiPhong.tamDung) {
+        tong += hienTai.phutDangTamDung(now);
+      }
+
+      // Bước 4: xác định thời điểm bắt đầu tạm dừng (giữ nguyên nếu đang tạm dừng, đặt mới nếu vừa chuyển sang tạm dừng).
+      final Object? tamDungTu;
+      if (trangThaiMoi != TrangThaiPhong.tamDung) {
+        tamDungTu = null;
+      } else if (dangTamDung && data['tam_dung_tu'] != null) {
+        tamDungTu = data['tam_dung_tu'];
+      } else {
+        tamDungTu = FieldValue.serverTimestamp();
+      }
+
+      // Bước 5: ghi trạng thái mới cùng thông tin tạm dừng.
+      tx.update(ref, {
+        'trang_thai_id': trangThaiMoi.ma,
+        'tam_dung_tu': tamDungTu,
+        'tong_phut_tam_dung': tong,
+        'ngay_tam_dung': homNay,
+        'thoi_gian_cap_nhat': FieldValue.serverTimestamp(),
+      });
+    });
   }
 }

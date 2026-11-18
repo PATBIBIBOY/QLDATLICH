@@ -217,8 +217,6 @@ class AuthProvider extends ChangeNotifier {
         // KHÔNG gọi signOut() tại đây để phiên làm việc còn giữ lại cho màn hình EmailVerificationScreen
         throw Exception('EMAIL_NOT_VERIFIED');
       }
-        throw Exception('EMAIL_NOT_VERIFIED');
-      }
 
       await FCMService().init();
     } catch (e) {
@@ -578,7 +576,6 @@ class AuthProvider extends ChangeNotifier {
     try {
       await _authService.chuanHoaBenhVienDaDangKyHopTac(maBv);
     } catch (_) {}
-  }
   }
 
   Future<void> logout() async {
