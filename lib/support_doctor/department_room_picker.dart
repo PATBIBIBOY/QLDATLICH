@@ -6,6 +6,12 @@ import '../screens/auth/login_screen.dart';
 import '../screens/letan_c1/letan_profile_tab_c1.dart';
 import 'queue_screen.dart';
 import 'room_session_store.dart';
+import 'room_status.dart';
+
+/// Guard bất đồng bộ chạy ngay trước khi mở phòng: nhận `context` hiện tại
+/// và dữ liệu phòng, trả `false` để chặn `onRoomSelected`. Dùng cho kiểm tra
+/// phân công trực mà không đổi kiểu callback đồng bộ cũ của picker.
+typedef RoomEntryGuard<T> = Future<bool> Function(BuildContext context, T room);
 
 /// A reusable screen for choosing a department and then a clinic room.
 ///
@@ -29,12 +35,14 @@ class DepartmentRoomPicker<T> extends StatefulWidget {
     required this.waitingCountOf,
     required this.examinedCountOf,
     required this.onRoomSelected,
+    this.beforeRoomSelected,
+    this.scheduleHeader,
     this.initialDepartment,
     this.hospitalName = 'Bệnh viện',
     this.title = 'Chọn phòng khám',
     this.onLogout,
-    this.logoutLabel = 'Hồ sơ',
-    this.confirmLogout = false,
+    this.logoutLabel = 'Đăng xuất',
+    this.confirmLogout = true,
   });
 
   /// Room data supplied by the app.
@@ -56,6 +64,14 @@ class DepartmentRoomPicker<T> extends StatefulWidget {
 
   /// Called when the user taps an available room.
   final ValueChanged<T> onRoomSelected;
+
+  /// Kiểm tra điều kiện vào phòng (ví dụ đúng khoa / phòng được phân công).
+  /// Khi `null`, giữ nguyên hành vi bấm là vào phòng ngay.
+  final RoomEntryGuard<T>? beforeRoomSelected;
+
+  /// Widget lịch trực của nhân viên hiện tại, chèn ngay trên cùng sau tiêu đề.
+  /// `null` cho các luồng demo/offline không có dữ liệu Firestore.
+  final Widget? scheduleHeader;
 
   /// Khoa mặc định (giữ lại để tương thích với mã gọi cũ). Trang chọn nay
   /// luôn mở ở bước chọn khoa nên giá trị này không còn tự đưa người dùng
@@ -90,6 +106,7 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
       TextEditingController();
   String? _selectedDepartment;
   _RoomFilter _filter = _RoomFilter.all;
+  bool _checkingRoomEntry = false;
 
   List<String> get _departments {
     final values = widget.rooms
@@ -205,24 +222,16 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
       );
   }
 
-  /// Mở trang Hồ sơ cá nhân (thông tin nhân viên, đổi mật khẩu, đổi thông tin, đăng xuất)
+  /// Mở màn hình Hồ sơ cá nhân của nhân viên y tế (đổi mật khẩu, xem thông tin)
   void _handleOpenProfile() {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => Scaffold(
           appBar: AppBar(
-            title: const Text(
-              'Hồ Sơ Hỗ Trợ Bác Sĩ',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-            ),
-            centerTitle: true,
+            title: const Text('Hồ Sơ Hỗ Trợ Bác Sĩ', style: TextStyle(fontWeight: FontWeight.bold)),
             backgroundColor: Colors.white,
             foregroundColor: const Color(0xFF0F172A),
             elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
           ),
           body: LetanProfileTabC1(
             tenKhoaHienTai: _selectedDepartment ?? widget.initialDepartment,
@@ -329,6 +338,10 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
                           ],
                         ),
                         SizedBox(height: compact ? 16 : 20),
+                        if (widget.scheduleHeader != null) ...[
+                          widget.scheduleHeader!,
+                          SizedBox(height: compact ? 16 : 20),
+                        ],
                         if (_choosingDepartment) ...[
                           const Text(
                             'CHỌN KHOA',
@@ -454,17 +467,17 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
       (_RoomFilter.all, 'Tất cả', _departmentRooms.length),
       (
         _RoomFilter.open,
-        'Đang khám',
+        ClinicRoomStatus.open.fullLabel,
         _departmentRooms.where(widget.isOpen).length,
       ),
       (
         _RoomFilter.paused,
-        'Tạm dừng',
+        ClinicRoomStatus.paused.fullLabel,
         _departmentRooms.where(widget.isPaused).length,
       ),
       (
         _RoomFilter.closed,
-        'Chưa mở',
+        ClinicRoomStatus.closed.fullLabel,
         _departmentRooms.where(widget.isClosed).length,
       ),
     ];
@@ -640,12 +653,10 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          Flexible(
-                            child: _PickerRoomStatus(
-                              label: '${roomsInDepartment.length} phòng',
-                              foreground: const Color(0xFF107FE8),
-                              background: const Color(0x14107FE8),
-                            ),
+                          _PickerRoomStatus(
+                            label: '${roomsInDepartment.length} phòng',
+                            foreground: const Color(0xFF107FE8),
+                            background: const Color(0x14107FE8),
                           ),
                         ],
                       ),
@@ -751,9 +762,27 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
         borderRadius: BorderRadius.circular(22),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: closed
-              ? () => _showMessage('${widget.roomNameOf(room)} chưa mở.')
-              : () => widget.onRoomSelected(room),
+          // Phòng đã đóng VẪN vào được màn hình hàng chờ để bác sĩ bấm
+          // "Mở phòng khám" ở nút dưới cùng; nếu chặn tap thì phòng bị kẹt.
+          // Guard phân công chạy trước cả thông báo phòng đóng để sai khoa
+          // không lọt vào QueueScreen.
+          onTap: () async {
+            if (_checkingRoomEntry) return;
+            _checkingRoomEntry = true;
+            try {
+              final guard = widget.beforeRoomSelected;
+              if (guard != null && !await guard(context, room)) return;
+              if (!mounted) return;
+              if (closed) {
+                _showMessage(
+                  '${widget.roomNameOf(room)} đã đóng. Mở lại từ trong phòng.',
+                );
+              }
+              widget.onRoomSelected(room);
+            } finally {
+              _checkingRoomEntry = false;
+            }
+          },
           child: Padding(
             padding: EdgeInsets.all(compact ? 14 : 16),
             child: Row(
@@ -795,12 +824,10 @@ class _DepartmentRoomPickerState<T> extends State<DepartmentRoomPicker<T>> {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          Flexible(
-                            child: _PickerRoomStatus(
-                              label: widget.statusLabelOf(room),
-                              foreground: statusColor,
-                              background: statusBackground,
-                            ),
+                          _PickerRoomStatus(
+                            label: widget.statusLabelOf(room),
+                            foreground: statusColor,
+                            background: statusBackground,
                           ),
                         ],
                       ),
@@ -1099,10 +1126,25 @@ class _PickerMeta extends StatelessWidget {
 enum ClinicRoomStatus { open, paused, closed }
 
 extension ClinicRoomStatusLabel on ClinicRoomStatus {
+  /// Nhãn ngắn, giữ để tương thích mã cũ; giao diện hiện dùng [fullLabel].
   String get label => switch (this) {
     ClinicRoomStatus.open => 'Đang khám',
     ClinicRoomStatus.paused => 'Tạm dừng',
-    ClinicRoomStatus.closed => 'Chưa mở',
+    ClinicRoomStatus.closed => 'Đã đóng',
+  };
+
+  /// Mã id tương ứng để ghi ngược lên `PhongKham/{roomId}`.
+  int get statusId => switch (this) {
+    ClinicRoomStatus.open => kRoomStatusOpenId,
+    ClinicRoomStatus.paused => kRoomStatusPausedId,
+    ClinicRoomStatus.closed => kRoomStatusClosedId,
+  };
+
+  /// Nhãn đầy đủ theo đúng bảng 12/13/14.
+  String get fullLabel => switch (this) {
+    ClinicRoomStatus.open => kRoomStatusLabels[kRoomStatusOpenId]!,
+    ClinicRoomStatus.paused => kRoomStatusLabels[kRoomStatusPausedId]!,
+    ClinicRoomStatus.closed => kRoomStatusLabels[kRoomStatusClosedId]!,
   };
 }
 
@@ -1116,6 +1158,7 @@ class ClinicRoomData {
     required this.department,
     required this.staffId,
     required this.status,
+    this.trangThaiId,
     this.currentNumber,
     this.waitingCount = 0,
     this.examinedCount = 0,
@@ -1133,13 +1176,26 @@ class ClinicRoomData {
   final String department;
   final String staffId;
   final ClinicRoomStatus status;
+
+  /// Id trạng thái sau khi đối chiếu 4 field trong `PhongKham/{id}`
+  /// (12 tạm dừng / 13 đang khám / 14 đóng phòng), ưu tiên field số.
+  /// **Không hiển thị trên giao diện**, chỉ dùng nội bộ. `null` khi
+  /// document chưa có field hợp lệ — lúc đó dùng trạng thái phiên trong
+  /// [RoomSessionStore] như cũ.
+  final int? trangThaiId;
   final int? currentNumber;
   final int waitingCount;
   final int examinedCount;
 
+  /// Nhãn hiện trong bảng trạng thái phòng khám: **chỉ tên trạng thái**,
+  /// không kèm `trang_thai_id`. Id vẫn được giữ nội bộ để đối chiếu 4
+  /// field Firestore và quyết định Firestore/local precedence.
+  String get statusLabel => status.fullLabel;
+
   /// Bản sao có cập nhật trạng thái/số liệu theo thời gian chạy.
   ClinicRoomData copyWith({
     ClinicRoomStatus? status,
+    int? trangThaiId,
     int? currentNumber,
     int? waitingCount,
     int? examinedCount,
@@ -1151,6 +1207,7 @@ class ClinicRoomData {
     department: department,
     staffId: staffId,
     status: status ?? this.status,
+    trangThaiId: trangThaiId ?? this.trangThaiId,
     currentNumber: currentNumber ?? this.currentNumber,
     waitingCount: waitingCount ?? this.waitingCount,
     examinedCount: examinedCount ?? this.examinedCount,
@@ -1166,13 +1223,74 @@ class ClinicRoomData {
   }
 }
 
-/// Nguồn số thứ tự từ lịch hẹn cho một phòng: luồng cập nhật các số
-/// đủ điều kiện và hàm báo kết quả khám xong/vắng mặt về nơi lưu trữ.
+/// Nguồn dữ liệu realtime cho một phòng: luồng số thứ tự từ lịch hẹn,
+/// luồng trạng thái đã đối chiếu từ 4 field của chính phòng, và các hàm
+/// ghi kết quả khám / số thứ tự / trạng thái về nơi lưu trữ.
 typedef ClinicAppointmentFeed = ({
+  /// Luồng STT của ngày hôm nay, giữ cho mã gọi cũ / chế độ demo.
   Stream<AppointmentQueueUpdate> updates,
+
+  /// Luồng STT cho MỘT ngày bất kỳ do bộ chọn lịch trên QueueScreen truyền
+  /// vào. Khi đổi ngày, QueueScreen hủy đăng ký cũ và nghe luồng mới này.
+  Stream<AppointmentQueueUpdate> Function(DateTime day) updatesForDay,
+
   Future<void> Function(String appointmentId, AppointmentOutcome outcome)
   reportOutcome,
+
+  /// Ghi số thứ tự mới của một lịch hẹn khi nhân viên chèn số: số vừa
+  /// chèn nhận `số mốc + 1`, các số phía sau tăng thêm 1.
+  Future<void> Function(String appointmentId, int soThuTu) renumber,
+
+  /// Id trạng thái theo thời gian thực, đã đối chiếu từ `trang_thai_id`,
+  /// `trangThaiId`, `trang_thai`, `trangThai` (ưu tiên field số):
+  /// 12 tạm dừng / 13 đang khám / 14 đóng phòng; `null` khi document
+  /// chưa có field hợp lệ.
+  Stream<int?> roomStatus,
+
+  /// Ghi `trang_thai_id` + `trang_thai` lên Firestore khi bác sĩ bấm nút
+  /// Tạm dừng / Tiếp tục hoặc Đóng / Mở phòng khám.
+  Future<void> Function(int statusId) setRoomStatus,
 });
+
+/// Mở thẳng `QueueScreen` cho một phòng đã xác định.
+///
+/// Dùng chung cho việc bấm thẻ phòng và bấm một dòng lịch trực hợp lệ.
+/// Guard (nếu có) phải được gọi trước khi gọi hàm này. `NavigatorState`
+/// được truyền sẵn để không phải dùng lại `BuildContext` sau một `await`.
+///
+/// [initialQueueDay] là ngày nạp lịch hẹn lúc mở màn hình; `null` = hôm nay.
+/// [dutyDays] là các ngày có lịch trực hợp lệ; `null` = không ràng buộc.
+Future<void> pushClinicQueueScreen(
+  NavigatorState navigator, {
+  required ClinicRoomData room,
+  required String hospitalName,
+  required ClinicAppointmentFeed? Function(ClinicRoomData room)?
+  appointmentFeedFor,
+  DateTime? initialQueueDay,
+  Set<DateTime>? dutyDays,
+}) async {
+  final appointmentFeed = appointmentFeedFor?.call(room);
+  await navigator.push<void>(
+    MaterialPageRoute<void>(
+      builder: (_) => QueueScreen(
+        sessionId: room.sessionIdForToday(),
+        roomId: room.id,
+        staffId: room.staffId,
+        roomName: room.name,
+        departmentName: room.department,
+        hospitalName: hospitalName,
+        appointmentQueueStream: appointmentFeed?.updates,
+        appointmentQueueForDay: appointmentFeed?.updatesForDay,
+        onAppointmentOutcome: appointmentFeed?.reportOutcome,
+        onRenumberAppointment: appointmentFeed?.renumber,
+        roomStatusStream: appointmentFeed?.roomStatus,
+        onRoomStatusChanged: appointmentFeed?.setRoomStatus,
+        initialQueueDay: initialQueueDay,
+        dutyDays: dutyDays,
+      ),
+    ),
+  );
+}
 
 /// Màn hình chọn khoa/phòng đã kết nối với QueueScreen trong queue_screen.dart.
 /// Dữ liệu phòng lấy trực tiếp từ danh sách [rooms] do bên gọi cung cấp.
@@ -1186,6 +1304,9 @@ class ClinicRoomPickerScreen extends StatelessWidget {
     this.hospitalName = 'Bệnh viện Bạch Mai',
     this.onLogout,
     this.appointmentFeedFor,
+    this.beforeRoomSelected,
+    this.scheduleHeader,
+    this.dutyDays,
   });
 
   final List<ClinicRoomData> rooms;
@@ -1217,6 +1338,19 @@ class ClinicRoomPickerScreen extends StatelessWidget {
   final ClinicAppointmentFeed? Function(ClinicRoomData room)?
   appointmentFeedFor;
 
+  /// Guard tuỳ chọn do luồng Firestore truyền vào để chặn phòng không đúng
+  /// phân công. Luồng demo/offline không truyền thì giữ nguyên hành vi cũ.
+  final RoomEntryGuard<ClinicRoomData>? beforeRoomSelected;
+
+  /// Thẻ lịch trực realtime của nhân viên đang đăng nhập. Luồng Firestore
+  /// truyền vào; luồng demo/offline để `null` nên không thay đổi giao diện.
+  final Widget? scheduleHeader;
+
+  /// Các ngày có lịch trực hợp lệ do luồng Firestore cập nhật realtime.
+  /// `QueueScreen` dùng để chặn đổi sang ngày không có lịch trực. `null` =
+  /// không ràng buộc (demo/offline).
+  final Set<DateTime>? dutyDays;
+
   /// Danh sách phòng kèm trạng thái/số liệu thật lấy từ [RoomSessionStore]
   /// (phòng chưa mở lần nào thì giữ nguyên dữ liệu ban đầu).
   List<ClinicRoomData> _liveRooms() => <ClinicRoomData>[
@@ -1224,11 +1358,16 @@ class ClinicRoomPickerScreen extends StatelessWidget {
       if (RoomSessionStore.instance.sessionOf(room.id) case final snapshot
           when snapshot.started)
         room.copyWith(
-          status: switch (snapshot.status) {
-            RoomRuntimeStatus.open => ClinicRoomStatus.open,
-            RoomRuntimeStatus.paused => ClinicRoomStatus.paused,
-            RoomRuntimeStatus.closed => ClinicRoomStatus.closed,
-          },
+          // Khi đối chiếu được id từ 4 field Firestore thì Firestore là
+          // nguồn sự thật cho bảng trạng thái; chỉ phủ trạng thái phiên
+          // local cho dữ liệu cũ chưa có field hợp lệ.
+          status: room.trangThaiId != null
+              ? room.status
+              : switch (snapshot.status) {
+                RoomRuntimeStatus.open => ClinicRoomStatus.open,
+                RoomRuntimeStatus.paused => ClinicRoomStatus.paused,
+                RoomRuntimeStatus.closed => ClinicRoomStatus.closed,
+              },
           currentNumber: snapshot.currentNumber,
           waitingCount: snapshot.waitingCount,
           examinedCount: snapshot.examinedCount,
@@ -1254,27 +1393,23 @@ class ClinicRoomPickerScreen extends StatelessWidget {
         departmentIdOf: (room) => room.departmentId,
         roomIdOf: (room) => room.id,
         roomNameOf: (room) => room.name,
-        statusLabelOf: (room) => room.status.label,
+        statusLabelOf: (room) => room.statusLabel,
         isOpen: (room) => room.status == ClinicRoomStatus.open,
         isPaused: (room) => room.status == ClinicRoomStatus.paused,
         isClosed: (room) => room.status == ClinicRoomStatus.closed,
         currentNumberOf: (room) => room.currentNumber,
         waitingCountOf: (room) => room.waitingCount,
         examinedCountOf: (room) => room.examinedCount,
+        beforeRoomSelected: beforeRoomSelected,
+        scheduleHeader: scheduleHeader,
         onRoomSelected: (room) {
-          final appointmentFeed = appointmentFeedFor?.call(room);
-          Navigator.of(context).push<void>(
-            MaterialPageRoute<void>(
-              builder: (_) => QueueScreen(
-                sessionId: room.sessionIdForToday(),
-                roomId: room.id,
-                staffId: room.staffId,
-                roomName: room.name,
-                departmentName: room.department,
-                hospitalName: hospitalName,
-                appointmentQueueStream: appointmentFeed?.updates,
-                onAppointmentOutcome: appointmentFeed?.reportOutcome,
-              ),
+          unawaited(
+            pushClinicQueueScreen(
+              Navigator.of(context),
+              room: room,
+              hospitalName: hospitalName,
+              appointmentFeedFor: appointmentFeedFor,
+              dutyDays: dutyDays,
             ),
           );
         },
