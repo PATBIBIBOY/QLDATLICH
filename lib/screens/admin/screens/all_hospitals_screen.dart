@@ -121,7 +121,7 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
           ],
         ),
         content: Text(
-          'Hành động này sẽ xóa hoàn toàn cơ sở "${h.name}" khỏi cơ sở dữ liệu hệ thống Cloud Firestore và không thể hoàn tác.',
+          'Hành động này sẽ xóa hoàn toàn cơ sở "${h.name}" và xóa vĩnh viễn tài khoản đăng nhập khỏi Firebase Authentication (không thể hoàn tác).',
           style: const TextStyle(fontSize: 13.5, color: kSlate600, height: 1.4),
         ),
         actions: [
@@ -141,7 +141,7 @@ class _AllHospitalsScreenState extends State<AllHospitalsScreen> {
               AdminStore.instance.deleteHospitalAccount(h);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Đã xóa vĩnh viễn hồ sơ "${h.name}" khỏi hệ thống.'),
+                  content: Text('Đã xóa vĩnh viễn hồ sơ và tài khoản Auth của "${h.name}".'),
                   backgroundColor: kSlate900,
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

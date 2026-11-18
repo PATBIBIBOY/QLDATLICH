@@ -901,6 +901,16 @@ class AdminStore extends ChangeNotifier {
           }
         } catch (_) {}
 
+        // Vô hiệu hóa tài khoản gốc trên Firebase Auth và thu hồi phiên đăng nhập
+        try {
+          await FirebaseAdminAuthService.instance.disableAndRevokeUser(
+            uid: code,
+            email: h.email,
+          );
+        } catch (e) {
+          debugPrint('Lỗi vô hiệu hóa Firebase Auth cho bệnh viện: $e');
+        }
+
         // Gửi thông báo hệ thống
         await _firestore.collection('ThongBaoHeThong').add({
           'tieu_de': 'Hủy hợp tác bệnh viện',
@@ -998,6 +1008,16 @@ class AdminStore extends ChangeNotifier {
           }
         } catch (_) {}
 
+        // Mở khóa tài khoản gốc trên Firebase Auth
+        try {
+          await FirebaseAdminAuthService.instance.enableUser(
+            uid: code,
+            email: h.email,
+          );
+        } catch (e) {
+          debugPrint('Lỗi mở khóa Firebase Auth cho bệnh viện: $e');
+        }
+
         // Gửi thông báo hệ thống
         await _firestore.collection('ThongBaoHeThong').add({
           'tieu_de': 'Khôi phục hợp tác bệnh viện',
@@ -1022,7 +1042,7 @@ class AdminStore extends ChangeNotifier {
     }
   }
 
-  /// XÓA VĨNH VIỄN TÀI KHOẢN BỆNH VIỆN TRÊN FIREBASE
+  /// XÓA VĨNH VIỄN TÀI KHOẢN BỆNH VIỆN TRÊN FIREBASE (FIRESTORE & FIREBASE AUTHENTICATION)
   Future<void> deleteHospitalAccount(Hospital h) async {
     final email = h.email;
     final name = h.name;
@@ -1034,23 +1054,84 @@ class AdminStore extends ChangeNotifier {
     try {
       final code = h.code;
       if (code != null && code.isNotEmpty) {
-        // 1. Xóa trong BenhVien
+        String? finalEmail = email;
+        String targetAuthUid = code;
+
+        // 0. Đọc thông tin từ collection BenhVien trước khi xóa tài liệu
+        try {
+          final bvSnap = await _firestore.collection('BenhVien').doc(code).get();
+          if (bvSnap.exists) {
+            final data = bvSnap.data();
+            if (data != null) {
+              if (finalEmail == null || finalEmail.isEmpty) {
+                finalEmail = data['email']?.toString();
+              }
+              final authUidInDoc = data['uid']?.toString() ??
+                  data['auth_uid']?.toString() ??
+                  data['tai_khoan_id']?.toString();
+              if (authUidInDoc != null && authUidInDoc.isNotEmpty) {
+                targetAuthUid = authUidInDoc;
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Lỗi đọc dữ liệu BenhVien trước khi xóa: $e');
+        }
+
+        // Kiểm tra trong YeuCauHopTac nếu vẫn chưa có email
+        if (finalEmail == null || finalEmail.isEmpty) {
+          try {
+            final ycSnap = await _firestore.collection('YeuCauHopTac').doc(code).get();
+            if (ycSnap.exists) {
+              finalEmail = ycSnap.data()?['email']?.toString();
+            }
+          } catch (_) {}
+        }
+
+        // 1. XÓA VĨNH VIỄN TÀI KHOẢN KHỎI FIREBASE AUTHENTICATION (BẢNG USERS TRÊN CONSOLE)
+        try {
+          final deletedAuth = await FirebaseAdminAuthService.instance.deleteUser(
+            uid: targetAuthUid,
+            email: finalEmail,
+          );
+          if (deletedAuth) {
+            debugPrint('✅ Đã xóa hoàn toàn tài khoản bệnh viện khỏi Firebase Auth: $targetAuthUid ($finalEmail)');
+          } else {
+            debugPrint('⚠️ Không thể xóa khỏi Firebase Auth hoặc tài khoản không tồn tại trên Auth');
+          }
+        } catch (e) {
+          debugPrint('❌ Lỗi xóa tài khoản bệnh viện trên Firebase Auth: $e');
+        }
+
+        // 2. Xóa trong collection BenhVien
         await _firestore.collection('BenhVien').doc(code).delete();
 
-        // 2. Xóa trong YeuCauHopTac
+        // 3. Xóa trong YeuCauHopTac
         try {
           await _firestore.collection('YeuCauHopTac').doc(code).delete();
         } catch (_) {}
 
-        // 3. Xóa trong NhanVien
+        // 4. Xóa trong NhanVien
         try {
           await _firestore.collection('NhanVien').doc(code).delete();
         } catch (_) {}
 
-        // 4. Gửi email thông báo xóa tài khoản bệnh viện
-        if (email != null && email.isNotEmpty) {
+        // 5. Ghi nhật ký thông báo hệ thống
+        try {
+          await _firestore.collection('ThongBaoHeThong').add({
+            'tieu_de': 'Đã xóa vĩnh viễn bệnh viện',
+            'noi_dung': 'Quản trị viên đã xóa hoàn toàn hồ sơ và tài khoản bệnh viện: $name ($code)',
+            'loai': 'xoa_tai_khoan_bv',
+            'da_doc': false,
+            'thoi_gian_hien_thi': 'Vừa xong',
+            'ngay_tao': FieldValue.serverTimestamp(),
+          });
+        } catch (_) {}
+
+        // 6. Gửi email thông báo xóa tài khoản bệnh viện
+        if (finalEmail != null && finalEmail.isNotEmpty) {
           await EmailService.instance.sendAccountDeletedEmail(
-            toEmail: email,
+            toEmail: finalEmail,
             recipientName: name,
             isHospital: true,
           );
@@ -1305,7 +1386,7 @@ class AdminStore extends ChangeNotifier {
     }
   }
 
-  /// XÓA VĨNH VIỄN TÀI KHOẢN BỆNH NHÂN
+  /// XÓA VĨNH VIỄN TÀI KHOẢN BỆNH NHÂN (FIRESTORE & FIREBASE AUTHENTICATION)
   Future<void> deletePatientAccount(AdminPatient p) async {
     final email = p.email;
     final name = p.hoTen;
@@ -1313,6 +1394,17 @@ class AdminStore extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // 1. Xóa vĩnh viễn tài khoản trên Firebase Authentication (Users Table)
+      try {
+        await FirebaseAdminAuthService.instance.deleteUser(
+          uid: p.uid,
+          email: email,
+        );
+      } catch (e) {
+        debugPrint('❌ Lỗi xóa tài khoản bệnh nhân trên Firebase Auth: $e');
+      }
+
+      // 2. Xóa hồ sơ trong Firestore collection BenhNhan
       await _firestore.collection('BenhNhan').doc(p.uid).delete();
 
       await _firestore.collection('ThongBaoHeThong').add({

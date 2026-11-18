@@ -28,6 +28,7 @@ class FirebaseAdminAuthService {
         'type': 'service_account',
         'project_id': FirebaseAdminConfig.projectId,
         'client_email': FirebaseAdminConfig.clientEmail,
+        'client_id': FirebaseAdminConfig.clientId,
         'private_key': FirebaseAdminConfig.privateKey,
       });
 
@@ -50,6 +51,9 @@ class FirebaseAdminAuthService {
 
   /// Tìm Firebase Auth UID dựa vào Email
   Future<String?> getUidByEmail(String email) async {
+    final cleanEmail = email.trim();
+    if (cleanEmail.isEmpty) return null;
+
     final token = await _getAccessToken();
     if (token == null) return null;
 
@@ -65,7 +69,7 @@ class FirebaseAdminAuthService {
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'email': [email],
+          'email': [cleanEmail],
         }),
       );
 
@@ -73,7 +77,9 @@ class FirebaseAdminAuthService {
         final data = jsonDecode(res.body);
         final users = data['users'] as List?;
         if (users != null && users.isNotEmpty) {
-          return users[0]['localId']?.toString();
+          final uid = users[0]['localId']?.toString();
+          debugPrint('🔍 Tra cứu thành công Firebase Auth UID: $uid cho email: $cleanEmail');
+          return uid;
         }
       }
     } catch (e) {
@@ -88,13 +94,15 @@ class FirebaseAdminAuthService {
     if (token == null) return false;
 
     // Nếu UID truyền vào không phải là Auth UID gốc (ví dụ UID ngẫu nhiên từ Firestore), thử tra bằng email
-    String targetUid = uid;
-    if (email != null && email.isNotEmpty) {
-      final lookupUid = await getUidByEmail(email);
+    String targetUid = uid.trim();
+    if (email != null && email.trim().isNotEmpty) {
+      final lookupUid = await getUidByEmail(email.trim());
       if (lookupUid != null && lookupUid.isNotEmpty) {
         targetUid = lookupUid;
       }
     }
+
+    if (targetUid.isEmpty) return false;
 
     final url = Uri.parse(
       'https://identitytoolkit.googleapis.com/v1/projects/${FirebaseAdminConfig.projectId}/accounts:update',
@@ -132,13 +140,15 @@ class FirebaseAdminAuthService {
     final token = await _getAccessToken();
     if (token == null) return false;
 
-    String targetUid = uid;
-    if (email != null && email.isNotEmpty) {
-      final lookupUid = await getUidByEmail(email);
+    String targetUid = uid.trim();
+    if (email != null && email.trim().isNotEmpty) {
+      final lookupUid = await getUidByEmail(email.trim());
       if (lookupUid != null && lookupUid.isNotEmpty) {
         targetUid = lookupUid;
       }
     }
+
+    if (targetUid.isEmpty) return false;
 
     final url = Uri.parse(
       'https://identitytoolkit.googleapis.com/v1/projects/${FirebaseAdminConfig.projectId}/accounts:update',
@@ -163,6 +173,90 @@ class FirebaseAdminAuthService {
       }
     } catch (e) {
       debugPrint('❌ Lỗi mở khóa tài khoản trên Firebase Auth: $e');
+    }
+    return false;
+  }
+
+  /// Xóa vĩnh viễn tài khoản khỏi Firebase Authentication (Bảng Users trên Firebase Console)
+  Future<bool> deleteUser({required String uid, String? email}) async {
+    final token = await _getAccessToken();
+    if (token == null) return false;
+
+    String targetUid = uid.trim();
+    if (email != null && email.trim().isNotEmpty) {
+      final lookupUid = await getUidByEmail(email.trim());
+      if (lookupUid != null && lookupUid.isNotEmpty) {
+        targetUid = lookupUid;
+      }
+    }
+
+    if (targetUid.isEmpty) {
+      debugPrint('⚠️ Không xác định được UID để xóa khỏi Firebase Auth');
+      return false;
+    }
+
+    final url = Uri.parse(
+      'https://identitytoolkit.googleapis.com/v1/projects/${FirebaseAdminConfig.projectId}/accounts:delete',
+    );
+
+    try {
+      final res = await http.post(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'localId': targetUid,
+        }),
+      );
+
+      if (res.statusCode == 200) {
+        debugPrint('✅ Đã XÓA HOÀN TOÀN tài khoản khỏi Firebase Authentication (Console Users): $targetUid (email: $email)');
+
+        // Nếu UID ban đầu khác với targetUid (lookup bằng email) và UID ban đầu có vẻ là một Auth UID (độ dài >= 20)
+        // thì cố gắng xóa luôn UID ban đầu để dọn dẹp triệt để
+        if (uid.trim().isNotEmpty && uid.trim() != targetUid && uid.trim().length >= 20) {
+          try {
+            await http.post(
+              url,
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode({
+                'localId': uid.trim(),
+              }),
+            );
+          } catch (_) {}
+        }
+
+        return true;
+      } else {
+        debugPrint('⚠️ Firebase Auth accounts:delete trả về mã ${res.statusCode}: ${res.body}');
+        // Nếu xóa bằng targetUid thất bại (ví dụ UID không khớp), thử tra lại bằng email nếu chưa tra
+        if (email != null && email.trim().isNotEmpty && targetUid == uid.trim()) {
+          final lookedUp = await getUidByEmail(email.trim());
+          if (lookedUp != null && lookedUp != targetUid) {
+            final retryRes = await http.post(
+              url,
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode({
+                'localId': lookedUp,
+              }),
+            );
+            if (retryRes.statusCode == 200) {
+              debugPrint('✅ Đã xóa thành công Firebase Auth user sau khi tra cứu email: $lookedUp ($email)');
+              return true;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Lỗi xóa tài khoản trên Firebase Auth: $e');
     }
     return false;
   }

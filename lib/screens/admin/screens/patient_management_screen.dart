@@ -243,7 +243,7 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Hành động này sẽ xóa hoàn toàn hồ sơ của bệnh nhân ${patient.hoTen} (${patient.maBenhNhan}) khỏi cơ sở dữ liệu Firebase. Dữ liệu này không thể phục hồi!',
+              'Hành động này sẽ xóa hoàn toàn hồ sơ của bệnh nhân ${patient.hoTen} (${patient.maBenhNhan}) khỏi Firestore và xóa vĩnh viễn tài khoản khỏi Firebase Authentication. Không thể khôi phục sau khi xóa!',
               style: const TextStyle(color: kSlate600, fontSize: 13.5),
             ),
           ],

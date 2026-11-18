@@ -680,7 +680,7 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
           ],
         ),
         content: Text(
-          'CẢNH BÁO: Hành động này sẽ XÓA VĨNH VIỄN hồ sơ "${widget.hospital.name}" khỏi collection BenhVien và các dữ liệu liên quan trên Firebase. Không thể khôi phục sau khi xóa!',
+          'CẢNH BÁO: Hành động này sẽ XÓA VĨNH VIỄN hồ sơ "${widget.hospital.name}" khỏi Firebase (bao gồm Firestore BenhVien và tài khoản đăng nhập trên Firebase Authentication). Không thể khôi phục sau khi xóa!',
           style: const TextStyle(color: kSlate700, fontSize: 13.5, height: 1.4),
         ),
         actions: [
