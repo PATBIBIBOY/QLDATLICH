@@ -34,7 +34,7 @@ class PhanCongCaTrucModelC1 {
 
   /// Trạng thái mặc định khi chưa tìm thấy phân công
   factory PhanCongCaTrucModelC1.chuaPhanCong({
-    String lyDo = 'Tài khoản chưa được Bệnh viện phân công ca trực hôm nay (Chờ mã TT = 16)',
+    String lyDo = 'Tài khoản chưa được Bệnh viện phân công ca trực hôm nay (Chờ kích hoạt ca trực)',
     int trangThaiId = 0,
     String trangThai = 'Chờ phân công',
     String tenKhoa = '',
@@ -85,8 +85,8 @@ class PhanCongCaTrucModelC1 {
 
     String lyDoKhoa = '';
     if (!isAssigned) {
-      lyDoKhoa = statusId != 0
-          ? 'Bệnh viện chưa kích hoạt ca trực: Trạng thái hiện tại mang mã TT = $statusId ("$statusStr"), yêu cầu mã TT = 16 để mở khóa.'
+      lyDoKhoa = statusStr.isNotEmpty
+          ? 'Bệnh viện chưa kích hoạt ca trực: Trạng thái hiện tại là "$statusStr", vui lòng chờ Bệnh viện phân công để mở khóa.'
           : 'Tài khoản chưa được Bệnh viện phân công ca trực.';
     }
 

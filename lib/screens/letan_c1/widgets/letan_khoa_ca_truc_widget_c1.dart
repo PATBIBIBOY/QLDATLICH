@@ -108,7 +108,7 @@ class LetanKhoaCaTrucWidgetC1 extends StatelessWidget {
 
             // Mô tả chi tiết lý do khóa
             Text(
-              'Bệnh viện chưa phân công ca trực hợp lệ cho bạn. Quy định hệ thống yêu cầu trạng thái phân công phải mang mã TT = 16 ("đã phân công") để được quyền mở ca trực.\n\nHiện tại bạn chỉ được xem thông tin tại mục Hồ sơ và Đăng xuất.',
+              'Bệnh viện chưa kích hoạt ca trực cho bạn. Bạn cần được Bệnh viện phân công ca trực để được quyền mở các chức năng nghiệp vụ.\n\nHiện tại bạn chỉ được xem thông tin tại mục Hồ sơ và Đăng xuất.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),

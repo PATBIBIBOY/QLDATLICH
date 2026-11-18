@@ -2816,7 +2816,7 @@ class FirebaseServiceC1 {
         .map((snapshot) {
       if (snapshot.docs.isEmpty) {
         return PhanCongCaTrucModelC1.chuaPhanCong(
-          lyDo: 'Bệnh viện chưa khởi tạo danh sách phân công ca trực tại $bvid (Chờ mã TT = 16)',
+          lyDo: 'Bệnh viện chưa khởi tạo danh sách phân công ca trực tại $bvid (Vui lòng chờ Bệnh viện phân công)',
           maNhanVien: targetMa,
           tenNhanVien: targetTen,
         );
@@ -2862,7 +2862,7 @@ class FirebaseServiceC1 {
       // 2. Nếu không tìm thấy bản ghi phân công của tài khoản này, trả về chưa phân công
       if (matchedData == null) {
         return PhanCongCaTrucModelC1.chuaPhanCong(
-          lyDo: 'Tài khoản ($targetMa) chưa được Bệnh viện phân công ca trực tại $bvid (Chờ mã TT = 16)',
+          lyDo: 'Tài khoản ($targetMa) chưa được Bệnh viện phân công ca trực hôm nay',
           maNhanVien: targetMa,
           tenNhanVien: targetTen,
         );
