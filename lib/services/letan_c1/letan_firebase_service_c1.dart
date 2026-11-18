@@ -2836,22 +2836,16 @@ class FirebaseServiceC1 {
         final docTenNv = (data['ten_nhan_vien'] ?? '').toString().trim();
         final docNgay = (data['ngay'] ?? '').toString().trim();
 
-        final currentRole = DuLieuProfileMauC1.thongTinHienTai.chucVu.toUpperCase();
-        final isCskhRole = currentRole.contains('CSKH') || currentRole.contains('CHĂM SÓC') || targetMa.toUpperCase().contains('CSKH');
-        final isLetanRole = currentRole.contains('LỄ TÂN') || targetMa.toUpperCase().contains('LT');
-        final docVaiTro = (data['vai_tro'] ?? '').toString().toUpperCase();
-
+        // KIỂM TRA ĐÍCH DANH NHÂN VIÊN:
+        // Tuyệt đối không nhận vơ theo vai trò hay gán cứng mã khác.
+        // Chỉ khớp đúng mã nhân viên hoặc email của tài khoản đang đăng nhập!
         bool khopNv = false;
         if (targetMa.isNotEmpty && docMaNv.toLowerCase() == targetMa.toLowerCase()) {
           khopNv = true;
         } else if (targetEmail.isNotEmpty && docEmail.isNotEmpty && docEmail.toLowerCase() == targetEmail.toLowerCase()) {
           khopNv = true;
         } else if (targetTen.isNotEmpty && docTenNv.isNotEmpty &&
-            (docTenNv.toLowerCase().contains(targetTen.toLowerCase()) || targetTen.toLowerCase().contains(docTenNv.toLowerCase()))) {
-          khopNv = true;
-        } else if (isCskhRole && (docVaiTro.contains('CSKH') || docMaNv.toLowerCase().contains('cskh') || docMaNv == 'BV502_CSKH_CXK_01')) {
-          khopNv = true;
-        } else if (isLetanRole && (docVaiTro.contains('LỄ TÂN') || docVaiTro.contains('LETAN') || docMaNv.toLowerCase().contains('letan') || docMaNv.toLowerCase().contains('lt'))) {
+            (docTenNv.toLowerCase() == targetTen.toLowerCase())) {
           khopNv = true;
         }
 
