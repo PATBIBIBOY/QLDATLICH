@@ -260,6 +260,7 @@ Future<void> _xacNhanXoaKhoa(
 (String, Color, Color) _trangThai(String? ma) {
   switch (ma) {
     case 'tam_dung':
+    case 'tam_dong':
     case '12':
       return (
         'Tạm dừng',
@@ -269,7 +270,7 @@ Future<void> _xacNhanXoaKhoa(
     case 'dong':
     case 'dong_cua':
     case '14':
-      return ('Đóng cửa', const Color(0xFFFEE2E2), const Color(0xFFDC2626));
+      return ('Đóng', const Color(0xFFFEE2E2), const Color(0xFFDC2626));
     case 'day_lich_sang':
       return (
         'Đầy lịch sáng',
@@ -321,34 +322,68 @@ class KhoaCard extends StatelessWidget {
       return _buildBadge(nhan, nen, chu);
     }
 
+    final bvid = _getBenhVienId();
+    final prefix = '${bvid}_${khoaId}_';
+
+    // 1. Stream trực tiếp từ root collection PhongKham (đồng bộ tức thì khi chỉnh sửa trong Firestore Console)
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
-          .collection('Khoa')
-          .doc(_getBenhVienId())
-          .collection('danh_sach')
-          .doc(khoaId)
-          .collection('phongKham')
+          .collection('PhongKham')
+          .where(FieldPath.documentId, isGreaterThanOrEqualTo: prefix)
+          .where(FieldPath.documentId, isLessThan: '$prefix\uf8ff')
           .snapshots(),
-      builder: (context, snap) {
-        String? ma = trangThaiDoc;
-        if (snap.hasData && snap.data!.docs.isNotEmpty) {
-          final docs = snap.data!.docs;
+      builder: (context, rootSnap) {
+        if (rootSnap.hasData && rootSnap.data!.docs.isNotEmpty) {
+          final docs = rootSnap.data!.docs;
           final statuses = docs.map((d) {
             final p = d.data();
             final raw = p['trang_thai_id'] ?? p['trang_thai'];
             return DanhSachTrangThaiPhong.parse(raw);
           }).toList();
 
+          String ma = 'dang_mo';
           if (statuses.any((s) => s.id == 13 || s.ma == 'dang_kham')) {
             ma = 'dang_mo';
           } else if (statuses.any((s) => s.id == 12 || s.ma == 'tam_dung')) {
             ma = 'tam_dung';
           } else if (statuses.every((s) => s.id == 14 || s.ma == 'dong')) {
-            ma = 'dong_cua';
+            ma = 'dong';
           }
+          final (nhan, nen, chu) = _trangThai(ma);
+          return _buildBadge(nhan, nen, chu);
         }
-        final (nhan, nen, chu) = _trangThai(ma);
-        return _buildBadge(nhan, nen, chu);
+
+        // 2. Dự phòng: Stream từ subcollection Khoa/.../phongKham
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('Khoa')
+              .doc(bvid)
+              .collection('danh_sach')
+              .doc(khoaId)
+              .collection('phongKham')
+              .snapshots(),
+          builder: (context, snap) {
+            String? ma = trangThaiDoc;
+            if (snap.hasData && snap.data!.docs.isNotEmpty) {
+              final docs = snap.data!.docs;
+              final statuses = docs.map((d) {
+                final p = d.data();
+                final raw = p['trang_thai_id'] ?? p['trang_thai'];
+                return DanhSachTrangThaiPhong.parse(raw);
+              }).toList();
+
+              if (statuses.any((s) => s.id == 13 || s.ma == 'dang_kham')) {
+                ma = 'dang_mo';
+              } else if (statuses.any((s) => s.id == 12 || s.ma == 'tam_dung')) {
+                ma = 'tam_dung';
+              } else if (statuses.every((s) => s.id == 14 || s.ma == 'dong')) {
+                ma = 'dong';
+              }
+            }
+            final (nhan, nen, chu) = _trangThai(ma);
+            return _buildBadge(nhan, nen, chu);
+          },
+        );
       },
     );
   }
@@ -420,7 +455,7 @@ class KhoaCard extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _badgeTrangThaiKhoa(data['trangThai'] as String?),
+                  _badgeTrangThaiKhoa((data['trang_thai'] ?? data['trangThai']) as String?),
                   if (khoaId != null && khoaId!.isNotEmpty) ...[
                     const SizedBox(width: 2),
                     PopupMenuButton<String>(

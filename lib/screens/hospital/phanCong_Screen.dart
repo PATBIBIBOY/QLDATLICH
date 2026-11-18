@@ -37,11 +37,7 @@ class PhanCongScreen extends StatefulWidget {
   final bool isTab;
   final String? benhVienId;
 
-  const PhanCongScreen({
-    super.key,
-    this.isTab = true,
-    this.benhVienId,
-  });
+  const PhanCongScreen({super.key, this.isTab = true, this.benhVienId});
 
   @override
   State<PhanCongScreen> createState() => _PhanCongScreenState();
@@ -92,7 +88,7 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
       'Thứ Năm',
       'Thứ Sáu',
       'Thứ Bảy',
-      'Chủ Nhật'
+      'Chủ Nhật',
     ];
     final thu = listThu[dt.weekday - 1];
     final d = dt.day.toString().padLeft(2, '0');
@@ -146,6 +142,67 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
     return colors[sum % colors.length];
   }
 
+  /// Tạo mã vai trò cho phân công trực: ví dụ LT001, LT002, BS001,...
+  /// ID collection chuẩn: tg_tenkhoa_vaitro (ví dụ: 2026-11-18_DL001_LT001)
+  static String taoMaVaiTroPhanCong(
+    NhanVienModel nv, [
+    List<Map<String, dynamic>> dangTrucTrongPhong = const [],
+  ]) {
+    String prefix = 'NV';
+    final maNvUpper = nv.maNv.toUpperCase();
+    final vaiTroLower = nv.vaiTro.toLowerCase();
+
+    if (maNvUpper.contains('_LT_') ||
+        vaiTroLower.contains('lễ tân') ||
+        vaiTroLower.contains('le tan') ||
+        vaiTroLower.contains('reception')) {
+      prefix = 'LT';
+    } else if (maNvUpper.contains('_BS_') ||
+        vaiTroLower.contains('bác sĩ') ||
+        vaiTroLower.contains('bac si') ||
+        vaiTroLower.contains('doctor') ||
+        vaiTroLower.contains('support')) {
+      prefix = 'BS';
+    } else if (maNvUpper.contains('_DD_') ||
+        vaiTroLower.contains('điều dưỡng') ||
+        vaiTroLower.contains('dieu duong') ||
+        vaiTroLower.contains('nurse')) {
+      prefix = 'DD';
+    } else if (maNvUpper.contains('_DS_') ||
+        vaiTroLower.contains('dược sĩ') ||
+        vaiTroLower.contains('duoc si') ||
+        vaiTroLower.contains('pharmacist')) {
+      prefix = 'DS';
+    } else if (maNvUpper.contains('_CSKH_') ||
+        vaiTroLower.contains('cskh') ||
+        vaiTroLower.contains('chăm sóc')) {
+      prefix = 'CSKH';
+    } else if (maNvUpper.contains('_KT_') ||
+        vaiTroLower.contains('kỹ thuật') ||
+        vaiTroLower.contains('ky thuat')) {
+      prefix = 'KT';
+    }
+
+    final usedIndices = <int>{};
+    for (final pc in dangTrucTrongPhong) {
+      final code = (pc['vai_tro_code'] ?? '').toString().toUpperCase();
+      if (code.startsWith(prefix)) {
+        final numPart = code.substring(prefix.length);
+        final val = int.tryParse(numPart);
+        if (val != null) {
+          usedIndices.add(val);
+        }
+      }
+    }
+
+    int nextIndex = 1;
+    while (usedIndices.contains(nextIndex)) {
+      nextIndex++;
+    }
+
+    return '$prefix${nextIndex.toString().padLeft(3, '0')}';
+  }
+
   /// Mở Bottom Sheet chọn nhân viên trực theo chuyên khoa và bệnh viện
   void _moSheetChonNhanVien({
     required PhongItemPhanCong phong,
@@ -153,7 +210,8 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
     required String tenKhoa,
     required String prefixKhoa,
     required List<NhanVienModel> tatCaNhanVienBv,
-    required Map<String, Map<String, dynamic>> phanCongTrongNgay,
+    required Map<String, List<Map<String, dynamic>>> phanCongTheoPhong,
+    required Map<String, Map<String, dynamic>> phanCongTheoNhanVien,
   }) {
     showModalBottomSheet<void>(
       context: context,
@@ -168,7 +226,8 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
         tenKhoa: tenKhoa,
         prefixKhoa: prefixKhoa,
         tatCaNhanVienBv: tatCaNhanVienBv,
-        phanCongTrongNgay: phanCongTrongNgay,
+        phanCongTheoPhong: phanCongTheoPhong,
+        phanCongTheoNhanVien: phanCongTheoNhanVien,
       ),
     );
   }
@@ -209,7 +268,10 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                         child: Text(
                           'Bệnh viện chưa tạo khoa khám nào.\nVui lòng thêm khoa khám trước khi phân công.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Color(0xFF64748B), height: 1.4),
+                          style: TextStyle(
+                            color: Color(0xFF64748B),
+                            height: 1.4,
+                          ),
                         ),
                       ),
                     );
@@ -226,14 +288,14 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                   }
                   final currentKhoaId = khoaHienTaiDoc.id;
                   final khoaData = khoaHienTaiDoc.data();
-                  final tenKhoaHienTai = (khoaData['tenKhoa'] ??
-                          khoaData['ten_khoa'] ??
-                          'Khoa khám')
-                      .toString();
-                  final prefixKhoaHienTai = (khoaData['prefixKhoa'] ??
-                          khoaData['prefix_khoa'] ??
-                          '')
-                      .toString();
+                  final tenKhoaHienTai =
+                      (khoaData['tenKhoa'] ??
+                              khoaData['ten_khoa'] ??
+                              'Khoa khám')
+                          .toString();
+                  final prefixKhoaHienTai =
+                      (khoaData['prefixKhoa'] ?? khoaData['prefix_khoa'] ?? '')
+                          .toString();
 
                   return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                     // Stream toàn bộ phân công của bệnh viện trong ngày được chọn
@@ -244,14 +306,29 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                         .where('ngay', isEqualTo: _ngayStr)
                         .snapshots(),
                     builder: (context, phanCongSnap) {
-                      final phanCongTrongNgay = <String, Map<String, dynamic>>{};
+                      final phanCongTheoPhong =
+                          <String, List<Map<String, dynamic>>>{};
+                      final phanCongTheoNhanVien =
+                          <String, Map<String, dynamic>>{};
                       if (phanCongSnap.hasData) {
                         for (final doc in phanCongSnap.data!.docs) {
-                          final data = doc.data();
-                          final pId = (data['phong_id'] ?? data['ten_phong'] ?? '')
-                              .toString();
+                          final data = Map<String, dynamic>.from(doc.data());
+                          data['_docId'] = doc.id;
+                          final pId =
+                              (data['phong_id'] ?? data['ten_phong'] ?? '')
+                                  .toString();
+                          final nvId =
+                              (data['nhan_vien_id'] ??
+                                      data['ma_nhan_vien'] ??
+                                      '')
+                                  .toString();
                           if (pId.isNotEmpty) {
-                            phanCongTrongNgay[pId] = data;
+                            phanCongTheoPhong
+                                .putIfAbsent(pId, () => [])
+                                .add(data);
+                          }
+                          if (nvId.isNotEmpty) {
+                            phanCongTheoNhanVien[nvId] = data;
                           }
                         }
                       }
@@ -276,7 +353,9 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                           }
 
                           // Stream phòng khám của khoa hiện tại
-                          return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                          return StreamBuilder<
+                            QuerySnapshot<Map<String, dynamic>>
+                          >(
                             stream: FirebaseFirestore.instance
                                 .collection('Khoa')
                                 .doc(_bvid)
@@ -289,42 +368,71 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                               if (phongSnap.hasData) {
                                 for (final d in phongSnap.data!.docs) {
                                   final p = d.data();
-                                  final ten = (p['tenPhong'] ??
-                                          p['ten_phong'] ??
-                                          p['id'] ??
-                                          d.id)
-                                      .toString();
-                                  dsPhong.add(PhongItemPhanCong(
-                                    id: d.id,
-                                    tenPhong: ten,
-                                    gioMoCua: (p['gioMoCua'] ?? p['gio_mo_cua'] ?? '')
-                                        .toString(),
-                                    gioDongCua: (p['gioDongCua'] ?? p['gio_dong_cua'] ?? '')
-                                        .toString(),
-                                    soBenhNhanToiDa: (p['soBenhNhanToiDa'] ??
-                                            p['so_benh_nhan_toi_da'] ??
-                                            45) as int,
-                                    thoiGianKham: (p['thoiGianKham'] ??
-                                            p['thoi_gian_kham'] ??
-                                            '15')
-                                        .toString(),
-                                  ));
+                                  final ten =
+                                      (p['tenPhong'] ??
+                                              p['ten_phong'] ??
+                                              p['id'] ??
+                                              d.id)
+                                          .toString();
+                                  dsPhong.add(
+                                    PhongItemPhanCong(
+                                      id: d.id,
+                                      tenPhong: ten,
+                                      gioMoCua:
+                                          (p['gioMoCua'] ??
+                                                  p['gio_mo_cua'] ??
+                                                  '')
+                                              .toString(),
+                                      gioDongCua:
+                                          (p['gioDongCua'] ??
+                                                  p['gio_dong_cua'] ??
+                                                  '')
+                                              .toString(),
+                                      soBenhNhanToiDa:
+                                          (p['soBenhNhanToiDa'] ??
+                                                  p['so_benh_nhan_toi_da'] ??
+                                                  45)
+                                              as int,
+                                      thoiGianKham:
+                                          (p['thoiGianKham'] ??
+                                                  p['thoi_gian_kham'] ??
+                                                  '15')
+                                              .toString(),
+                                    ),
+                                  );
                                 }
                               }
 
-                              dsPhong.sort((a, b) => a.tenPhong.compareTo(b.tenPhong));
+                              dsPhong.sort(
+                                (a, b) => a.tenPhong.compareTo(b.tenPhong),
+                              );
 
                               // Đếm số phòng đã được phân công trực
                               final soPhongDaPhanCong = dsPhong
-                                  .where((p) => phanCongTrongNgay.containsKey(p.tenPhong))
+                                  .where(
+                                    (p) =>
+                                        phanCongTheoPhong[p.tenPhong]
+                                            ?.isNotEmpty ??
+                                        false,
+                                  )
                                   .length;
                               final tongSoPhong = dsPhong.length;
                               final phongChuaPhanCong = dsPhong
-                                  .where((p) => !phanCongTrongNgay.containsKey(p.tenPhong))
+                                  .where(
+                                    (p) =>
+                                        phanCongTheoPhong[p.tenPhong]
+                                            ?.isEmpty ??
+                                        true,
+                                  )
                                   .toList();
 
                               return SingleChildScrollView(
-                                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  12,
+                                  16,
+                                  24,
+                                ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -363,7 +471,8 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
 
                                     // Tiêu đề Khoa và số phòng đã phân công
                                     Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
                                       children: [
                                         Expanded(
                                           child: Text(
@@ -380,7 +489,9 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                                           style: TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w700,
-                                            color: soPhongDaPhanCong == tongSoPhong &&
+                                            color:
+                                                soPhongDaPhanCong ==
+                                                        tongSoPhong &&
                                                     tongSoPhong > 0
                                                 ? const Color(0xFF16A34A)
                                                 : const Color(0xFFD97706),
@@ -396,7 +507,9 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                                         padding: const EdgeInsets.all(24),
                                         decoration: BoxDecoration(
                                           color: Colors.white,
-                                          borderRadius: BorderRadius.circular(16),
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
                                           border: Border.all(
                                             color: const Color(0xFFE2E8F0),
                                           ),
@@ -404,7 +517,9 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                                         child: const Center(
                                           child: Text(
                                             'Khoa này chưa có phòng khám nào.',
-                                            style: TextStyle(color: Color(0xFF94A3B8)),
+                                            style: TextStyle(
+                                              color: Color(0xFF94A3B8),
+                                            ),
                                           ),
                                         ),
                                       )
@@ -412,12 +527,16 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                                       ...dsPhong.map(
                                         (p) => _buildCardPhong(
                                           phong: p,
-                                          phanCong: phanCongTrongNgay[p.tenPhong],
+                                          danhSachPhanCong:
+                                              phanCongTheoPhong[p.tenPhong] ??
+                                              [],
                                           khoaId: currentKhoaId,
                                           tenKhoa: tenKhoaHienTai,
                                           prefixKhoa: prefixKhoaHienTai,
                                           tatCaNhanVienBv: dsNhanVien,
-                                          phanCongTrongNgay: phanCongTrongNgay,
+                                          phanCongTheoPhong: phanCongTheoPhong,
+                                          phanCongTheoNhanVien:
+                                              phanCongTheoNhanVien,
                                         ),
                                       ),
 
@@ -505,10 +624,7 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                 SizedBox(height: 2),
                 Text(
                   'Mỗi phòng khám 1 người trực theo chuyên khoa',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
-                  ),
+                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                 ),
               ],
             ),
@@ -539,8 +655,10 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
         children: [
           IconButton(
             onPressed: () => _doiNgay(-1),
-            icon: const Icon(Icons.chevron_left_rounded,
-                color: Color(0xFF475569)),
+            icon: const Icon(
+              Icons.chevron_left_rounded,
+              color: Color(0xFF475569),
+            ),
             splashRadius: 20,
           ),
           InkWell(
@@ -566,8 +684,10 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
           ),
           IconButton(
             onPressed: () => _doiNgay(1),
-            icon: const Icon(Icons.chevron_right_rounded,
-                color: Color(0xFF475569)),
+            icon: const Icon(
+              Icons.chevron_right_rounded,
+              color: Color(0xFF475569),
+            ),
             splashRadius: 20,
           ),
         ],
@@ -586,7 +706,8 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
         children: dsKhoaDocs.map((doc) {
           final isSelected = doc.id == currentKhoaId;
           final data = doc.data();
-          final ten = (data['tenKhoa'] ?? data['ten_khoa'] ?? doc.id).toString();
+          final ten = (data['tenKhoa'] ?? data['ten_khoa'] ?? doc.id)
+              .toString();
 
           return Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -598,7 +719,10 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
               },
               borderRadius: BorderRadius.circular(20),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: isSelected ? const Color(0xFF2563EB) : Colors.white,
                   borderRadius: BorderRadius.circular(20),
@@ -613,7 +737,7 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                             color: Color(0x332563EB),
                             blurRadius: 6,
                             offset: Offset(0, 2),
-                          )
+                          ),
                         ]
                       : null,
                 ),
@@ -635,14 +759,15 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
 
   Widget _buildCardPhong({
     required PhongItemPhanCong phong,
-    required Map<String, dynamic>? phanCong,
+    required List<Map<String, dynamic>> danhSachPhanCong,
     required String khoaId,
     required String tenKhoa,
     required String prefixKhoa,
     required List<NhanVienModel> tatCaNhanVienBv,
-    required Map<String, Map<String, dynamic>> phanCongTrongNgay,
+    required Map<String, List<Map<String, dynamic>>> phanCongTheoPhong,
+    required Map<String, Map<String, dynamic>> phanCongTheoNhanVien,
   }) {
-    final daPhanCong = phanCong != null;
+    final daPhanCong = danhSachPhanCong.isNotEmpty;
 
     if (!daPhanCong) {
       // Card viền nét đứt màu cam (Phòng chưa phân công)
@@ -715,12 +840,15 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                     tenKhoa: tenKhoa,
                     prefixKhoa: prefixKhoa,
                     tatCaNhanVienBv: tatCaNhanVienBv,
-                    phanCongTrongNgay: phanCongTrongNgay,
+                    phanCongTheoPhong: phanCongTheoPhong,
+                    phanCongTheoNhanVien: phanCongTheoNhanVien,
                   ),
                   borderRadius: BorderRadius.circular(20),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 7),
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFEDD5),
                       borderRadius: BorderRadius.circular(20),
@@ -742,14 +870,7 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
       );
     }
 
-    // Card phòng đã phân công (Viền xám nhẹ, nền trắng)
-    final maNv = (phanCong['nhan_vien_id'] ?? phanCong['ma_nhan_vien'] ?? '').toString();
-    final tenNv = (phanCong['ten_nhan_vien'] ?? 'Nhân viên trực').toString();
-    final vaiTroNv = (phanCong['vai_tro'] ?? 'Hỗ trợ bác sĩ').toString();
-    final initials = _getInitials(tenNv);
-    final avBg = _getAvatarBg(maNv);
-    final avTxt = _getAvatarTextColor(maNv);
-
+    // Card phòng đã có phân công (1 hoặc nhiều nhân sự / vai trò)
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: InkWell(
@@ -759,7 +880,8 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
           tenKhoa: tenKhoa,
           prefixKhoa: prefixKhoa,
           tatCaNhanVienBv: tatCaNhanVienBv,
-          phanCongTrongNgay: phanCongTrongNgay,
+          phanCongTheoPhong: phanCongTheoPhong,
+          phanCongTheoNhanVien: phanCongTheoNhanVien,
         ),
         borderRadius: BorderRadius.circular(18),
         child: Container(
@@ -776,123 +898,167 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
               ),
             ],
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Icon phòng (Xanh dương)
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.table_restaurant_outlined,
-                    color: Color(0xFF2563EB),
-                    size: 22,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // Thông tin phòng
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      phong.tenPhong,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF0F172A),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      phong.thoiGianVaDiaDiem,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Nhân viên trực
+              // Header phòng: Icon, Tên phòng, Giờ mở cửa, Badge số lượng vai trò
               Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 34,
-                    height: 34,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
-                      color: avBg,
-                      shape: BoxShape.circle,
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Center(
-                      child: Text(
-                        initials,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: avTxt,
-                        ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.table_restaurant_outlined,
+                        color: Color(0xFF2563EB),
+                        size: 20,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            tenNv,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF0F172A),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFDCFCE7),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              'Đã phân công',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF16A34A),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              phong.tenPhong,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        '$vaiTroNv ($maNv)',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF94A3B8),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDCFCE7),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '${danhSachPhanCong.length} vai trò',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF16A34A),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 2),
+                        Text(
+                          phong.thoiGianVaDiaDiem,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(width: 4),
                   const Icon(
                     Icons.chevron_right_rounded,
                     color: Color(0xFF94A3B8),
-                    size: 18,
+                    size: 20,
                   ),
                 ],
               ),
+
+              const SizedBox(height: 10),
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              const SizedBox(height: 8),
+
+              // Danh sách từng nhân sự & vai trò trong phòng
+              ...danhSachPhanCong.map((pc) {
+                final maNv = (pc['nhan_vien_id'] ?? pc['ma_nhan_vien'] ?? '')
+                    .toString();
+                final tenNv = (pc['ten_nhan_vien'] ?? 'Nhân viên trực')
+                    .toString();
+                final vaiTroNv = (pc['vai_tro'] ?? 'Trực phòng').toString();
+                final roleCode = (pc['vai_tro_code'] ?? '').toString();
+                final initials = _getInitials(tenNv);
+                final avBg = _getAvatarBg(maNv);
+                final avTxt = _getAvatarTextColor(maNv);
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          color: avBg,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            initials,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: avTxt,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              tenNv,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            Text(
+                              '$vaiTroNv • $maNv',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF94A3B8),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (roleCode.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFBFDBFE)),
+                          ),
+                          child: Text(
+                            roleCode,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF2563EB),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              }),
             ],
           ),
         ),
@@ -918,8 +1084,11 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
               shape: BoxShape.circle,
             ),
             child: const Center(
-              child: Icon(Icons.priority_high_rounded,
-                  color: Colors.white, size: 20),
+              child: Icon(
+                Icons.priority_high_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -963,30 +1132,30 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
           style: BorderStyle.solid,
         ),
       ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Quy định phân công:',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF0F172A),
-            ),
-          ),
-          SizedBox(height: 4),
-          Text(
-            '• Nhân viên của bệnh viện nào chỉ hoạt động và phân công tại bệnh viện đó.\n'
-            '• Nhân viên chỉ được phân công vào các phòng khám thuộc đúng chuyên khoa của mình.\n'
-            '• Mỗi phòng khám phân công 1 người trực bấm số xuyên suốt ca trực trong ngày.',
-            style: TextStyle(
-              fontSize: 11.5,
-              height: 1.45,
-              color: Color(0xFF64748B),
-            ),
-          ),
-        ],
-      ),
+      // child: const Column(
+      //   crossAxisAlignment: CrossAxisAlignment.start,
+      //   children: [
+      //     Text(
+      //       'Quy định phân công:',
+      //       style: TextStyle(
+      //         fontSize: 12,
+      //         fontWeight: FontWeight.w800,
+      //         color: Color(0xFF0F172A),
+      //       ),
+      //     ),
+      //     SizedBox(height: 4),
+      //     Text(
+      //       '• Nhân viên của bệnh viện nào chỉ hoạt động và phân công tại bệnh viện đó.\n'
+      //       '• Nhân viên chỉ được phân công vào các phòng khám thuộc đúng chuyên khoa của mình.\n'
+      //       '• Mỗi phòng khám phân công 1 người trực bấm số xuyên suốt ca trực trong ngày.',
+      //       style: TextStyle(
+      //         fontSize: 11.5,
+      //         height: 1.45,
+      //         color: Color(0xFF64748B),
+      //       ),
+      //     ),
+      //   ],
+      // ),
     );
   }
 
@@ -1031,10 +1200,7 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
         ),
         child: const Text(
           'Lưu Phân Công',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-          ),
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
         ),
       ),
     );
@@ -1051,7 +1217,8 @@ class _ChonNhanVienModal extends StatefulWidget {
   final String tenKhoa;
   final String prefixKhoa;
   final List<NhanVienModel> tatCaNhanVienBv;
-  final Map<String, Map<String, dynamic>> phanCongTrongNgay;
+  final Map<String, List<Map<String, dynamic>>> phanCongTheoPhong;
+  final Map<String, Map<String, dynamic>> phanCongTheoNhanVien;
 
   const _ChonNhanVienModal({
     required this.benhVienId,
@@ -1062,7 +1229,8 @@ class _ChonNhanVienModal extends StatefulWidget {
     required this.tenKhoa,
     required this.prefixKhoa,
     required this.tatCaNhanVienBv,
-    required this.phanCongTrongNgay,
+    required this.phanCongTheoPhong,
+    required this.phanCongTheoNhanVien,
   });
 
   @override
@@ -1073,6 +1241,9 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
   String _tuKhoa = '';
   NhanVienModel? _nhanVienDuocChon;
   bool _isSaving = false;
+
+  List<Map<String, dynamic>> get _danhSachDangTruc =>
+      widget.phanCongTheoPhong[widget.phong.tenPhong] ?? [];
 
   String _getInitials(String name) {
     final parts = name.trim().split(RegExp(r'\s+'));
@@ -1113,22 +1284,6 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
     return colors[sum % colors.length];
   }
 
-  @override
-  void initState() {
-    super.initState();
-    final pcHienTai = widget.phanCongTrongNgay[widget.phong.tenPhong];
-    if (pcHienTai != null) {
-      final curNvId = (pcHienTai['nhan_vien_id'] ?? pcHienTai['ma_nhan_vien'] ?? '')
-          .toString();
-      for (final nv in widget.tatCaNhanVienBv) {
-        if (nv.maNv == curNvId || nv.id == curNvId) {
-          _nhanVienDuocChon = nv;
-          break;
-        }
-      }
-    }
-  }
-
   /// Lọc danh sách nhân viên:
   /// 1. Phải thuộc đúng bệnh viện (benhVienId)
   /// 2. Phải thuộc đúng chuyên khoa được phân công (tenKhoa hoặc prefixKhoa)
@@ -1149,12 +1304,14 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
 
       // 2. Kiểm tra chuyên khoa được phân công lúc tạo
       final nvKhoa = nv.khoa.trim().toLowerCase();
-      final matchKhoa = nvKhoa.isNotEmpty &&
+      final matchKhoa =
+          nvKhoa.isNotEmpty &&
           (nvKhoa == tenKhoaChuan ||
               nvKhoa.contains(tenKhoaChuan) ||
               tenKhoaChuan.contains(nvKhoa));
 
-      final matchPrefix = prefixChuan.isNotEmpty &&
+      final matchPrefix =
+          prefixChuan.isNotEmpty &&
           (nv.maNv.toLowerCase().contains('_${prefixChuan}_') ||
               nv.id.toLowerCase().contains('_${prefixChuan}_') ||
               nv.maNv.toLowerCase().endsWith('_$prefixChuan') ||
@@ -1175,42 +1332,17 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
     }).toList();
   }
 
-  /// Lưu phân công trực vào Firestore (Không hashcode, cập nhật trạng thái 16 "đã phân công" trực tiếp vào nhân viên)
+  /// Lưu phân công trực vào Firestore:
+  /// ID collection chuẩn định dạng: `tg_tenkhoa_vaitro` (ví dụ: `2026-11-18_DL001_LT001`)
   Future<void> _xacNhanPhanCong(NhanVienModel nv) async {
     setState(() => _isSaving = true);
     try {
-      final docId = '${widget.ngayStr}_${widget.phong.tenPhong}';
+      final roleCode = _PhanCongScreenState.taoMaVaiTroPhanCong(
+        nv,
+        _danhSachDangTruc,
+      );
+      final docId = '${widget.ngayStr}_${widget.phong.tenPhong}_$roleCode';
       final batch = FirebaseFirestore.instance.batch();
-
-      // 0. Nếu phòng này trước đó đã có người trực khác, chuyển trạng thái người cũ về 15 ("chờ")
-      final pcHienTai = widget.phanCongTrongNgay[widget.phong.tenPhong];
-      if (pcHienTai != null) {
-        final oldNvId = (pcHienTai['nhan_vien_id'] ?? pcHienTai['ma_nhan_vien'] ?? '').toString();
-        if (oldNvId.isNotEmpty && oldNvId != nv.maNv) {
-          final oldNvRef = FirebaseFirestore.instance
-              .collection('NhanVien')
-              .doc(widget.benhVienId)
-              .collection('danh_sach')
-              .doc(oldNvId);
-          batch.set(oldNvRef, {
-            'trang_thai_id': 15,
-            'trang_thai': 'chờ',
-            'trang_thai_phan_cong': FieldValue.delete(),
-            'trang_thai_phan_cong_id': FieldValue.delete(),
-            'ngay_phan_cong': null,
-            'phong_phan_cong': null,
-            'khoa_phan_cong': null,
-            'lich_phan_cong': {
-              widget.ngayStr: {
-                'trang_thai_id': 15,
-                'trang_thai': 'chờ',
-                'ngay': widget.ngayStr,
-                'ngay_cap_nhat': FieldValue.serverTimestamp(),
-              }
-            },
-          }, SetOptions(merge: true));
-        }
-      }
 
       // 1. Cập nhật nhân viên được phân công vào NhanVien/{bvid}/danh_sach/{maNv}
       // Trạng thái: id = 16, ten_trang_thai = "đã phân công" (khớp collection TrangThai doc 16)
@@ -1229,15 +1361,18 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
         'ngay_phan_cong': widget.ngayStr,
         'phong_phan_cong': widget.phong.tenPhong,
         'khoa_phan_cong': widget.tenKhoa,
+        'vai_tro_code': roleCode,
         'lich_phan_cong': {
           widget.ngayStr: {
             'trang_thai_id': 16,
             'trang_thai': 'đã phân công',
             'phong': widget.phong.tenPhong,
             'khoa': widget.tenKhoa,
+            'vai_tro_code': roleCode,
+            'doc_id': docId,
             'ngay': widget.ngayStr,
             'ngay_cap_nhat': FieldValue.serverTimestamp(),
-          }
+          },
         },
       }, SetOptions(merge: true));
 
@@ -1257,6 +1392,7 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
         'prefix_khoa': widget.prefixKhoa,
         'phong_id': widget.phong.tenPhong,
         'ten_phong': widget.phong.tenPhong,
+        'vai_tro_code': roleCode,
         'nhan_vien_id': nv.maNv,
         'ma_nhan_vien': nv.maNv,
         'ten_nhan_vien': nv.hoTen,
@@ -1266,7 +1402,7 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
         'ngay_cap_nhat': FieldValue.serverTimestamp(),
       });
 
-      // 3. Cập nhật nhan_vien_id trong subcollection Khoa/.../phongKham
+      // 3. Cập nhật subcollection Khoa/.../phongKham
       final subPkRef = FirebaseFirestore.instance
           .collection('Khoa')
           .doc(widget.benhVienId)
@@ -1282,10 +1418,12 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
         'vai_tro_nhan_vien': nv.vaiTro,
       }, SetOptions(merge: true));
 
-      // 4. Cập nhật nhan_vien_id trong root collection PhongKham
-      final pkDocId = '${widget.benhVienId}_${widget.khoaId}_${widget.phong.tenPhong}';
-      final rootPkRef =
-          FirebaseFirestore.instance.collection('PhongKham').doc(pkDocId);
+      // 4. Cập nhật root collection PhongKham
+      final pkDocId =
+          '${widget.benhVienId}_${widget.khoaId}_${widget.phong.tenPhong}';
+      final rootPkRef = FirebaseFirestore.instance
+          .collection('PhongKham')
+          .doc(pkDocId);
 
       batch.set(rootPkRef, {
         'nhan_vien_id': nv.maNv,
@@ -1301,20 +1439,24 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
         SnackBar(
           content: Row(
             children: [
-              const Icon(Icons.check_circle_rounded,
-                  color: Colors.white, size: 20),
+              const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Đã phân công ${nv.hoTen} (${nv.maNv}) trực ${widget.phong.tenPhong}!',
+                  'Đã phân công ${nv.hoTen} ($roleCode) trực ${widget.phong.tenPhong}!',
                 ),
               ),
             ],
           ),
           backgroundColor: const Color(0xFF10B981),
           behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -1330,23 +1472,105 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
     }
   }
 
-  /// Hủy phân công trực phòng này (chuyển trạng thái nhân viên về 15 "chờ")
-  Future<void> _huyPhanCong() async {
+  /// Hủy phân công của một vai trò / nhân sự cụ thể
+  Future<void> _huyPhanCongMotNhanVien(Map<String, dynamic> pcData) async {
     setState(() => _isSaving = true);
     try {
-      final docId = '${widget.ngayStr}_${widget.phong.tenPhong}';
+      final docId =
+          (pcData['id'] ??
+                  pcData['_docId'] ??
+                  '${widget.ngayStr}_${widget.phong.tenPhong}_${pcData['vai_tro_code']}')
+              .toString();
+      final maNv = (pcData['nhan_vien_id'] ?? pcData['ma_nhan_vien'] ?? '')
+          .toString();
+      final tenNv = (pcData['ten_nhan_vien'] ?? 'Nhân viên').toString();
+
       final batch = FirebaseFirestore.instance.batch();
 
-      // Cập nhật nhân viên đang trực về trạng thái 15 ("chờ")
-      final pcHienTai = widget.phanCongTrongNgay[widget.phong.tenPhong];
-      if (pcHienTai != null) {
-        final curNvId = (pcHienTai['nhan_vien_id'] ?? pcHienTai['ma_nhan_vien'] ?? '').toString();
-        if (curNvId.isNotEmpty) {
+      // Cập nhật nhân viên về trạng thái 15 ("chờ")
+      if (maNv.isNotEmpty) {
+        final nvRef = FirebaseFirestore.instance
+            .collection('NhanVien')
+            .doc(widget.benhVienId)
+            .collection('danh_sach')
+            .doc(maNv);
+
+        batch.set(nvRef, {
+          'trang_thai_id': 15,
+          'trang_thai': 'chờ',
+          'trang_thai_phan_cong': FieldValue.delete(),
+          'trang_thai_phan_cong_id': FieldValue.delete(),
+          'ngay_phan_cong': null,
+          'phong_phan_cong': null,
+          'khoa_phan_cong': null,
+          'vai_tro_code': null,
+          'lich_phan_cong': {
+            widget.ngayStr: {
+              'trang_thai_id': 15,
+              'trang_thai': 'chờ',
+              'ngay': widget.ngayStr,
+              'ngay_cap_nhat': FieldValue.serverTimestamp(),
+            },
+          },
+        }, SetOptions(merge: true));
+      }
+
+      // Xóa document phân công tương ứng trong PhanCong/{benhVienId}/danh_sach
+      final pcRef = FirebaseFirestore.instance
+          .collection('PhanCong')
+          .doc(widget.benhVienId)
+          .collection('danh_sach')
+          .doc(docId);
+      batch.delete(pcRef);
+
+      await batch.commit();
+
+      if (!mounted) return;
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Đã hủy phân công $tenNv trực ${widget.phong.tenPhong}.',
+          ),
+          backgroundColor: const Color(0xFF475569),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi khi hủy phân công: $e'),
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+    }
+  }
+
+  /// Hủy phân công toàn bộ vai trò phòng này (chuyển trạng thái nhân viên về 15 "chờ")
+  Future<void> _huyToanBoPhanCongPhong() async {
+    setState(() => _isSaving = true);
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+
+      for (final pc in _danhSachDangTruc) {
+        final docId =
+            (pc['id'] ??
+                    pc['_docId'] ??
+                    '${widget.ngayStr}_${widget.phong.tenPhong}_${pc['vai_tro_code']}')
+                .toString();
+        final maNv = (pc['nhan_vien_id'] ?? pc['ma_nhan_vien'] ?? '')
+            .toString();
+
+        if (maNv.isNotEmpty) {
           final nvRef = FirebaseFirestore.instance
               .collection('NhanVien')
               .doc(widget.benhVienId)
               .collection('danh_sach')
-              .doc(curNvId);
+              .doc(maNv);
 
           batch.set(nvRef, {
             'trang_thai_id': 15,
@@ -1356,24 +1580,25 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
             'ngay_phan_cong': null,
             'phong_phan_cong': null,
             'khoa_phan_cong': null,
+            'vai_tro_code': null,
             'lich_phan_cong': {
               widget.ngayStr: {
                 'trang_thai_id': 15,
                 'trang_thai': 'chờ',
                 'ngay': widget.ngayStr,
                 'ngay_cap_nhat': FieldValue.serverTimestamp(),
-              }
+              },
             },
           }, SetOptions(merge: true));
         }
-      }
 
-      final pcRef = FirebaseFirestore.instance
-          .collection('PhanCong')
-          .doc(widget.benhVienId)
-          .collection('danh_sach')
-          .doc(docId);
-      batch.delete(pcRef);
+        final pcRef = FirebaseFirestore.instance
+            .collection('PhanCong')
+            .doc(widget.benhVienId)
+            .collection('danh_sach')
+            .doc(docId);
+        batch.delete(pcRef);
+      }
 
       final subPkRef = FirebaseFirestore.instance
           .collection('Khoa')
@@ -1389,9 +1614,11 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
         'vai_tro_nhan_vien': null,
       }, SetOptions(merge: true));
 
-      final pkDocId = '${widget.benhVienId}_${widget.khoaId}_${widget.phong.tenPhong}';
-      final rootPkRef =
-          FirebaseFirestore.instance.collection('PhongKham').doc(pkDocId);
+      final pkDocId =
+          '${widget.benhVienId}_${widget.khoaId}_${widget.phong.tenPhong}';
+      final rootPkRef = FirebaseFirestore.instance
+          .collection('PhongKham')
+          .doc(pkDocId);
       batch.set(rootPkRef, {
         'nhan_vien_id': null,
         'nhanVienId': null,
@@ -1404,7 +1631,9 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Đã hủy phân công trực cho ${widget.phong.tenPhong}.'),
+          content: Text(
+            'Đã hủy toàn bộ phân công trực cho ${widget.phong.tenPhong}.',
+          ),
           backgroundColor: const Color(0xFF475569),
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 2),
@@ -1425,12 +1654,17 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
   @override
   Widget build(BuildContext context) {
     final listNhanVienPhuHop = _locNhanVienTheoChuyenKhoa();
-    final daCoPhanCong =
-        widget.phanCongTrongNgay.containsKey(widget.phong.tenPhong);
+    final coDangTruc = _danhSachDangTruc.isNotEmpty;
+    final previewRoleCode = _nhanVienDuocChon != null
+        ? _PhanCongScreenState.taoMaVaiTroPhanCong(
+            _nhanVienDuocChon!,
+            _danhSachDangTruc,
+          )
+        : '';
 
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.85,
+        maxHeight: MediaQuery.of(context).size.height * 0.88,
       ),
       padding: EdgeInsets.fromLTRB(
         20,
@@ -1507,7 +1741,146 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
             ],
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
+
+          // Danh sách nhân sự đang trực phòng này (nếu có)
+          if (coDangTruc) ...[
+            Row(
+              children: [
+                const Icon(
+                  Icons.check_circle_rounded,
+                  size: 15,
+                  color: Color(0xFF16A34A),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'ĐANG TRỰC TẠI PHÒNG NÀY (${_danhSachDangTruc.length})',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    color: Color(0xFF16A34A),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Container(
+              constraints: const BoxConstraints(maxHeight: 130),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: _danhSachDangTruc.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 6),
+                itemBuilder: (ctx, idx) {
+                  final pc = _danhSachDangTruc[idx];
+                  final maNv = (pc['nhan_vien_id'] ?? pc['ma_nhan_vien'] ?? '')
+                      .toString();
+                  final tenNv = (pc['ten_nhan_vien'] ?? 'Nhân viên').toString();
+                  final vaiTroNv = (pc['vai_tro'] ?? '').toString();
+                  final roleCode = (pc['vai_tro_code'] ?? '').toString();
+                  final initials = _getInitials(tenNv);
+                  final avBg = _getAvatarBg(maNv);
+                  final avTxt = _getAvatarTextColor(maNv);
+
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFBBF7D0)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: avBg,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              initials,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: avTxt,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                tenNv,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF0F172A),
+                                ),
+                              ),
+                              Text(
+                                '$vaiTroNv  •  $maNv',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (roleCode.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDCFCE7),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              roleCode,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF16A34A),
+                              ),
+                            ),
+                          ),
+                        const SizedBox(width: 6),
+                        InkWell(
+                          onTap: _isSaving
+                              ? null
+                              : () => _huyPhanCongMotNhanVien(pc),
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFFEE2E2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.delete_outline_rounded,
+                              size: 16,
+                              color: Color(0xFFDC2626),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
 
           // Ô tìm kiếm nhân viên
           Container(
@@ -1520,18 +1893,17 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
               onChanged: (val) => setState(() => _tuKhoa = val.trim()),
               decoration: const InputDecoration(
                 hintText: 'Tìm theo tên hoặc mã nhân viên...',
-                hintStyle: TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF94A3B8),
-                ),
+                hintStyle: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
                 prefixIcon: Icon(
                   Icons.search_rounded,
                   color: Color(0xFF94A3B8),
                   size: 20,
                 ),
                 border: InputBorder.none,
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
               ),
             ),
           ),
@@ -1572,8 +1944,11 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.people_outline_rounded,
-                              size: 40, color: Color(0xFF94A3B8)),
+                          const Icon(
+                            Icons.people_outline_rounded,
+                            size: 40,
+                            color: Color(0xFF94A3B8),
+                          ),
                           const SizedBox(height: 8),
                           Text(
                             'Chưa có nhân viên nào thuộc ${widget.tenKhoa}.\nHãy cấp tài khoản nhân viên cho khoa này trong tab Nhân sự.',
@@ -1598,22 +1973,35 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
                       final nv = listNhanVienPhuHop[index];
                       final isSelected = _nhanVienDuocChon?.maNv == nv.maNv;
 
-                      // Kiểm tra xem nhân viên này đã được phân công ở phòng nào khác trong ngày chưa
-                      String? phongDangTrucKhac;
-                      widget.phanCongTrongNgay.forEach((phongId, pcData) {
-                        final assignedNvId = (pcData['nhan_vien_id'] ??
-                                pcData['ma_nhan_vien'] ??
-                                '')
-                            .toString();
-                        if (assignedNvId == nv.maNv &&
-                            phongId != widget.phong.tenPhong) {
-                          phongDangTrucKhac = phongId;
+                      // 1. Kiểm tra xem nhân sự này đang trực ở phòng này không
+                      Map<String, dynamic>? dangTrucPhongNay;
+                      for (final pc in _danhSachDangTruc) {
+                        final assignedNv =
+                            (pc['nhan_vien_id'] ?? pc['ma_nhan_vien'] ?? '')
+                                .toString();
+                        if (assignedNv == nv.maNv) {
+                          dangTrucPhongNay = pc;
+                          break;
                         }
-                      });
+                      }
+                      final isCurrentlyThisRoom = dangTrucPhongNay != null;
 
-                      final isCurrentlyThisRoom = isSelected && daCoPhanCong;
-                      final isBusyOtherRoom = phongDangTrucKhac != null;
-                      final isAvailable = !isBusyOtherRoom;
+                      // 2. Kiểm tra xem nhân sự này đang trực ở phòng khác trong ngày không
+                      final phanCongKhac = widget.phanCongTheoNhanVien[nv.maNv];
+                      final isBusyOtherRoom =
+                          phanCongKhac != null &&
+                          (phanCongKhac['phong_id'] ??
+                                  phanCongKhac['ten_phong']) !=
+                              widget.phong.tenPhong;
+                      final tenPhongKhac = isBusyOtherRoom
+                          ? (phanCongKhac['phong_id'] ??
+                                    phanCongKhac['ten_phong'] ??
+                                    '')
+                                .toString()
+                          : '';
+
+                      final isAvailable =
+                          !isCurrentlyThisRoom && !isBusyOtherRoom;
 
                       final initials = _getInitials(nv.hoTen);
                       final avBg = _getAvatarBg(nv.maNv);
@@ -1624,11 +2012,15 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
                       final Color trangThaiTxt;
 
                       if (isCurrentlyThisRoom) {
-                        trangThaiText = 'Đã phân công (16)';
+                        final code = (dangTrucPhongNay['vai_tro_code'] ?? '')
+                            .toString();
+                        trangThaiText = code.isNotEmpty
+                            ? 'Đang trực ($code)'
+                            : 'Đã phân công';
                         trangThaiBg = const Color(0xFFDCFCE7);
                         trangThaiTxt = const Color(0xFF16A34A);
                       } else if (isBusyOtherRoom) {
-                        trangThaiText = 'Đã phân công ($phongDangTrucKhac)';
+                        trangThaiText = 'Đã phân công ($tenPhongKhac)';
                         trangThaiBg = const Color(0xFFEFF6FF);
                         trangThaiTxt = const Color(0xFF2563EB);
                       } else {
@@ -1639,12 +2031,22 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
 
                       return InkWell(
                         onTap: isAvailable
-                            ? () => setState(() => _nhanVienDuocChon = nv)
+                            ? () {
+                                setState(() {
+                                  if (isSelected) {
+                                    _nhanVienDuocChon = null;
+                                  } else {
+                                    _nhanVienDuocChon = nv;
+                                  }
+                                });
+                              }
                             : null,
                         borderRadius: BorderRadius.circular(14),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 10),
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? const Color(0xFFEFF6FF)
@@ -1710,7 +2112,9 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
                               // Trạng thái (Đang rảnh / Đang có ca khác)
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 4),
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
                                   color: trangThaiBg,
                                   borderRadius: BorderRadius.circular(12),
@@ -1752,7 +2156,7 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
 
           const SizedBox(height: 16),
 
-          // Nút xác nhận phân công
+          // Nút xác nhận phân công (hiển thị trước mã vai trò sẽ gán)
           SizedBox(
             width: double.infinity,
             height: 48,
@@ -1777,9 +2181,11 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
                         color: Colors.white,
                       ),
                     )
-                  : const Text(
-                      'Xác nhận phân công',
-                      style: TextStyle(
+                  : Text(
+                      previewRoleCode.isNotEmpty
+                          ? 'Xác nhận phân công ($previewRoleCode)'
+                          : 'Xác nhận phân công',
+                      style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1787,16 +2193,19 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
             ),
           ),
 
-          // Nút Hủy phân công nếu phòng này đã có người trực
-          if (daCoPhanCong) ...[
+          // Nút Hủy toàn bộ phân công phòng này nếu phòng đã có người trực
+          if (coDangTruc) ...[
             const SizedBox(height: 6),
             SizedBox(
               width: double.infinity,
               height: 40,
               child: TextButton.icon(
-                onPressed: _isSaving ? null : _huyPhanCong,
-                icon: const Icon(Icons.person_remove_rounded,
-                    size: 18, color: Color(0xFFDC2626)),
+                onPressed: _isSaving ? null : _huyToanBoPhanCongPhong,
+                icon: const Icon(
+                  Icons.person_remove_rounded,
+                  size: 18,
+                  color: Color(0xFFDC2626),
+                ),
                 label: const Text(
                   'Hủy phân công phòng này',
                   style: TextStyle(
