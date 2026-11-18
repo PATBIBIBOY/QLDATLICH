@@ -143,7 +143,6 @@ class AppRoutes {
     myAppointments: (context) {
       final args = ModalRoute.of(context)?.settings.arguments;
 
-<<<<<<< HEAD
       final onOpenDetail = (MyAppointmentItem item) {
         Navigator.pushNamed(context, appointmentDetail, arguments: item);
       };
