@@ -14,6 +14,7 @@ import 'providers/lich_hen_provider.dart';
 import 'providers/review_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/khoa_provider.dart';
+import 'services/admin_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'seeder/hospital_seeder.dart';
 import 'seeder/specialty_seeder.dart';
@@ -54,6 +55,7 @@ class QLDatLichApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ReviewProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ChangeNotifierProvider(create: (_) => KhoaProvider()),
+        ChangeNotifierProvider(create: (_) => AdminProvider()),
       ],
       child: MaterialApp(
         title: 'QLDATLICH',
