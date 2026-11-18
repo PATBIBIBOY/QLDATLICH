@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/appointment_item.dart';
 import '../models/lichhen_model.dart';
 import '../config/app_session.dart';
-import '../screens/admin/admin_dashboard.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
 import '../screens/auth/email_verification_screen.dart';
@@ -36,14 +35,13 @@ import '../screens/doctor_assistant/update_record_screen.dart';
 import '../screens/customer_support/support_home_screen.dart';
 import '../screens/customer_support/chat_list_screen.dart';
 import '../screens/customer_support/ticket_screen.dart';
-
-import '../screens/hospital/hospital_dashboard.dart';
 import '../screens/hospital/homeHospital_Screem.dart';
 import '../screens/hospital/addKhoaHospital_Screen.dart';
 import '../screens/hospital/guiYeuCauHopTac_Screen.dart';
 import '../screens/hospital/guiDonThanhCong_Screen.dart';
 import '../screens/hospital/statistics_screen.dart';
 import '../screens/hospital/staff_management_screen.dart';
+import '../screens/admin/admin_dashboard.dart';
 
 class AppRoutes {
   static const String login = '/login';
@@ -90,6 +88,7 @@ class AppRoutes {
 
   // ignore: constant_identifier_names
   static const String NhanSuScreen = nhanSuScreen;
+  static const String phanCongScreen = '/hospital-phan-cong';
   static const String statistics = '/statistics';
   static const String adminDashboard = '/admin-dashboard';
 
@@ -144,6 +143,7 @@ class AppRoutes {
     myAppointments: (context) {
       final args = ModalRoute.of(context)?.settings.arguments;
 
+<<<<<<< HEAD
       final onOpenDetail = (MyAppointmentItem item) {
         Navigator.pushNamed(context, appointmentDetail, arguments: item);
       };
@@ -226,19 +226,23 @@ class AppRoutes {
         tenBenhVien: args?['tenBenhVien'] ?? 'Bệnh viện Đa Khoa An Bình',
         loaiHinh: args?['loaiHinh'] ?? 'Bệnh viện Tư lập',
         coBhyt: args?['coBhyt'] ?? true,
+        hospitalUid: args?['hospitalUid'] ??
+            args?['maBenhVien'] ??
+            args?['extraData']?['ma_benh_vien'] ??
+            args?['extraData']?['uid'],
         extraData: args?['extraData'],
       );
     },
     addClinic: (context) {
       final args = ModalRoute.of(context)?.settings.arguments as String?;
-      final bvid =
-          (args != null && args.isNotEmpty && args != 'dFmZHBjFNUT1eRzJjXp5')
+      final bvid = (args != null && args.isNotEmpty && args != 'dFmZHBjFNUT1eRzJjXp5')
           ? args
-          : (FirebaseAuth.instance.currentUser?.uid ?? AppSession.benhVienId);
+          : (AppSession.benhVienId.isNotEmpty ? AppSession.benhVienId : (FirebaseAuth.instance.currentUser?.uid ?? ''));
       return ThemKhoaScreen(benhVienId: bvid);
     },
     staffManagement: (_) => const StaffManagementScreen(),
     nhanSuScreen: (_) => const HomeHospitalScreen(initialTabIndex: 2),
+    phanCongScreen: (_) => const HomeHospitalScreen(initialTabIndex: 3),
     statistics: (_) => const StatisticsScreen(),
     adminDashboard: (_) => const AdminDashboard(),
   };
