@@ -115,7 +115,6 @@ class ChatService {
       rethrow;
     }
   }
-
   /// Theo dõi 1 cuộc trò chuyện (trạng thái open/closed, support phụ trách).
   Stream<ConversationModel?> streamConversation(String conversationId) {
     return _convRef(conversationId).snapshots().map((d) {

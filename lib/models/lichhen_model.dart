@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/family_profile_model.dart';
 
 /// Một lịch hẹn (document trong .../benh_nhan/{id bệnh nhân}/lich_hen/{id lịch hẹn}).
 /// Đọc được cả dữ liệu do saveBooking ghi và dữ liệu do LichHenSeeder ghi.
@@ -7,10 +8,14 @@ class LichHenModel {
   final String benhVienId;
   final String khoaId;
   final String phongKhamId;
+  final String? profileId;
+  final String? tenNguoiKham;
+  final String? quanHe;
   final String caId; // id của bảng Ca (ca_sang / ca_chieu)
   final String benhNhanId;
   final String trangThaiId; // "1", "2"... (bảng TrangThai)
-  final DateTime? ngayDat; // ngày khám (field ngay_dat, hoặc ngay_hen của seeder)
+  final DateTime?
+  ngayDat; // ngày khám (field ngay_dat, hoặc ngay_hen của seeder)
   final DateTime? ngayTao;
   final String gioDuKien;
   final int soThuTu;
@@ -44,10 +49,17 @@ class LichHenModel {
     this.tenCa,
     this.gioBatDau,
     this.gioKetThuc,
+    this.profileId,
+    this.tenNguoiKham,
+    this.quanHe,
   });
 
   /// Alias cho code cũ dùng tên ngayHen.
   DateTime? get ngayHen => ngayDat;
+
+  String get profileKey => (profileId == null || profileId!.isEmpty)
+      ? FamilyProfileModel.selfId
+      : profileId!;
 
   static DateTime? _toDate(dynamic v) => v is Timestamp ? v.toDate() : null;
 
@@ -77,6 +89,9 @@ class LichHenModel {
       tenCa: _optString(json['ten_ca']),
       gioBatDau: _optString(json['gio_bat_dau']),
       gioKetThuc: _optString(json['gio_ket_thuc']),
+      profileId: _optString(json['profile_id']),
+      tenNguoiKham: _optString(json['ten_nguoi_kham']),
+      quanHe: _optString(json['quan_he']),
     );
   }
 
@@ -107,6 +122,9 @@ class LichHenModel {
       tenCa: tenCa ?? this.tenCa,
       gioBatDau: gioBatDau ?? this.gioBatDau,
       gioKetThuc: gioKetThuc ?? this.gioKetThuc,
+      profileId: profileId, 
+      tenNguoiKham: tenNguoiKham, 
+      quanHe: quanHe,
     );
   }
 }

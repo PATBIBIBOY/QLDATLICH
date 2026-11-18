@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../widgets/appointment_card.dart';
 import '../../models/appointment_item.dart';
+import '../../utils/app_snackbar.dart';
 
 class BookingRequestSentScreen extends StatelessWidget {
   final String? requestCode;
@@ -232,11 +233,11 @@ class BookingRequestSentScreen extends StatelessWidget {
                             ),
                             onPressed: () {
                               Clipboard.setData(ClipboardData(text: code));
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Đã sao chép mã yêu cầu'),
-                                  duration: Duration(seconds: 2),
-                                ),
+                              context.showAppSnackBar(
+                                title: 'Sao chép thành công',
+                                message: 'Đã sao chép mã yêu cầu',
+                                type: SnackBarType.success,
+                                duration: const Duration(seconds: 2),
                               );
                             },
                           ),

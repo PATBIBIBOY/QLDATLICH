@@ -224,7 +224,11 @@ class _LoginScreenState extends State<LoginScreen> {
       // ✅ 2.5. Nếu chọn Bệnh nhân: chỉ cho phép nếu tài khoản là bệnh nhân thật
       if (auth.user != null) {
         Navigator.pushNamedAndRemoveUntil(
-            context, AppRoutes.patientHome, (route) => false);
+          context,
+          AppRoutes.patientMain,
+          (route) => false,
+          arguments: 0,
+        );
         return;
       }
 

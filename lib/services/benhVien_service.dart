@@ -47,18 +47,25 @@ class BenhVienService {
         doc = await db.doc(path).get();
         if (!doc.exists) doc = null;
       } else {
-        final all = await db.collectionGroup('danh_sach').get();
-        for (final d in all.docs) {
-          if (d.id == benhVienId && !d.reference.path.startsWith('Khoa/')) {
-            doc = d;
-            break;
+        // 1. Kiểm tra trực tiếp trong collection BenhVien/{benhVienId}
+        final docDirect = await db.collection('BenhVien').doc(benhVienId).get();
+        if (docDirect.exists) {
+          doc = docDirect;
+        } else {
+          // 2. Dự phòng: quét collectionGroup danh_sach
+          final all = await db.collectionGroup('danh_sach').get();
+          for (final d in all.docs) {
+            if (d.id == benhVienId && !d.reference.path.startsWith('Khoa/')) {
+              doc = d;
+              break;
+            }
           }
-        }
-        if (doc == null) {
-          debugPrint(
-            '[BenhVienService] Đã quét ${all.docs.length} document '
-            'trong danh_sach nhưng không có ID "$benhVienId".',
-          );
+          if (doc == null) {
+            debugPrint(
+              '[BenhVienService] Đã quét ${all.docs.length} document '
+              'trong danh_sach nhưng không có ID "$benhVienId".',
+            );
+          }
         }
       }
 

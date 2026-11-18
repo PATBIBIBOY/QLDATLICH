@@ -173,7 +173,7 @@ class AuthService {
       // Query hồ sơ bệnh nhân có mã lớn nhất để tạo mã tiếp theo.
       final snapshot = await _firestore
           .collection(AppConstants.patientsCollection)
-          .where('ma_benh_nhan', isNotEqualTo: null)
+          .where('uid', isNotEqualTo: null)
           .orderBy(
             'ngay_tao',
             descending: true,
@@ -185,11 +185,11 @@ class AuthService {
 
       // 2. Nếu đã có người đăng ký trước đó và có mã
       if (snapshot.docs.isNotEmpty) {
-        String? lastMaBN = snapshot.docs.first.data()['ma_benh_nhan'];
+        String? lastUid = snapshot.docs.first.data()['uid'];
 
-        if (lastMaBN != null && lastMaBN.isNotEmpty) {
+        if (lastUid != null && lastUid.isNotEmpty) {
           // Tách lấy phần số (loại bỏ chữ "BN" và các ký tự không phải số)
-          String numberPart = lastMaBN.replaceAll(RegExp(r'[^0-9]'), '');
+          String numberPart = lastUid.replaceAll(RegExp(r'[^0-9]'), '');
 
           // Chuyển thành số và cộng thêm 1
           if (numberPart.isNotEmpty) {
@@ -237,7 +237,8 @@ class AuthService {
           .get();
 
       if (snapshot.docs.isNotEmpty) {
-        return HospitalModel.fromMap(snapshot.docs.first.data());
+        final d = snapshot.docs.first;
+        return HospitalModel.fromMap(d.data(), d.id);
       }
       return null;
     } catch (e) {
@@ -301,12 +302,12 @@ class AuthService {
     // 2. ⚠️ QUAN TRỌNG: Phải kiểm tra đúng chuỗi 'benh_nhan' (chữ thường, có gạch dưới)
     // Nếu bạn để là 'Bệnh nhân' ở đây, nó sẽ KHÔNG chạy vào khối sinh mã.
     if (user.role?.trim() == 'benh_nhan' &&
-        (user.maBenhNhan == null || user.maBenhNhan!.isEmpty)) {
+        (user.uid == null || user.uid!.isEmpty)) {
       try {
         final generatedId = await _generatePatientId();
 
-        // Gán trực tiếp vào Map (Key 'ma_benh_nhan' phải khớp với trong hàm toMap)
-        userData['ma_benh_nhan'] = generatedId;
+        // Gán trực tiếp vào Map (Key 'uid' phải khớp với trong hàm toMap)
+        userData['uid'] = generatedId;
 
         print('✅ [DEBUG] Đã sinh mã bệnh nhân thành công: $generatedId');
       } catch (e) {
@@ -316,7 +317,7 @@ class AuthService {
     } else {
       // Dòng này giúp bạn debug nếu điều kiện if bị sai
       print(
-        '⚠️ [DEBUG] Bỏ qua sinh mã. Role hiện tại: "${user.role}", maBenhNhan: "${user.maBenhNhan}"',
+        '⚠️ [DEBUG] Bỏ qua sinh mã. Role hiện tại: "${user.role}", uid: "${user.uid}"',
       );
     }
 
@@ -367,12 +368,50 @@ class AuthService {
           .doc(uid)
           .get();
       if (doc.exists) {
-        return HospitalModel.fromMap(doc.data()!);
+        return HospitalModel.fromMap(doc.data()!, doc.id);
       }
       return null;
     } catch (e) {
       print('Lỗi khi lấy thông tin bệnh viện từ Firestore: $e');
       return null;
+    }
+  }
+  
+  Future<void> updateUserProfile({
+    required String uid,
+    String? hoTen,
+    String? gioiTinh,
+    DateTime? ngaySinh,
+    String? diaChi,
+    String? email,
+    String? soDienThoai,
+    String? cccd,
+    String? soBhyt,
+  }) async {
+    try {
+      final updateData = <String, dynamic>{};
+
+      // Chỉ thêm vào map những trường có giá trị mới (khác null)
+      if (hoTen != null) updateData['ho_ten'] = hoTen;
+      if (gioiTinh != null) updateData['gioi_tinh'] = gioiTinh;
+      if (ngaySinh != null) updateData['ngay_sinh'] = ngaySinh.toIso8601String();
+      if (diaChi != null) updateData['dia_chi'] = diaChi;
+      if (email != null) updateData['email'] = email;
+      if (soDienThoai != null) updateData['so_dien_thoai'] = soDienThoai;
+      if (cccd != null) updateData['cccd'] = cccd;
+      if (soBhyt != null) updateData['so_bhyt'] = soBhyt;
+
+      if (updateData.isNotEmpty) {
+        await _firestore
+            .collection(AppConstants.patientsCollection)
+            .doc(uid)
+            .update(updateData);
+            
+        print('✅ [DEBUG] Đã cập nhật thông tin người dùng thành công.');
+      }
+    } catch (e) {
+      print('❌ [DEBUG] Lỗi khi cập nhật thông tin người dùng: $e');
+      rethrow;
     }
   }
 
