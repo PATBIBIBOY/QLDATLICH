@@ -1100,8 +1100,7 @@ class _SkeletonCard extends StatefulWidget {
   State<_SkeletonCard> createState() => _SkeletonCardState();
 }
 
-class _SkeletonCardState extends State<_SkeletonCard>
-    with SingleTickerProviderStateMixin {
+class _SkeletonCardState extends State<_SkeletonCard> with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),
