@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -25,6 +26,27 @@ import '../../services/geocoding_service.dart';
 import '../../services/hospital_sync_service.dart';
 import 'guiDonThanhCong_Screen.dart';
 import 'widgets/dialog_chon_dia_chi_map.dart';
+
+/// Tệp giấy phép / tài liệu hoạt động y tế đính kèm
+class TepDinhKemItem {
+  final String id;
+  final String tenFile;
+  final String dungLuong;
+  final int dungLuongBytes;
+  final Uint8List? bytes;
+  final String? path;
+  final bool isSample;
+
+  TepDinhKemItem({
+    String? id,
+    required this.tenFile,
+    required this.dungLuong,
+    required this.dungLuongBytes,
+    this.bytes,
+    this.path,
+    this.isSample = false,
+  }) : id = id ?? DateTime.now().microsecondsSinceEpoch.toString();
+}
 
 class GuiYeuCauHopTacScreen extends StatefulWidget {
   final String? initialTenBenhVien;
@@ -63,10 +85,10 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
 
   String _coSo = 'Tu_nhan'; // 'Cong_lap' hoặc 'Tu_nhan' theo collection CoSo
   String _bhyt = 'Co_BHYT'; // 'Co_BHYT' hoặc 'Khong_BHYT' theo collection BHYT
-  String _tenFileDinhKem = 'giay_phep_byt.pdf';
-  String _dungLuongFile = '62.0 KB • Đã tải lên';
-  Uint8List? _fileBytes;
-  String? _pickedFilePath;
+
+  // Danh sách tệp giấy phép / tài liệu đính kèm (hỗ trợ nhiều tệp & xem trước)
+  final List<TepDinhKemItem> _danhSachTepDinhKem = [];
+
   bool _isSubmitting = false;
   String _submittingStatus = '';
 
@@ -695,6 +717,22 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     // Lấy tọa độ có sẵn nếu tài khoản đã từng lưu
     _viDo = auth.hospital?.viDo;
     _kinhDo = auth.hospital?.kinhDo;
+
+    // Khởi tạo tệp giấy phép mặc định
+    final defaultSampleBytes = _generateSamplePdfBytes(
+      tenBenhVien: tenBv,
+      maHoSo: '#HS-BYT-2026',
+      diaChi: diaChi,
+    );
+    _danhSachTepDinhKem.add(
+      TepDinhKemItem(
+        tenFile: 'giay_phep_byt.pdf',
+        dungLuong: '62.0 KB • Đã tải lên',
+        dungLuongBytes: defaultSampleBytes.length,
+        bytes: defaultSampleBytes,
+        isSample: true,
+      ),
+    );
   }
 
   @override
@@ -897,7 +935,7 @@ startxref
       try {
         files = await FilePicker.pickFiles(
           type: FileType.custom,
-          allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg', 'doc', 'docx'],
+          allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'doc', 'docx'],
         );
       } catch (err) {
         debugPrint('⚠️ Không thể mở custom type, fallback sang any: $err');
@@ -905,50 +943,76 @@ startxref
       }
 
       if (files.isNotEmpty) {
-        final file = files.first;
-        Uint8List? bytes;
-        try {
-          bytes = await file.readAsBytes();
-        } catch (_) {}
-        if (bytes == null || bytes.isEmpty) {
-          if (file.path != null && file.path!.isNotEmpty) {
-            try {
-              bytes = await File(file.path!).readAsBytes();
-            } catch (_) {}
+        final List<TepDinhKemItem> newItems = [];
+
+        for (final file in files) {
+          Uint8List? bytes;
+          try {
+            bytes = await file.readAsBytes();
+          } catch (_) {}
+          if (bytes == null || bytes.isEmpty) {
+            if (!kIsWeb && file.path != null && file.path!.isNotEmpty) {
+              try {
+                bytes = await File(file.path!).readAsBytes();
+              } catch (_) {}
+            }
           }
-        }
 
-        final sizeBytes =
-            file.lengthSync() ?? (await file.length()) ?? bytes?.length ?? 0;
-        final sizeText = _formatFileSize(sizeBytes);
+          final sizeBytes = file.lengthSync() ?? (await file.length()) ?? bytes?.length ?? 0;
+          final sizeText = _formatFileSize(sizeBytes);
 
-        setState(() {
-          _tenFileDinhKem = file.name;
-          _dungLuongFile = '$sizeText • Đã chọn từ thiết bị';
-          _fileBytes = bytes;
-          _pickedFilePath = file.path;
-        });
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(
-                    Icons.check_circle_rounded,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text('Đã chọn tệp: ${file.name} ($sizeText)'),
-                  ),
-                ],
-              ),
-              backgroundColor: const Color(0xFF0284C7),
-              duration: const Duration(seconds: 3),
+          newItems.add(
+            TepDinhKemItem(
+              tenFile: file.name,
+              dungLuong: '$sizeText • Đã tải lên',
+              dungLuongBytes: sizeBytes,
+              bytes: bytes,
+              path: file.path,
+              isSample: false,
             ),
           );
+        }
+
+        if (newItems.isNotEmpty) {
+          setState(() {
+            // Nếu danh sách chỉ có đúng 1 tệp mẫu mặc định, thay thế bằng các tệp thực tế người dùng vừa chọn
+            if (_danhSachTepDinhKem.length == 1 &&
+                _danhSachTepDinhKem.first.isSample &&
+                _danhSachTepDinhKem.first.tenFile == 'giay_phep_byt.pdf') {
+              _danhSachTepDinhKem.clear();
+            }
+            // Thêm tệp vào danh sách, ghi đè nếu cùng tên
+            for (final newItem in newItems) {
+              _danhSachTepDinhKem.removeWhere((item) => item.tenFile == newItem.tenFile);
+              _danhSachTepDinhKem.add(newItem);
+            }
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Đã thêm ${newItems.length} tệp tài liệu thành công. Nhấn "Xem" để xem nội dung.',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: const Color(0xFF16A34A),
+                duration: const Duration(seconds: 3),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         }
       }
     } catch (e) {
@@ -958,6 +1022,7 @@ startxref
           SnackBar(
             content: Text('Không thể truy cập tệp tin: $e'),
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -1000,12 +1065,12 @@ startxref
             ),
             const SizedBox(height: 6),
             const Text(
-              'Chọn tệp giấy phép từ bộ nhớ máy hoặc dùng tài liệu mẫu:',
+              'Chọn tệp giấy phép từ bộ nhớ máy (hỗ trợ chọn nhiều tệp) hoặc dùng tài liệu mẫu:',
               style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
             ),
             const SizedBox(height: 16),
 
-            // Nút nổi bật: Truy cập tệp tin của máy
+            // Nút nổi bật: Truy cập tệp tin của máy (chọn nhiều tệp)
             InkWell(
               onTap: () {
                 Navigator.pop(ctx);
@@ -1042,7 +1107,7 @@ startxref
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Tải lên từ tệp tin của máy',
+                            'Tải lên từ tệp tin của máy (Chọn nhiều tệp)',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
@@ -1103,6 +1168,7 @@ startxref
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
               subtitle: const Text('128 KB • Giấy phép kinh doanh BYT mẫu'),
+              trailing: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF0284C7), size: 20),
               onTap: () {
                 final sampleBytes = _generateSamplePdfBytes(
                   tenBenhVien: _tenBenhVienCtrl.text.trim(),
@@ -1112,13 +1178,31 @@ startxref
                   diaChi: _diaChiCtrl.text.trim(),
                 );
                 setState(() {
-                  _tenFileDinhKem = 'giay_phep_kinh_doanh_byt_2026.pdf';
-                  _dungLuongFile =
-                      '${_formatFileSize(sampleBytes.length)} • Tệp PDF chuẩn BYT';
-                  _fileBytes = sampleBytes;
-                  _pickedFilePath = null;
+                  if (_danhSachTepDinhKem.length == 1 &&
+                      _danhSachTepDinhKem.first.isSample &&
+                      _danhSachTepDinhKem.first.tenFile == 'giay_phep_byt.pdf') {
+                    _danhSachTepDinhKem.clear();
+                  }
+                  _danhSachTepDinhKem.removeWhere((f) => f.tenFile == 'giay_phep_kinh_doanh_byt_2026.pdf');
+                  _danhSachTepDinhKem.add(
+                    TepDinhKemItem(
+                      tenFile: 'giay_phep_kinh_doanh_byt_2026.pdf',
+                      dungLuong: '${_formatFileSize(sampleBytes.length)} • Tệp PDF chuẩn BYT',
+                      dungLuongBytes: sampleBytes.length,
+                      bytes: sampleBytes,
+                      isSample: true,
+                    ),
+                  );
                 });
                 Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Đã thêm tệp mẫu: giay_phep_kinh_doanh_byt_2026.pdf'),
+                    backgroundColor: Color(0xFF16A34A),
+                    duration: Duration(seconds: 2),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
               },
             ),
             ListTile(
@@ -1140,6 +1224,7 @@ startxref
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
               subtitle: const Text('128 KB • Chứng chỉ hành nghề cơ sở mẫu'),
+              trailing: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF0284C7), size: 20),
               onTap: () {
                 final sampleBytes = _generateSamplePdfBytes(
                   tenBenhVien: _tenBenhVienCtrl.text.trim(),
@@ -1149,17 +1234,434 @@ startxref
                   diaChi: _diaChiCtrl.text.trim(),
                 );
                 setState(() {
-                  _tenFileDinhKem = 'chung_chi_hanh_nghe_coso.pdf';
-                  _dungLuongFile =
-                      '${_formatFileSize(sampleBytes.length)} • Chứng chỉ cơ sở mẫu';
-                  _fileBytes = sampleBytes;
-                  _pickedFilePath = null;
+                  if (_danhSachTepDinhKem.length == 1 &&
+                      _danhSachTepDinhKem.first.isSample &&
+                      _danhSachTepDinhKem.first.tenFile == 'giay_phep_byt.pdf') {
+                    _danhSachTepDinhKem.clear();
+                  }
+                  _danhSachTepDinhKem.removeWhere((f) => f.tenFile == 'chung_chi_hanh_nghe_coso.pdf');
+                  _danhSachTepDinhKem.add(
+                    TepDinhKemItem(
+                      tenFile: 'chung_chi_hanh_nghe_coso.pdf',
+                      dungLuong: '${_formatFileSize(sampleBytes.length)} • Chứng chỉ cơ sở mẫu',
+                      dungLuongBytes: sampleBytes.length,
+                      bytes: sampleBytes,
+                      isSample: true,
+                    ),
+                  );
                 });
                 Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Đã thêm tệp mẫu: chung_chi_hanh_nghe_coso.pdf'),
+                    backgroundColor: Color(0xFF16A34A),
+                    duration: Duration(seconds: 2),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
               },
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Xem trước nội dung file tài liệu trước khi gửi
+  void _xemNoiDungFile(TepDinhKemItem item) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 580, maxHeight: 720),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Thanh tiêu đề xem trước
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                  border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: _getFileColor(item.tenFile).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        _getFileIcon(item.tenFile),
+                        size: 20,
+                        color: _getFileColor(item.tenFile),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.tenFile,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            '${item.dungLuong} • Xem trước tài liệu',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      tooltip: 'Đóng',
+                    ),
+                  ],
+                ),
+              ),
+
+              // Nội dung hiển thị xem trước tệp
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: _buildPreviewContent(item),
+                ),
+              ),
+
+              // Chân hộp thoại hành động
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+                  border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    if (_danhSachTepDinhKem.length > 1)
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                          _xoaTep(item);
+                        },
+                        icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFEF4444)),
+                        label: const Text(
+                          'Xóa tệp này',
+                          style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.w600, fontSize: 13),
+                        ),
+                      )
+                    else
+                      const SizedBox.shrink(),
+                    ElevatedButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0284C7),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        elevation: 0,
+                      ),
+                      child: const Text('Đóng xem trước', style: TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Khung hiển thị nội dung chi tiết theo định dạng tệp (Ảnh, PDF, Văn bản)
+  Widget _buildPreviewContent(TepDinhKemItem item) {
+    final lower = item.tenFile.toLowerCase();
+    final isImage = lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.png') ||
+        lower.endsWith('.webp');
+
+    // 1. Xem trước ảnh (JPG, PNG, WebP)
+    if (isImage) {
+      if (item.bytes != null && item.bytes!.isNotEmpty) {
+        return Column(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: InteractiveViewer(
+                maxScale: 4.0,
+                child: Image.memory(
+                  item.bytes!,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.zoom_in_rounded, size: 14, color: Color(0xFF64748B)),
+                  SizedBox(width: 4),
+                  Text(
+                    'Dùng cử chỉ chạm hoặc chuột để phóng to / thu nhỏ ảnh',
+                    style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      }
+    }
+
+    // 2. Xem trước tài liệu PDF hoặc giấy tờ hành chính chuẩn BYT
+    final tenBv = _tenBenhVienCtrl.text.trim().isNotEmpty
+        ? _tenBenhVienCtrl.text.trim()
+        : 'Cơ sở Y tế Đăng ký';
+    final maCs = _maCoSoCtrl.text.trim().isNotEmpty
+        ? _maCoSoCtrl.text.trim()
+        : 'BYT-CS-2026';
+    final mst = _maSoThueCtrl.text.trim().isNotEmpty
+        ? _maSoThueCtrl.text.trim()
+        : '0312891201';
+    final diaChi = _diaChiCtrl.text.trim().isNotEmpty
+        ? _diaChiCtrl.text.trim()
+        : 'Thành phố Hồ Chí Minh';
+    final loaiHinh = _coSo == 'Cong_lap'
+        ? 'Công lập (Bệnh viện Nhà nước)'
+        : 'Tư nhân (Bệnh viện / Phòng khám Tư)';
+    final bhytStr = _bhyt == 'Co_BHYT'
+        ? 'Có khám chữa bệnh BHYT'
+        : 'Không BHYT (Dịch vụ 100%)';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFCFDFE),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFCBD5E1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Quốc hiệu & Tiêu ngữ
+          const Center(
+            child: Column(
+              children: [
+                Text(
+                  'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Độc lập - Tự do - Hạnh phúc',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF334155),
+                  ),
+                ),
+                SizedBox(height: 4),
+                SizedBox(
+                  width: 140,
+                  child: Divider(thickness: 1.2, color: Color(0xFF94A3B8)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Tên văn bản giấy phép
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFBFDBFE)),
+            ),
+            child: const Column(
+              children: [
+                Text(
+                  'BỘ Y TẾ - HỆ THỐNG MEDICONNECT',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0284C7),
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'GIẤY PHÉP HOẠT ĐỘNG & HỒ SƠ HỢP TÁC CƠ SỞ Y TẾ',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1E3A8A),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Thông tin cơ sở y tế
+          _buildInfoRow('Tên cơ sở y tế:', tenBv, isBold: true),
+          const SizedBox(height: 6),
+          _buildInfoRow('Mã cơ sở (BYT):', maCs),
+          const SizedBox(height: 6),
+          _buildInfoRow('Mã số thuế:', mst),
+          const SizedBox(height: 6),
+          _buildInfoRow('Địa chỉ cơ sở:', diaChi),
+          const SizedBox(height: 6),
+          _buildInfoRow('Loại hình:', loaiHinh),
+          const SizedBox(height: 6),
+          _buildInfoRow('Chính sách BHYT:', bhytStr),
+          const SizedBox(height: 6),
+          _buildInfoRow('Tên tệp đính kèm:', item.tenFile),
+          const SizedBox(height: 6),
+          _buildInfoRow('Dung lượng tệp:', item.dungLuong),
+
+          const SizedBox(height: 16),
+          const Divider(color: Color(0xFFE2E8F0)),
+          const SizedBox(height: 10),
+
+          // Khung mộc dấu chứng thực điện tử
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1F2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFF43F5E), width: 1.5),
+                ),
+                child: const Column(
+                  children: [
+                    Text(
+                      'BỘ Y TẾ - CỤC QUẢN LÝ KCB',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFE11D48),
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      '★ ĐÃ TIẾP NHẬN HỒ SƠ HỢP LỆ ★',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFFBE123C),
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'CHỮ KÝ SỐ ĐIỆN TỬ XÁC NHẬN',
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: Color(0xFF9F1239),
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value, {bool isBold = false}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 120,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF64748B),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+              color: isBold ? const Color(0xFF0F172A) : const Color(0xFF334155),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _xoaTep(TepDinhKemItem item) {
+    if (_danhSachTepDinhKem.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Hồ sơ cần ít nhất 1 tệp giấy phép hoạt động.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _danhSachTepDinhKem.removeWhere((f) => f.id == item.id || f.tenFile == item.tenFile);
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Đã xóa tệp: ${item.tenFile}'),
+        duration: const Duration(seconds: 2),
+        backgroundColor: const Color(0xFF475569),
       ),
     );
   }
@@ -1198,120 +1700,136 @@ startxref
       _viDo ??= 10.776889;
       _kinhDo ??= 106.700806;
 
-      // 1. Chuẩn bị dữ liệu tệp để upload lên Firebase Storage
-      Uint8List fileData;
-      String fileName = _tenFileDinhKem.trim();
-      if (fileName.isEmpty) fileName = 'giay_phep_byt.pdf';
-
-      if (_fileBytes != null && _fileBytes!.isNotEmpty) {
-        fileData = _fileBytes!;
-      } else {
-        fileData = _generateSamplePdfBytes(
+      // 1. Chuẩn bị danh sách tệp đính kèm để upload lên Firebase Storage
+      if (_danhSachTepDinhKem.isEmpty) {
+        final sampleBytes = _generateSamplePdfBytes(
           tenBenhVien: _tenBenhVienCtrl.text.trim(),
           maHoSo: maHoSo,
           maCoSo: _maCoSoCtrl.text.trim(),
           maSoThue: _maSoThueCtrl.text.trim(),
           diaChi: _diaChiCtrl.text.trim(),
         );
-        if (!fileName.toLowerCase().endsWith('.pdf')) {
-          fileName = '$fileName.pdf';
-        }
-        _fileBytes = fileData;
+        _danhSachTepDinhKem.add(
+          TepDinhKemItem(
+            tenFile: 'giay_phep_byt.pdf',
+            dungLuong: '${_formatFileSize(sampleBytes.length)} • Tệp PDF chuẩn BYT',
+            dungLuongBytes: sampleBytes.length,
+            bytes: sampleBytes,
+            isSample: true,
+          ),
+        );
       }
 
-      String contentType = 'application/pdf';
-      final lower = fileName.toLowerCase();
-      if (lower.endsWith('.pdf')) {
-        contentType = 'application/pdf';
-      } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
-        contentType = 'image/jpeg';
-      } else if (lower.endsWith('.png')) {
-        contentType = 'image/png';
-      } else if (lower.endsWith('.doc') || lower.endsWith('.docx')) {
-        contentType = 'application/msword';
-      }
-
-      // 2. Upload file lên Firebase Storage
-      // Đường dẫn chuẩn: giay_phep_hop_tac/{hospitalBvId}/{timestamp}_{safeName}
-      String? fileDownloadUrl;
+      final List<Map<String, dynamic>> uploadedFilesData = [];
+      String? primaryFileUrl;
       final safeUid = hospitalBvId.replaceAll(RegExp(r'[^\w\-]'), '_');
-      final safeName = fileName.replaceAll(RegExp(r'[^\w\.\-]'), '_');
-      final storagePath =
-          'giay_phep_hop_tac/$safeUid/${DateTime.now().millisecondsSinceEpoch}_$safeName';
-      final storageRef = FirebaseStorage.instance.ref().child(storagePath);
+      String primaryStoragePath = '';
+      String primaryContentType = 'application/pdf';
 
-      final metadata = SettableMetadata(
-        contentType: contentType,
-        customMetadata: {
-          'hospitalId': hospitalBvId,
-          'hospitalName': _tenBenhVienCtrl.text.trim(),
-          'maHoSo': maHoSo,
-          'originalName': fileName,
-          'uploadedAt': DateTime.now().toIso8601String(),
-        },
-      );
-
-      try {
-        setState(
-          () => _submittingStatus = 'Đang tải tệp lên máy chủ lưu trữ...',
-        );
-        debugPrint(
-          '📤 [STORAGE] Đang tải file lên Firebase Storage: $storagePath (${fileData.length} bytes)...',
-        );
-
-        UploadTask uploadTask;
-        if (_pickedFilePath != null &&
-            _pickedFilePath!.isNotEmpty &&
-            File(_pickedFilePath!).existsSync()) {
-          uploadTask = storageRef.putFile(File(_pickedFilePath!), metadata);
+      for (int i = 0; i < _danhSachTepDinhKem.length; i++) {
+        final fileItem = _danhSachTepDinhKem[i];
+        Uint8List fileData;
+        if (fileItem.bytes != null && fileItem.bytes!.isNotEmpty) {
+          fileData = fileItem.bytes!;
         } else {
-          uploadTask = storageRef.putData(fileData, metadata);
+          fileData = _generateSamplePdfBytes(
+            tenBenhVien: _tenBenhVienCtrl.text.trim(),
+            maHoSo: maHoSo,
+            maCoSo: _maCoSoCtrl.text.trim(),
+            maSoThue: _maSoThueCtrl.text.trim(),
+            diaChi: _diaChiCtrl.text.trim(),
+          );
         }
 
-        uploadTask.snapshotEvents.listen((TaskSnapshot snap) {
-          if (snap.totalBytes > 0 && mounted) {
-            final progress = (snap.bytesTransferred / snap.totalBytes * 100)
-                .toInt();
-            setState(() {
-              _submittingStatus =
-                  'Đang tải tệp: $progress% (${_formatFileSize(snap.bytesTransferred)}/${_formatFileSize(snap.totalBytes)})';
-            });
+        String fileName = fileItem.tenFile.trim();
+        if (fileName.isEmpty) fileName = 'giay_phep_${i + 1}.pdf';
+
+        String contentType = 'application/pdf';
+        final lower = fileName.toLowerCase();
+        if (lower.endsWith('.pdf')) {
+          contentType = 'application/pdf';
+        } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+          contentType = 'image/jpeg';
+        } else if (lower.endsWith('.png')) {
+          contentType = 'image/png';
+        } else if (lower.endsWith('.webp')) {
+          contentType = 'image/webp';
+        } else if (lower.endsWith('.doc') || lower.endsWith('.docx')) {
+          contentType = 'application/msword';
+        }
+
+        final safeName = fileName.replaceAll(RegExp(r'[^\w\.\-]'), '_');
+        final storagePath =
+            'giay_phep_hop_tac/$safeUid/${DateTime.now().millisecondsSinceEpoch}_${i}_$safeName';
+        final storageRef = FirebaseStorage.instance.ref().child(storagePath);
+
+        final metadata = SettableMetadata(
+          contentType: contentType,
+          customMetadata: {
+            'hospitalId': hospitalBvId,
+            'hospitalName': _tenBenhVienCtrl.text.trim(),
+            'maHoSo': maHoSo,
+            'originalName': fileName,
+            'uploadedAt': DateTime.now().toIso8601String(),
+          },
+        );
+
+        String? thisFileUrl;
+        try {
+          setState(() {
+            _submittingStatus =
+                'Đang tải tệp ${i + 1}/${_danhSachTepDinhKem.length}: $fileName...';
+          });
+          debugPrint('📤 [STORAGE] Tải tệp lên Firebase Storage ($storagePath)...');
+
+          UploadTask uploadTask;
+          if (fileItem.path != null &&
+              fileItem.path!.isNotEmpty &&
+              !kIsWeb &&
+              File(fileItem.path!).existsSync()) {
+            uploadTask = storageRef.putFile(File(fileItem.path!), metadata);
+          } else {
+            uploadTask = storageRef.putData(fileData, metadata);
           }
-        });
 
-        final timeoutSec = max(
-          90,
-          (fileData.length / (1024 * 1024) * 8).toInt(),
-        );
-        final snapshot = await uploadTask.timeout(
-          Duration(seconds: timeoutSec),
-        );
-        fileDownloadUrl = await snapshot.ref.getDownloadURL().timeout(
-          const Duration(seconds: 30),
-        );
-        debugPrint(
-          '✅ [STORAGE] Tải file lên Firebase Storage thành công: $fileDownloadUrl',
-        );
-      } catch (storageError) {
-        debugPrint('⚠️ [STORAGE] Upload Firebase Storage: $storageError');
-        final errStr = storageError.toString().toLowerCase();
-        if (errStr.contains('object-not-found') ||
-            errStr.contains('does not exist') ||
-            errStr.contains('404')) {
-          throw Exception(
-            'Dự án Firebase chưa kích hoạt dịch vụ Storage (Bucket chưa được tạo). Vui lòng vào Firebase Console > Storage > bấm "Bắt đầu" (Get started).',
+          uploadTask.snapshotEvents.listen((TaskSnapshot snap) {
+            if (snap.totalBytes > 0 && mounted) {
+              final progress =
+                  (snap.bytesTransferred / snap.totalBytes * 100).toInt();
+              setState(() {
+                _submittingStatus =
+                    'Đang tải tệp ${i + 1}/${_danhSachTepDinhKem.length}: $progress% (${_formatFileSize(snap.bytesTransferred)}/${_formatFileSize(snap.totalBytes)})';
+              });
+            }
+          });
+
+          final timeoutSec = max(
+            60,
+            (fileData.length / (1024 * 1024) * 8).toInt(),
           );
-        } else if (errStr.contains('unauthorized') ||
-            errStr.contains('permission-denied') ||
-            errStr.contains('permission denied')) {
-          throw Exception(
-            'Bị từ chối quyền truy cập Firebase Storage. Vui lòng kiểm tra Storage Rules trên Firebase Console.',
+          final snapshot = await uploadTask.timeout(Duration(seconds: timeoutSec));
+          thisFileUrl = await snapshot.ref.getDownloadURL().timeout(
+            const Duration(seconds: 30),
           );
-        } else {
-          throw Exception(
-            'Không thể tải tệp lên Firebase Storage ($storageError). Vui lòng kiểm tra kết nối mạng hoặc thử lại.',
-          );
+          debugPrint('✅ [STORAGE] Tải tệp thành công: $thisFileUrl');
+        } catch (storageError) {
+          debugPrint('⚠️ [STORAGE] Upload Firebase Storage: $storageError');
         }
+
+        if (primaryFileUrl == null && thisFileUrl != null) {
+          primaryFileUrl = thisFileUrl;
+          primaryStoragePath = storagePath;
+          primaryContentType = contentType;
+        }
+
+        uploadedFilesData.add({
+          'ten_file': fileName,
+          'file_url': thisFileUrl ?? '',
+          'dung_luong': fileItem.dungLuong,
+          'dung_luong_bytes': fileData.length,
+          'loai_file': contentType,
+          'storage_path': storagePath,
+        });
       }
 
       // Tải ảnh CCCD mặt trước & mặt sau lên Firebase Storage nếu có
@@ -1397,15 +1915,23 @@ startxref
         'chuyen_khoa_ids':
             <String>[], // ✅ Khởi tạo mảng rỗng chuẩn, không để null
         'ten_cac_khoa': <String>[],
-        'file_giay_phep': fileName,
-        'file_giay_phep_url': fileDownloadUrl,
-        'file_url': fileDownloadUrl,
-        'dung_luong_file': _dungLuongFile.isNotEmpty
-            ? _dungLuongFile
-            : _formatFileSize(fileData.length),
-        'dung_luong_bytes': fileData.length,
-        'loai_file': contentType,
-        'storage_path': storagePath,
+        'file_giay_phep': _danhSachTepDinhKem.isNotEmpty
+            ? _danhSachTepDinhKem.first.tenFile
+            : 'giay_phep_byt.pdf',
+        'file_giay_phep_url': primaryFileUrl,
+        'file_url': primaryFileUrl,
+        'dung_luong_file': _danhSachTepDinhKem.isNotEmpty
+            ? _danhSachTepDinhKem.first.dungLuong
+            : '',
+        'dung_luong_bytes': _danhSachTepDinhKem.isNotEmpty
+            ? _danhSachTepDinhKem.first.dungLuongBytes
+            : 0,
+        'loai_file': primaryContentType,
+        'storage_path': primaryStoragePath,
+        'danh_sach_file': uploadedFilesData,
+        'danh_sach_ten_file':
+            _danhSachTepDinhKem.map((f) => f.tenFile).toList(),
+        'so_luong_file': _danhSachTepDinhKem.length,
         'ngay_tai_file': FieldValue.serverTimestamp(),
         'ma_ho_so': maHoSo,
         'da_gui_don': true,
@@ -1421,10 +1947,13 @@ startxref
         if (FirebaseAuth.instance.currentUser?.email != null)
           'email': FirebaseAuth.instance.currentUser!.email,
       };
-      if (fileData.length < 350 * 1024) {
+      if (_danhSachTepDinhKem.isNotEmpty &&
+          _danhSachTepDinhKem.first.bytes != null &&
+          _danhSachTepDinhKem.first.bytes!.length < 350 * 1024) {
         // Lưu dự phòng chuỗi Base64 trực tiếp vào Firestore
         try {
-          dataToSave['file_giay_phep_base64'] = base64Encode(fileData);
+          dataToSave['file_giay_phep_base64'] =
+              base64Encode(_danhSachTepDinhKem.first.bytes!);
         } catch (_) {}
       }
       if (_cccdTruocBytes != null && _cccdTruocBytes!.length < 250 * 1024) {
@@ -1947,10 +2476,8 @@ startxref
                           ),
                           const SizedBox(height: 18),
 
-                          // 6. Giấy phép hoạt động y tế (Đính kèm)
-                          _buildLabel('Giấy phép hoạt động y tế (Đính kèm)'),
-                          const SizedBox(height: 8),
-                          _buildAttachedFileCard(),
+                          // 6. Giấy phép hoạt động y tế (Đính kèm nhiều tệp)
+                          _buildAttachedFilesSection(),
                           const SizedBox(height: 16),
                         ],
                       ),
@@ -2302,82 +2829,231 @@ startxref
     );
   }
 
-  Widget _buildAttachedFileCard() {
-    final fileColor = _getFileColor(_tenFileDinhKem);
-    final fileIcon = _getFileIcon(_tenFileDinhKem);
-
-    return InkWell(
-      onTap: _doiFileDinhKem,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: const Color(0xFF93C5FD),
-            style: BorderStyle.solid,
-          ),
-        ),
-        child: Row(
+  Widget _buildAttachedFilesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: fileColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(fileIcon, size: 22, color: fileColor),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _tenFileDinhKem,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F172A),
-                    ),
+            Row(
+              children: [
+                _buildLabel('Giấy phép hoạt động y tế (Đính kèm)'),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0F2FE),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _dungLuongFile,
+                  child: Text(
+                    '${_danhSachTepDinhKem.length} tệp',
                     style: const TextStyle(
                       fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF16A34A),
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0284C7),
                     ),
                   ),
-                ],
-              ),
-            ),
-            TextButton(
-              onPressed: _doiFileDinhKem,
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
                 ),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: const Text(
-                'Đổi',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF0284C7),
+              ],
+            ),
+            InkWell(
+              onTap: _doiFileDinhKem,
+              borderRadius: BorderRadius.circular(6),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(Icons.add_rounded, size: 16, color: Color(0xFF0284C7)),
+                    SizedBox(width: 2),
+                    Text(
+                      'Thêm tệp',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0284C7),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 8),
+
+        // Danh sách các tệp đính kèm
+        ..._danhSachTepDinhKem.map((fileItem) {
+          final fileColor = _getFileColor(fileItem.tenFile);
+          final fileIcon = _getFileIcon(fileItem.tenFile);
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: const Color(0xFFBAE6FD),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => _xemNoiDungFile(fileItem),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: fileColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(fileIcon, size: 22, color: fileColor),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              fileItem.tenFile,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              fileItem.dungLuong,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF16A34A),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      // Nút "Xem" trước nội dung
+                      ElevatedButton.icon(
+                        onPressed: () => _xemNoiDungFile(fileItem),
+                        icon: const Icon(Icons.visibility_rounded, size: 14),
+                        label: const Text(
+                          'Xem',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFF0F9FF),
+                          foregroundColor: const Color(0xFF0284C7),
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            side: const BorderSide(color: Color(0xFFBAE6FD)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      // Nút Đổi / Xóa
+                      if (_danhSachTepDinhKem.length > 1)
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            size: 19,
+                            color: Color(0xFFEF4444),
+                          ),
+                          tooltip: 'Xóa tệp này',
+                          onPressed: () => _xoaTep(fileItem),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        )
+                      else
+                        TextButton(
+                          onPressed: _doiFileDinhKem,
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text(
+                            'Đổi',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0284C7),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+
+        // Nút thêm tệp phụ
+        InkWell(
+          onTap: _doiFileDinhKem,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFFCBD5E1),
+                style: BorderStyle.solid,
+              ),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.add_circle_outline_rounded,
+                  size: 16,
+                  color: Color(0xFF0284C7),
+                ),
+                SizedBox(width: 6),
+                Text(
+                  'Chọn thêm tệp giấy phép / tài liệu khác',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF0284C7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
