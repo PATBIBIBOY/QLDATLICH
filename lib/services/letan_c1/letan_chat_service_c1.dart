@@ -12,9 +12,7 @@ class LetanChatServiceC1 {
   /// Chỉ cần xét đúng ID bệnh viện (ví dụ BV502) là lấy toàn bộ chat của bệnh viện đó
   static Stream<List<Map<String, dynamic>>> streamDanhSachHoiThoaiCskh([String? benhVienId]) {
     final rawBv = benhVienId ?? DuLieuProfileMauC1.thongTinHienTai.benhVienId;
-    final bvid = (rawBv.trim().isNotEmpty && rawBv != 'BV01' && rawBv != '1')
-        ? rawBv.trim()
-        : 'BV502';
+    final bvid = rawBv.trim();
 
     return _firestore.collection('Conversations').snapshots().map((snap) {
       if (snap.docs.isEmpty) return [];
@@ -23,25 +21,17 @@ class LetanChatServiceC1 {
 
       for (var doc in snap.docs) {
         final d = doc.data();
-        final docId = doc.id;
-        final docBv = (d['benhVienId'] ?? d['benh_vien_id'] ?? '').toString();
+        final docId = doc.id.trim();
+        final docBv = (d['benhVienId'] ?? d['benh_vien_id'] ?? '').toString().trim();
 
-        // CHỈ CẦN XÉT ID BỆNH VIỆN LÀ LẤY ĐƯỢC CHAT LIÊN QUAN TỚI BỆNH VIỆN ĐÓ:
-        // 1. docBv trùng khớp với bvid (hoặc ngược lại)
-        // 2. Hoặc Document ID bắt đầu bằng CONV_{bvid}_...
-        // 3. Nếu là BV502 (Bệnh viện anh Tuấn) thì luôn nạp các đoạn chat thuộc BV502
+        // CHỈ LẤY ĐÚNG HỘI THOẠI CỦA BỆNH VIỆN HIỆN TẠI (VD: BV514, BV502)
         bool isHospitalChat = false;
-        if (docBv.isNotEmpty) {
+        if (bvid.isNotEmpty) {
           isHospitalChat = docBv.toLowerCase() == bvid.toLowerCase() ||
-              docBv.toLowerCase().contains(bvid.toLowerCase()) ||
-              bvid.toLowerCase().contains(docBv.toLowerCase());
-        }
-        if (!isHospitalChat && docId.isNotEmpty) {
-          isHospitalChat = docId.toLowerCase().contains(bvid.toLowerCase());
-        }
-        // Trường hợp fallback nếu tài khoản là BV502:
-        if (!isHospitalChat && (bvid.toLowerCase().contains('bv502') || bvid.isEmpty)) {
-          isHospitalChat = docId.toLowerCase().contains('bv502') || docBv.toLowerCase().contains('bv502');
+              docId.toLowerCase().startsWith('conv_${bvid.toLowerCase()}_') ||
+              docId.toLowerCase().contains('_${bvid.toLowerCase()}_');
+        } else {
+          isHospitalChat = true;
         }
 
         if (isHospitalChat) {

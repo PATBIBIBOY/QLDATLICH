@@ -92,9 +92,9 @@ class LetanKhoaCaTrucWidgetC1 extends StatelessWidget {
                   const Icon(Icons.shield_outlined, size: 14, color: Color(0xFFDC2626)),
                   const SizedBox(width: 6),
                   Text(
-                    phanCong.trangThaiId != 0
-                        ? 'Mã trạng thái: ${phanCong.trangThaiId} ("${phanCong.trangThai}") • Cần mã 16'
-                        : 'Chưa có lịch phân công ca trực hôm nay (Cần mã TT: 16)',
+                    phanCong.trangThai.isNotEmpty && phanCong.trangThai != 'Chờ phân công'
+                        ? 'Trạng thái: ${phanCong.trangThai} • Chờ Bệnh viện mở ca'
+                        : 'Chưa có lịch phân công ca trực hôm nay',
                     style: const TextStyle(
                       color: Color(0xFFDC2626),
                       fontSize: 12,
@@ -173,7 +173,7 @@ class LetanKhoaCaTrucWidgetC1 extends StatelessWidget {
                   const SizedBox(width: 10),
                   const Expanded(
                     child: Text(
-                      'Đang tự động lắng nghe Realtime từ Bệnh viện. Quyền sẽ tự động mở ngay khi mã trạng thái thành 16.',
+                      'Đang tự động lắng nghe Realtime từ Bệnh viện. Quyền sẽ tự động mở ngay khi được phân công ca trực.',
                       style: TextStyle(
                         color: Color(0xFF0284C7),
                         fontSize: 11.5,

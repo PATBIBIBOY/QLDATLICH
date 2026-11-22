@@ -242,10 +242,10 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
                     const SizedBox(width: 6),
                     Text(
                       isAssigned
-                          ? 'ĐÃ PHÂN CÔNG (MÃ TT: 16) • ${pc.tenPhong.isNotEmpty ? pc.tenPhong : pc.tenKhoa}'
-                          : (pc.trangThaiId != 0
-                              ? 'CHỜ CA TRỰC (TT: ${pc.trangThaiId} != 16)'
-                              : 'CHƯA PHÂN CÔNG CA TRỰC (TT != 16)'),
+                          ? 'ĐÃ PHÂN CÔNG • ${pc.tenPhong.isNotEmpty ? pc.tenPhong : pc.tenKhoa}'
+                          : (pc.trangThai.isNotEmpty && pc.trangThai != 'Chờ phân công'
+                              ? 'CHỜ CA TRỰC (${pc.trangThai})'
+                              : 'CHƯA PHÂN CÔNG CA TRỰC'),
                       style: TextStyle(
                         color: isAssigned ? const Color(0xFF065F46) : const Color(0xFFDC2626),
                         fontSize: 11,
@@ -581,10 +581,14 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
                   final nav = Navigator.of(context);
                   await FirebaseServiceC1.xoaPhienDangNhap();
                   if (ctx.mounted) Navigator.pop(ctx);
-                  nav.pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                    (route) => false,
-                  );
+                  if (widget.onDangXuat != null) {
+                    widget.onDangXuat!();
+                  } else {
+                    nav.pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      (route) => false,
+                    );
+                  }
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF3B30), foregroundColor: Colors.white),
                 child: const Text('Đăng xuất'),

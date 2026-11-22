@@ -168,31 +168,31 @@ class _LetanCapnhatProfileScreenC1State extends State<LetanCapnhatProfileScreenC
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1. Mã nhân viên cố định
+                      // 1. Mã nhân viên
                       _buildRowThongTinCoDinh(
                         icon: Icons.badge_outlined,
-                        label: 'Mã nhân viên (Cố định bởi Bệnh viện)',
+                        label: 'Mã nhân viên',
                         val: widget.thongTinHienTai.maNhanVien,
                         isDark: isDark,
                       ),
                       const SizedBox(height: 14),
 
-                      // 2. Chức vụ / Vai trò cố định
+                      // 2. Chức vụ / Vai trò
                       _buildRowThongTinCoDinh(
                         icon: Icons.workspace_premium_outlined,
-                        label: 'Chức vụ / Vai trò (Cố định bởi Bệnh viện)',
+                        label: 'Chức vụ / Vai trò',
                         val: widget.thongTinHienTai.chucVu,
-                        subLabel: 'Vai trò phân quyền cố định, không thể tự thay đổi để xem hay duyệt phân hệ khác',
+                        subLabel: 'Do Bệnh viện thiết lập và phân quyền',
                         isDark: isDark,
                       ),
                       const SizedBox(height: 14),
 
-                      // 3. Chuyên khoa cố định
+                      // 3. Chuyên khoa
                       _buildRowThongTinCoDinh(
                         icon: Icons.local_hospital_outlined,
-                        label: 'Thuộc chuyên khoa (Cố định bởi Bệnh viện)',
+                        label: 'Thuộc chuyên khoa',
                         val: widget.thongTinHienTai.khoa,
-                        subLabel: 'Bạn chỉ có quyền xem và duyệt đơn của khoa này (hoặc do Bệnh viện phân công lại)',
+                        subLabel: 'Chuyên khoa do Bệnh viện phân công phụ trách',
                         isDark: isDark,
                       ),
                     ],

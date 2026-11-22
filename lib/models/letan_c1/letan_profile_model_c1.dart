@@ -15,8 +15,8 @@ class ThongTinLeTanC1 {
     required this.khoa,
     required this.email,
     this.avatarUrl = '',
-    this.benhVienId = 'BV502',
-    this.tenBenhVien = 'Bệnh viện Đa khoa Quốc tế',
+    this.benhVienId = '',
+    this.tenBenhVien = 'Bệnh viện',
   });
 
   ThongTinLeTanC1 copyWith({
@@ -55,12 +55,12 @@ class DuLieuProfileMauC1 {
   ];
 
   static ThongTinLeTanC1 thongTinHienTai = const ThongTinLeTanC1(
-    hoTen: 'cuoc xương',
-    chucVu: 'CHĂM SÓC KHÁCH HÀNG',
-    maNhanVien: 'BV502_CSKH_CXK_01',
-    khoa: 'Khoa Cơ xương khớp',
-    email: 'cuoc2004@gmail.com',
-    benhVienId: 'BV502',
-    tenBenhVien: 'Bệnh viện Đa khoa Quốc tế',
+    hoTen: 'Nhân viên',
+    chucVu: 'Nhân viên y tế',
+    maNhanVien: '',
+    khoa: 'Khoa Khám Bệnh',
+    email: '',
+    benhVienId: '',
+    tenBenhVien: 'Bệnh viện',
   );
 }

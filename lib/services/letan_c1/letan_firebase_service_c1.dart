@@ -20,19 +20,15 @@ class FirebaseServiceC1 {
   /// Đường dẫn chính xác tuyệt đối trên Firestore của C1:
   /// /Khoa/BO85AxXqDMSB68hnYjzhYfPIxHC2/danh_sach
   static const String duongDanKhoaCha = 'Khoa';
-  static const String docKhoaChaId = 'BV502';
   static const String subCollectionDanhSach = 'danh_sach';
 
   /// Lấy danh sách các chuyên khoa thời gian thực (Stream) TRỰC TIẾP TỪ /Khoa/{benhVienId}/danh_sach
   /// Nếu không truyền benhVienId hoặc benhVienId rỗng thì lấy từ profile hoặc fallback docKhoaChaId
   static Stream<List<Map<String, dynamic>>> streamDanhSachKhoa([String? benhVienId]) {
-    final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty && benhVienId != 'BV01' && benhVienId != '1')
+    final rawBv = (benhVienId != null && benhVienId.trim().isNotEmpty && benhVienId != 'BV01' && benhVienId != '1')
         ? benhVienId.trim()
-        : (DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty &&
-                DuLieuProfileMauC1.thongTinHienTai.benhVienId != 'BV01' &&
-                DuLieuProfileMauC1.thongTinHienTai.benhVienId != '1'
-            ? DuLieuProfileMauC1.thongTinHienTai.benhVienId
-            : docKhoaChaId);
+        : DuLieuProfileMauC1.thongTinHienTai.benhVienId.trim();
+    final bvid = rawBv.isNotEmpty ? rawBv : 'BV502';
 
     return _firestore
         .collection(duongDanKhoaCha)
@@ -75,13 +71,10 @@ class FirebaseServiceC1 {
     int soPhongMacDinh = 1,
     String phongDau = '101',
   }) {
-    final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty && benhVienId != 'BV01' && benhVienId != '1')
+    final rawBv = (benhVienId != null && benhVienId.trim().isNotEmpty && benhVienId != 'BV01' && benhVienId != '1')
         ? benhVienId.trim()
-        : (DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty &&
-                DuLieuProfileMauC1.thongTinHienTai.benhVienId != 'BV01' &&
-                DuLieuProfileMauC1.thongTinHienTai.benhVienId != '1'
-            ? DuLieuProfileMauC1.thongTinHienTai.benhVienId
-            : docKhoaChaId);
+        : DuLieuProfileMauC1.thongTinHienTai.benhVienId.trim();
+    final bvid = rawBv.isNotEmpty ? rawBv : 'BV502';
 
     return _firestore
         .collection(duongDanKhoaCha)
@@ -133,11 +126,18 @@ class FirebaseServiceC1 {
   }
 
   /// Lấy danh sách tên các khoa dạng `List<String>` để đưa vào Dropdown/Modal chọn khoa
-  static Future<List<String>> layDanhSachTenKhoa() async {
+  static Future<List<String>> layDanhSachTenKhoa([String? benhVienId]) async {
+    final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty && benhVienId != 'BV01' && benhVienId != '1')
+        ? benhVienId.trim()
+        : (DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty &&
+                DuLieuProfileMauC1.thongTinHienTai.benhVienId != 'BV01' &&
+                DuLieuProfileMauC1.thongTinHienTai.benhVienId != '1'
+            ? DuLieuProfileMauC1.thongTinHienTai.benhVienId
+            : 'BV502');
     try {
       final snapshot = await _firestore
           .collection(duongDanKhoaCha)
-          .doc(docKhoaChaId)
+          .doc(bvid)
           .collection(subCollectionDanhSach)
           .get();
 
@@ -154,11 +154,18 @@ class FirebaseServiceC1 {
   }
 
   /// Lấy danh sách khoa 1 lần (Future)
-  static Future<List<Map<String, dynamic>>> layDanhSachKhoaMotLan() async {
+  static Future<List<Map<String, dynamic>>> layDanhSachKhoaMotLan([String? benhVienId]) async {
+    final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty && benhVienId != 'BV01' && benhVienId != '1')
+        ? benhVienId.trim()
+        : (DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty &&
+                DuLieuProfileMauC1.thongTinHienTai.benhVienId != 'BV01' &&
+                DuLieuProfileMauC1.thongTinHienTai.benhVienId != '1'
+            ? DuLieuProfileMauC1.thongTinHienTai.benhVienId
+            : 'BV502');
     try {
       final snapshot = await _firestore
           .collection(duongDanKhoaCha)
-          .doc(docKhoaChaId)
+          .doc(bvid)
           .collection(subCollectionDanhSach)
           .get();
       return snapshot.docs.map((doc) {
@@ -1558,39 +1565,7 @@ class FirebaseServiceC1 {
       uid: currentUid,
     );
 
-    // 3. Xử lý tài khoản mẫu hệ thống nếu chưa có sẵn trên Firestore (LT_TM_01, CSKH_01, cuoc2004@gmail.com)
-    final inputUpper = input.toUpperCase();
-    final isCuoc = input.toLowerCase() == 'cuoc2004@gmail.com';
-    if ((targetDoc == null || !targetDoc.exists) && (inputUpper == 'LT_TM_01' || inputUpper == 'CSKH_01' || isCuoc)) {
-      if (pass != '123456' && !isCuoc) {
-        throw Exception('Mật khẩu cấp ban đầu không chính xác! (Mặc định: 123456)');
-      }
-      final isCskh = inputUpper.contains('CSKH');
-      final maNhanVienKhoiTao = isCuoc ? 'LT_TM_01' : inputUpper;
-      final defaultUser = {
-        'ma_tai_khoan': maNhanVienKhoiTao,
-        'ma_nhan_vien': maNhanVienKhoiTao,
-        'mat_khau': pass.isNotEmpty ? pass : '123456',
-        'ho_ten': isCskh ? 'Nhân Viên CSKH' : 'Đinh Hoàng Cước',
-        'email': isCuoc ? 'cuoc2004@gmail.com' : (isCskh ? 'cskh@benhvien.vn' : 'cuoc2004@gmail.com'),
-        'role': isCskh ? 'customerSupport' : 'receptionist',
-        'chuc_vu': isCskh ? 'Chuyên viên Chăm sóc khách hàng' : 'Nhân viên Lễ tân tiếp đón',
-        'khoa': isCskh ? 'Bộ Phận CSKH & Tiếp Nhận' : 'KHOA TIM',
-        'ma_benh_vien': 'BV502',
-        'benh_vien_id': 'BV502',
-        'ten_benh_vien': 'Bệnh viện Quân y 17',
-        'da_kich_hoat': true,
-        'trang_thai': 'dang_hoat_dong',
-        'uid': currentUid,
-        'ngay_tao': FieldValue.serverTimestamp(),
-      };
-      try {
-        await _firestore.collection('NhanVien').doc('BV502').collection('danh_sach').doc(maNhanVienKhoiTao).set(defaultUser, SetOptions(merge: true));
-      } catch (_) {}
-      targetDoc = await _firestore.collection('NhanVien').doc('BV502').collection('danh_sach').doc(maNhanVienKhoiTao).get();
-    }
-
-    // 4. Nếu tìm thấy Document nhân viên
+    // 3. Nếu tìm thấy Document nhân viên
     if (targetDoc != null && targetDoc.exists) {
       final data = targetDoc.data()!;
       final matKhauDb = (data['mat_khau'] ?? '').toString();
@@ -2831,22 +2806,40 @@ class FirebaseServiceC1 {
       // 1. Quét tìm bản ghi khớp nhân viên theo ngày được chọn (hoặc bản ghi phân công của nhân viên)
       for (var doc in snapshot.docs) {
         final data = doc.data();
-        final docMaNv = (data['ma_nhan_vien'] ?? data['nhan_vien_id'] ?? '').toString().trim();
-        final docEmail = (data['email'] ?? '').toString().trim();
-        final docTenNv = (data['ten_nhan_vien'] ?? '').toString().trim();
+        final docId = doc.id.trim();
+        final docMaNv = (data['ma_nhan_vien'] ?? data['nhan_vien_id'] ?? data['nhanVienId'] ?? data['staff_id'] ?? '').toString().trim();
+        final docEmail = (data['email'] ?? data['email_nhan_vien'] ?? '').toString().trim();
+        final docTenNv = (data['ten_nhan_vien'] ?? data['tenNhanVien'] ?? data['ho_ten'] ?? data['hoTen'] ?? '').toString().trim();
         final docNgay = (data['ngay'] ?? '').toString().trim();
 
-        // KIỂM TRA ĐÍCH DANH NHÂN VIÊN:
-        // Tuyệt đối không nhận vơ theo vai trò hay gán cứng mã khác.
-        // Chỉ khớp đúng mã nhân viên hoặc email của tài khoản đang đăng nhập!
+        // THUẬT TOÁN NHẬN DIỆN NHÂN VIÊN CHÍNH XÁC (Tránh lệch email / mã nhân viên):
         bool khopNv = false;
-        if (targetMa.isNotEmpty && docMaNv.toLowerCase() == targetMa.toLowerCase()) {
-          khopNv = true;
-        } else if (targetEmail.isNotEmpty && docEmail.isNotEmpty && docEmail.toLowerCase() == targetEmail.toLowerCase()) {
-          khopNv = true;
-        } else if (targetTen.isNotEmpty && docTenNv.isNotEmpty &&
-            (docTenNv.toLowerCase() == targetTen.toLowerCase())) {
-          khopNv = true;
+
+        // 1. So khớp theo Mã nhân viên (Ưu tiên cao nhất)
+        if (targetMa.isNotEmpty && !targetMa.contains('@')) {
+          if (docMaNv.isNotEmpty && (docMaNv.toLowerCase() == targetMa.toLowerCase() ||
+              (targetMa.length >= 4 && docMaNv.toLowerCase().contains(targetMa.toLowerCase())) ||
+              (docMaNv.length >= 4 && targetMa.toLowerCase().contains(docMaNv.toLowerCase())))) {
+            khopNv = true;
+          } else if (docId.toLowerCase().contains(targetMa.toLowerCase())) {
+            khopNv = true;
+          }
+        }
+
+        // 2. So khớp theo Email (Nếu document phân công có lưu email)
+        if (!khopNv && targetEmail.isNotEmpty && docEmail.isNotEmpty) {
+          if (docEmail.toLowerCase() == targetEmail.toLowerCase()) {
+            khopNv = true;
+          }
+        }
+
+        // 3. So khớp theo Họ tên nhân viên (Chuẩn hóa chữ thường)
+        if (!khopNv && targetTen.isNotEmpty && docTenNv.isNotEmpty) {
+          final tTen = targetTen.toLowerCase();
+          final dTen = docTenNv.toLowerCase();
+          if (tTen == dTen || tTen.contains(dTen) || dTen.contains(tTen)) {
+            khopNv = true;
+          }
         }
 
         if (khopNv) {

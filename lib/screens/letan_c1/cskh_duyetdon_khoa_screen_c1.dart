@@ -12,6 +12,7 @@ import 'letan_baocaoloi_screen_c1.dart';
 import 'widgets/cskh_bottom_nav_c1.dart';
 import 'widgets/cskh_department_card_c1.dart';
 import 'widgets/cskh_department_selector_card_c1.dart';
+import 'widgets/cskh_lich_su_ngay_bottom_sheet_c1.dart';
 import 'widgets/cskh_stats_row_c1.dart';
 import 'widgets/cskh_tab_duyet_phong_c1.dart';
 import 'widgets/cskh_thong_bao_bottom_sheet_c1.dart';
@@ -240,18 +241,24 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
 
   void _moLichSuDon() {
     AppDesignSystemC1.hapticLight();
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CskhDanhsachDonKhoaScreenC1(
-          tenKhoa: _tenKhoaHienTai,
-          phongKham: 'Toàn khoa',
-          caKham: 'Tất cả các ca',
-          tongDon: 0,
-          ngayChonBanDau: _ngayChon,
-          tabBanDau: 'Tất cả',
-        ),
-      ),
+    CskhLichSuNgayBottomSheetC1.show(
+      context: context,
+      tenKhoa: _tenKhoaHienTai,
+      onSelectDate: (ngayDuocChon) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CskhDanhsachDonKhoaScreenC1(
+              tenKhoa: _tenKhoaHienTai,
+              phongKham: 'Toàn khoa',
+              caKham: 'Tất cả các ca',
+              tongDon: 0,
+              ngayChonBanDau: ngayDuocChon,
+              tabBanDau: 'Tất cả',
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -448,7 +455,7 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'CHUYÊN KHOA PHÂN CÔNG',
+                'CHUYÊN KHOA PHỤ TRÁCH',
                 style: TextStyle(
                   color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF475569),
                   fontSize: 13,
@@ -462,20 +469,13 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
                   color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.lock_outline_rounded, size: 12, color: Color(0xFF0284C7)),
-                    SizedBox(width: 4),
-                    Text(
-                      'Cố định theo tài khoản',
-                      style: TextStyle(
-                        color: Color(0xFF0284C7),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  _tenKhoaHienTai,
+                  style: const TextStyle(
+                    color: Color(0xFF0284C7),
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
@@ -601,9 +601,6 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
     final subTextCol = isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B);
 
     final bool isAssigned = phanCong?.duocPhanCong ?? false;
-    final int statusId = phanCong?.trangThaiId ?? 0;
-    final String statusStr = phanCong?.trangThai ?? 'Chờ phân công';
-    final String phongName = phanCong?.tenPhong ?? '';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -624,58 +621,69 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: isAssigned ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        isAssigned
-                            ? '✓ Ca trực: ${phongName.isNotEmpty ? phongName : _tenKhoaHienTai}${phanCong?.ngay.isNotEmpty == true ? ' • Ngày ${phanCong!.ngay}' : ''} (TT: 16)'
-                            : (statusId != 0
-                                ? 'Chờ ca trực (TT: $statusId - $statusStr)'
-                                : 'Chưa phân công ca trực hôm nay'),
-                        style: TextStyle(
-                          color: isAssigned ? const Color(0xFF059669) : const Color(0xFFDC2626),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
                 Text(
-                  'Xin chào, Chuyên viên CSKH ${phanCong?.tenNhanVien ?? DuLieuProfileMauC1.thongTinHienTai.hoTen}',
+                  DuLieuProfileMauC1.thongTinHienTai.tenBenhVien.isNotEmpty
+                      ? DuLieuProfileMauC1.thongTinHienTai.tenBenhVien
+                      : (DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty
+                          ? 'Bệnh viện ${DuLieuProfileMauC1.thongTinHienTai.benhVienId}'
+                          : 'Bệnh viện'),
                   style: TextStyle(
                     color: subTextCol,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   _currentBottomNavIndex == 3
-                      ? 'Hồ Sơ CSKH'
+                      ? 'Hồ Sơ Cá Nhân'
                       : (_currentBottomNavIndex == 2
                           ? 'Tin Nhắn Hỗ Trợ'
-                          : 'Duyệt Đơn Theo Khoa'),
+                          : 'Duyệt Đơn Khám Bệnh'),
                   style: TextStyle(
                     color: textCol,
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
                   ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              color: isAssigned ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            _tenKhoaHienTai,
+                            style: const TextStyle(
+                              color: Color(0xFF0284C7),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

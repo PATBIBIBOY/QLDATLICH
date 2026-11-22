@@ -43,7 +43,7 @@ class _CskhChatChitietScreenC1State extends State<CskhChatChitietScreenC1> {
       AppDesignSystemC1.hapticError();
       AppDesignSystemC1.showCustomSnackBar(
         context,
-        message: '✕ Thao tác bị khóa: Ca trực chưa được Bệnh viện phân công (Mã TT != 16)!',
+        message: '✕ Thao tác bị khóa: Bạn chưa được Bệnh viện phân công ca trực!',
         isSuccess: false,
         icon: Icons.lock_clock_rounded,
       );

@@ -164,37 +164,6 @@ class LetanAuthServiceC1 {
       uid: currentUid,
     );
 
-    final inputUpper = input.toUpperCase();
-    final isCuoc = input.toLowerCase() == 'cuoc2004@gmail.com';
-    if ((targetDoc == null || !targetDoc.exists) && (inputUpper == 'LT_TM_01' || inputUpper == 'CSKH_01' || isCuoc)) {
-      if (pass != '123456' && !isCuoc) {
-        throw Exception('Mật khẩu cấp ban đầu không chính xác! (Mặc định: 123456)');
-      }
-      final isCskh = inputUpper.contains('CSKH');
-      final maNhanVienKhoiTao = isCuoc ? 'LT_TM_01' : inputUpper;
-      final defaultUser = {
-        'ma_tai_khoan': maNhanVienKhoiTao,
-        'ma_nhan_vien': maNhanVienKhoiTao,
-        'mat_khau': pass.isNotEmpty ? pass : '123456',
-        'ho_ten': isCskh ? 'Nhân Viên CSKH' : 'Đinh Hoàng Cước',
-        'email': isCuoc ? 'cuoc2004@gmail.com' : (isCskh ? 'cskh@benhvien.vn' : 'cuoc2004@gmail.com'),
-        'role': isCskh ? 'customerSupport' : 'receptionist',
-        'chuc_vu': isCskh ? 'Chuyên viên Chăm sóc khách hàng' : 'Nhân viên Lễ tân tiếp đón',
-        'khoa': isCskh ? 'Bộ Phận CSKH & Tiếp Nhận' : 'KHOA TIM',
-        'ma_benh_vien': 'BV502',
-        'benh_vien_id': 'BV502',
-        'ten_benh_vien': 'Bệnh viện Quân y 17',
-        'da_kich_hoat': true,
-        'trang_thai': 'dang_hoat_dong',
-        'uid': currentUid,
-        'ngay_tao': FieldValue.serverTimestamp(),
-      };
-      try {
-        await _firestore.collection('NhanVien').doc('BV502').collection('danh_sach').doc(maNhanVienKhoiTao).set(defaultUser, SetOptions(merge: true));
-      } catch (_) {}
-      targetDoc = await _firestore.collection('NhanVien').doc('BV502').collection('danh_sach').doc(maNhanVienKhoiTao).get();
-    }
-
     if (targetDoc != null && targetDoc.exists) {
       final data = targetDoc.data()!;
       final matKhauDb = (data['mat_khau'] ?? '').toString();

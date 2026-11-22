@@ -4,6 +4,7 @@ import '../../models/letan_c1/letan_design_system_c1.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../models/letan_c1/letan_ui_components_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
+import 'widgets/cskh_lich_su_ngay_bottom_sheet_c1.dart';
 import 'widgets/medical_reusable_widgets_c1.dart';
 
 class LetanLichhenScreenC1 extends StatefulWidget {
@@ -532,9 +533,20 @@ class _LetanLichhenScreenC1State extends State<LetanLichhenScreenC1> {
                           ),
                           const SizedBox(width: 8),
 
-                          // Nút Lịch sử khám bệnh (ngày giảm dần từ hôm nay trở về trước)
+                          // Nút Lịch sử khám bệnh (10 ngày gần nhất + Chọn ngày khác)
                           InkWell(
-                            onTap: () => _moDanhSachNgayKham(chiLichSu: true),
+                            onTap: () {
+                              AppDesignSystemC1.hapticLight();
+                              CskhLichSuNgayBottomSheetC1.show(
+                                context: context,
+                                tenKhoa: widget.tenKhoa ?? DuLieuProfileMauC1.thongTinHienTai.khoa,
+                                onSelectDate: (ngayDuocChon) {
+                                  setState(() {
+                                    _ngayChon = ngayDuocChon;
+                                  });
+                                },
+                              );
+                            },
                             borderRadius: BorderRadius.circular(8),
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

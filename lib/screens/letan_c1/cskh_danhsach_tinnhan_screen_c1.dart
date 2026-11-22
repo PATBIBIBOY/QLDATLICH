@@ -70,9 +70,7 @@ class _CskhDanhsachTinnhanScreenC1State extends State<CskhDanhsachTinnhanScreenC
   @override
   Widget build(BuildContext context) {
     final isDark = AppDesignSystemC1.laCheDoToi;
-    final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty
-        ? DuLieuProfileMauC1.thongTinHienTai.benhVienId
-        : 'BV502';
+    final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId.trim();
 
     return StreamBuilder<List<ConversationModel>>(
       stream: _chatService.streamHospitalConversations(bvid),
@@ -208,53 +206,31 @@ class _CskhDanhsachTinnhanScreenC1State extends State<CskhDanhsachTinnhanScreenC
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Hỗ trợ bệnh nhân',
-                style: TextStyle(
-                  color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Bệnh viện Đa khoa • Bộ phận CSKH',
-                style: TextStyle(
-                  color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF064E3B).withValues(alpha: 0.5) : const Color(0xFFE8F8EE),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: const Color(0xFF34C759).withValues(alpha: isDark ? 0.6 : 0.3),
-              ),
-            ),
-            child: Row(
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF34C759),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                const Text(
-                  'Đang online',
+                Text(
+                  DuLieuProfileMauC1.thongTinHienTai.tenBenhVien.isNotEmpty
+                      ? DuLieuProfileMauC1.thongTinHienTai.tenBenhVien
+                      : (DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty
+                          ? 'Bệnh viện ${DuLieuProfileMauC1.thongTinHienTai.benhVienId}'
+                          : 'Bệnh viện'),
                   style: TextStyle(
-                    color: Color(0xFF166534),
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
+                    color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Tin Nhắn Hỗ Trợ',
+                  style: TextStyle(
+                    color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ],
