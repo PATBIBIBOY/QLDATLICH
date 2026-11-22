@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_session.dart';
-import '../config/constants.dart';
 import '../models/hospital_model.dart';
 import '../models/patient_model.dart';
 import '../services/auth_service.dart';
@@ -9,6 +9,33 @@ import '../services/fcm_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
+
+  @override
+  void notifyListeners() {
+    // Tránh lỗi FlutterError: setState() or markNeedsBuild() called during build
+    if (WidgetsBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (hasListeners) {
+          super.notifyListeners();
+        }
+      });
+    } else {
+      super.notifyListeners();
+    }
+  }
+
+  AuthProvider() {
+    _initAutoRestore();
+  }
+
+  void _initAutoRestore() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final cur = _authService.currentUser;
+      if (cur != null) {
+        fetchCurrentUser(preferredRole: 'benh_vien');
+      }
+    });
+  }
 
   PatientModel? _user;
   HospitalModel? _hospital;
@@ -87,7 +114,8 @@ class AuthProvider extends ChangeNotifier {
         _user = null;
         _selectedRole = hospital != null ? 'benh_vien' : null;
         if (hospital != null) {
-          AppSession.benhVienId = hospital.uid ?? currentUser.uid;
+          AppSession.benhVienId =
+              hospital.maBenhVien ?? hospital.uid ?? currentUser.uid;
         }
         return;
       }
@@ -165,15 +193,32 @@ class AuthProvider extends ChangeNotifier {
         password: password,
       );
       _admin = null;
+
+      // 1. Đồng bộ trạng thái xác thực từ Firebase Auth sang Firestore
+      final currentFbUser = _authService.currentUser;
+      await currentFbUser?.reload();
+      final freshFbUser = _authService.currentUser;
+      final isAuthEmailVerified = freshFbUser?.emailVerified ?? false;
+
+      if (freshFbUser != null && isAuthEmailVerified) {
+        try {
+          await _authService.updateUserVerificationStatus(
+            freshFbUser.uid,
+            true,
+          );
+        } catch (_) {}
+      }
+
       await fetchCurrentUser(preferredRole: role);
 
-      final isEmailUnverified =
-          _user?.daXacThucEmail == false || _hospital?.daXacThucEmail == false;
-      if (isEmailUnverified) {
-        await _authService.signOut();
-        _user = null;
-        _hospital = null;
-        notifyListeners();
+      // 2. Kiểm tra xác thực email: nếu cả Firebase Auth lẫn Firestore đều chưa xác thực
+      final isFirestoreEmailVerified = (_user?.daXacThucEmail ?? false) ||
+          (_hospital?.daXacThucEmail ?? false);
+
+      final isVerified = isAuthEmailVerified || isFirestoreEmailVerified;
+
+      if (!isVerified) {
+        // KHÔNG gọi signOut() tại đây để phiên làm việc còn giữ lại cho màn hình EmailVerificationScreen
         throw Exception('EMAIL_NOT_VERIFIED');
       }
 
@@ -248,8 +293,16 @@ class AuthProvider extends ChangeNotifier {
       );
       await credential.user?.sendEmailVerification();
 
+      // ✅ Tự động sinh ID bệnh viện tăng dần theo CSDL
+      final idData = await _authService.generateHospitalId();
+      final nextId = idData['id'] as int;
+      final nextMaBv = idData['ma_benh_vien'] as String;
+
       final newHospital = HospitalModel.fromRegisterEmail(
-        uid: credential.user!.uid,
+        id: nextId,
+        maBenhVien: nextMaBv,
+        uid: nextMaBv,
+        authUid: credential.user!.uid,
         tenBenhVien: hospital.tenBenhVien!,
         email: email,
         diaChi: hospital.diaChi,
@@ -257,6 +310,9 @@ class AuthProvider extends ChangeNotifier {
       ).copyWith(daXacThucEmail: false);
 
       await _authService.saveHospitalToFirestore(newHospital);
+      _hospital = newHospital;
+      _user = null;
+      AppSession.benhVienId = nextMaBv;
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
         await _handleExistingHospitalEmail(email, password, hospital);
@@ -282,7 +338,7 @@ class AuthProvider extends ChangeNotifier {
       );
     }
     await _signInToReplaceUnverifiedAccount(email, password);
-    await _authService.deleteUnverifiedHospital(oldHospital.uid!);
+    await _authService.deleteUnverifiedHospital(oldHospital.uid ?? oldHospital.authUid ?? '');
 
     final credential = await _authService.registerWithEmailAndPassword(
       email: email,
@@ -290,16 +346,25 @@ class AuthProvider extends ChangeNotifier {
     );
     await credential.user?.sendEmailVerification();
 
+    final idData = await _authService.generateHospitalId();
+    final nextId = oldHospital.id ?? (idData['id'] as int);
+    final nextMaBv = oldHospital.maBenhVien ?? (idData['ma_benh_vien'] as String);
+
     final newHospital = HospitalModel.fromRegisterEmail(
-      uid: credential.user!.uid,
+      id: nextId,
+      maBenhVien: nextMaBv,
+      uid: nextMaBv,
+      authUid: credential.user!.uid,
       tenBenhVien: hospital.tenBenhVien!,
       email: email,
       diaChi: hospital.diaChi,
       role: hospital.role,
     ).copyWith(daXacThucEmail: false);
+
     await _authService.saveHospitalToFirestore(newHospital);
     _hospital = newHospital;
     _user = null;
+    AppSession.benhVienId = nextMaBv;
   }
 
   /// _signInToReplaceUnverifiedAccount: đăng nhập vào tài khoản cũ chưa xác thực để có quyền xóa nó.
@@ -378,6 +443,9 @@ class AuthProvider extends ChangeNotifier {
         _hospital = _user == null
             ? await _authService.getHospitalFromFirestore(user.uid)
             : null;
+        if (_hospital != null) {
+          AppSession.benhVienId = _hospital!.maBenhVien ?? _hospital!.uid ?? user.uid;
+        }
         notifyListeners();
       }
     } catch (e) {
@@ -560,7 +628,12 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// logout: đăng xuất và xóa toàn bộ state phiên đăng nhập, kể cả thông tin OTP đang chờ.
+  Future<void> chuanHoaBenhVienDaDangKy([String? maBv]) async {
+    try {
+      await _authService.chuanHoaBenhVienDaDangKyHopTac(maBv);
+    } catch (_) {}
+  }
+
   Future<void> logout() async {
     _isLoading = true;
     notifyListeners();

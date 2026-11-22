@@ -46,6 +46,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.initState();
     _patientIdCtrl.addListener(_onPatientIdChanged);
     _loadRoles();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadRoles();
+      }
+    });
   }
 
   @override

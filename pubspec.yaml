@@ -48,6 +48,11 @@ dependencies:
   google_fonts: ^9.0.0
   share_plus: 13.3.1     
   path_provider: ^2.1.1
+  file_picker: ^13.3.0
+  mailer: ^7.2.2
+  http: ^1.6.0
+  googleapis_auth: ^2.3.5
+  webview_flutter: ^4.14.1
 
 dev_dependencies:
   flutter_test:

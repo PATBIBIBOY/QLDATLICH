@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../../mock/mock_c1/dulieu_mau_cskh_c1.dart';
+import '../../models/letan_c1/cskh_constants_c1.dart';
 import '../../models/letan_c1/cskh_model_c1.dart';
 import '../../models/letan_c1/letan_design_system_c1.dart';
+import '../../models/letan_c1/letan_profile_model_c1.dart';
+import '../../services/letan_c1/letan_firebase_service_c1.dart';
+import 'cskh_duyetdon_khoa_screen_c1.dart';
 
 /// MÀN HÌNH 4: CHI TIẾT ĐOẠN CHAT HỖ TRỢ BỆNH NHÂN (CSKH)
-/// Model TinNhanCskhModelC1 chuẩn bị sẵn sàng cho Firebase Collection `tin_nhan`
+/// Kết nối thời gian thực Firestore /HoiThoaiCskh/{benhVienId}/danh_sach/{hoiThoaiId}/tin_nhan
 class CskhChatChitietScreenC1 extends StatefulWidget {
   final HoiThoaiCskhModelC1 hoiThoai;
 
@@ -22,35 +25,44 @@ class _CskhChatChitietScreenC1State extends State<CskhChatChitietScreenC1> {
   final TextEditingController _noiDungController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  late List<TinNhanCskhModelC1> _danhSachTin;
-
   @override
   void initState() {
     super.initState();
-    _danhSachTin = DuLieuCskhKhoaC1.layTinNhanTheoHoiThoai(widget.hoiThoai.id);
+    // Đánh dấu đã đọc ngay khi mở cuộc trò chuyện
+    FirebaseServiceC1.danhDauDaDocCskh(widget.hoiThoai.id);
   }
 
-  void _guiTinNhan([String? noiDungGui]) {
+  void _guiTinNhan([String? noiDungGui]) async {
     final text = noiDungGui ?? _noiDungController.text.trim();
     if (text.isEmpty) return;
 
-    AppDesignSystemC1.hapticLight();
-    setState(() {
-      _danhSachTin.add(
-        TinNhanCskhModelC1(
-          id: 'tn_${DateTime.now().millisecondsSinceEpoch}',
-          hoiThoaiId: widget.hoiThoai.id,
-          noiDung: text,
-          thoiGian: '09:45',
-          laCskhGui: true,
-        ),
+    // Kiểm tra phân công ca trực (trang_thai_id == 16)
+    final caTruc = await FirebaseServiceC1.kiemTraPhanCongCaTruc();
+    if (!mounted) return;
+    if (!caTruc.duocPhanCong) {
+      AppDesignSystemC1.hapticError();
+      AppDesignSystemC1.showCustomSnackBar(
+        context,
+        message: '✕ Thao tác bị khóa: Ca trực chưa được Bệnh viện phân công (Mã TT != 16)!',
+        isSuccess: false,
+        icon: Icons.lock_clock_rounded,
       );
-      if (noiDungGui == null) {
-        _noiDungController.clear();
-      }
-    });
+      return;
+    }
 
-    Future.delayed(const Duration(milliseconds: 100), () {
+    AppDesignSystemC1.hapticLight();
+    if (noiDungGui == null) {
+      _noiDungController.clear();
+    }
+
+    final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
+    await FirebaseServiceC1.guiTinNhanCskh(
+      benhVienId: bvid,
+      hoiThoaiId: widget.hoiThoai.id,
+      noiDung: text,
+    );
+
+    Future.delayed(const Duration(milliseconds: 150), () {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
@@ -63,6 +75,8 @@ class _CskhChatChitietScreenC1State extends State<CskhChatChitietScreenC1> {
 
   @override
   Widget build(BuildContext context) {
+    final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
+
     return ValueListenableBuilder<bool>(
       valueListenable: AppDesignSystemC1.isDarkMode,
       builder: (context, isDark, child) {
@@ -74,13 +88,68 @@ class _CskhChatChitietScreenC1State extends State<CskhChatChitietScreenC1> {
                 _buildHeader(isDark),
                 _buildCardThongTinBenhNhan(isDark),
                 Expanded(
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    itemCount: _danhSachTin.length,
-                    itemBuilder: (context, index) {
-                      final item = _danhSachTin[index];
-                      return _buildBongBongTinNhan(item, isDark);
+                  child: StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: FirebaseServiceC1.streamTinNhanCskh(
+                      benhVienId: bvid,
+                      hoiThoaiId: widget.hoiThoai.id,
+                    ),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF0284C7),
+                          ),
+                        );
+                      }
+
+                      final danhSachTin = (snapshot.data ?? []).map((m) {
+                        return TinNhanCskhModelC1.fromMap(m, m['id']);
+                      }).toList();
+
+                      if (danhSachTin.isEmpty) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24.0),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.chat_bubble_outline_rounded,
+                                  size: 48,
+                                  color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF94A3B8),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Chưa có tin nhắn nào',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF475569),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Hãy gửi tin nhắn đầu tiên để hỗ trợ bệnh nhân',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF94A3B8),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      return ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        itemCount: danhSachTin.length,
+                        itemBuilder: (context, index) {
+                          final item = danhSachTin[index];
+                          return _buildBongBongTinNhan(item, isDark);
+                        },
+                      );
                     },
                   ),
                 ),
@@ -111,7 +180,16 @@ class _CskhChatChitietScreenC1State extends State<CskhChatChitietScreenC1> {
           IconButton(
             icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
             color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CskhDuyetdonKhoaScreenC1()),
+                );
+              }
+            },
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),
@@ -140,6 +218,8 @@ class _CskhChatChitietScreenC1State extends State<CskhChatChitietScreenC1> {
               children: [
                 Text(
                   widget.hoiThoai.hoTen,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
                     fontSize: 16,
@@ -148,6 +228,8 @@ class _CskhChatChitietScreenC1State extends State<CskhChatChitietScreenC1> {
                 ),
                 Text(
                   '${widget.hoiThoai.tuoi} tuổi • ${widget.hoiThoai.khoa}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93),
                     fontSize: 12,
@@ -208,7 +290,9 @@ class _CskhChatChitietScreenC1State extends State<CskhChatChitietScreenC1> {
           ),
           const SizedBox(height: 3),
           Text(
-            'BHYT: ${widget.hoiThoai.maBhyt} • Lịch khám gần nhất: 18/09 • BS. Vũ Nam Tuấn',
+            'BHYT: ${widget.hoiThoai.maBhyt} • Lịch khám gần nhất: 18/09',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF334155),
               fontSize: 11.5,

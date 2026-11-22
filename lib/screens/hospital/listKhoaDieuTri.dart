@@ -9,9 +9,10 @@ import 'addKhoaHospital_Screen.dart';
 import 'chiTietKhoa_screem.dart';
 
 String _getBenhVienId() {
-  final uid = FirebaseAuth.instance.currentUser?.uid;
-  if (uid != null && uid.isNotEmpty) return uid;
-  return AppSession.benhVienId;
+  if (AppSession.benhVienId.isNotEmpty) {
+    return AppSession.benhVienId;
+  }
+  return FirebaseAuth.instance.currentUser?.uid ?? '';
 }
 
 Stream<QuerySnapshot<Map<String, dynamic>>> _khoaStream() => FirebaseFirestore
@@ -19,7 +20,6 @@ Stream<QuerySnapshot<Map<String, dynamic>>> _khoaStream() => FirebaseFirestore
     .collection('Khoa')
     .doc(_getBenhVienId())
     .collection('danh_sach')
-    .orderBy('ngayTao', descending: true)
     .snapshots();
 
 // ===================== THẺ "TỔNG SỐ KHOA KHÁM" =====================
@@ -34,7 +34,7 @@ class TongSoKhoaCard extends StatelessWidget {
         final docs = snap.data?.docs ?? [];
         final dauThang = DateTime(DateTime.now().year, DateTime.now().month);
         final moi = docs.where((d) {
-          final t = d.data()['ngayTao'];
+          final t = d.data()['ngayTao'] ?? d.data()['ngay_tao'];
           return t == null || (t as Timestamp).toDate().isAfter(dauThang);
         }).length;
 
@@ -101,7 +101,15 @@ class ListKhoaDieuTri extends StatelessWidget {
         if (!snap.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final docs = snap.data!.docs;
+        final docs = snap.data!.docs.toList()
+          ..sort((a, b) {
+            final tA = a.data()['ngayTao'] ?? a.data()['ngay_tao'];
+            final tB = b.data()['ngayTao'] ?? b.data()['ngay_tao'];
+            if (tA is Timestamp && tB is Timestamp) {
+              return tB.compareTo(tA);
+            }
+            return b.id.compareTo(a.id);
+          });
 
         return Column(
           children: [
@@ -251,14 +259,27 @@ Future<void> _xacNhanXoaKhoa(
 // trangThai -> (nhãn, màu nền, màu chữ)
 (String, Color, Color) _trangThai(String? ma) {
   switch (ma) {
+    case 'tam_dung':
+    case 'tam_dong':
+    case '12':
+      return (
+        'Tạm dừng',
+        const Color(0xFFFEF3C7),
+        const Color(0xFFD97706),
+      );
+    case 'dong':
+    case 'dong_cua':
+    case '14':
+      return ('Đóng', const Color(0xFFFEE2E2), const Color(0xFFDC2626));
     case 'day_lich_sang':
       return (
         'Đầy lịch sáng',
         const Color(0xFFFEF3C7),
         const Color(0xFFD97706),
       );
-    case 'dong_cua':
-      return ('Đóng cửa', const Color(0xFFFEE2E2), const Color(0xFFDC2626));
+    case 'dang_kham':
+    case 'dang_mo':
+    case '13':
     default:
       return ('Đang mở', const Color(0xFFDCFCE7), const Color(0xFF16A34A));
   }
@@ -276,6 +297,97 @@ class KhoaCard extends StatelessWidget {
   final Map<String, dynamic> data;
   final VoidCallback? onTap;
 
+  Widget _buildBadge(String nhan, Color nen, Color chu) => Container(
+    padding: const EdgeInsets.symmetric(
+      horizontal: 10,
+      vertical: 4,
+    ),
+    decoration: BoxDecoration(
+      color: nen,
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      nhan,
+      style: TextStyle(
+        color: chu,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
+
+  Widget _badgeTrangThaiKhoa(String? trangThaiDoc) {
+    if (khoaId == null || khoaId!.isEmpty) {
+      final (nhan, nen, chu) = _trangThai(trangThaiDoc);
+      return _buildBadge(nhan, nen, chu);
+    }
+
+    final bvid = _getBenhVienId();
+    final prefix = '${bvid}_${khoaId}_';
+
+    // 1. Stream trực tiếp từ root collection PhongKham (đồng bộ tức thì khi chỉnh sửa trong Firestore Console)
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('PhongKham')
+          .where(FieldPath.documentId, isGreaterThanOrEqualTo: prefix)
+          .where(FieldPath.documentId, isLessThan: '$prefix\uf8ff')
+          .snapshots(),
+      builder: (context, rootSnap) {
+        if (rootSnap.hasData && rootSnap.data!.docs.isNotEmpty) {
+          final docs = rootSnap.data!.docs;
+          final statuses = docs.map((d) {
+            final p = d.data();
+            final raw = p['trang_thai_id'] ?? p['trang_thai'];
+            return DanhSachTrangThaiPhong.parse(raw);
+          }).toList();
+
+          String ma = 'dang_mo';
+          if (statuses.any((s) => s.id == 13 || s.ma == 'dang_kham')) {
+            ma = 'dang_mo';
+          } else if (statuses.any((s) => s.id == 12 || s.ma == 'tam_dung')) {
+            ma = 'tam_dung';
+          } else if (statuses.every((s) => s.id == 14 || s.ma == 'dong')) {
+            ma = 'dong';
+          }
+          final (nhan, nen, chu) = _trangThai(ma);
+          return _buildBadge(nhan, nen, chu);
+        }
+
+        // 2. Dự phòng: Stream từ subcollection Khoa/.../phongKham
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('Khoa')
+              .doc(bvid)
+              .collection('danh_sach')
+              .doc(khoaId)
+              .collection('phongKham')
+              .snapshots(),
+          builder: (context, snap) {
+            String? ma = trangThaiDoc;
+            if (snap.hasData && snap.data!.docs.isNotEmpty) {
+              final docs = snap.data!.docs;
+              final statuses = docs.map((d) {
+                final p = d.data();
+                final raw = p['trang_thai_id'] ?? p['trang_thai'];
+                return DanhSachTrangThaiPhong.parse(raw);
+              }).toList();
+
+              if (statuses.any((s) => s.id == 13 || s.ma == 'dang_kham')) {
+                ma = 'dang_mo';
+              } else if (statuses.any((s) => s.id == 12 || s.ma == 'tam_dung')) {
+                ma = 'tam_dung';
+              } else if (statuses.every((s) => s.id == 14 || s.ma == 'dong')) {
+                ma = 'dong';
+              }
+            }
+            final (nhan, nen, chu) = _trangThai(ma);
+            return _buildBadge(nhan, nen, chu);
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
@@ -284,7 +396,6 @@ class KhoaCard extends StatelessWidget {
   );
 
   Widget _noiDung(BuildContext context) {
-    final (nhan, nen, chu) = _trangThai(data['trangThai'] as String?);
     final soPhong = data['soPhong'] ?? 0;
     final phongDau = (data['phongDau'] ?? '') as String;
     final phuDe = phongDau.isEmpty
@@ -318,7 +429,7 @@ class KhoaCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      data['tenKhoa'] ?? '',
+                      (data['tenKhoa'] ?? data['ten_khoa'] ?? '').toString(),
                       style: const TextStyle(
                         color: Color(0xFF0F172A),
                         fontSize: 16,
@@ -344,24 +455,7 @@ class KhoaCard extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: nen,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      nhan,
-                      style: TextStyle(
-                        color: chu,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
+                  _badgeTrangThaiKhoa((data['trang_thai'] ?? data['trangThai']) as String?),
                   if (khoaId != null && khoaId!.isNotEmpty) ...[
                     const SizedBox(width: 2),
                     PopupMenuButton<String>(
@@ -389,7 +483,8 @@ class KhoaCard extends StatelessWidget {
                           _xacNhanXoaKhoa(
                             context,
                             khoaId!,
-                            (data['tenKhoa'] ?? 'khoa này').toString(),
+                            (data['tenKhoa'] ?? data['ten_khoa'] ?? 'khoa này')
+                                .toString(),
                           );
                         }
                       },
@@ -622,7 +717,8 @@ class _TatCaKhoaTabState extends State<TatCaKhoaTab> {
                 return const Center(child: CircularProgressIndicator());
               }
               final docs = snap.data!.docs.where((d) {
-                final ten = (d.data()['tenKhoa'] ?? '').toString();
+                final ten = (d.data()['tenKhoa'] ?? d.data()['ten_khoa'] ?? '')
+                    .toString();
                 return ten.toLowerCase().contains(_tuKhoa);
               }).toList();
 
