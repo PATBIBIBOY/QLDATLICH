@@ -24,7 +24,8 @@ class PhanCongHeader extends StatelessWidget {
         children: [
           if (!isTab) ...[
             InkWell(
-              onTap: onBack ??
+              onTap:
+                  onBack ??
                   () {
                     if (Navigator.canPop(context)) {
                       Navigator.pop(context);
@@ -187,7 +188,8 @@ class PhanCongKhoaSelector extends StatelessWidget {
         children: dsKhoaDocs.map((doc) {
           final isSelected = doc.id == currentKhoaId;
           final data = doc.data();
-          final ten = (data['tenKhoa'] ?? data['ten_khoa'] ?? doc.id).toString();
+          final ten = (data['tenKhoa'] ?? data['ten_khoa'] ?? doc.id)
+              .toString();
 
           return Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -531,10 +533,10 @@ class CardPhongPhanCong extends StatelessWidget {
               const Divider(height: 1, color: Color(0xFFF1F5F9)),
               const SizedBox(height: 8),
               ...danhSachPhanCong.map((pc) {
-                final maNv =
-                    (pc['nhan_vien_id'] ?? pc['ma_nhan_vien'] ?? '').toString();
-                final tenNv =
-                    (pc['ten_nhan_vien'] ?? 'Nhân viên trực').toString();
+                final maNv = (pc['nhan_vien_id'] ?? pc['ma_nhan_vien'] ?? '')
+                    .toString();
+                final tenNv = (pc['ten_nhan_vien'] ?? 'Nhân viên trực')
+                    .toString();
                 final vaiTroNv = (pc['vai_tro'] ?? 'Trực phòng').toString();
                 final roleCode = (pc['vai_tro_code'] ?? '').toString();
                 final initials = getInitials(tenNv);
@@ -595,9 +597,7 @@ class CardPhongPhanCong extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: const Color(0xFFEFF6FF),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: const Color(0xFFBFDBFE),
-                            ),
+                            border: Border.all(color: const Color(0xFFBFDBFE)),
                           ),
                           child: Text(
                             roleCode,
@@ -677,12 +677,14 @@ class _ChonNhanVienModalState extends State<ChonNhanVienModal> {
       }
 
       final nvKhoa = nv.khoa.trim().toLowerCase();
-      final matchKhoa = nvKhoa.isNotEmpty &&
+      final matchKhoa =
+          nvKhoa.isNotEmpty &&
           (nvKhoa == tenKhoaChuan ||
               nvKhoa.contains(tenKhoaChuan) ||
               tenKhoaChuan.contains(nvKhoa));
 
-      final matchPrefix = prefixChuan.isNotEmpty &&
+      final matchPrefix =
+          prefixChuan.isNotEmpty &&
           (nv.maNv.toLowerCase().contains('_${prefixChuan}_') ||
               nv.id.toLowerCase().contains('_${prefixChuan}_') ||
               nv.maNv.toLowerCase().endsWith('_$prefixChuan') ||
@@ -756,42 +758,7 @@ class _ChonNhanVienModalState extends State<ChonNhanVienModal> {
     }
   }
 
-  Future<void> _huyPhanCongMotNhanVien(Map<String, dynamic> pcData) async {
-    setState(() => _isSaving = true);
-    try {
-      final tenNv = (pcData['ten_nhan_vien'] ?? 'Nhân viên').toString();
 
-      await _service.huyPhanCongMotNhanVien(
-        benhVienId: widget.benhVienId,
-        ngayStr: widget.ngayStr,
-        phong: widget.phong,
-        khoaId: widget.khoaId,
-        pcData: pcData,
-        soLuongDangTruc: _danhSachDangTruc.length,
-      );
-
-      if (!mounted) return;
-      Navigator.pop(context);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đã hủy phân công $tenNv trực ${widget.phong.tenPhong}.'),
-          backgroundColor: const Color(0xFF475569),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi khi hủy phân công: $e'),
-          backgroundColor: const Color(0xFFDC2626),
-        ),
-      );
-    }
-  }
 
   Future<void> _huyToanBoPhanCongPhong() async {
     setState(() => _isSaving = true);
@@ -834,10 +801,7 @@ class _ChonNhanVienModalState extends State<ChonNhanVienModal> {
     final listNhanVienPhuHop = _locNhanVienTheoChuyenKhoa();
     final coDangTruc = _danhSachDangTruc.isNotEmpty;
     final previewRoleCode = _nhanVienDuocChon != null
-        ? PhanCongService.taoMaVaiTro(
-            _nhanVienDuocChon!,
-            _danhSachDangTruc,
-          )
+        ? PhanCongService.taoMaVaiTro(_nhanVienDuocChon!, _danhSachDangTruc)
         : '';
 
     return Container(
@@ -917,147 +881,7 @@ class _ChonNhanVienModalState extends State<ChonNhanVienModal> {
           ),
           const SizedBox(height: 14),
 
-          // Danh sách đang trực
-          if (coDangTruc) ...[
-            Row(
-              children: [
-                const Icon(
-                  Icons.check_circle_rounded,
-                  size: 15,
-                  color: Color(0xFF16A34A),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'ĐANG TRỰC TẠI PHÒNG NÀY (${_danhSachDangTruc.length})',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
-                    color: Color(0xFF16A34A),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Container(
-              constraints: const BoxConstraints(maxHeight: 130),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: _danhSachDangTruc.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 6),
-                itemBuilder: (ctx, idx) {
-                  final pc = _danhSachDangTruc[idx];
-                  final maNv = (pc['nhan_vien_id'] ??
-                          pc['ma_nhan_vien'] ??
-                          '')
-                      .toString();
-                  final tenNv =
-                      (pc['ten_nhan_vien'] ?? 'Nhân viên').toString();
-                  final vaiTroNv = (pc['vai_tro'] ?? '').toString();
-                  final roleCode = (pc['vai_tro_code'] ?? '').toString();
-                  final initials = CardPhongPhanCong.getInitials(tenNv);
-                  final avBg = CardPhongPhanCong.getAvatarBg(maNv);
-                  final avTxt = CardPhongPhanCong.getAvatarTextColor(maNv);
-
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF0FDF4),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFBBF7D0)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: avBg,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Text(
-                              initials,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: avTxt,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                tenNv,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF0F172A),
-                                ),
-                              ),
-                              Text(
-                                '$vaiTroNv  •  $maNv',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF64748B),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (roleCode.isNotEmpty)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFDCFCE7),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              roleCode,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF16A34A),
-                              ),
-                            ),
-                          ),
-                        const SizedBox(width: 6),
-                        InkWell(
-                          onTap: _isSaving
-                              ? null
-                              : () => _huyPhanCongMotNhanVien(pc),
-                          borderRadius: BorderRadius.circular(16),
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFFEE2E2),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.delete_outline_rounded,
-                              size: 16,
-                              color: Color(0xFFDC2626),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
+          const SizedBox(height: 12),
 
           // Tìm kiếm
           Container(
@@ -1151,10 +975,9 @@ class _ChonNhanVienModalState extends State<ChonNhanVienModal> {
 
                       Map<String, dynamic>? dangTrucPhongNay;
                       for (final pc in _danhSachDangTruc) {
-                        final assignedNv = (pc['nhan_vien_id'] ??
-                                pc['ma_nhan_vien'] ??
-                                '')
-                            .toString();
+                        final assignedNv =
+                            (pc['nhan_vien_id'] ?? pc['ma_nhan_vien'] ?? '')
+                                .toString();
                         if (assignedNv == nv.maNv) {
                           dangTrucPhongNay = pc;
                           break;
@@ -1163,15 +986,16 @@ class _ChonNhanVienModalState extends State<ChonNhanVienModal> {
                       final isCurrentlyThisRoom = dangTrucPhongNay != null;
 
                       final phanCongKhac = widget.phanCongTheoNhanVien[nv.maNv];
-                      final isBusyOtherRoom = phanCongKhac != null &&
+                      final isBusyOtherRoom =
+                          phanCongKhac != null &&
                           (phanCongKhac['phong_id'] ??
                                   phanCongKhac['ten_phong']) !=
                               widget.phong.tenPhong;
                       final tenPhongKhac = isBusyOtherRoom
                           ? (phanCongKhac['phong_id'] ??
-                                  phanCongKhac['ten_phong'] ??
-                                  '')
-                              .toString()
+                                    phanCongKhac['ten_phong'] ??
+                                    '')
+                                .toString()
                           : '';
 
                       final isAvailable =
@@ -1179,7 +1003,9 @@ class _ChonNhanVienModalState extends State<ChonNhanVienModal> {
 
                       final initials = CardPhongPhanCong.getInitials(nv.hoTen);
                       final avBg = CardPhongPhanCong.getAvatarBg(nv.maNv);
-                      final avTxt = CardPhongPhanCong.getAvatarTextColor(nv.maNv);
+                      final avTxt = CardPhongPhanCong.getAvatarTextColor(
+                        nv.maNv,
+                      );
 
                       final String trangThaiText;
                       final Color trangThaiBg;
@@ -1198,7 +1024,7 @@ class _ChonNhanVienModalState extends State<ChonNhanVienModal> {
                         trangThaiBg = const Color(0xFFEFF6FF);
                         trangThaiTxt = const Color(0xFF2563EB);
                       } else {
-                        trangThaiText = 'Chờ (15)';
+                        trangThaiText = 'Chờ phân công';
                         trangThaiBg = const Color(0xFFFEF3C7);
                         trangThaiTxt = const Color(0xFFD97706);
                       }

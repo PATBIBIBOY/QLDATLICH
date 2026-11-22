@@ -75,7 +75,8 @@ class ThongBaoService {
   /// Lắng nghe realtime danh sách thông báo của Bệnh viện
   /// Bao gồm:
   /// 1. Nhân viên đã kích hoạt tài khoản từ Firestore: NhanVien/{benhVienId}/danh_sach
-  /// 2. Các thông báo hệ thống / quản trị khác (nếu có trong collection ThongBao)
+  /// 2. Danh sách phân công trực từ PhanCong/{benhVienId}/danh_sach để cập nhật trạng thái đã phân công
+  /// 3. Các thông báo hệ thống / quản trị khác (nếu có trong collection ThongBao)
   Stream<List<ThongBaoModel>> streamThongBao(String benhVienId) {
     if (benhVienId.isEmpty) {
       return Stream.value([]);
@@ -87,6 +88,16 @@ class ThongBaoService {
         .doc(benhVienId)
         .collection('danh_sach')
         .snapshots();
+
+    // Stream danh sách phân công trực để đồng bộ trạng thái "chờ" (15) <-> "đã phân công" (16) realtime
+    final phanCongStream = _firestore
+        .collection('PhanCong')
+        .doc(benhVienId)
+        .collection('danh_sach')
+        .snapshots()
+        .handleError((e) {
+      debugPrint('ℹ️ [ThongBaoService] PhanCong stream not available: $e');
+    });
 
     // Stream thông báo bổ sung (nếu có trong ThongBao/{benhVienId}/danh_sach)
     final extraThongBaoStream = _firestore
@@ -101,24 +112,67 @@ class ThongBaoService {
 
     return Stream.multi((controller) {
       StreamSubscription? nvSub;
+      StreamSubscription? pcSub;
       StreamSubscription? extraSub;
       StreamSubscription? readSub;
 
-      List<ThongBaoModel> currentNvList = [];
+      List<NhanVienModel> currentNvList = [];
+      Map<String, DateTime?> tgKichHoatMap = {};
+      Map<String, Map<String, dynamic>> phanCongMap = {};
       List<ThongBaoModel> currentExtraList = [];
+      Set<String> currentReadSet = {};
 
-      void emitCombined(Set<String> readSet) {
+      void emitCombined() {
         final Map<String, ThongBaoModel> map = {};
 
-        // 1. Thêm thông báo kích hoạt nhân sự
-        for (final item in currentNvList) {
-          final isRead = readSet.contains(item.id) || item.daDoc;
-          map[item.id] = item.copyWith(daDoc: isRead);
+        // 1. Thêm thông báo kích hoạt nhân sự với trạng thái phân công chính xác nhất
+        for (final nv in currentNvList) {
+          final isRead = currentReadSet.contains('tb_kich_hoat_${nv.maNv}');
+
+          // Tra cứu phân công trực từ PhanCong collection hoặc thông tin trong NhanVien document
+          final pc = phanCongMap[nv.maNv] ??
+              phanCongMap[nv.id] ??
+              (nv.maNv.isNotEmpty ? phanCongMap[nv.maNv.toUpperCase()] : null);
+
+          final bool daPhanCong = pc != null || nv.daPhanCong;
+          final String? phongPhanCong = pc?['ten_phong']?.toString() ??
+              pc?['phong_id']?.toString() ??
+              nv.phongPhanCong;
+          final String? ngayPhanCong =
+              pc?['ngay']?.toString() ?? nv.ngayPhanCong;
+
+          final item = ThongBaoModel.fromNhanVienKichHoat(
+            nv: nv,
+            daDoc: isRead,
+            thoiGianKichHoat: tgKichHoatMap[nv.maNv],
+            daPhanCong: daPhanCong,
+            trangThaiId: daPhanCong ? 16 : 15,
+            phongPhanCong: phongPhanCong,
+            ngayPhanCong: ngayPhanCong,
+          );
+
+          map[item.id] = item;
         }
 
         // 2. Thêm thông báo hệ thống khác
         for (final item in currentExtraList) {
-          final isRead = readSet.contains(item.id) || item.daDoc;
+          final isRead = currentReadSet.contains(item.id) || item.daDoc;
+          // Cập nhật trạng thái phân công nếu thông báo có maNhanVien
+          if (item.maNhanVien != null && item.maNhanVien!.isNotEmpty) {
+            final pc = phanCongMap[item.maNhanVien!];
+            if (pc != null) {
+              map[item.id] = item.copyWith(
+                daDoc: isRead,
+                daPhanCong: true,
+                trangThaiId: 16,
+                phongPhanCong: pc['ten_phong']?.toString() ??
+                    pc['phong_id']?.toString() ??
+                    item.phongPhanCong,
+                ngayPhanCong: pc['ngay']?.toString() ?? item.ngayPhanCong,
+              );
+              continue;
+            }
+          }
           map[item.id] = item.copyWith(daDoc: isRead);
         }
 
@@ -133,9 +187,29 @@ class ThongBaoService {
 
       // Khởi tạo đọc cache ban đầu
       layDanhSachDaDoc(benhVienId).then((initialReadSet) {
+        currentReadSet = _readIdsCache[benhVienId] ?? initialReadSet;
+
+        // Lắng nghe realtime các bản ghi phân công trực
+        pcSub = phanCongStream.listen((snap) {
+          final Map<String, Map<String, dynamic>> pcMap = {};
+          for (final doc in snap.docs) {
+            final data = doc.data();
+            final ma1 = (data['ma_nhan_vien'] ?? '').toString();
+            final ma2 = (data['nhan_vien_id'] ?? '').toString();
+            if (ma1.isNotEmpty) pcMap[ma1] = data;
+            if (ma2.isNotEmpty) pcMap[ma2] = data;
+          }
+          phanCongMap = pcMap;
+          emitCombined();
+        }, onError: (e) {
+          debugPrint('⚠️ [ThongBaoService] Lỗi stream PhanCong: $e');
+        });
+
         // Lắng nghe thay đổi nhân sự
         nvSub = nhanVienStream.listen((snap) {
-          final List<ThongBaoModel> list = [];
+          final List<NhanVienModel> list = [];
+          final Map<String, DateTime?> tgMap = {};
+
           for (final doc in snap.docs) {
             final data = doc.data();
 
@@ -166,16 +240,14 @@ class ThongBaoService {
                 tgKichHoat = rawNgayKh.toDate();
               }
 
-              final isRead = initialReadSet.contains('tb_kich_hoat_${nv.maNv}');
-              list.add(ThongBaoModel.fromNhanVienKichHoat(
-                nv: nv,
-                daDoc: isRead,
-                thoiGianKichHoat: tgKichHoat,
-              ));
+              list.add(nv);
+              tgMap[nv.maNv] = tgKichHoat;
             }
           }
+
           currentNvList = list;
-          emitCombined(_readIdsCache[benhVienId] ?? initialReadSet);
+          tgKichHoatMap = tgMap;
+          emitCombined();
         }, onError: (e) {
           debugPrint('⚠️ [ThongBaoService] Lỗi stream NhanVien: $e');
         });
@@ -184,22 +256,23 @@ class ThongBaoService {
         extraSub = extraThongBaoStream.listen((snap) {
           final List<ThongBaoModel> list = [];
           for (final doc in snap.docs) {
-            final isRead = initialReadSet.contains(doc.id);
+            final isRead = currentReadSet.contains(doc.id);
             list.add(ThongBaoModel.fromDoc(doc, daDoc: isRead));
           }
           currentExtraList = list;
-          emitCombined(_readIdsCache[benhVienId] ?? initialReadSet);
+          emitCombined();
         }, onError: (_) {});
 
         // Lắng nghe thay đổi trạng thái đã đọc
         readSub = _readController.stream.listen((map) {
-          final curSet = map[benhVienId] ?? <String>{};
-          emitCombined(curSet);
+          currentReadSet = map[benhVienId] ?? <String>{};
+          emitCombined();
         });
       });
 
       controller.onCancel = () {
         nvSub?.cancel();
+        pcSub?.cancel();
         extraSub?.cancel();
         readSub?.cancel();
       };

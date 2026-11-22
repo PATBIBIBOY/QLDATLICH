@@ -121,65 +121,93 @@ class ThongBaoItemWidget extends StatelessWidget {
                       // Huy hiệu trạng thái & thời gian
                       Row(
                         children: [
-                          // Tag Chờ (15) chuẩn theo Firebase doc 15
+                          // Tag trạng thái: Chờ (15) hoặc Đã phân công (16)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2.5,
+                              horizontal: 7,
+                              vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFEF3C7),
+                              color: thongBao.daPhanCong
+                                  ? const Color(0xFFDCFCE7)
+                                  : const Color(0xFFFEF3C7),
                               borderRadius: BorderRadius.circular(6),
                               border: Border.all(
-                                color: const Color(0xFFFCD34D),
+                                color: thongBao.daPhanCong
+                                    ? const Color(0xFF86EFAC)
+                                    : const Color(0xFFFCD34D),
                                 width: 0.8,
                               ),
                             ),
-                            child: const Text(
-                              'Chờ (15)',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFFB45309),
-                              ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (thongBao.daPhanCong) ...[
+                                  const Icon(
+                                    Icons.check_rounded,
+                                    size: 10,
+                                    color: Color(0xFF16A34A),
+                                  ),
+                                  const SizedBox(width: 2.5),
+                                ],
+                                Text(
+                                  thongBao.daPhanCong ? 'Đã phân công' : 'Chờ',
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: thongBao.daPhanCong
+                                        ? const Color(0xFF15803D)
+                                        : const Color(0xFFB45309),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
 
                           // Thời gian
                           Icon(
                             Icons.access_time_rounded,
-                            size: 13,
+                            size: 12,
                             color: Colors.grey.shade500,
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            thongBao.thoiGianHienThi,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade600,
-                              fontWeight: FontWeight.w500,
+                          const SizedBox(width: 3),
+                          Expanded(
+                            child: Text(
+                              thongBao.thoiGianHienThi,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade600,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
-                          const Spacer(),
+                          const SizedBox(width: 4),
 
                           // Nhãn Xem chi tiết
-                          Text(
-                            'Xem chi tiết',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: isUnread
-                                  ? const Color(0xFF16A34A)
-                                  : const Color(0xFF2563EB),
-                            ),
-                          ),
-                          Icon(
-                            Icons.chevron_right_rounded,
-                            size: 16,
-                            color: isUnread
-                                ? const Color(0xFF16A34A)
-                                : const Color(0xFF2563EB),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Chi tiết',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: isUnread
+                                      ? const Color(0xFF16A34A)
+                                      : const Color(0xFF2563EB),
+                                ),
+                              ),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                size: 15,
+                                color: isUnread
+                                    ? const Color(0xFF16A34A)
+                                    : const Color(0xFF2563EB),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -208,12 +236,12 @@ class DialogChiTietThongBao extends StatelessWidget {
 
   Widget _buildRow(String label, String value, {Widget? badge}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: 3.5),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 120,
+            width: 105,
             child: Text(
               label,
               style: const TextStyle(
@@ -225,7 +253,8 @@ class DialogChiTietThongBao extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: badge ??
+            child:
+                badge ??
                 Text(
                   value,
                   style: const TextStyle(
@@ -246,8 +275,12 @@ class DialogChiTietThongBao extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       elevation: 0,
       backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 420),
+        constraints: BoxConstraints(
+          maxWidth: 420,
+          maxHeight: MediaQuery.of(context).size.height * 0.88,
+        ),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(22),
@@ -259,198 +292,271 @@ class DialogChiTietThongBao extends StatelessWidget {
             ),
           ],
         ),
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header icon + title + close
-            Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFDCFCE7),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.check_circle_rounded,
-                    color: Color(0xFF16A34A),
-                    size: 26,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Thông báo kích hoạt',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                      Text(
-                        'Tài khoản nhân sự sẵn sàng',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF64748B),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8)),
-                  splashRadius: 20,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Divider(height: 1, color: Color(0xFFF1F5F9)),
-            const SizedBox(height: 14),
-
-            // Thông tin chi tiết nhân sự
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Column(
+        padding: const EdgeInsets.all(18),
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header icon + title + close
+              Row(
                 children: [
-                  _buildRow('Họ và tên:', thongBao.tenNhanVien ?? 'Chưa cập nhật'),
-                  _buildRow('Mã nhân sự:', thongBao.maNhanVien ?? 'N/A'),
-                  _buildRow('Chuyên khoa:', thongBao.khoa ?? 'Chưa phân khoa'),
-                  _buildRow('Vai trò:', thongBao.vaiTro ?? 'Nhân viên'),
-                  _buildRow(
-                    'Trạng thái nhận việc:',
-                    '',
-                    badge: Row(
-                      mainAxisSize: MainAxisSize.min,
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDCFCE7),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.check_circle_rounded,
+                      color: Color(0xFF16A34A),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 3,
+                        const Text(
+                          'Thông báo kích hoạt',
+                          style: TextStyle(
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
                           ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFEF3C7),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: const Color(0xFFFCD34D),
-                              width: 0.8,
-                            ),
-                          ),
-                          child: const Text(
-                            'Chờ (15) - Chờ nhận lịch làm',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFFB45309),
-                            ),
+                        ),
+                        Text(
+                          thongBao.daPhanCong
+                              ? 'Nhân sự đã được phân công lịch làm'
+                              : 'Tài khoản nhân sự sẵn sàng',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: Color(0xFF64748B),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  _buildRow('Thời gian:', thongBao.thoiGianHienThi),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // Hướng dẫn
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFBFDBFE)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(
-                    Icons.info_outline_rounded,
-                    size: 18,
-                    color: Color(0xFF2563EB),
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Nhân sự đã được kích hoạt thành công và đang ở trạng thái Chờ (15). Bạn có thể phân công trực cho nhân sự theo ngày ngay bây giờ.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF1E40AF),
-                        height: 1.35,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Nút điều hướng & đóng
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
+                  IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      side: const BorderSide(color: Color(0xFFCBD5E1)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: Color(0xFF94A3B8),
                     ),
-                    child: const Text(
-                      'Đóng',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF475569),
-                      ),
-                    ),
+                    splashRadius: 20,
                   ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              const SizedBox(height: 12),
+
+              // Thông tin chi tiết nhân sự
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
-                if (onDenPhanCong != null) ...[
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        onDenPhanCong!();
-                      },
-                      icon: const Icon(Icons.calendar_month_rounded, size: 18),
-                      label: const Text(
-                        'Đến Phân Công Trực',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
+                child: Column(
+                  children: [
+                    _buildRow(
+                      'Họ và tên:',
+                      thongBao.tenNhanVien ?? 'Chưa cập nhật',
+                    ),
+                    _buildRow('Mã nhân sự:', thongBao.maNhanVien ?? 'N/A'),
+                    _buildRow(
+                      'Chuyên khoa:',
+                      thongBao.khoa ?? 'Chưa phân khoa',
+                    ),
+                    _buildRow('Vai trò:', thongBao.vaiTro ?? 'Nhân viên'),
+                    _buildRow(
+                      'Trạng thái:',
+                      '',
+                      badge: Align(
+                        alignment: Alignment.centerLeft,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: thongBao.daPhanCong
+                                  ? const Color(0xFFDCFCE7)
+                                  : const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: thongBao.daPhanCong
+                                    ? const Color(0xFF86EFAC)
+                                    : const Color(0xFFFCD34D),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  thongBao.daPhanCong
+                                      ? Icons.check_circle_rounded
+                                      : Icons.hourglass_top_rounded,
+                                  size: 13,
+                                  color: thongBao.daPhanCong
+                                      ? const Color(0xFF16A34A)
+                                      : const Color(0xFFB45309),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  thongBao.daPhanCong
+                                      ? 'Đã phân công'
+                                      : 'Chờ nhận lịch làm',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: thongBao.daPhanCong
+                                        ? const Color(0xFF15803D)
+                                        : const Color(0xFFB45309),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2563EB),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        elevation: 0,
+                    ),
+                    if (thongBao.daPhanCong &&
+                        thongBao.phongPhanCong != null &&
+                        thongBao.phongPhanCong!.trim().isNotEmpty) ...[
+                      _buildRow('Phòng trực:', thongBao.phongPhanCong!),
+                    ],
+                    if (thongBao.daPhanCong &&
+                        thongBao.ngayPhanCong != null &&
+                        thongBao.ngayPhanCong!.trim().isNotEmpty) ...[
+                      _buildRow('Ngày trực:', thongBao.ngayPhanCong!),
+                    ],
+                    _buildRow('Thời gian:', thongBao.thoiGianHienThi),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Hướng dẫn
+              Container(
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: thongBao.daPhanCong
+                      ? const Color(0xFFF0FDF4)
+                      : const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: thongBao.daPhanCong
+                        ? const Color(0xFFBBF7D0)
+                        : const Color(0xFFBFDBFE),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      thongBao.daPhanCong
+                          ? Icons.check_circle_outline_rounded
+                          : Icons.info_outline_rounded,
+                      size: 18,
+                      color: thongBao.daPhanCong
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFF2563EB),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        thongBao.daPhanCong
+                            ? (thongBao.phongPhanCong != null &&
+                                      thongBao.phongPhanCong!.trim().isNotEmpty
+                                  ? 'Nhân sự đã được phân công trực tại ${thongBao.phongPhanCong} ( Đã phân công).'
+                                  : 'Nhân sự đã được phân công lịch làm việc Đã phân công).')
+                            : 'Nhân sự đã kích hoạt và đang ở trạng thái Chờ . Bạn có thể phân công trực cho nhân sự ngay bây giờ.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: thongBao.daPhanCong
+                              ? const Color(0xFF166534)
+                              : const Color(0xFF1E40AF),
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Nút điều hướng & đóng
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
+                      child: const Text(
+                        'Đóng',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF475569),
+                        ),
+                      ),
                     ),
                   ),
+                  if (onDenPhanCong != null) ...[
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          onDenPhanCong!();
+                        },
+                        icon: const Icon(
+                          Icons.calendar_month_rounded,
+                          size: 17,
+                        ),
+                        label: Text(
+                          thongBao.daPhanCong
+                              ? 'Xem Phân Công Trực'
+                              : 'Đến Phân Công Trực',
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: thongBao.daPhanCong
+                              ? const Color(0xFF16A34A)
+                              : const Color(0xFF2563EB),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -461,10 +567,7 @@ class DialogChiTietThongBao extends StatelessWidget {
 class ThongBaoEmptyState extends StatelessWidget {
   final bool filterChuaDoc;
 
-  const ThongBaoEmptyState({
-    super.key,
-    this.filterChuaDoc = false,
-  });
+  const ThongBaoEmptyState({super.key, this.filterChuaDoc = false});
 
   @override
   Widget build(BuildContext context) {
@@ -558,7 +661,10 @@ class ThongBaoFilterBar extends StatelessWidget {
             if (count > 0) ...[
               const SizedBox(width: 6),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 1.5,
+                ),
                 decoration: BoxDecoration(
                   color: active
                       ? Colors.white.withValues(alpha: 0.25)
@@ -606,7 +712,10 @@ class ThongBaoFilterBar extends StatelessWidget {
             TextButton(
               onPressed: onDanhDauTatCa,
               style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),

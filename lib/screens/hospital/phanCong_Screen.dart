@@ -548,10 +548,9 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                                       const SizedBox(height: 16),
                                     ],
 
-                                    // Khung Lưu ý phân công
-                                    _buildNoteBox(),
-
-                                    const SizedBox(height: 20),
+                                    // Nút Lịch sử phân công trực
+                                    _buildLichSuPhanCongButton(),
+                                    const SizedBox(height: 16),
 
                                     // Nút Lưu Phân Công
                                     _buildSaveButton(
@@ -1035,7 +1034,7 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                           ],
                         ),
                       ),
-                      if (roleCode.isNotEmpty)
+                      if (roleCode.isNotEmpty) ...[
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
@@ -1055,6 +1054,33 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                             ),
                           ),
                         ),
+                        const SizedBox(width: 6),
+                      ],
+                      // Nút xóa phân công nhân sự trực ngoài thẻ phòng
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => _xoaPhanCongNhanVien(
+                            phong: phong,
+                            khoaId: khoaId,
+                            pcData: pc,
+                            soLuongDangTruc: danhSachPhanCong.length,
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEE2E2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.delete_outline_rounded,
+                              size: 16,
+                              color: Color(0xFFDC2626),
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 );
@@ -1120,42 +1146,633 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
     );
   }
 
-  Widget _buildNoteBox() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFCBD5E1),
-          style: BorderStyle.solid,
+  /// Xóa / hủy phân công nhân sự trực ngay tại ngoài thẻ phòng khám
+  Future<void> _xoaPhanCongNhanVien({
+    required PhongItemPhanCong phong,
+    required String khoaId,
+    required Map<String, dynamic> pcData,
+    required int soLuongDangTruc,
+  }) async {
+    final tenNv = (pcData['ten_nhan_vien'] ?? 'nhân viên').toString();
+    final roleCode = (pcData['vai_tro_code'] ?? '').toString();
+    final vaiTroText = roleCode.isNotEmpty ? ' ($roleCode)' : '';
+
+    final xacNhan = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded,
+                color: Color(0xFFDC2626), size: 24),
+            SizedBox(width: 8),
+            Text('Hủy phân công',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          ],
+        ),
+        content: Text(
+            'Bạn có chắc muốn hủy phân công $tenNv$vaiTroText trực tại ${phong.tenPhong}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child:
+                const Text('Không', style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xác nhận xóa'),
+          ),
+        ],
+      ),
+    );
+
+    if (xacNhan != true) return;
+
+    try {
+      final docId = (pcData['_docId'] ??
+              pcData['id'] ??
+              '${_ngayStr}_${phong.tenPhong}_${pcData['vai_tro_code']}')
+          .toString();
+      final maNv =
+          (pcData['nhan_vien_id'] ?? pcData['ma_nhan_vien'] ?? '').toString();
+
+      final batch = FirebaseFirestore.instance.batch();
+
+      if (maNv.isNotEmpty) {
+        final nvRef = FirebaseFirestore.instance
+            .collection('NhanVien')
+            .doc(_bvid)
+            .collection('danh_sach')
+            .doc(maNv);
+
+        batch.set(nvRef, {
+          'trang_thai_id': 15,
+          'trang_thai': 'chờ',
+          'trang_thai_phan_cong': FieldValue.delete(),
+          'trang_thai_phan_cong_id': FieldValue.delete(),
+          'ngay_phan_cong': null,
+          'phong_phan_cong': null,
+          'khoa_phan_cong': null,
+          'vai_tro_code': null,
+          'lich_phan_cong': {
+            _ngayStr: {
+              'trang_thai_id': 15,
+              'trang_thai': 'chờ',
+              'ngay': _ngayStr,
+              'ngay_cap_nhat': FieldValue.serverTimestamp(),
+            },
+          },
+        }, SetOptions(merge: true));
+      }
+
+      final pcRef = FirebaseFirestore.instance
+          .collection('PhanCong')
+          .doc(_bvid)
+          .collection('danh_sach')
+          .doc(docId);
+      batch.delete(pcRef);
+
+      if (soLuongDangTruc <= 1) {
+        final subPkRef = FirebaseFirestore.instance
+            .collection('Khoa')
+            .doc(_bvid)
+            .collection('danh_sach')
+            .doc(khoaId)
+            .collection('phongKham')
+            .doc(phong.tenPhong);
+        batch.set(subPkRef, {
+          'nhan_vien_id': null,
+          'nhanVienId': null,
+          'ten_nhan_vien': null,
+          'vai_tro_nhan_vien': null,
+        }, SetOptions(merge: true));
+
+        final pkDocId = '${_bvid}_${khoaId}_${phong.tenPhong}';
+        final rootPkRef =
+            FirebaseFirestore.instance.collection('PhongKham').doc(pkDocId);
+        batch.set(rootPkRef, {
+          'nhan_vien_id': null,
+          'nhanVienId': null,
+        }, SetOptions(merge: true));
+      }
+
+      await batch.commit();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã hủy phân công $tenNv trực ${phong.tenPhong}.'),
+          backgroundColor: const Color(0xFF475569),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi khi hủy phân công: $e'),
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+    }
+  }
+
+  /// Nút Lịch sử phân công trực thay cho khung trắng dư
+  Widget _buildLichSuPhanCongButton() {
+    return InkWell(
+      onTap: _moSheetLichSuPhanCong,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFFCBD5E1),
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x06000000),
+              blurRadius: 6,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.history_rounded,
+                color: Color(0xFF2563EB),
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Lịch sử phân công trực',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Xem lại các ca trực đã phân công theo ngày',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: Color(0xFF94A3B8),
+              size: 20,
+            ),
+          ],
         ),
       ),
-      // child: const Column(
-      //   crossAxisAlignment: CrossAxisAlignment.start,
-      //   children: [
-      //     Text(
-      //       'Quy định phân công:',
-      //       style: TextStyle(
-      //         fontSize: 12,
-      //         fontWeight: FontWeight.w800,
-      //         color: Color(0xFF0F172A),
-      //       ),
-      //     ),
-      //     SizedBox(height: 4),
-      //     Text(
-      //       '• Nhân viên của bệnh viện nào chỉ hoạt động và phân công tại bệnh viện đó.\n'
-      //       '• Nhân viên chỉ được phân công vào các phòng khám thuộc đúng chuyên khoa của mình.\n'
-      //       '• Mỗi phòng khám phân công 1 người trực bấm số xuyên suốt ca trực trong ngày.',
-      //       style: TextStyle(
-      //         fontSize: 11.5,
-      //         height: 1.45,
-      //         color: Color(0xFF64748B),
-      //       ),
-      //     ),
-      //   ],
-      // ),
+    );
+  }
+
+  /// Modal hiển thị lịch sử phân công trực theo ngày được chọn
+  void _moSheetLichSuPhanCong() {
+    DateTime ngayXemLichSu = _ngayDuocChon;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final ngayStr =
+              '${ngayXemLichSu.year}-${ngayXemLichSu.month.toString().padLeft(2, '0')}-${ngayXemLichSu.day.toString().padLeft(2, '0')}';
+
+          return FractionallySizedBox(
+            heightFactor: 0.85,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  // Thanh kéo nhỏ
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(top: 10, bottom: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+
+                  // Tiêu đề
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.history_rounded,
+                            color: Color(0xFF2563EB),
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Lịch sử phân công trực',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF0F172A),
+                                ),
+                              ),
+                              Text(
+                                'Chọn ngày để xem các ca trực đã phân công',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(Icons.close_rounded,
+                              color: Color(0xFF94A3B8)),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+                  // THANH ĐIỀU HƯỚNG CHỌN NGÀY ĐỂ XEM
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFCBD5E1)),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x06000000),
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          onPressed: () {
+                            setSheetState(() {
+                              ngayXemLichSu = ngayXemLichSu
+                                  .subtract(const Duration(days: 1));
+                            });
+                          },
+                          icon: const Icon(
+                            Icons.chevron_left_rounded,
+                            color: Color(0xFF334155),
+                          ),
+                          splashRadius: 20,
+                        ),
+                        InkWell(
+                          onTap: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: ngayXemLichSu,
+                              firstDate: DateTime(2025),
+                              lastDate: DateTime(2035),
+                            );
+                            if (picked != null) {
+                              setSheetState(() {
+                                ngayXemLichSu = picked;
+                              });
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.calendar_month_rounded,
+                                  size: 18,
+                                  color: Color(0xFF2563EB),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _dinhDangThuNgay(ngayXemLichSu),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            setSheetState(() {
+                              ngayXemLichSu =
+                                  ngayXemLichSu.add(const Duration(days: 1));
+                            });
+                          },
+                          icon: const Icon(
+                            Icons.chevron_right_rounded,
+                            color: Color(0xFF334155),
+                          ),
+                          splashRadius: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Thanh trạng thái ngày đang xem & nút chọn hôm nay
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                    child: Row(
+                      children: [
+                        Text(
+                          'Ngày xem: $ngayStr',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                        const Spacer(),
+                        InkWell(
+                          onTap: () {
+                            setSheetState(() {
+                              ngayXemLichSu = DateTime.now();
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(6),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'Hôm nay',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF2563EB),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  // Danh sách ca trực trong ngày đã chọn từ Firestore
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: FirebaseFirestore.instance
+                          .collection('PhanCong')
+                          .doc(_bvid)
+                          .collection('danh_sach')
+                          .where('ngay', isEqualTo: ngayStr)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2.5),
+                          );
+                        }
+
+                        final docs = snapshot.data?.docs ?? [];
+                        if (docs.isEmpty) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 60,
+                                    height: 60,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFF1F5F9),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.event_busy_rounded,
+                                      size: 30,
+                                      color: Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'Không có ca trực nào',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF475569),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Chưa có nhân sự nào được phân công trực trong ngày ${_dinhDangThuNgay(ngayXemLichSu)}.\nHãy dùng mũi tên hoặc bấm vào ngày để chọn ngày khác.',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      color: Color(0xFF94A3B8),
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+
+                        return ListView.builder(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 6),
+                          itemCount: docs.length,
+                          itemBuilder: (ctx, idx) {
+                            final item = docs[idx].data();
+                            final tenPhong = (item['ten_phong'] ??
+                                    item['phong_id'] ??
+                                    '')
+                                .toString();
+                            final tenKhoa =
+                                (item['ten_khoa'] ?? '').toString();
+                            final tenNv = (item['ten_nhan_vien'] ??
+                                    'Nhân viên')
+                                .toString();
+                            final vaiTro =
+                                (item['vai_tro'] ?? '').toString();
+                            final maNv = (item['ma_nhan_vien'] ??
+                                    item['nhan_vien_id'] ??
+                                    '')
+                                .toString();
+                            final roleCode =
+                                (item['vai_tro_code'] ?? '').toString();
+
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                    color: const Color(0xFFE2E8F0)),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x04000000),
+                                    blurRadius: 3,
+                                    offset: Offset(0, 1),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFDCFCE7),
+                                      borderRadius:
+                                          BorderRadius.circular(10),
+                                    ),
+                                    child: const Center(
+                                      child: Icon(
+                                        Icons.check_circle_rounded,
+                                        color: Color(0xFF16A34A),
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Text(
+                                              tenPhong,
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w700,
+                                                color: Color(0xFF0F172A),
+                                              ),
+                                            ),
+                                            if (tenKhoa.isNotEmpty) ...[
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                '• $tenKhoa',
+                                                style: const TextStyle(
+                                                  fontSize: 11.5,
+                                                  color: Color(0xFF64748B),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          '$tenNv ($vaiTro) • $maNv',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFF475569),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (roleCode.isNotEmpty)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFEFF6FF),
+                                        borderRadius:
+                                            BorderRadius.circular(6),
+                                        border: Border.all(
+                                            color:
+                                                const Color(0xFFBFDBFE)),
+                                      ),
+                                      child: Text(
+                                        roleCode,
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFF2563EB),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -1472,83 +2089,7 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
     }
   }
 
-  /// Hủy phân công của một vai trò / nhân sự cụ thể
-  Future<void> _huyPhanCongMotNhanVien(Map<String, dynamic> pcData) async {
-    setState(() => _isSaving = true);
-    try {
-      final docId =
-          (pcData['id'] ??
-                  pcData['_docId'] ??
-                  '${widget.ngayStr}_${widget.phong.tenPhong}_${pcData['vai_tro_code']}')
-              .toString();
-      final maNv = (pcData['nhan_vien_id'] ?? pcData['ma_nhan_vien'] ?? '')
-          .toString();
-      final tenNv = (pcData['ten_nhan_vien'] ?? 'Nhân viên').toString();
 
-      final batch = FirebaseFirestore.instance.batch();
-
-      // Cập nhật nhân viên về trạng thái 15 ("chờ")
-      if (maNv.isNotEmpty) {
-        final nvRef = FirebaseFirestore.instance
-            .collection('NhanVien')
-            .doc(widget.benhVienId)
-            .collection('danh_sach')
-            .doc(maNv);
-
-        batch.set(nvRef, {
-          'trang_thai_id': 15,
-          'trang_thai': 'chờ',
-          'trang_thai_phan_cong': FieldValue.delete(),
-          'trang_thai_phan_cong_id': FieldValue.delete(),
-          'ngay_phan_cong': null,
-          'phong_phan_cong': null,
-          'khoa_phan_cong': null,
-          'vai_tro_code': null,
-          'lich_phan_cong': {
-            widget.ngayStr: {
-              'trang_thai_id': 15,
-              'trang_thai': 'chờ',
-              'ngay': widget.ngayStr,
-              'ngay_cap_nhat': FieldValue.serverTimestamp(),
-            },
-          },
-        }, SetOptions(merge: true));
-      }
-
-      // Xóa document phân công tương ứng trong PhanCong/{benhVienId}/danh_sach
-      final pcRef = FirebaseFirestore.instance
-          .collection('PhanCong')
-          .doc(widget.benhVienId)
-          .collection('danh_sach')
-          .doc(docId);
-      batch.delete(pcRef);
-
-      await batch.commit();
-
-      if (!mounted) return;
-      Navigator.pop(context);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Đã hủy phân công $tenNv trực ${widget.phong.tenPhong}.',
-          ),
-          backgroundColor: const Color(0xFF475569),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi khi hủy phân công: $e'),
-          backgroundColor: const Color(0xFFDC2626),
-        ),
-      );
-    }
-  }
 
   /// Hủy phân công toàn bộ vai trò phòng này (chuyển trạng thái nhân viên về 15 "chờ")
   Future<void> _huyToanBoPhanCongPhong() async {
@@ -1743,145 +2284,6 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
 
           const SizedBox(height: 14),
 
-          // Danh sách nhân sự đang trực phòng này (nếu có)
-          if (coDangTruc) ...[
-            Row(
-              children: [
-                const Icon(
-                  Icons.check_circle_rounded,
-                  size: 15,
-                  color: Color(0xFF16A34A),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'ĐANG TRỰC TẠI PHÒNG NÀY (${_danhSachDangTruc.length})',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
-                    color: Color(0xFF16A34A),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Container(
-              constraints: const BoxConstraints(maxHeight: 130),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: _danhSachDangTruc.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 6),
-                itemBuilder: (ctx, idx) {
-                  final pc = _danhSachDangTruc[idx];
-                  final maNv = (pc['nhan_vien_id'] ?? pc['ma_nhan_vien'] ?? '')
-                      .toString();
-                  final tenNv = (pc['ten_nhan_vien'] ?? 'Nhân viên').toString();
-                  final vaiTroNv = (pc['vai_tro'] ?? '').toString();
-                  final roleCode = (pc['vai_tro_code'] ?? '').toString();
-                  final initials = _getInitials(tenNv);
-                  final avBg = _getAvatarBg(maNv);
-                  final avTxt = _getAvatarTextColor(maNv);
-
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF0FDF4),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFBBF7D0)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: avBg,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Text(
-                              initials,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: avTxt,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                tenNv,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF0F172A),
-                                ),
-                              ),
-                              Text(
-                                '$vaiTroNv  •  $maNv',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF64748B),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (roleCode.isNotEmpty)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFDCFCE7),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              roleCode,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF16A34A),
-                              ),
-                            ),
-                          ),
-                        const SizedBox(width: 6),
-                        InkWell(
-                          onTap: _isSaving
-                              ? null
-                              : () => _huyPhanCongMotNhanVien(pc),
-                          borderRadius: BorderRadius.circular(16),
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFFEE2E2),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.delete_outline_rounded,
-                              size: 16,
-                              color: Color(0xFFDC2626),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-
           // Ô tìm kiếm nhân viên
           Container(
             decoration: BoxDecoration(
@@ -2024,7 +2426,7 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
                         trangThaiBg = const Color(0xFFEFF6FF);
                         trangThaiTxt = const Color(0xFF2563EB);
                       } else {
-                        trangThaiText = 'Chờ (15)';
+                        trangThaiText = 'Chờ phân công';
                         trangThaiBg = const Color(0xFFFEF3C7);
                         trangThaiTxt = const Color(0xFFD97706);
                       }

@@ -18,6 +18,12 @@ class ThongBaoModel {
   final String? vaiTro;
   final Map<String, dynamic>? metadata;
 
+  // Trạng thái phân công công việc
+  final bool daPhanCong;
+  final int trangThaiId; // 15: Chờ, 16: Đã phân công
+  final String? phongPhanCong;
+  final String? ngayPhanCong;
+
   const ThongBaoModel({
     required this.id,
     required this.tieuDe,
@@ -32,14 +38,26 @@ class ThongBaoModel {
     this.khoa,
     this.vaiTro,
     this.metadata,
+    this.daPhanCong = false,
+    this.trangThaiId = 15,
+    this.phongPhanCong,
+    this.ngayPhanCong,
   });
 
-  ThongBaoModel copyWith({bool? daDoc}) {
+  ThongBaoModel copyWith({
+    bool? daDoc,
+    bool? daPhanCong,
+    int? trangThaiId,
+    String? phongPhanCong,
+    String? ngayPhanCong,
+    String? noiDungNgan,
+    String? noiDungChiTiet,
+  }) {
     return ThongBaoModel(
       id: id,
       tieuDe: tieuDe,
-      noiDungNgan: noiDungNgan,
-      noiDungChiTiet: noiDungChiTiet,
+      noiDungNgan: noiDungNgan ?? this.noiDungNgan,
+      noiDungChiTiet: noiDungChiTiet ?? this.noiDungChiTiet,
       thoiGian: thoiGian,
       loai: loai,
       daDoc: daDoc ?? this.daDoc,
@@ -49,6 +67,10 @@ class ThongBaoModel {
       khoa: khoa,
       vaiTro: vaiTro,
       metadata: metadata,
+      daPhanCong: daPhanCong ?? this.daPhanCong,
+      trangThaiId: trangThaiId ?? this.trangThaiId,
+      phongPhanCong: phongPhanCong ?? this.phongPhanCong,
+      ngayPhanCong: ngayPhanCong ?? this.ngayPhanCong,
     );
   }
 
@@ -57,12 +79,33 @@ class ThongBaoModel {
     required NhanVienModel nv,
     required bool daDoc,
     DateTime? thoiGianKichHoat,
+    bool? daPhanCong,
+    int? trangThaiId,
+    String? phongPhanCong,
+    String? ngayPhanCong,
   }) {
     final tenKhoa = nv.khoa.isNotEmpty ? nv.khoa : 'Chuyên khoa';
     final vaiTro = nv.vaiTro.isNotEmpty
         ? nv.vaiTro
         : (nv.role.isNotEmpty ? nv.role : 'Nhân viên');
     final tg = thoiGianKichHoat ?? nv.ngayTao ?? DateTime.now();
+
+    final isDaPhanCong = daPhanCong ?? nv.daPhanCong;
+    final int ttId = trangThaiId ?? (isDaPhanCong ? 16 : (nv.trangThaiId != 0 ? nv.trangThaiId : 15));
+    final phongPc = phongPhanCong ?? nv.phongPhanCong;
+    final ngayPc = ngayPhanCong ?? nv.ngayPhanCong;
+
+    final String ttText = isDaPhanCong
+        ? (phongPc != null && phongPc.isNotEmpty
+            ? 'Đã phân công ($phongPc)'
+            : 'Đã phân công lịch làm')
+        : 'Chờ - Chờ nhận lịch làm';
+
+    final String moTaTrangThai = isDaPhanCong
+        ? (phongPc != null && phongPc.isNotEmpty
+            ? 'Nhân sự đã được phân công trực tại $phongPc (Trạng thái 16).'
+            : 'Nhân sự đã được phân công lịch làm việc thành công (Trạng thái 16).')
+        : 'Nhân sự hiện đã sẵn sàng và đủ điều kiện để được phân công ca trực theo ngày trong mục Phân Công Trực.';
 
     return ThongBaoModel(
       id: 'tb_kich_hoat_${nv.maNv}',
@@ -77,9 +120,9 @@ class ThongBaoModel {
           '• Vai trò: $vaiTro\n'
           '• Số điện thoại: ${nv.soDienThoai.isNotEmpty ? nv.soDienThoai : "Chưa cập nhật"}\n'
           '• Email: ${nv.email.isNotEmpty ? nv.email : "Chưa cập nhật"}\n'
-          '• Trạng thái nhân sự: Đã kích hoạt (Đang hoạt động)\n'
-          '• Trạng thái nhận việc: Chờ (15) - Chờ nhận lịch làm\n\n'
-          'Nhân sự hiện đã sẵn sàng và đủ điều kiện để được phân công ca trực theo ngày trong mục Phân Công Trực.',
+          '• Trạng thái nhân sự: Đang hoạt động\n'
+          '• Trạng thái nhận việc: $ttText\n\n'
+          '$moTaTrangThai',
       thoiGian: tg,
       loai: 'kich_hoat_tai_khoan',
       daDoc: daDoc,
@@ -88,6 +131,10 @@ class ThongBaoModel {
       tenNhanVien: nv.hoTen,
       khoa: tenKhoa,
       vaiTro: vaiTro,
+      daPhanCong: isDaPhanCong,
+      trangThaiId: ttId,
+      phongPhanCong: phongPc,
+      ngayPhanCong: ngayPc,
     );
   }
 
@@ -102,6 +149,16 @@ class ThongBaoModel {
     if (rawTg is Timestamp) {
       tg = rawTg.toDate();
     }
+
+    final bool isDaPhanCong = (data['da_phan_cong'] == true) ||
+        (data['trang_thai_id'] == 16) ||
+        (data['trang_thai'] == 'đã phân công') ||
+        (data['phong_phan_cong'] != null &&
+            data['phong_phan_cong'].toString().trim().isNotEmpty);
+
+    final int ttId = isDaPhanCong
+        ? 16
+        : (int.tryParse(data['trang_thai_id']?.toString() ?? '15') ?? 15);
 
     return ThongBaoModel(
       id: doc.id,
@@ -119,6 +176,12 @@ class ThongBaoModel {
       khoa: data['khoa']?.toString(),
       vaiTro: data['vai_tro']?.toString(),
       metadata: data,
+      daPhanCong: isDaPhanCong,
+      trangThaiId: ttId,
+      phongPhanCong:
+          data['phong_phan_cong']?.toString() ?? data['phong']?.toString(),
+      ngayPhanCong:
+          data['ngay_phan_cong']?.toString() ?? data['ngay']?.toString(),
     );
   }
 
