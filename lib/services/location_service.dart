@@ -8,23 +8,22 @@ class UserLocationResult {
 }
 
 class LocationService {
-  /// Lấy vị trí người dùng: Ưu tiên GPS, nếu tắt thì lấy vị trí đã lưu
+  /// getUserLocation: lấy vị trí người dùng, ưu tiên GPS, không được thì dùng vị trí đã lưu.
   Future<Position?> getUserLocation(Position? savedLocation) async {
     return (await getUserLocationWithSource(savedLocation)).position;
   }
 
+  /// getUserLocationWithSource: lấy vị trí kèm thông báo nguồn vị trí; GPS tắt, bị từ chối quyền hoặc lỗi thì dùng vị trí đã lưu.
   Future<UserLocationResult> getUserLocationWithSource(
     Position? savedLocation,
   ) async {
     try {
-      // 1. Kiểm tra dịch vụ định vị có bật không
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         return _savedLocationResult(savedLocation);
       }
 
-      // 2. Kiểm tra quyền truy cập
-      LocationPermission permission = await Geolocator.checkPermission();
+      var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
@@ -36,10 +35,10 @@ class LocationService {
         return _savedLocationResult(savedLocation);
       }
 
-      // 3. Nếu mọi thứ OK, lấy vị trí hiện tại
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
+
       return UserLocationResult(
         position: position,
         message: 'Đang dùng vị trí hiện tại của bạn',
@@ -49,6 +48,23 @@ class LocationService {
     }
   }
 
+  /// calculateDistanceInKm: tính khoảng cách giữa hai điểm, trả về đơn vị km.
+  double calculateDistanceInKm(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    final distanceInMeters = Geolocator.distanceBetween(
+      lat1,
+      lon1,
+      lat2,
+      lon2,
+    );
+    return distanceInMeters / 1000;
+  }
+
+  /// _savedLocationResult: dựng kết quả từ vị trí đã lưu kèm thông báo (chưa có vị trí thì bộ lọc khoảng cách không áp dụng).
   UserLocationResult _savedLocationResult(Position? savedLocation) {
     return UserLocationResult(
       position: savedLocation,
@@ -56,21 +72,5 @@ class LocationService {
           ? 'Chưa xác định được vị trí; bộ lọc khoảng cách chưa áp dụng'
           : 'Không lấy được GPS, đang dùng vị trí đã lưu',
     );
-  }
-
-  /// Tính khoảng cách giữa 2 điểm (Trả về đơn vị km)
-  double calculateDistanceInKm(
-    double lat1,
-    double lon1,
-    double lat2,
-    double lon2,
-  ) {
-    double distanceInMeters = Geolocator.distanceBetween(
-      lat1,
-      lon1,
-      lat2,
-      lon2,
-    );
-    return distanceInMeters / 1000; // Đổi sang km
   }
 }

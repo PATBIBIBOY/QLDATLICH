@@ -19,14 +19,14 @@ class HospitalModel {
   final String? email;
   final String? role;
   final bool daXacThucEmail;
-  
-  // ✅ THÊM 2 TRƯỜNG TỌA ĐỘ
-  final double? viDo;  // Latitude
+
+  final double? viDo; // Latitude
   final double? kinhDo; // Longitude
 
-  // ✅ THÊM 2 TRƯỜNG DANH SÁCH CHUYÊN KHOA
-  final List<String>? chuyenKhoaIds; // Ví dụ: ['CK01', 'CK04'] -> Dùng để query filter
-  final List<String>? tenCacKhoa;    // Ví dụ: ['Khoa Tim mạch', 'Khoa Hô hấp'] -> Dùng để hiển thị UI nhanh
+  final List<String>?
+  chuyenKhoaIds; // Ví dụ: ['CK01', 'CK04'] -> Dùng để query filter
+  final List<String>?
+  tenCacKhoa; // Ví dụ: ['Khoa Tim mạch', 'Khoa Hô hấp'] -> Dùng để hiển thị UI nhanh
 
   HospitalModel({
     this.id,
@@ -47,8 +47,8 @@ class HospitalModel {
     this.email,
     this.role = 'benh_vien',
     this.daXacThucEmail = false,
-    this.viDo,    
-    this.kinhDo,  
+    this.viDo,
+    this.kinhDo,
     this.chuyenKhoaIds,
     this.tenCacKhoa,
   }) : ngayTao = ngayTao ?? DateTime.now();

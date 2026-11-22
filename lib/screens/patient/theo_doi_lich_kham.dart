@@ -218,6 +218,7 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
     final h = int.tryParse(p[0].trim());
     final m = int.tryParse(p[1].trim());
     if (h == null || m == null) return null;
+
     return DateTime(day.year, day.month, day.day, h, m);
   }
 
@@ -289,6 +290,7 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Theo dõi lịch khám', style: _font(19, weight: FontWeight.w800)),
+
         const SizedBox(height: 1),
         Text(
           'Số thứ tự cập nhật theo thời gian thực',
@@ -331,6 +333,7 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
 
     final byDate = a.ngayDat!.compareTo(b.ngayDat!);
     if (byDate != 0) return byDate;
+
     return _statusPriority(sa).compareTo(_statusPriority(sb));
   }
 
@@ -360,6 +363,7 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const CircularProgressIndicator(color: AppColors.primary),
+
               const SizedBox(height: 16),
               Text(
                 'Đang tải lịch khám...',
@@ -459,6 +463,7 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
                 size: 20,
                 color: AppColors.primary,
               ),
+
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -479,6 +484,7 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
             ],
           ),
         ),
+
         const SizedBox(height: 14),
       ],
       if (upcomingBookings.length > 1) ...[
@@ -487,6 +493,7 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
           selectedId: booking.id,
           onSelect: (id) => setState(() => _selectedId = id),
         ),
+
         const SizedBox(height: 14),
       ],
       _HospitalInfoCard(
@@ -500,6 +507,7 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
             ? room.trangThai
             : null,
       ),
+
       const SizedBox(height: 16),
       ..._statusSection(
         provider: provider,
@@ -589,22 +597,29 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
         return [
           if (paused) ...[
             _RoomPausedCard(minutes: room.phutDangTamDung(DateTime.now())),
+
             const SizedBox(height: 16),
           ],
           _LockedSection(
             locked: paused,
             child: _NowServingCard(number: currentServing),
           ),
+
           const SizedBox(height: 16),
           _LateTicketCard(number: booking.soThuTu),
+
           const SizedBox(height: 16),
+
           const _LateSteps(),
+
           const SizedBox(height: 16),
+
           const _LateEstimateCard(),
         ];
 
       case AppointmentStatus.approved:
         if (closed) return const [_RoomClosedCard()];
+
         return _approvedSection(
           provider: provider,
           booking: booking,
@@ -630,6 +645,7 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
     final pausedBanner = <Widget>[
       if (paused) ...[
         _RoomPausedCard(minutes: room.phutDangTamDung(now)),
+
         const SizedBox(height: 16),
       ],
     ];
@@ -650,6 +666,7 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
         locked: paused,
         child: _NowServingCard(number: currentServing),
       ),
+
       const SizedBox(height: 16),
     ];
 
@@ -714,11 +731,13 @@ class _AppointmentTrackingScreenState extends State<AppointmentTrackingScreen> {
               peopleAhead: peopleAhead,
               waitMinutes: waitMinutes,
             ),
+
             const SizedBox(height: 16),
             _QueueTrack(serving: currentServing, mine: myNumber),
           ],
         ),
       ),
+
       const SizedBox(height: 16),
       _EstimateCard(
         waitMinutes: waitMinutes,
@@ -761,6 +780,7 @@ class _BookingSelector extends StatelessWidget {
           final b = bookings[i];
           final selected = b.id == selectedId;
           final status = statusFromTrangThaiId(b.trangThaiId);
+
           return InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: () => onSelect(b.id),
@@ -788,6 +808,7 @@ class _BookingSelector extends StatelessWidget {
                       color: selected ? Colors.white : AppColors.ink,
                     ),
                   ),
+
                   const SizedBox(height: 2),
                   Text(
                     b.tenKhoa ?? 'Chuyên khoa',
@@ -860,18 +881,21 @@ class _StateView extends StatelessWidget {
                 ),
               ],
             ),
+
             const SizedBox(height: 22),
             Text(
               title,
               textAlign: TextAlign.center,
               style: _font(18.5, weight: FontWeight.w800),
             ),
+
             const SizedBox(height: 8),
             Text(
               message,
               textAlign: TextAlign.center,
               style: _font(14, color: AppColors.muted, height: 1.5),
             ),
+
             const SizedBox(height: 22),
             ElevatedButton.icon(
               onPressed: onAction,
@@ -955,6 +979,7 @@ class _HospitalInfoCard extends StatelessWidget {
                     size: 26,
                   ),
                 ),
+
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -967,6 +992,7 @@ class _HospitalInfoCard extends StatelessWidget {
                           color: Colors.white.withValues(alpha: 0.75),
                         ),
                       ),
+
                       const SizedBox(height: 2),
                       Text(
                         hospital,
@@ -982,6 +1008,7 @@ class _HospitalInfoCard extends StatelessWidget {
                     ],
                   ),
                 ),
+
                 const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -1001,6 +1028,7 @@ class _HospitalInfoCard extends StatelessWidget {
                         size: 14,
                         color: status.foreground,
                       ),
+
                       const SizedBox(width: 4),
                       Text(
                         status.label,
@@ -1063,6 +1091,7 @@ class _HospitalInfoCard extends StatelessWidget {
                           size: 24,
                         ),
                       ),
+
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -1076,6 +1105,7 @@ class _HospitalInfoCard extends StatelessWidget {
                                 color: AppColors.tealDark,
                               ).copyWith(letterSpacing: 0.8),
                             ),
+
                             const SizedBox(height: 2),
                             Text(
                               room,
@@ -1085,6 +1115,7 @@ class _HospitalInfoCard extends StatelessWidget {
                                 height: 1.25,
                               ),
                             ),
+
                             const SizedBox(height: 3),
                             Row(
                               children: [
@@ -1093,6 +1124,7 @@ class _HospitalInfoCard extends StatelessWidget {
                                   size: 14,
                                   color: AppColors.muted,
                                 ),
+
                                 const SizedBox(width: 5),
                                 Expanded(
                                   child: Text(
@@ -1114,6 +1146,7 @@ class _HospitalInfoCard extends StatelessWidget {
                     ],
                   ),
                 ),
+
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -1124,6 +1157,7 @@ class _HospitalInfoCard extends StatelessWidget {
                         value: date,
                       ),
                     ),
+
                     const SizedBox(width: 12),
                     Expanded(
                       child: _TimeTile(
@@ -1174,12 +1208,14 @@ class _TimeTile extends StatelessWidget {
             ),
             child: Icon(icon, size: 17, color: AppColors.primary),
           ),
+
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(label, style: _font(11.5, color: AppColors.muted)),
+
                 const SizedBox(height: 2),
                 Text(
                   value,
@@ -1227,6 +1263,7 @@ class _NowServingCard extends StatelessWidget {
           children: [
             Positioned(right: -50, top: -50, child: _ring(180)),
             Positioned(right: -15, top: -15, child: _ring(110)),
+
             const Positioned(
               left: 0,
               right: 0,
@@ -1248,6 +1285,7 @@ class _NowServingCard extends StatelessWidget {
                             size: 20,
                             color: Colors.white,
                           ),
+
                           const SizedBox(width: 8),
                           Text(
                             'Đang khám số',
@@ -1259,9 +1297,11 @@ class _NowServingCard extends StatelessWidget {
                           ),
                         ],
                       ),
+
                       const _LiveChip(),
                     ],
                   ),
+
                   const SizedBox(height: 8),
                   Text(
                     number > 0 ? '$number' : '---',
@@ -1275,6 +1315,7 @@ class _NowServingCard extends StatelessWidget {
                           fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                   ),
+
                   const SizedBox(height: 6),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1284,6 +1325,7 @@ class _NowServingCard extends StatelessWidget {
                         size: 16,
                         color: Colors.white.withValues(alpha: 0.75),
                       ),
+
                       const SizedBox(width: 6),
                       Text(
                         'Tự động cập nhật theo thời gian thực',
@@ -1392,6 +1434,7 @@ class _LiveChipState extends State<_LiveChip>
               ),
             ),
           ),
+
           const SizedBox(width: 6),
           Text(
             'Trực tiếp',
@@ -1505,6 +1548,7 @@ class _MyTurnCard extends StatelessWidget {
                             ],
                           ),
                         ),
+
                         const Spacer(),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
@@ -1513,6 +1557,7 @@ class _MyTurnCard extends StatelessWidget {
                               'Còn phía trước',
                               style: _font(13, color: AppColors.muted),
                             ),
+
                             const SizedBox(height: 2),
                             RichText(
                               text: TextSpan(
@@ -1532,6 +1577,7 @@ class _MyTurnCard extends StatelessWidget {
                                 ],
                               ),
                             ),
+
                             const SizedBox(height: 4),
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -1550,6 +1596,7 @@ class _MyTurnCard extends StatelessWidget {
                                     size: 14,
                                     color: AppColors.primary,
                                   ),
+
                                   const SizedBox(width: 4),
                                   Text(
                                     '~$waitMinutes phút',
@@ -1566,6 +1613,7 @@ class _MyTurnCard extends StatelessWidget {
                         ),
                       ],
                     ),
+
                     const SizedBox(height: 14),
                     Container(
                       width: double.infinity,
@@ -1580,6 +1628,7 @@ class _MyTurnCard extends StatelessWidget {
                       child: Row(
                         children: [
                           Icon(banner.icon, size: 19, color: banner.color),
+
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -1633,11 +1682,13 @@ class _QueueTrack extends StatelessWidget {
                 size: 19,
                 color: AppColors.primary,
               ),
+
               const SizedBox(width: 8),
               Text(
                 'Tiến độ hàng chờ',
                 style: _font(14.5, weight: FontWeight.w700),
               ),
+
               const Spacer(),
               Text(
                 '$percent%',
@@ -1649,6 +1700,7 @@ class _QueueTrack extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(height: 18),
           TweenAnimationBuilder<double>(
             tween: Tween(begin: 0, end: progress),
@@ -1712,6 +1764,7 @@ class _QueueTrack extends StatelessWidget {
               );
             },
           ),
+
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1745,6 +1798,7 @@ class _QueueTrack extends StatelessWidget {
       crossAxisAlignment: align,
       children: [
         Text(label, style: _font(12, color: AppColors.muted)),
+
         const SizedBox(height: 2),
         Text(
           value,
@@ -1816,6 +1870,7 @@ class _EstimateCard extends StatelessWidget {
               size: 25,
             ),
           ),
+
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -1827,6 +1882,7 @@ class _EstimateCard extends StatelessWidget {
                       : 'Dự kiến đến lượt khoảng',
                   style: _font(12.5, color: mainColor),
                 ),
+
                 const SizedBox(height: 2),
                 Text(
                   isExceedingShift
@@ -1920,6 +1976,7 @@ class _LateTicketCard extends StatelessWidget {
                             ],
                           ),
                         ),
+
                         const Spacer(),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
@@ -1928,6 +1985,7 @@ class _LateTicketCard extends StatelessWidget {
                               'Còn phía trước',
                               style: _font(13, color: AppColors.muted),
                             ),
+
                             const SizedBox(height: 2),
                             Text(
                               '—',
@@ -1937,6 +1995,7 @@ class _LateTicketCard extends StatelessWidget {
                                 color: AppColors.muted,
                               ),
                             ),
+
                             const SizedBox(height: 4),
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -1956,6 +2015,7 @@ class _LateTicketCard extends StatelessWidget {
                                     size: 14,
                                     color: AppColors.late,
                                   ),
+
                                   const SizedBox(width: 4),
                                   Text(
                                     'Chưa xác định',
@@ -1972,6 +2032,7 @@ class _LateTicketCard extends StatelessWidget {
                         ),
                       ],
                     ),
+
                     const SizedBox(height: 14),
                     Container(
                       width: double.infinity,
@@ -1994,6 +2055,7 @@ class _LateTicketCard extends StatelessWidget {
                               color: AppColors.lateDark,
                             ),
                           ),
+
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -2046,6 +2108,7 @@ class _LateSteps extends StatelessWidget {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
+
               const SizedBox(width: 10),
               Text(
                 'Việc cần làm tiếp theo',
@@ -2053,17 +2116,21 @@ class _LateSteps extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(height: 16),
+
           const _TimelineStep(
             state: _StepState.done,
             title: 'Đã ghi nhận bạn đến trễ',
             subtitle: 'Số thứ tự cũ được đưa ra khỏi hàng chờ.',
           ),
+
           const _TimelineStep(
             state: _StepState.current,
             title: 'Gặp nhân viên hỗ trợ',
             subtitle: 'Đến quầy hỗ trợ tại phòng khám và xuất trình mã QR.',
           ),
+
           const _TimelineStep(
             state: _StepState.upcoming,
             title: 'Được xếp lại vào hàng chờ',
@@ -2147,6 +2214,7 @@ class _TimelineStep extends StatelessWidget {
               ],
             ),
           ),
+
           const SizedBox(width: 12),
           Expanded(
             child: Padding(
@@ -2164,6 +2232,7 @@ class _TimelineStep extends StatelessWidget {
                           : AppColors.ink,
                     ),
                   ),
+
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
@@ -2207,6 +2276,7 @@ class _LateEstimateCard extends StatelessWidget {
               size: 25,
             ),
           ),
+
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -2216,6 +2286,7 @@ class _LateEstimateCard extends StatelessWidget {
                   'Dự kiến đến lượt',
                   style: _font(12.5, color: AppColors.lateDark),
                 ),
+
                 const SizedBox(height: 2),
                 Text(
                   'Chưa xác định',
@@ -2281,11 +2352,13 @@ class _CompletedCard extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(height: 14),
           Text(
             'Bạn đã hoàn thành lượt khám',
             style: _font(16.5, weight: FontWeight.w800, color: AppColors.teal),
           ),
+
           const SizedBox(height: 8),
           Text(
             'Cảm ơn bạn đã sử dụng dịch vụ. Chúc bạn nhiều sức khỏe!',
@@ -2329,12 +2402,14 @@ class _StatusMessageCard extends StatelessWidget {
             ),
             child: Icon(icon, size: 34, color: color),
           ),
+
           const SizedBox(height: 14),
           Text(
             title,
             textAlign: TextAlign.center,
             style: _font(16.5, weight: FontWeight.w800),
           ),
+
           const SizedBox(height: 8),
           Text(
             message,
@@ -2374,17 +2449,20 @@ class _NoTicketCard extends StatelessWidget {
               color: AppColors.muted,
             ),
           ),
+
           const SizedBox(height: 14),
           Text(
             'Chưa được cấp số thứ tự',
             style: _font(16.5, weight: FontWeight.w800),
           ),
+
           const SizedBox(height: 8),
           Text(
             'Vui lòng có mặt tại bệnh viện trước $timeLabel để được nhân viên tiếp đón và cấp số.',
             textAlign: TextAlign.center,
             style: _font(14, color: AppColors.muted, height: 1.5),
           ),
+
           const SizedBox(height: 18),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2437,6 +2515,7 @@ class _StepDot extends StatelessWidget {
           ),
           child: Icon(icon, size: 23, color: AppColors.primary),
         ),
+
         const SizedBox(height: 8),
         Text(
           label,
@@ -2483,6 +2562,7 @@ class _PrepareChecklist extends StatelessWidget {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
+
               const SizedBox(width: 10),
               Text(
                 'Chuẩn bị trước khi khám',
@@ -2490,15 +2570,19 @@ class _PrepareChecklist extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(height: 14),
+
           const _CheckItem(
             icon: Icons.badge_rounded,
             text: 'Mang theo CCCD và thẻ BHYT (nếu có)',
           ),
+
           const _CheckItem(
             icon: Icons.qr_code_2_rounded,
             text: 'Chuẩn bị sẵn mã QR lịch khám để check-in',
           ),
+
           const _CheckItem(
             icon: Icons.notifications_active_rounded,
             text: 'Giữ điện thoại để nhận thông báo khi đến lượt',
@@ -2537,6 +2621,7 @@ class _CheckItem extends StatelessWidget {
             ),
             child: Icon(icon, size: 18, color: AppColors.tealDark),
           ),
+
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -2544,6 +2629,7 @@ class _CheckItem extends StatelessWidget {
               style: _font(13.5, weight: FontWeight.w500, height: 1.4),
             ),
           ),
+
           const Icon(
             Icons.check_circle_rounded,
             size: 18,
@@ -2584,6 +2670,7 @@ class _ImportantNotice extends StatelessWidget {
               size: 24,
             ),
           ),
+
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -2597,6 +2684,7 @@ class _ImportantNotice extends StatelessWidget {
                     color: AppColors.warnText,
                   ),
                 ),
+
                 const SizedBox(height: 4),
                 Text(
                   'Vui lòng có mặt trước giờ khám 15 phút để làm thủ tục. '
@@ -2622,6 +2710,7 @@ class _QueueStatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = loading ? AppColors.primary : AppColors.danger;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -2638,6 +2727,7 @@ class _QueueStatusCard extends StatelessWidget {
                   ),
                 )
               : Icon(Icons.cloud_off_rounded, color: color, size: 24),
+
           const SizedBox(width: 14),
           Expanded(
             child: Text(
@@ -2710,6 +2800,7 @@ class _RoomStatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _roomColor(status);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
@@ -2721,6 +2812,7 @@ class _RoomStatusChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(_roomIcon(status), size: 13, color: color),
+
           const SizedBox(width: 4),
           Text(
             _roomLabel(status),
@@ -2740,10 +2832,26 @@ class _LockedSection extends StatelessWidget {
   final Widget child;
 
   static const ColorFilter _grayscale = ColorFilter.matrix(<double>[
-    0.2126, 0.7152, 0.0722, 0, 0,
-    0.2126, 0.7152, 0.0722, 0, 0,
-    0.2126, 0.7152, 0.0722, 0, 0,
-    0, 0, 0, 1, 0,
+    0.2126,
+    0.7152,
+    0.0722,
+    0,
+    0,
+    0.2126,
+    0.7152,
+    0.0722,
+    0,
+    0,
+    0.2126,
+    0.7152,
+    0.0722,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
   ]);
 
   @override
@@ -2770,6 +2878,7 @@ class _LockedSection extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(Icons.lock_rounded, size: 16, color: Colors.white),
+
                   const SizedBox(width: 8),
                   Text(
                     'Tạm khóa theo dõi',
@@ -2821,6 +2930,7 @@ class _RoomPausedCard extends StatelessWidget {
               color: AppColors.warnText,
             ),
           ),
+
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -2834,12 +2944,14 @@ class _RoomPausedCard extends StatelessWidget {
                     color: AppColors.warnText,
                   ),
                 ),
+
                 const SizedBox(height: 4),
                 Text(
                   'Việc khám tạm thời gián đoạn. Giờ dự kiến đến lượt sẽ '
                   'tự động cộng thêm thời gian tạm dừng.',
                   style: _font(13, color: AppColors.warnText, height: 1.45),
                 ),
+
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -2859,6 +2971,7 @@ class _RoomPausedCard extends StatelessWidget {
                         size: 14,
                         color: AppColors.warnText,
                       ),
+
                       const SizedBox(width: 5),
                       Text(
                         'Đã tạm dừng $minutes phút',
@@ -2921,6 +3034,7 @@ class _RoomClosedCard extends StatelessWidget {
                     color: Colors.white,
                   ),
                 ),
+
                 const SizedBox(height: 14),
                 Text(
                   'Phòng khám đã đóng cửa',
@@ -2931,6 +3045,7 @@ class _RoomClosedCard extends StatelessWidget {
                     color: Colors.white,
                   ),
                 ),
+
                 const SizedBox(height: 6),
                 Text(
                   'Hiện không tiếp nhận bệnh nhân',
@@ -2986,6 +3101,7 @@ class _ClosedInfoRow extends StatelessWidget {
           ),
           child: Icon(icon, size: 19, color: AppColors.closed),
         ),
+
         const SizedBox(width: 12),
         Expanded(
           child: Text(

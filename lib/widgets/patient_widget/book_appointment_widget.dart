@@ -92,6 +92,7 @@ class SectionTitle extends StatelessWidget {
           ),
           child: Icon(icon, size: 18, color: AppTheme.primaryBlue),
         ),
+
         const SizedBox(width: 10),
         Expanded(
           child: Text.rich(
@@ -146,6 +147,7 @@ class InfoPill extends StatelessWidget {
         children: [
           if (icon != null) ...[
             Icon(icon, size: 14, color: color),
+
             const SizedBox(width: 4),
           ],
           Flexible(
@@ -193,6 +195,7 @@ class StatePanel extends StatelessWidget {
       child: Column(
         children: [
           Icon(icon, size: 30, color: color),
+
           const SizedBox(height: 8),
           Text(
             text,
@@ -260,6 +263,7 @@ class SelectionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const blue = AppTheme.primaryBlue;
+
     return Opacity(
       opacity: disabled ? 0.55 : 1,
       child: Material(
@@ -295,10 +299,10 @@ class SelectionTile extends StatelessWidget {
                         icon,
                         size: 21,
                         color:
-                            iconColor ??
-                            (selected ? blue : AppTheme.textGrey),
+                            iconColor ?? (selected ? blue : AppTheme.textGrey),
                       ),
                     ),
+
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -328,6 +332,7 @@ class SelectionTile extends StatelessWidget {
                         ],
                       ),
                     ),
+
                     const SizedBox(width: 8),
                     _SelectIndicator(selected: selected, square: square),
                   ],
@@ -411,6 +416,7 @@ class AppointmentHeader extends StatelessWidget {
               color: textDark,
             ),
           ),
+
           const SizedBox(width: 36),
         ],
       ),
@@ -499,6 +505,7 @@ class HospitalInfoCard extends StatelessWidget {
                   color: facilityColor,
                 ),
               ),
+
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -515,6 +522,7 @@ class HospitalInfoCard extends StatelessWidget {
                         color: AppTheme.textDark,
                       ),
                     ),
+
                     const SizedBox(height: 10),
                     Wrap(
                       spacing: 8,
@@ -541,8 +549,11 @@ class HospitalInfoCard extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(height: 16),
+
           const Divider(height: 1, color: AppTheme.borderColor),
+
           const SizedBox(height: 14),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -552,6 +563,7 @@ class HospitalInfoCard extends StatelessWidget {
                 size: 20,
                 color: AppTheme.primaryBlue,
               ),
+
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -565,6 +577,7 @@ class HospitalInfoCard extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(height: 14),
           Container(
             width: double.infinity,
@@ -576,6 +589,7 @@ class HospitalInfoCard extends StatelessWidget {
             child: Row(
               children: [
                 Icon(bhytIcon, size: 20, color: bhytColor),
+
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -603,6 +617,7 @@ class BookingInfoBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const blue = AppTheme.primaryBlue;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -666,6 +681,7 @@ class SpecialtySelectionSection extends StatelessWidget {
   final List<Map<String, dynamic>> departments;
   final Set<String> selectedDepartmentIds;
   final VoidCallback onToggleExpand;
+
   final Function(String) onToggleDepartment;
 
   const SpecialtySelectionSection({
@@ -704,6 +720,7 @@ class SpecialtySelectionSection extends StatelessWidget {
         ),
       );
     }
+
     return ConstrainedBox(
       constraints: const BoxConstraints(maxHeight: 340),
       child: ListView.separated(
@@ -714,6 +731,7 @@ class SpecialtySelectionSection extends StatelessWidget {
         itemBuilder: (context, index) {
           final department = departments[index];
           final id = BookingHelper.departmentIdOf(department);
+
           return SelectionTile(
             icon: Icons.health_and_safety_outlined,
             title: department['ten_khoa']?.toString() ?? 'Chuyên khoa',
@@ -740,6 +758,7 @@ class SpecialtySelectionSection extends StatelessWidget {
           text: 'Chọn chuyên khoa khám',
           required: true,
         ),
+
         const SizedBox(height: 12),
         Material(
           color: Colors.white,
@@ -778,6 +797,7 @@ class SpecialtySelectionSection extends StatelessWidget {
                                   color: blue,
                                 ),
                               ),
+
                               const SizedBox(height: 2),
                               Text(
                                 selectedNames.isEmpty
@@ -873,6 +893,7 @@ class BookingStepTitle extends StatelessWidget {
                   ),
                 ),
         ),
+
         const SizedBox(width: 10),
         Text(
           text,
@@ -894,7 +915,9 @@ class RoomSelectionList extends StatelessWidget {
   final String? error;
   final List<PhongKhamModel> rooms;
   final String? selectedRoomId;
+
   final Function(String, String) onSelect;
+
   final Function(String, {bool force}) onRetry;
 
   const RoomSelectionList({
@@ -938,6 +961,7 @@ class RoomSelectionList extends StatelessWidget {
         color: AppTheme.textGrey,
       );
     }
+
     return Column(
       children: [
         for (var i = 0; i < rooms.length; i++)
@@ -965,16 +989,27 @@ class DateTimeSelectionSection extends StatelessWidget {
   final List<PhongKhamModel> rooms;
   final bool isLoadingRooms;
   final String? roomError;
+
   final bool Function(String) hasSchedule;
+
   final Function(String, {bool force}) onRetryFetch;
+
   final Function(String, String) onRoomSelected;
+
   final Function(String, String, DateTime) onDaySelected;
+
   final Function(String, String) onOpenCalendar;
+
   final String Function(String) getDepartmentName;
+
   final String Function(String, String) getRoomName;
+
   final String Function(DateTime) formatDayMonth;
+
   final int Function(String, String) getRoomMax;
+
   final Function(String, String, String) onSlotSelected;
+
   final Function(String) onSwitchActiveDepartment;
   final Map<String, int>? waitingByCa;
 
@@ -1023,6 +1058,7 @@ class DateTimeSelectionSection extends StatelessWidget {
               final id = selectedIds[i];
               final isActive = id == activeId;
               final isDone = hasSchedule(id);
+
               return Material(
                 color: isActive ? blue : Colors.white,
                 shape: StadiumBorder(
@@ -1049,6 +1085,7 @@ class DateTimeSelectionSection extends StatelessWidget {
                                     ? AppTheme.primaryGreen
                                     : const Color(0xFFB8C4D2)),
                         ),
+
                         const SizedBox(width: 6),
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 150),
@@ -1059,7 +1096,9 @@ class DateTimeSelectionSection extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 13.5,
                               fontWeight: FontWeight.w700,
-                              color: isActive ? Colors.white : AppTheme.textDark,
+                              color: isActive
+                                  ? Colors.white
+                                  : AppTheme.textDark,
                             ),
                           ),
                         ),
@@ -1071,6 +1110,7 @@ class DateTimeSelectionSection extends StatelessWidget {
             },
           ),
         ),
+
         const SizedBox(height: 8),
         Text(
           'Đã chọn lịch cho $doneCount/${selectedIds.length} chuyên khoa',
@@ -1082,6 +1122,7 @@ class DateTimeSelectionSection extends StatelessWidget {
                 : AppTheme.textGrey,
           ),
         ),
+
         const SizedBox(height: 12),
       ],
     );
@@ -1101,6 +1142,7 @@ class DateTimeSelectionSection extends StatelessWidget {
           final isSelected =
               selectedDay != null &&
               BookingHelper.isSameDay(date, selectedDay!);
+
           return Material(
             color: isSelected ? blue : Colors.white,
             clipBehavior: Clip.antiAlias,
@@ -1125,6 +1167,7 @@ class DateTimeSelectionSection extends StatelessWidget {
                             : AppTheme.textGrey,
                       ),
                     ),
+
                     const SizedBox(height: 4),
                     Text(
                       days[i]['day'] as String,
@@ -1148,6 +1191,7 @@ class DateTimeSelectionSection extends StatelessWidget {
   Widget _buildSelectedSummary() {
     const green = AppTheme.primaryGreen;
     final slot = selectedSlot!;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -1159,6 +1203,7 @@ class DateTimeSelectionSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Icon(Icons.check_circle_rounded, size: 20, color: green),
+
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -1172,6 +1217,7 @@ class DateTimeSelectionSection extends StatelessWidget {
                     color: green,
                   ),
                 ),
+
                 const SizedBox(height: 3),
                 Text(
                   getRoomName(activeId!, selectedRoomId!),
@@ -1181,6 +1227,7 @@ class DateTimeSelectionSection extends StatelessWidget {
                     color: AppTheme.textDark,
                   ),
                 ),
+
                 const SizedBox(height: 2),
                 Text(
                   'Ngày ${formatDayMonth(selectedDay!)} · ${slot.tenCa} (${slot.gioBatDau} - ${slot.gioKetThuc})',
@@ -1248,6 +1295,7 @@ class DateTimeSelectionSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         title,
+
         const SizedBox(height: 12),
         if (selectedIds.length > 1) _buildDepartmentTabs(),
         AppCard(
@@ -1258,6 +1306,7 @@ class DateTimeSelectionSection extends StatelessWidget {
                 'Lịch khám của',
                 style: TextStyle(fontSize: 12, color: AppTheme.textGrey),
               ),
+
               const SizedBox(height: 2),
               Text(
                 getDepartmentName(activeId!),
@@ -1269,12 +1318,14 @@ class DateTimeSelectionSection extends StatelessWidget {
                   color: AppTheme.textDark,
                 ),
               ),
+
               const Divider(height: 28, color: AppTheme.borderColor),
               BookingStepTitle(
                 step: 1,
                 text: 'Chọn phòng khám',
                 done: selectedRoomId != null,
               ),
+
               const SizedBox(height: 12),
               RoomSelectionList(
                 activeId: activeId!,
@@ -1287,6 +1338,7 @@ class DateTimeSelectionSection extends StatelessWidget {
               ),
               if (selectedRoomId == null) ...[
                 const SizedBox(height: 14),
+
                 const StatePanel(
                   icon: Icons.lock_clock_rounded,
                   text: 'Chọn phòng khám để xem ngày và khung giờ khám.',
@@ -1299,6 +1351,7 @@ class DateTimeSelectionSection extends StatelessWidget {
                   text: 'Chọn ngày khám',
                   done: selectedDay != null,
                 ),
+
                 const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1329,14 +1382,17 @@ class DateTimeSelectionSection extends StatelessWidget {
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 6),
                 _buildDayStrip(),
+
                 const Divider(height: 28, color: AppTheme.borderColor),
                 BookingStepTitle(
                   step: 3,
                   text: 'Chọn khung giờ khám',
                   done: selectedSlot != null,
                 ),
+
                 const SizedBox(height: 12),
                 SlotSelectionList(
                   activeId: activeId!,
@@ -1371,6 +1427,7 @@ enum CrowdLevel {
 
   final String label;
   final Color color;
+
   const CrowdLevel(this.label, this.color);
 
   /// fromRatio: xác định mức đông theo tỷ lệ số người trên sức chứa của ca.
@@ -1401,7 +1458,9 @@ class CrowdInfo {
   /// CrowdInfo.of: tính số người và mức đông của một ca, ưu tiên số người đang chờ nếu có.
   factory CrowdInfo.of(CaSlotModel slot, {int? waiting}) {
     final total = slot.tongSo;
-    final used = total > 0 ? (total - slot.conLai < 0 ? 0 : total - slot.conLai) : 0;
+    final used = total > 0
+        ? (total - slot.conLai < 0 ? 0 : total - slot.conLai)
+        : 0;
     final booked = waiting ?? used;
     final level = total > 0
         ? CrowdLevel.fromRatio(booked / total)
@@ -1461,6 +1520,7 @@ class SlotCrowdChart extends StatelessWidget {
                   color: color,
                 ),
               ),
+
               const SizedBox(height: 4),
               AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
@@ -1477,6 +1537,7 @@ class SlotCrowdChart extends StatelessWidget {
                       : null,
                 ),
               ),
+
               const SizedBox(height: 8),
               Container(
                 width: double.infinity,
@@ -1548,10 +1609,14 @@ class SlotCrowdChart extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
               ),
+
               const SizedBox(width: 5),
               Text(
                 level.label,
-                style: const TextStyle(fontSize: 11.5, color: AppTheme.textGrey),
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: AppTheme.textGrey,
+                ),
               ),
             ],
           ),
@@ -1587,6 +1652,7 @@ class SlotCrowdChart extends StatelessWidget {
             size: 18,
             color: AppTheme.primaryGreen,
           ),
+
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -1628,7 +1694,9 @@ class SlotCrowdChart extends StatelessWidget {
                   size: 20,
                   color: AppTheme.primaryBlue,
                 ),
+
                 const SizedBox(width: 8),
+
                 const Expanded(
                   child: Text(
                     'Độ đông theo khung giờ',
@@ -1641,6 +1709,7 @@ class SlotCrowdChart extends StatelessWidget {
                 ),
               ],
             ),
+
             const SizedBox(height: 2),
             Padding(
               padding: const EdgeInsets.only(left: 28),
@@ -1651,12 +1720,15 @@ class SlotCrowdChart extends StatelessWidget {
                 style: const TextStyle(fontSize: 12, color: AppTheme.textGrey),
               ),
             ),
+
             const SizedBox(height: 14),
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [for (final info in infos) _buildBar(info, maxBooked)],
             ),
+
             const Divider(height: 1, color: AppTheme.borderColor),
+
             const SizedBox(height: 10),
             _buildLegend(),
             if (tip != null) tip,
@@ -1675,7 +1747,9 @@ class SlotSelectionList extends StatelessWidget {
   final LichHenProvider lichHen;
   final String hospitalId;
   final String? selectedCaId;
+
   final int Function(String, String) getRoomMax;
+
   final Function(String, String, String) onSlotSelected;
   final Map<String, int>? waitingByCa;
 
@@ -1729,6 +1803,7 @@ class SlotSelectionList extends StatelessWidget {
               ),
             ),
           ),
+
           const SizedBox(width: 10),
           Text(
             isFull
@@ -1789,7 +1864,8 @@ class SlotSelectionList extends StatelessWidget {
     if (slots.isEmpty) {
       return const StatePanel(
         icon: Icons.event_busy_rounded,
-        text: 'Phòng khám chưa có lịch khám vào ngày này.\nVui lòng chọn ngày khác.',
+        text:
+            'Phòng khám chưa có lịch khám vào ngày này.\nVui lòng chọn ngày khác.',
         color: AppTheme.textGrey,
       );
     }
@@ -1803,6 +1879,7 @@ class SlotSelectionList extends StatelessWidget {
             waitingByCa: waitingByCa,
             onSelect: (caId) => onSlotSelected(activeId, roomId, caId),
           ),
+
           const SizedBox(height: 16),
         ],
         for (var i = 0; i < slots.length; i++)
@@ -1886,6 +1963,7 @@ class LocationSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SectionTitle(icon: Icons.map_rounded, text: 'Vị trí bệnh viện'),
+
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
@@ -1956,6 +2034,7 @@ class LocationSection extends StatelessWidget {
                                       ? AppTheme.primaryBlue
                                       : AppTheme.textGrey,
                                 ),
+
                                 const SizedBox(width: 5),
                                 Flexible(
                                   child: Text(
@@ -2023,6 +2102,7 @@ class LocationSection extends StatelessWidget {
                         size: 20,
                         color: AppTheme.primaryBlue,
                       ),
+
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -2036,6 +2116,7 @@ class LocationSection extends StatelessWidget {
                                 color: AppTheme.textGrey,
                               ),
                             ),
+
                             const SizedBox(height: 2),
                             Text(
                               address,
@@ -2075,6 +2156,7 @@ class ReviewSection extends StatefulWidget {
   final String? activeId;
   final Set<String> selectedDepartmentIds;
   final String hospitalId;
+
   final String Function(String) getDepartmentName;
 
   const ReviewSection({
@@ -2171,6 +2253,7 @@ class _ReviewSectionState extends State<ReviewSection> {
                     )
                   : null,
             ),
+
             const SizedBox(height: 14),
             if (!hasDepartment)
               const StatePanel(
@@ -2195,6 +2278,7 @@ class _ReviewSectionState extends State<ReviewSection> {
               )
             else ...[
               _buildReviewSummary(reviewProvider.averageRating, total, counts),
+
               const SizedBox(height: 14),
               Row(
                 children: [5, 4, 3, 2, 1]
@@ -2207,6 +2291,7 @@ class _ReviewSectionState extends State<ReviewSection> {
                     )
                     .toList(),
               ),
+
               const SizedBox(height: 14),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 250),
@@ -2223,6 +2308,7 @@ class _ReviewSectionState extends State<ReviewSection> {
                         ]
                       : List<Widget>.generate(visible.length, (index) {
                           final review = visible[index];
+
                           return Padding(
                             padding: EdgeInsets.only(
                               bottom: index == visible.length - 1 ? 0 : 12,
@@ -2291,13 +2377,16 @@ class _ReviewSectionState extends State<ReviewSection> {
                     color: AppTheme.textDark,
                   ),
                 ),
+
                 const SizedBox(height: 6),
                 BookingHelper.starRow(average, size: 15, center: true),
+
                 const SizedBox(height: 8),
                 InfoPill(
                   text: BookingHelper.ratingLabelOfAverage(average),
                   color: AppTheme.primaryGreen,
                 ),
+
                 const SizedBox(height: 6),
                 Text(
                   '$total đánh giá',
@@ -2309,12 +2398,14 @@ class _ReviewSectionState extends State<ReviewSection> {
               ],
             ),
           ),
+
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               children: [5, 4, 3, 2, 1].map((star) {
                 final count = counts[star] ?? 0;
                 final fraction = total > 0 ? count / total : 0.0;
+
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
@@ -2330,12 +2421,15 @@ class _ReviewSectionState extends State<ReviewSection> {
                           ),
                         ),
                       ),
+
                       const SizedBox(width: 3),
+
                       const Icon(
                         Icons.star_rounded,
                         size: 12,
                         color: AppTheme.amber,
                       ),
+
                       const SizedBox(width: 8),
                       Expanded(
                         child: ClipRRect(
@@ -2350,6 +2444,7 @@ class _ReviewSectionState extends State<ReviewSection> {
                           ),
                         ),
                       ),
+
                       const SizedBox(width: 8),
                       SizedBox(
                         width: 24,
@@ -2381,6 +2476,7 @@ class _ReviewSectionState extends State<ReviewSection> {
     required bool selected,
   }) {
     const blue = AppTheme.primaryBlue;
+
     return Expanded(
       child: Padding(
         padding: EdgeInsets.only(right: star == 1 ? 0 : 8),
@@ -2415,6 +2511,7 @@ class _ReviewSectionState extends State<ReviewSection> {
                                     : AppTheme.textDark),
                         ),
                       ),
+
                       const SizedBox(width: 2),
                       Icon(
                         Icons.star_rounded,
@@ -2427,6 +2524,7 @@ class _ReviewSectionState extends State<ReviewSection> {
                       ),
                     ],
                   ),
+
                   const SizedBox(height: 2),
                   Text(
                     '$count',
@@ -2458,6 +2556,7 @@ class _ReviewSectionState extends State<ReviewSection> {
   }) {
     final chipText = BookingHelper.ratingChipText(rating);
     final chipColor = BookingHelper.ratingChipColor(rating);
+
     return AppCard(
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -2484,6 +2583,7 @@ class _ReviewSectionState extends State<ReviewSection> {
                   ),
                 ),
               ),
+
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -2503,6 +2603,7 @@ class _ReviewSectionState extends State<ReviewSection> {
                             ),
                           ),
                         ),
+
                         const SizedBox(width: 8),
                         Text(
                           timeAgo,
@@ -2513,10 +2614,12 @@ class _ReviewSectionState extends State<ReviewSection> {
                         ),
                       ],
                     ),
+
                     const SizedBox(height: 5),
                     Row(
                       children: [
                         BookingHelper.starRow(rating.toDouble(), size: 15),
+
                         const SizedBox(width: 8),
                         InfoPill(text: chipText, color: chipColor),
                       ],
@@ -2724,6 +2827,7 @@ class _ExpandableTextState extends State<ExpandableText> {
   @override
   Widget build(BuildContext context) {
     final isLong = widget.text.length > _longThreshold;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

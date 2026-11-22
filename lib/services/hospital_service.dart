@@ -23,12 +23,7 @@ class HospitalService {
   final LocationService _locationService = LocationService();
   final int _pageSize = 15;
 
-  // ✅ 1. THÊM CÁC BIẾN CÒN THIẾU
-  final Map<String, int> _tongSoCache = {};
-  static const String _colPhongKham = 'PhongKham'; // Tên collection phòng khám
-
-  /// Cache thời gian khám (phút / bệnh nhân): "bv|khoa|phong" -> phút.
-  final Map<String, int> _thoiGianKhamCache = {};
+  static const String _colPhongKham = 'PhongKham';
 
   static const _fCoSo = 'co_so';
   static const _fBhyt = 'bhyt';
@@ -37,26 +32,46 @@ class HospitalService {
   static const _fSpecialties = 'chuyen_khoa_ids';
   static const _fStatus = 'trang_thai_hop_tac_id';
 
-  // ✅ 2. THÊM HÀM HỖ TRỢ ÉP KIỂU CÒN THIẾU
+  final Map<String, int> _thoiGianKhamCache = {};
+
+  /// _toInt: đọc số nguyên từ Firestore (chấp nhận số hoặc chuỗi).
   static int? _toInt(dynamic v) =>
       v is num ? v.toInt() : int.tryParse(v?.toString() ?? '');
 
-  /// Chỉ chấp nhận số phút > 0.
+  /// _soPhutHopLe: chỉ chấp nhận số phút lớn hơn 0.
   static int? _soPhutHopLe(dynamic v) {
     final n = _toInt(v);
     return (n != null && n > 0) ? n : null;
   }
 
+  /// getCoSoList: lấy danh sách cơ sở (công lập, tư nhân).
   Future<List<Map<String, dynamic>>> getCoSoList() async {
     final snapshot = await _firestore.collection('CoSo').get();
     return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
   }
 
+  /// getBhytList: lấy danh sách loại BHYT.
   Future<List<Map<String, dynamic>>> getBhytList() async {
     final snapshot = await _firestore.collection('BHYT').get();
     return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
   }
 
+  /// getSpecialtiesList: lấy danh sách chuyên khoa.
+  Future<List<Map<String, dynamic>>> getSpecialtiesList() async {
+    try {
+      final snapshot = await _firestore.collection('chuyen_khoa').get();
+      return snapshot.docs.map((doc) {
+        return {'id': doc.id, ...doc.data()};
+      }).toList();
+    } catch (e) {
+      debugPrint('❌ Lỗi khi tải danh sách chuyên khoa: $e');
+
+      throw Exception('Lỗi khi tải danh sách chuyên khoa: $e');
+    }
+  }
+
+  /// _buildHospitalQuery: dựng truy vấn bệnh viện đang hợp tác theo cơ sở, BHYT, điểm đánh giá và chuyên khoa (tối đa 10 chuyên khoa).
+  /// Dùng cả minRating và maxRating có thể yêu cầu tạo composite index trên Firestore.
   Query<Map<String, dynamic>> _buildHospitalQuery({
     String? coSoId,
     String? bhytId,
@@ -82,7 +97,6 @@ class HospitalService {
       query = query.where(_fRating, isGreaterThanOrEqualTo: minRating);
     }
 
-    // Lưu ý: Nếu dùng cả minRating và maxRating, Firestore có thể yêu cầu tạo Composite Index
     if (maxRating != null) {
       query = query.where(_fRating, isLessThanOrEqualTo: maxRating);
     }
@@ -97,6 +111,7 @@ class HospitalService {
     return query;
   }
 
+  /// getFilteredHospitalCount: đếm số bệnh viện theo bộ lọc (null nếu đếm lỗi).
   Future<int?> getFilteredHospitalCount({
     String? coSoId,
     String? bhytId,
@@ -120,6 +135,7 @@ class HospitalService {
     }
   }
 
+  /// getHospitalsPage: lấy một trang bệnh viện theo bộ lọc, sắp xếp theo điểm đánh giá; có lọc khoảng cách thì tính khoảng cách và sắp xếp gần đến xa trong trang.
   Future<HospitalPageResult> getHospitalsPage({
     String? coSoId,
     String? bhytId,
@@ -229,22 +245,53 @@ class HospitalService {
       );
     } catch (e) {
       debugPrint('❌ Lỗi khi tải danh sách bệnh viện: $e');
+
       throw Exception('Lỗi khi tải danh sách bệnh viện: $e');
     }
   }
 
-  Future<List<Map<String, dynamic>>> getSpecialtiesList() async {
+  /// getHospitals: lấy toàn bộ bệnh viện đang hợp tác (không phân trang).
+  Future<List<Map<String, dynamic>>> getHospitals() async {
+    final snapshot = await _firestore
+        .collection('BenhVien')
+        .where(_fStatus, isEqualTo: 10)
+        .get();
+    return snapshot.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList();
+  }
+
+  /// getHospitalById: lấy thông tin một bệnh viện theo document ID (null nếu không có).
+  Future<Map<String, dynamic>?> getHospitalById(String id) async {
     try {
-      final snapshot = await _firestore.collection('chuyen_khoa').get();
-      return snapshot.docs.map((doc) {
-        return {'id': doc.id, ...doc.data()};
-      }).toList();
+      final doc = await _firestore.collection('BenhVien').doc(id).get();
+
+      if (doc.exists) {
+        return {...doc.data()!, 'id': doc.id};
+      }
+
+      return null;
     } catch (e) {
-      debugPrint('❌ Lỗi khi tải danh sách chuyên khoa: $e');
-      throw Exception('Lỗi khi tải danh sách chuyên khoa: $e');
+      debugPrint('❌ Lỗi khi lấy thông tin bệnh viện: $e');
+      return null;
     }
   }
 
+  /// getPhongKhamById: hiện đang đọc từ collection 'BenhVien' giống getHospitalById (có thể cần đổi sang 'PhongKham').
+  Future<Map<String, dynamic>?> getPhongKhamById(String id) async {
+    try {
+      final doc = await _firestore.collection('BenhVien').doc(id).get();
+
+      if (doc.exists) {
+        return {...doc.data()!, 'id': doc.id};
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('❌ Lỗi khi lấy thông tin bệnh viện: $e');
+      return null;
+    }
+  }
+
+  /// getKhoaById: lấy thông tin một khoa theo id khoa và id bệnh viện (null nếu không có).
   Future<Map<String, dynamic>?> getKhoaById(String kId, String bvId) async {
     try {
       final doc = await _firestore
@@ -265,46 +312,7 @@ class HospitalService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getHospitals() async {
-    final snapshot = await _firestore
-        .collection('BenhVien')
-        .where(_fStatus, isEqualTo: 10)
-        .get();
-    return snapshot.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList();
-  }
-
-  /// Lấy thông tin của 1 bệnh viện dựa trên Document ID
-  Future<Map<String, dynamic>?> getHospitalById(String id) async {
-    try {
-      final doc = await _firestore.collection('BenhVien').doc(id).get();
-
-      if (doc.exists) {
-        return {...doc.data()!, 'id': doc.id};
-      }
-
-      return null; // Không tìm thấy
-    } catch (e) {
-      debugPrint('❌ Lỗi khi lấy thông tin bệnh viện: $e');
-      return null;
-    }
-  }
-
-  /// Lấy thông tin của 1 bệnh viện dựa trên Document ID
-  Future<Map<String, dynamic>?> getPhongKhamById(String id) async {
-    try {
-      final doc = await _firestore.collection('BenhVien').doc(id).get();
-
-      if (doc.exists) {
-        return {...doc.data()!, 'id': doc.id};
-      }
-
-      return null; // Không tìm thấy
-    } catch (e) {
-      debugPrint('❌ Lỗi khi lấy thông tin bệnh viện: $e');
-      return null;
-    }
-  }
-
+  /// getPhongKhamList: lấy danh sách phòng khám của một khoa, sắp xếp theo tên phòng.
   Future<List<PhongKhamModel>> getPhongKhamList({
     required String hospitalId,
     required String khoaId,
@@ -341,10 +349,13 @@ class HospitalService {
         ..sort((a, b) => a.tenPhong.compareTo(b.tenPhong));
     } catch (e) {
       debugPrint('❌ Lỗi khi lấy danh sách phòng khám: $e');
+
       throw Exception('Lỗi khi lấy danh sách phòng khám: $e');
     }
   }
 
+  /// getThoiGianKhamPhong: lấy thời gian khám (phút/bệnh nhân) của phòng (có cache).
+  /// Ưu tiên document phòng theo id, rồi theo tên phòng, cuối cùng dự phòng bằng thời gian khám của khoa.
   Future<int?> getThoiGianKhamPhong({
     required String hospitalId,
     required String khoaId,
@@ -357,7 +368,6 @@ class HospitalService {
     int? minutes;
 
     try {
-      // 1. Theo ID document của phòng khám
       if (phongKhamId.isNotEmpty) {
         final doc = await _firestore
             .collection(_colPhongKham)
@@ -371,7 +381,9 @@ class HospitalService {
               data['khoaId']?.toString() == khoaId;
 
           if (thuocKhoa) {
-            minutes = _soPhutHopLe(data['thoiGianKham'] ?? data['thoi_gian_kham']);
+            minutes = _soPhutHopLe(
+              data['thoiGianKham'] ?? data['thoi_gian_kham'],
+            );
           } else {
             debugPrint(
               '⚠️ PhongKham/$phongKhamId không thuộc $hospitalId/$khoaId',
@@ -379,7 +391,6 @@ class HospitalService {
           }
         }
 
-        // 2. phongKhamId có thể là tên phòng (vd. "NGT003") thay vì ID document
         if (minutes == null && !doc.exists) {
           final byName = await _firestore
               .collection(_colPhongKham)
@@ -391,12 +402,13 @@ class HospitalService {
 
           if (byName.docs.isNotEmpty) {
             final data = byName.docs.first.data();
-            minutes = _soPhutHopLe(data['thoiGianKham'] ?? data['thoi_gian_kham']);
+            minutes = _soPhutHopLe(
+              data['thoiGianKham'] ?? data['thoi_gian_kham'],
+            );
           }
         }
       }
 
-      // 3. Dự phòng: thời gian khám cấu hình ở cấp khoa
       if (minutes == null && hospitalId.isNotEmpty && khoaId.isNotEmpty) {
         final khoaDoc = await _firestore
             .collection('Khoa')
@@ -407,7 +419,9 @@ class HospitalService {
 
         final data = khoaDoc.data();
         if (data != null) {
-          minutes = _soPhutHopLe(data['thoi_gian_kham'] ?? data['thoiGianKham']);
+          minutes = _soPhutHopLe(
+            data['thoi_gian_kham'] ?? data['thoiGianKham'],
+          );
         }
       }
     } catch (e) {
@@ -416,7 +430,9 @@ class HospitalService {
     }
 
     if (minutes != null) {
-      debugPrint('✅ Thời gian khám $hospitalId/$khoaId/$phongKhamId = $minutes phút');
+      debugPrint(
+        '✅ Thời gian khám $hospitalId/$khoaId/$phongKhamId = $minutes phút',
+      );
       _thoiGianKhamCache[cacheKey] = minutes;
     } else {
       debugPrint(

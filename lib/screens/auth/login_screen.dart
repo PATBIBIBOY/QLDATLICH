@@ -13,6 +13,7 @@ import '../letan_c1/letan_trangchu_screen_c1.dart';
 import '../../support_doctor/clinic_firestore_service.dart';
 
 import '../../models/letan_c1/letan_profile_model_c1.dart';
+import '../../config/staff_session.dart';
 import 'otp_screen.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
 
@@ -72,14 +73,14 @@ class _LoginScreenState extends State<LoginScreen> {
   /// _showError: hiển thị thông báo lỗi dạng SnackBar màu đỏ.
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: _danger),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message), backgroundColor: _danger));
   }
 
   /// _login: điểm vào đăng nhập; điều hướng theo loại tài khoản
   /// (số điện thoại + OTP, mã nhân viên, admin, bệnh viện, bệnh nhân bằng email).
-    Future<void> _login() async {
+     Future<void> _login() async {
     final email = _emailCtrl.text.trim();
     final password = _passCtrl.text;
 
@@ -113,14 +114,12 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         } catch (e) {
           final errStr = e.toString();
-          // Nếu là lỗi mật khẩu sai của nhân viên -> Báo lỗi ngay
           if (errStr.contains('Mật khẩu không chính xác') || errStr.contains('Mật khẩu cấp ban đầu không chính xác')) {
             rethrow;
           }
-          // Nếu không phải nhân viên (ví dụ: nhập email bệnh nhân) -> Bỏ qua, để code chạy tiếp xuống phần 3
+          // Nếu không phải nhân viên -> Bỏ qua, để code chạy tiếp xuống phần 3
         }
 
-        // Nếu tìm thấy dữ liệu nhân viên hợp lệ
         if (nhanVienData != null) {
           final role = (nhanVienData['role'] ?? nhanVienData['vai_tro'] ?? '').toString();
           final bool daKichHoat = (nhanVienData['da_kich_hoat'] == true) || (nhanVienData['trang_thai'] == 'dang_hoat_dong');
@@ -146,7 +145,6 @@ class _LoginScreenState extends State<LoginScreen> {
             return;
           }
 
-          // Điều hướng theo vai trò nhân viên
           if (role == 'customerSupport' || role == 'cskh' || role == 'cham_soc_khach_hang') {
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const CskhDuyetdonKhoaScreenC1()));
           } else if (role == 'receptionist' || role == 'le_tan') {
@@ -156,14 +154,13 @@ class _LoginScreenState extends State<LoginScreen> {
           } else {
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()));
           }
-          return; // Kết thúc luồng nhân viên
+          return;
         }
       }
 
       // 3. Nếu KHÔNG PHẢI nhân viên -> Đăng nhập theo vai trò chuẩn (Admin / Bệnh viện / Bệnh nhân)
       if (selectedRoleCode == 'admin') {
         await auth.loginAdmin(email: email, password: password);
-        // await DatabaseSeeder.seedAllData(); // Bỏ comment nếu cần
       } else {
         await auth.login(email: email, password: password, role: selectedRoleCode);
       }
@@ -183,19 +180,28 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         } else {
           await auth.logout();
-          throw Exception('Tài khoản này chưa đăng ký là bệnh viện. Vui lòng chọn tab Bệnh nhân.');
+          // ✅ Giữ lại thông báo chi tiết và hữu ích từ nhánh benh_Nhan
+          throw Exception(
+            'Tài khoản này chưa đăng ký là bệnh viện. '
+            'Vui lòng đăng nhập ở tab Bệnh nhân hoặc đăng ký tài khoản bệnh viện.',
+          );
         }
       }
 
-      // Mặc định hoặc khi chọn tab Bệnh nhân
+      // 5. Xử lý trường hợp Bệnh nhân (Kết hợp logic của cả 2 nhánh)
       if (auth.user != null) {
         Navigator.pushNamedAndRemoveUntil(context, AppRoutes.patientMain, (route) => false, arguments: 0);
         return;
       }
 
-      // Nếu không khớp với bất kỳ trường hợp nào ở trên
+      // 6. Fallback: Nếu không khớp với bất kỳ trường hợp nào ở trên
       await auth.logout();
-      throw Exception('Không tìm thấy thông tin tài khoản phù hợp với vai trò đã chọn!');
+      final isHospital = auth.hospital != null;
+      throw Exception(
+        isHospital
+            ? 'Đây là tài khoản bệnh viện. Vui lòng chọn tab Bệnh viện để đăng nhập.'
+            : 'Không tìm thấy thông tin tài khoản phù hợp với vai trò đã chọn.',
+      );
 
     } catch (e) {
       if (!mounted) return;
@@ -278,7 +284,9 @@ class _LoginScreenState extends State<LoginScreen> {
     final upper = input.toUpperCase();
     if (!nhanVienDoc.exists && (upper == 'LT_TM_01' || upper == 'CSKH_01')) {
       if (password != '123456') {
-        throw Exception('Mật khẩu cấp ban đầu không chính xác! (Mặc định: 123456)');
+        throw Exception(
+          'Mật khẩu cấp ban đầu không chính xác! (Mặc định: 123456)',
+        );
       }
       final isCskh = upper.contains('CSKH');
       await firestore.collection('NhanVien').doc(upper).set({
@@ -321,20 +329,34 @@ class _LoginScreenState extends State<LoginScreen> {
         .get();
 
     if (userDoc.exists) {
-      final maNvGoc = userDoc.data()?['ma_nhan_vien'] ?? userDoc.data()?['ma_tai_khoan'];
-      if (maNvGoc != null && maNvGoc.toString().isNotEmpty && maNvGoc.toString() != currentUid) {
-        final docGoc = await firestore.collection('NhanVien').doc(maNvGoc.toString()).get();
+      final maNvGoc =
+          userDoc.data()?['ma_nhan_vien'] ?? userDoc.data()?['ma_tai_khoan'];
+      if (maNvGoc != null &&
+          maNvGoc.toString().isNotEmpty &&
+          maNvGoc.toString() != currentUid) {
+        final docGoc = await firestore
+            .collection('NhanVien')
+            .doc(maNvGoc.toString())
+            .get();
         if (docGoc.exists) userDoc = docGoc;
       }
     }
 
     if (!userDoc.exists || userDoc.data()?['role'] == null) {
-      final qUid = await firestore.collection('NhanVien').where('uid', isEqualTo: currentUid).limit(1).get();
+      final qUid = await firestore
+          .collection('NhanVien')
+          .where('uid', isEqualTo: currentUid)
+          .limit(1)
+          .get();
       if (qUid.docs.isNotEmpty) userDoc = qUid.docs.first;
     }
 
     if (!userDoc.exists) {
-      final q = await firestore.collection('NhanVien').where('email', isEqualTo: email).limit(1).get();
+      final q = await firestore
+          .collection('NhanVien')
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
       if (q.docs.isNotEmpty) userDoc = q.docs.first;
     }
 
@@ -347,6 +369,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!userDoc.exists) return false;
 
     final data = userDoc.data() ?? <String, dynamic>{};
+
     return _enterStaffHome(
       data: data,
       defaultRole: 'patient',
@@ -371,7 +394,8 @@ class _LoginScreenState extends State<LoginScreen> {
     if (requireStaffRole && !_isStaffRole(role)) return false;
     if (!mounted) return false;
 
-    final maNvThucTe = (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? fallbackId).toString();
+    final maNvThucTe =
+        (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? fallbackId).toString();
 
     if (data['da_kich_hoat'] != true) {
       Navigator.pushReplacement(
@@ -385,26 +409,35 @@ class _LoginScreenState extends State<LoginScreen> {
       return true;
     }
 
+    await StaffSession.save(maNvThucTe);
+
     final isLeTan = _roleLeTan.contains(role);
-    DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai.copyWith(
-      maNhanVien: maNvThucTe,
-      hoTen: (data['ho_ten'] ?? 'Nhân viên').toString(),
-      chucVu: (data['chuc_vu'] ?? (isLeTan ? 'Lễ tân tiếp đón' : 'Chăm sóc khách hàng')).toString(),
-      khoa: (data['khoa'] ?? 'Khoa Khám Bệnh').toString(),
-      email: (data['email'] ?? fallbackEmail).toString(),
-    );
+    DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai
+        .copyWith(
+          maNhanVien: maNvThucTe,
+          hoTen: (data['ho_ten'] ?? 'Nhân viên').toString(),
+          chucVu:
+              (data['chuc_vu'] ??
+                      (isLeTan ? 'Lễ tân tiếp đón' : 'Chăm sóc khách hàng'))
+                  .toString(),
+          khoa: (data['khoa'] ?? 'Khoa Khám Bệnh').toString(),
+          email: (data['email'] ?? fallbackEmail).toString(),
+        );
 
     final Widget? screen = isLeTan
         ? const LeTanHomeScreenC1()
         : _roleCskh.contains(role)
-            ? const CskhDuyetdonKhoaScreenC1()
-            : _roleBacSi.contains(role)
-                ? const ClinicRoomPickerScreen()
-                : null;
+        ? const CskhDuyetdonKhoaScreenC1()
+        : _roleBacSi.contains(role)
+        ? const ClinicRoomPickerScreen()
+        : null;
 
     if (screen == null) return false;
 
-    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => screen));
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => screen),
+    );
     return true;
   }
 
@@ -459,7 +492,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     child: const Icon(Icons.add, color: Colors.white, size: 50),
                   ),
+
                   const SizedBox(height: 16),
+
                   const Text(
                     'MEDICONNECT',
                     style: TextStyle(
@@ -468,7 +503,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: _primary,
                     ),
                   ),
+
                   const SizedBox(height: 8),
+
                   const Text(
                     'Hệ thống Y tế & Đặt lịch khám thông minh\nhàng đầu Việt Nam',
                     textAlign: TextAlign.center,
@@ -476,6 +513,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
               ),
+
               const SizedBox(height: 32),
 
               // Role Selection Tabs
@@ -488,6 +526,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Row(
                   children: List.generate(_roles.length, (index) {
                     final isSelected = index == _selectedRoleIndex;
+
                     return Expanded(
                       child: GestureDetector(
                         onTap: () => setState(() => _selectedRoleIndex = index),
@@ -506,12 +545,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                 size: 18,
                                 color: isSelected ? Colors.white : _grey,
                               ),
+
                               const SizedBox(width: 6),
                               Text(
                                 _roles[index]['name'] as String,
                                 style: TextStyle(
                                   fontSize: 14,
-                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
                                   color: isSelected ? Colors.white : _grey,
                                 ),
                               ),
@@ -523,6 +565,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   }),
                 ),
               ),
+
               const SizedBox(height: 24),
 
               // Google Login Button (Placeholder)
@@ -532,21 +575,34 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: OutlinedButton.icon(
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Chức năng đang phát triển')),
+                      const SnackBar(
+                        content: Text('Chức năng đang phát triển'),
+                      ),
                     );
                   },
-                  icon: const Icon(Icons.g_mobiledata, color: _primary, size: 24),
+                  icon: const Icon(
+                    Icons.g_mobiledata,
+                    color: _primary,
+                    size: 24,
+                  ),
                   label: const Text(
                     'Đăng nhập với Google',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F172A),
+                    ),
                   ),
                   style: OutlinedButton.styleFrom(
                     backgroundColor: Colors.white,
                     side: const BorderSide(color: Color(0xFFE2E8F0)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
+
               const SizedBox(height: 16),
 
               // Or divider
@@ -555,11 +611,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   Expanded(child: Divider(color: _grey.withOpacity(0.3))),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('hoặc đăng nhập bằng tài khoản nội bộ', style: TextStyle(fontSize: 13, color: _grey)),
+                    child: Text(
+                      'hoặc đăng nhập bằng tài khoản nội bộ',
+                      style: TextStyle(fontSize: 13, color: _grey),
+                    ),
                   ),
                   Expanded(child: Divider(color: _grey.withOpacity(0.3))),
                 ],
               ),
+
               const SizedBox(height: 24),
 
               Form(
@@ -571,7 +631,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       keyboardType: TextInputType.emailAddress,
                       validator: (value) {
                         final input = (value ?? '').trim();
-                        if (input.isEmpty) return 'Vui lòng nhập email hoặc số điện thoại';
+                        if (input.isEmpty)
+                          return 'Vui lòng nhập email hoặc số điện thoại';
                         if (input.contains('@')) return validateEmail(input);
                         if (_isPhoneInput(input)) return validatePhone(input);
                         return null;
@@ -579,12 +640,17 @@ class _LoginScreenState extends State<LoginScreen> {
                       decoration: InputDecoration(
                         hintText: 'Email Hoặc Số điện thoại',
                         prefixIcon: Icon(
-                          _isPhone ? Icons.phone_outlined : Icons.email_outlined,
+                          _isPhone
+                              ? Icons.phone_outlined
+                              : Icons.email_outlined,
                           color: _grey,
                         ),
                         filled: true,
                         fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
                         border: _border(const Color(0xFFE2E8F0)),
                         enabledBorder: _border(const Color(0xFFE2E8F0)),
                         focusedBorder: _border(_primary),
@@ -609,14 +675,26 @@ class _LoginScreenState extends State<LoginScreen> {
                         },
                         decoration: InputDecoration(
                           hintText: 'Mật khẩu',
-                          prefixIcon: const Icon(Icons.lock_outline, color: _grey),
+                          prefixIcon: const Icon(
+                            Icons.lock_outline,
+                            color: _grey,
+                          ),
                           suffixIcon: IconButton(
-                            icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, color: _grey),
-                            onPressed: () => setState(() => _obscure = !_obscure),
+                            icon: Icon(
+                              _obscure
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                              color: _grey,
+                            ),
+                            onPressed: () =>
+                                setState(() => _obscure = !_obscure),
                           ),
                           filled: true,
                           fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
                           border: _border(const Color(0xFFE2E8F0)),
                           enabledBorder: _border(const Color(0xFFE2E8F0)),
                           focusedBorder: _border(_primary),
@@ -652,10 +730,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     child: const Text(
                       'Quên mật khẩu?',
-                      style: TextStyle(fontSize: 14, color: _primary, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _primary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
+
               const SizedBox(height: 16),
 
               // Login Button
@@ -668,30 +751,45 @@ class _LoginScreenState extends State<LoginScreen> {
                     backgroundColor: _primary,
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   child: isLoading
                       ? const SizedBox(
                           width: 24,
                           height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
                         )
                       : Text(
                           _isPhone ? 'Gửi mã OTP' : 'Đăng nhập',
-                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                 ),
               ),
+
               const SizedBox(height: 16),
 
               // Register Link
               TextButton(
-                onPressed: () => Navigator.pushNamed(context, AppRoutes.register),
+                onPressed: () =>
+                    Navigator.pushNamed(context, AppRoutes.register),
                 child: const Text(
                   'Đăng ký tài khoản mới',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _danger),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: _danger,
+                  ),
                 ),
               ),
+
               const SizedBox(height: 24),
 
               // Support Hotline
@@ -709,7 +807,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     SizedBox(width: 8),
                     Text(
                       'Hotline hỗ trợ 24/7: 1900 6868',
-                      style: TextStyle(color: _danger, fontWeight: FontWeight.w600, fontSize: 15),
+                      style: TextStyle(
+                        color: _danger,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
                     ),
                   ],
                 ),

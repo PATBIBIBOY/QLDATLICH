@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+
 import '../../widgets/appointment_card.dart';
 
-/// Màn hình "ĐẶT LỊCH THÀNH CÔNG!" (sau khi bệnh viện đã xác nhận).
+/// BookingSuccessScreen: màn "ĐẶT LỊCH THÀNH CÔNG!" hiện sau khi bệnh viện xác nhận lịch.
+/// Hiển thị mã đặt lịch, bệnh viện, thời gian, bác sĩ, số thứ tự và 3 nút điều hướng.
 class BookingSuccessScreen extends StatelessWidget {
   final String bookingCode;
   final String hospitalLine;
@@ -24,7 +26,12 @@ class BookingSuccessScreen extends StatelessWidget {
     this.onGoHome,
   });
 
-  /// Một dòng thông tin: icon + "Nhãn: giá trị"
+  static const _green = Color(0xFF15803D);
+  static const _sky = Color(0xFF0288D1);
+  static const _softButton = Color(0xFFF1F4F9);
+
+  /// _line: một dòng thông tin dạng icon + "Nhãn: giá trị".
+  /// Có [valueColor] thì giá trị được in đậm và tô màu (dùng cho số thứ tự).
   Widget _line({
     required IconData icon,
     required Color iconColor,
@@ -55,9 +62,8 @@ class BookingSuccessScreen extends StatelessWidget {
                   TextSpan(
                     text: value,
                     style: TextStyle(
-                      fontWeight: valueColor == null
-                          ? FontWeight.w500
-                          : FontWeight.w900,
+                      fontWeight:
+                          valueColor == null ? FontWeight.w500 : FontWeight.w900,
                       color: valueColor,
                     ),
                   ),
@@ -70,11 +76,65 @@ class BookingSuccessScreen extends StatelessWidget {
     );
   }
 
+  /// _buildBookingCard: thẻ chứa mã đặt lịch và các dòng thông tin chi tiết.
+  Widget _buildBookingCard() {
+    return ApptCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'MÃ ĐẶT LỊCH:',
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.5,
+              color: ApptColors.textGrey,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            bookingCode,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+              color: _sky,
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Divider(height: 1, color: ApptColors.border),
+          const SizedBox(height: 6),
+          _line(
+            icon: Icons.apartment_rounded,
+            iconColor: _sky,
+            label: 'Bệnh viện',
+            value: hospitalLine,
+          ),
+          _line(
+            icon: Icons.schedule_rounded,
+            iconColor: const Color(0xFFF59E0B),
+            label: 'Thời gian',
+            value: timeLine,
+          ),
+          _line(
+            icon: Icons.medical_information_rounded,
+            iconColor: const Color(0xFF16A34A),
+            label: 'Bác sĩ',
+            value: doctorLine,
+          ),
+          _line(
+            icon: Icons.confirmation_number_rounded,
+            iconColor: ApptColors.red,
+            label: 'Số thứ tự',
+            value: queueLine,
+            valueColor: _sky,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    const green = Color(0xFF15803D);
-    const sky = Color(0xFF0288D1);
-
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
@@ -82,7 +142,6 @@ class BookingSuccessScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 56, 20, 24),
           child: Column(
             children: [
-              // ── Biểu tượng chúc mừng ──
               Container(
                 width: 104,
                 height: 104,
@@ -102,7 +161,7 @@ class BookingSuccessScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 23,
                   fontWeight: FontWeight.w900,
-                  color: green,
+                  color: _green,
                 ),
               ),
               const SizedBox(height: 6),
@@ -112,74 +171,18 @@ class BookingSuccessScreen extends StatelessWidget {
                 style: TextStyle(fontSize: 13, color: ApptColors.textGrey),
               ),
               const SizedBox(height: 22),
-
-              // ── Thẻ thông tin ──
-              ApptCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'MÃ ĐẶT LỊCH:',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                        color: ApptColors.textGrey,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      bookingCode,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        color: sky,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    const Divider(height: 1, color: ApptColors.border),
-                    const SizedBox(height: 6),
-                    _line(
-                      icon: Icons.apartment_rounded,
-                      iconColor: sky,
-                      label: 'Bệnh viện',
-                      value: hospitalLine,
-                    ),
-                    _line(
-                      icon: Icons.schedule_rounded,
-                      iconColor: const Color(0xFFF59E0B),
-                      label: 'Thời gian',
-                      value: timeLine,
-                    ),
-                    _line(
-                      icon: Icons.medical_information_rounded,
-                      iconColor: const Color(0xFF16A34A),
-                      label: 'Bác sĩ',
-                      value: doctorLine,
-                    ),
-                    _line(
-                      icon: Icons.confirmation_number_rounded,
-                      iconColor: ApptColors.red,
-                      label: 'Số thứ tự',
-                      value: queueLine,
-                      valueColor: sky,
-                    ),
-                  ],
-                ),
-              ),
+              _buildBookingCard(),
               const SizedBox(height: 26),
-
-              // ── Nút hành động ──
               ApptButton(
                 text: 'Xem phiếu khám & Mã QR ngay',
                 icon: Icons.qr_code_2_rounded,
-                background: sky,
+                background: _sky,
                 onPressed: onViewTicket,
               ),
               const SizedBox(height: 12),
               ApptButton(
                 text: 'Quay về Lịch Khám',
-                background: const Color(0xFFF1F4F9),
+                background: _softButton,
                 foreground: ApptColors.textDark,
                 borderColor: ApptColors.border,
                 onPressed: onGoAppointments,
@@ -187,7 +190,7 @@ class BookingSuccessScreen extends StatelessWidget {
               const SizedBox(height: 12),
               ApptButton(
                 text: 'Quay về Trang chủ',
-                background: const Color(0xFFF1F4F9),
+                background: _softButton,
                 foreground: ApptColors.textDark,
                 borderColor: ApptColors.border,
                 onPressed: onGoHome,

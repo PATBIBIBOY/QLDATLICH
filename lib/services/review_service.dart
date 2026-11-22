@@ -5,6 +5,7 @@ import '../models/review_model.dart';
 class ReviewException implements Exception {
   final String message;
   const ReviewException(this.message);
+
   @override
   String toString() => message;
 }
@@ -13,13 +14,10 @@ class ReviewService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const String _reviewCollection = 'DanhGia';
 
-  /// Lưu đánh giá mới và CẬP NHẬT THỐNG KÊ cho cả KHOA và BỆNH VIỆN
+  /// submitReview: lưu đánh giá mới và cập nhật thống kê (tổng số, điểm trung bình) của khoa và bệnh viện trong một transaction.
   Future<void> submitReview(ReviewModel review) async {
     try {
       await _firestore.runTransaction((transaction) async {
-        // ==========================================
-        // BƯỚC 1: THỰC HIỆN TẤT CẢ CÁC LỆNH ĐỌC (READ) TRƯỚC
-        // ==========================================
         final khoaRef = _firestore
             .collection('Khoa')
             .doc(review.benhVienId)
@@ -30,11 +28,6 @@ class ReviewService {
         final bvRef = _firestore.collection('BenhVien').doc(review.benhVienId);
         final bvDoc = await transaction.get(bvRef);
 
-        // ==========================================
-        // BƯỚC 2: TÍNH TOÁN SỐ LIỆU MỚI
-        // ==========================================
-
-        // Tính toán cho Khoa
         int khoaCurrentCount =
             (khoaDoc.data()?['tong_danh_gia'] as num?)?.toInt() ?? 0;
         double khoaCurrentAvg =
@@ -45,7 +38,6 @@ class ReviewService {
             ((khoaCurrentAvg * khoaCurrentCount) + review.diemDanhGia) /
             newKhoaCount;
 
-        // Tính toán cho Bệnh viện
         int bvCurrentCount =
             (bvDoc.data()?['tong_so_danh_gia'] as num?)?.toInt() ?? 0;
         double bvCurrentAvg =
@@ -55,30 +47,19 @@ class ReviewService {
         final newBvAvg =
             ((bvCurrentAvg * bvCurrentCount) + review.diemDanhGia) / newBvCount;
 
-        // ==========================================
-        // BƯỚC 3: THỰC HIỆN TẤT CẢ CÁC LỆNH GHI (WRITE) SAU KHI ĐÃ ĐỌC XONG
-        // ==========================================
-
-        // 1. Lưu document đánh giá mới
         final reviewRef = _firestore
             .collection(_reviewCollection)
             .doc(review.id);
         transaction.set(reviewRef, review.toJson());
 
-        // 2. Cập nhật thống kê cho Khoa
         transaction.update(khoaRef, {
           'tong_danh_gia': newKhoaCount,
-          'diem_trung_binh': double.parse(
-            newKhoaAvg.toStringAsFixed(1),
-          ), // Làm tròn 1 chữ số thập phân
+          'diem_trung_binh': double.parse(newKhoaAvg.toStringAsFixed(1)),
         });
 
-        // 3. Cập nhật thống kê cho Bệnh viện
         transaction.update(bvRef, {
           'tong_so_danh_gia': newBvCount,
-          'diem_danh_gia_tb': double.parse(
-            newBvAvg.toStringAsFixed(1),
-          ), // Làm tròn 1 chữ số thập phân
+          'diem_danh_gia_tb': double.parse(newBvAvg.toStringAsFixed(1)),
         });
       });
 
@@ -91,7 +72,7 @@ class ReviewService {
     }
   }
 
-  // Kiểm tra xem bệnh nhân đã đánh giá lịch hẹn này chưa
+  /// hasReviewed: kiểm tra bệnh nhân đã đánh giá lịch hẹn này chưa.
   Future<bool> hasReviewed(String lichHenId, String benhNhanId) async {
     try {
       final snapshot = await _firestore
@@ -107,7 +88,7 @@ class ReviewService {
     }
   }
 
-  /// Lấy các đánh giá mới nhất của 1 khoa.
+  /// getReviewsByDepartment: lấy các đánh giá mới nhất của một khoa (mặc định tối đa 100), bỏ qua document lỗi định dạng.
   Future<List<ReviewModel>> getReviewsByDepartment({
     required String hospitalId,
     required String khoaId,
@@ -137,7 +118,7 @@ class ReviewService {
     }
   }
 
-  /// ✅ HÀM : Lấy nhanh thống kê của BỆNH VIỆN
+  /// getHospitalStats: lấy thống kê đánh giá của bệnh viện (tong_danh_gia, diem_trung_binh), lỗi hoặc không có thì trả về 0.
   Future<Map<String, dynamic>> getHospitalStats({
     required String hospitalId,
   }) async {
@@ -159,7 +140,7 @@ class ReviewService {
     }
   }
 
-  /// ✅ HÀM: Lấy nhanh thống kê của KHOA
+  /// getDepartmentStats: lấy thống kê đánh giá của khoa (tong_danh_gia, diem_trung_binh), lỗi hoặc không có thì trả về 0.
   Future<Map<String, dynamic>> getDepartmentStats({
     required String hospitalId,
     required String khoaId,

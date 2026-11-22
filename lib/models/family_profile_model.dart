@@ -53,7 +53,11 @@ class FamilyProfileModel {
   }
 
   String get initials {
-    final w = hoTen.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+    final w = hoTen
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((e) => e.isNotEmpty)
+        .toList();
     if (w.isEmpty) return '?';
     if (w.length == 1) return w[0][0].toUpperCase();
     return '${w.first[0]}${w.last[0]}'.toUpperCase();
@@ -81,15 +85,15 @@ class FamilyProfileModel {
   }
 
   Map<String, dynamic> toMap() => {
-        'ho_ten': hoTen,
-        'ngay_sinh': ngaySinh == null ? null : Timestamp.fromDate(ngaySinh!),
-        'gioi_tinh': gioiTinh,
-        'so_cccd': soCccd,
-        'so_dien_thoai': soDienThoai,
-        'quan_he': quanHe,
-        'anh_dai_dien': anhDaiDien,
-        'is_default': isDefault,
-      };
+    'ho_ten': hoTen,
+    'ngay_sinh': ngaySinh == null ? null : Timestamp.fromDate(ngaySinh!),
+    'gioi_tinh': gioiTinh,
+    'so_cccd': soCccd,
+    'so_dien_thoai': soDienThoai,
+    'quan_he': quanHe,
+    'anh_dai_dien': anhDaiDien,
+    'is_default': isDefault,
+  };
 
   FamilyProfileModel copyWith({
     String? hoTen,

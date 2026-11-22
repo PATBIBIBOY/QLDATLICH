@@ -13,8 +13,7 @@ class ReviewModel {
   final DateTime? ngayDanhGia;
   final String tenBenhVien;
   final String tenKhoa;
-  
-  // ✅ THÊM TRƯỜNG MỚI
+
   final String tenBenhNhan;
 
   ReviewModel({
@@ -30,7 +29,7 @@ class ReviewModel {
     this.ngayDanhGia,
     required this.tenBenhVien,
     required this.tenKhoa,
-    required this.tenBenhNhan, // ✅
+    required this.tenBenhNhan,
   });
 
   factory ReviewModel.fromJson(Map<String, dynamic> json, String docId) {
@@ -47,7 +46,7 @@ class ReviewModel {
       ngayDanhGia: (json['ngay_danh_gia'] as Timestamp?)?.toDate(),
       tenBenhVien: json['ten_benh_vien']?.toString() ?? '',
       tenKhoa: json['ten_khoa']?.toString() ?? '',
-      tenBenhNhan: json['ten_benh_nhan']?.toString() ?? 'Bệnh nhân', // ✅
+      tenBenhNhan: json['ten_benh_nhan']?.toString() ?? 'Bệnh nhân',
     );
   }
 
@@ -62,14 +61,14 @@ class ReviewModel {
       'nhan_xet': nhanXet,
       'an_danh': anDanh ? 1 : 0,
       'ngay_tao': Timestamp.fromDate(ngayTao),
-      if (ngayDanhGia != null) 'ngay_danh_gia': Timestamp.fromDate(ngayDanhGia!),
+      if (ngayDanhGia != null)
+        'ngay_danh_gia': Timestamp.fromDate(ngayDanhGia!),
       'ten_benh_vien': tenBenhVien,
       'ten_khoa': tenKhoa,
-      'ten_benh_nhan': tenBenhNhan, // ✅
+      'ten_benh_nhan': tenBenhNhan,
     };
   }
 
-  // ✅ HELPER: Trả về tên hiển thị (Ẩn danh hoặc Tên thật)
   String get displayName {
     if (anDanh) return 'Người dùng ẩn danh';
     return tenBenhNhan.isEmpty ? 'Bệnh nhân' : tenBenhNhan;

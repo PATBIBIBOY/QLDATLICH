@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Màu và kiểu chữ dùng chung cho các màn hình nhắn tin CSKH.
+/// ChatColors: bảng màu dùng chung cho các màn hình nhắn tin CSKH.
 class ChatColors {
   static const primary = Color(0xFF1E6FE0);
   static const primaryDark = Color(0xFF0B3F8F);
@@ -14,6 +14,7 @@ class ChatColors {
   static const danger = Color(0xFFEF4444);
 }
 
+/// chatFont: tạo kiểu chữ Be Vietnam Pro dùng chung cho màn hình nhắn tin.
 TextStyle chatFont(
   double size, {
   FontWeight weight = FontWeight.w400,
@@ -26,16 +27,17 @@ TextStyle chatFont(
   height: height,
 );
 
-// ───────────────────────── Định dạng thời gian ─────────────────────────
-
+/// _two: định dạng số thành 2 chữ số (thêm số 0 phía trước).
 String _two(int n) => n.toString().padLeft(2, '0');
 
+/// chatHm: định dạng giờ phút thành "HH:mm".
 String chatHm(DateTime d) => '${_two(d.hour)}:${_two(d.minute)}';
 
+/// chatSameDay: kiểm tra hai thời điểm có cùng ngày không.
 bool chatSameDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
 
-/// Nhãn ngăn cách ngày trong cuộc trò chuyện: Hôm nay / Hôm qua / dd/MM/yyyy.
+/// chatDayLabel: tạo nhãn ngăn cách ngày trong cuộc trò chuyện (Hôm nay / Hôm qua / dd/MM/yyyy).
 String chatDayLabel(DateTime d) {
   final now = DateTime.now();
   if (chatSameDay(d, now)) return 'Hôm nay';
@@ -43,7 +45,7 @@ String chatDayLabel(DateTime d) {
   return '${_two(d.day)}/${_two(d.month)}/${d.year}';
 }
 
-/// Nhãn thời gian ở danh sách: "Hôm nay · 09:43", "2 ngày trước", "12/09/2026".
+/// chatTimeLabel: tạo nhãn thời gian ở danh sách ("Hôm nay · 09:43", "2 ngày trước", "12/09/2026"), rỗng nếu không có thời gian.
 String chatTimeLabel(DateTime? d) {
   if (d == null) return '';
   final now = DateTime.now();
@@ -57,7 +59,7 @@ String chatTimeLabel(DateTime? d) {
   return '${_two(d.day)}/${_two(d.month)}/${d.year}';
 }
 
-/// Avatar bo góc có chữ viết tắt và chấm trạng thái (tuỳ chọn).
+/// ChatAvatar: avatar bo góc có chữ viết tắt và chấm trạng thái trực tuyến (tùy chọn).
 class ChatAvatar extends StatelessWidget {
   final String initials;
   final Color color;

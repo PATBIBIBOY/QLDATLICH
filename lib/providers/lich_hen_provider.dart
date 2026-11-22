@@ -4,9 +4,10 @@ import 'package:flutter/foundation.dart';
 import '../models/lichhen_model.dart';
 import '../services/lichhen_service.dart';
 
-/// LichHenProvider: quản lý trạng thái tình trạng ca, danh sách lịch hẹn, lịch hẹn của tôi và hàng chờ thời gian thực.
 class LichHenProvider extends ChangeNotifier {
   final LichHenService _service = LichHenService();
+
+  static const Set<String> _historyStatusIds = {'5', '6'};
 
   final Map<String, List<CaSlotModel>> _slotsCache = {};
   final Set<String> _loadingSlotKeys = {};
@@ -15,19 +16,36 @@ class LichHenProvider extends ChangeNotifier {
   final Map<String, List<LichHenModel>> _lichHenCache = {};
   final Set<String> _loadingLichHenKeys = {};
   final Map<String, String> _lichHenErrors = {};
-  List<LichHenModel> _activeQueue = [];
-  bool _queueLoaded = false;
-  String? _queueError;
-
-  StreamSubscription<List<LichHenModel>>? _queueSubscription;
-  bool _isListeningToQueue = false;
 
   List<LichHenModel> _myBookings = [];
   bool _isLoadingMyBookings = false;
   String? _myBookingsError;
   int _myBookingsToken = 0;
 
-  static const Set<String> _historyStatusIds = {'5', '6'};
+  List<LichHenModel> _activeQueue = [];
+  bool _queueLoaded = false;
+  String? _queueError;
+  bool _isListeningToQueue = false;
+  StreamSubscription<List<LichHenModel>>? _queueSubscription;
+
+  List<LichHenModel> get myBookings => _myBookings;
+  bool get isLoadingMyBookings => _isLoadingMyBookings;
+  String? get myBookingsError => _myBookingsError;
+
+  List<LichHenModel> get activeQueue => _activeQueue;
+  bool get isListeningToQueue => _isListeningToQueue;
+  bool get queueLoaded => _queueLoaded;
+  String? get queueError => _queueError;
+
+  /// activeBookings: lịch hẹn chưa kết thúc (chờ duyệt, đã xác nhận, đã hủy, đến trễ).
+  List<LichHenModel> get activeBookings => _myBookings
+      .where((b) => !_historyStatusIds.contains(b.trangThaiId))
+      .toList();
+
+  /// historyBookings: lịch hẹn đã kết thúc (hoàn thành, vắng mặt).
+  List<LichHenModel> get historyBookings => _myBookings
+      .where((b) => _historyStatusIds.contains(b.trangThaiId))
+      .toList();
 
   /// makeKey: tạo khóa cache theo bệnh viện, khoa, phòng, ngày và ca (nếu có).
   static String makeKey({
@@ -52,11 +70,33 @@ class LichHenProvider extends ChangeNotifier {
   /// hasLoadedSlots: kiểm tra tình trạng ca của khóa đã được tải chưa.
   bool hasLoadedSlots(String key) => _slotsCache.containsKey(key);
 
-  /// isLoadingSlots: kiểm tra tình trạng ca của khóa có đang được tải không.
+  /// isLoadingSlots: kiểm tra tình trạng ca của khóa có đang tải không.
   bool isLoadingSlots(String key) => _loadingSlotKeys.contains(key);
 
   /// slotsErrorOf: lấy thông báo lỗi khi tải tình trạng ca của khóa.
   String? slotsErrorOf(String key) => _slotErrors[key];
+
+  /// lichHenOf: lấy danh sách lịch hẹn đã cache theo khóa.
+  List<LichHenModel> lichHenOf(String key) => _lichHenCache[key] ?? const [];
+
+  /// hasLoadedLichHen: kiểm tra danh sách lịch hẹn của khóa đã được tải chưa.
+  bool hasLoadedLichHen(String key) => _lichHenCache.containsKey(key);
+
+  /// isLoadingLichHen: kiểm tra danh sách lịch hẹn của khóa có đang tải không.
+  bool isLoadingLichHen(String key) => _loadingLichHenKeys.contains(key);
+
+  /// lichHenErrorOf: lấy thông báo lỗi khi tải danh sách lịch hẹn của khóa.
+  String? lichHenErrorOf(String key) => _lichHenErrors[key];
+
+  /// activeBookingsOf: lịch hẹn chưa kết thúc của một hồ sơ (null là tất cả hồ sơ).
+  List<LichHenModel> activeBookingsOf(String? profileId) => profileId == null
+      ? activeBookings
+      : activeBookings.where((b) => b.profileKey == profileId).toList();
+
+  /// historyBookingsOf: lịch hẹn đã kết thúc của một hồ sơ (null là tất cả hồ sơ).
+  List<LichHenModel> historyBookingsOf(String? profileId) => profileId == null
+      ? historyBookings
+      : historyBookings.where((b) => b.profileKey == profileId).toList();
 
   /// loadSlots: tải tình trạng các ca (còn x/y chỗ) của một phòng khám trong một ngày.
   Future<void> loadSlots({
@@ -96,24 +136,6 @@ class LichHenProvider extends ChangeNotifier {
       _loadingSlotKeys.remove(key);
       notifyListeners();
     }
-  }
-
-  /// lichHenOf: lấy danh sách lịch hẹn đã cache theo khóa.
-  List<LichHenModel> lichHenOf(String key) => _lichHenCache[key] ?? const [];
-
-  /// hasLoadedLichHen: kiểm tra danh sách lịch hẹn của khóa đã được tải chưa.
-  bool hasLoadedLichHen(String key) => _lichHenCache.containsKey(key);
-
-  /// isLoadingLichHen: kiểm tra danh sách lịch hẹn của khóa có đang được tải không.
-  bool isLoadingLichHen(String key) => _loadingLichHenKeys.contains(key);
-
-  /// lichHenErrorOf: lấy thông báo lỗi khi tải danh sách lịch hẹn của khóa.
-  String? lichHenErrorOf(String key) => _lichHenErrors[key];
-
-  @override
-  void dispose() {
-    stopListeningQueue();
-    super.dispose();
   }
 
   /// loadLichHenList: tải danh sách lịch hẹn của một phòng khám trong một ngày (và ca nếu có).
@@ -156,34 +178,6 @@ class LichHenProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-
-  List<LichHenModel> get myBookings => _myBookings;
-  bool get isLoadingMyBookings => _isLoadingMyBookings;
-  String? get myBookingsError => _myBookingsError;
-  List<LichHenModel> get activeQueue => _activeQueue;
-  bool get isListeningToQueue => _isListeningToQueue;
-  bool get queueLoaded => _queueLoaded;
-  String? get queueError => _queueError;
-
-  /// activeBookings: lịch hẹn chưa kết thúc (chờ duyệt, đã xác nhận, đã hủy, đến trễ).
-  List<LichHenModel> get activeBookings => _myBookings
-      .where((b) => !_historyStatusIds.contains(b.trangThaiId))
-      .toList();
-
-  /// historyBookings: lịch hẹn đã kết thúc (hoàn thành, vắng mặt).
-  List<LichHenModel> get historyBookings => _myBookings
-      .where((b) => _historyStatusIds.contains(b.trangThaiId))
-      .toList();
-
-  /// activeBookingsOf: lịch hẹn chưa kết thúc của một hồ sơ (null là tất cả hồ sơ).
-  List<LichHenModel> activeBookingsOf(String? profileId) => profileId == null
-      ? activeBookings
-      : activeBookings.where((b) => b.profileKey == profileId).toList();
-
-  /// historyBookingsOf: lịch hẹn đã kết thúc của một hồ sơ (null là tất cả hồ sơ).
-  List<LichHenModel> historyBookingsOf(String? profileId) => profileId == null
-      ? historyBookings
-      : historyBookings.where((b) => b.profileKey == profileId).toList();
 
   /// loadMyBookings: tải tất cả lịch hẹn của bệnh nhân.
   Future<void> loadMyBookings(String benhNhanId) async {
@@ -250,24 +244,6 @@ class LichHenProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// clearMyBookings: xóa lịch hẹn của tôi khi đăng xuất để không lộ dữ liệu tài khoản trước.
-  void clearMyBookings() {
-    _myBookingsToken++;
-    _myBookings = [];
-    _myBookingsError = null;
-    _isLoadingMyBookings = false;
-    notifyListeners();
-  }
-
-  /// clearCache: xóa cache số chỗ và danh sách lịch hẹn để lần sau tải lại dữ liệu mới.
-  void clearCache() {
-    _slotsCache.clear();
-    _lichHenCache.clear();
-    _slotErrors.clear();
-    _lichHenErrors.clear();
-    notifyListeners();
-  }
-
   /// startListeningQueue: bắt đầu lắng nghe hàng chờ thời gian thực của một phòng khám.
   void startListeningQueue({
     required DateTime ngay,
@@ -314,5 +290,29 @@ class LichHenProvider extends ChangeNotifier {
     _queueError = null;
     _activeQueue = [];
     notifyListeners();
+  }
+
+  /// clearMyBookings: xóa lịch hẹn của tôi khi đăng xuất để không lộ dữ liệu tài khoản trước.
+  void clearMyBookings() {
+    _myBookingsToken++;
+    _myBookings = [];
+    _myBookingsError = null;
+    _isLoadingMyBookings = false;
+    notifyListeners();
+  }
+
+  /// clearCache: xóa cache số chỗ và danh sách lịch hẹn để lần sau tải lại dữ liệu mới.
+  void clearCache() {
+    _slotsCache.clear();
+    _lichHenCache.clear();
+    _slotErrors.clear();
+    _lichHenErrors.clear();
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    stopListeningQueue();
+    super.dispose();
   }
 }

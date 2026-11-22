@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/app_routes.dart';
@@ -18,10 +18,11 @@ import '../../widgets/patient_widget/appointment_ticket_widget.dart';
 import '../../widgets/patient_widget/book_appointment_widget.dart'
     show AppTheme;
 
-/// _outOfQueueStatuses: các trạng thái không còn nằm trong hàng chờ khám.
+/// Các trạng thái không còn nằm trong hàng chờ khám.
 const Set<String> _outOfQueueStatuses = {'3', '4', '5', '6', '7'};
 
-/// AppointmentDetailScreen: màn hình chi tiết lịch khám, gồm trạng thái, số thứ tự và thời gian chờ ước tính.
+/// AppointmentDetailScreen: chi tiết một lịch khám (trạng thái, số thứ tự,
+/// thời gian chờ ước tính) và các thao tác hủy, xóa, theo dõi, chia sẻ vé.
 class AppointmentDetailScreen extends StatefulWidget {
   final MyAppointmentItem appointment;
   final String? currentQueue;
@@ -42,15 +43,22 @@ class AppointmentDetailScreen extends StatefulWidget {
 }
 
 class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
-  final LichHenService _lichHenService = LichHenService();
-  final HospitalService _hospitalService = HospitalService();
-  final QueueTimeEstimator _queueTimeEstimator = QueueTimeEstimator();
+  final _lichHenService = LichHenService();
+  final _hospitalService = HospitalService();
+  final _queueTimeEstimator = QueueTimeEstimator();
 
   late Future<Map<String, dynamic>?> _detailsFuture;
   StreamSubscription<List<LichHenModel>>? _queueSubscription;
   List<LichHenModel> _queue = [];
   int? _thoiGianKham;
   String _waitLabel = 'Đang tính...';
+
+  String get _benhNhanId =>
+      widget.benhNhanId ?? FirebaseAuth.instance.currentUser?.uid ?? '';
+
+  /// Mã lịch đã bỏ ký tự '#' và phần "(+n)" phía sau.
+  String get _cleanId =>
+      widget.appointment.id.replaceFirst('#', '').split(' ').first;
 
   @override
   void initState() {
@@ -64,36 +72,26 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
     super.dispose();
   }
 
-  String get _benhNhanId =>
-      widget.benhNhanId ?? FirebaseAuth.instance.currentUser?.uid ?? '';
+  // ───────────── Tải dữ liệu ─────────────
 
-  String get _cleanId =>
-      widget.appointment.id.replaceFirst('#', '').split(' ').first;
-
-  /// _fetchAppointmentDetails: lấy chi tiết lịch hẹn mới nhất từ Firestore theo mã lịch.
+  /// _fetchAppointmentDetails: lấy chi tiết lịch mới nhất từ Firestore
+  /// (tìm theo field `id`, không có thì tìm theo document id).
   Future<Map<String, dynamic>?> _fetchAppointmentDetails() async {
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('LichHen')
-          .where('id', isEqualTo: _cleanId)
-          .limit(1)
-          .get();
-      if (snapshot.docs.isNotEmpty) return snapshot.docs.first.data();
+      final collection = FirebaseFirestore.instance.collection('LichHen');
+      final byField =
+          await collection.where('id', isEqualTo: _cleanId).limit(1).get();
+      if (byField.docs.isNotEmpty) return byField.docs.first.data();
 
-      final docSnapshot = await FirebaseFirestore.instance
-          .collection('LichHen')
-          .doc(_cleanId)
-          .get();
-      if (docSnapshot.exists) return docSnapshot.data();
-
-      return null;
+      final byDoc = await collection.doc(_cleanId).get();
+      return byDoc.exists ? byDoc.data() : null;
     } catch (e) {
       debugPrint('Lỗi khi lấy chi tiết lịch hẹn: $e');
       return null;
     }
   }
 
-  /// _loadDetails: tải chi tiết lịch hẹn và bắt đầu theo dõi hàng chờ nếu lịch đã được duyệt.
+  /// _loadDetails: tải chi tiết lịch; nếu lịch đã duyệt thì bắt đầu theo dõi hàng chờ.
   Future<Map<String, dynamic>?> _loadDetails() async {
     final data = await _fetchAppointmentDetails();
     if (data != null &&
@@ -104,7 +102,23 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
     return data;
   }
 
-  /// _listenQueue: lắng nghe hàng chờ của phòng khám và lấy thời gian khám của phòng để tính thời gian chờ.
+  /// _refresh: tải lại chi tiết lịch và hàng chờ.
+  void _refresh() {
+    setState(() {
+      _waitLabel = 'Đang tính...';
+      _detailsFuture = _loadDetails();
+    });
+    context.showAppSnackBar(
+      title: 'Đang cập nhật lịch hẹn',
+      message: 'Đang cập nhật số thứ tự mới nhất...',
+      duration: const Duration(seconds: 1),
+    );
+  }
+
+  // ───────────── Hàng chờ & thời gian chờ ─────────────
+
+  /// _listenQueue: lấy thời gian khám của phòng rồi lắng nghe hàng chờ
+  /// để tính thời gian chờ ước tính.
   void _listenQueue(Map<String, dynamic> data) {
     final booking = LichHenModel.fromJson(data, id: _cleanId);
     if (booking.phongKhamId.isEmpty || booking.ngayDat == null) {
@@ -148,50 +162,36 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
         );
   }
 
-  /// _recalculateWait: tính lại thời gian chờ theo cùng công thức với màn theo dõi lịch khám.
+  /// _recalculateWait: tính lại thời gian chờ (cùng công thức với màn theo dõi lịch khám).
   void _recalculateWait() {
     final waiting = _queue
         .where((b) => !_outOfQueueStatuses.contains(b.trangThaiId.toString()))
         .toList();
     final myIndex = waiting.indexWhere((b) => b.id == _cleanId);
-
     if (myIndex == -1) {
       _setWaitLabel('Chưa xác định');
       return;
     }
 
-    final currentServing = waiting.first.soThuTu;
-    final estimator = _queueTimeEstimator.update(currentServing);
+    final estimator = _queueTimeEstimator.update(waiting.first.soThuTu);
     final perPatient = _thoiGianKham ?? estimator.perPatient;
     final waitMinutes = _queueTimeEstimator.waitMinutes(myIndex, perPatient);
     _setWaitLabel('~$waitMinutes phút');
   }
 
-  /// _setWaitLabel: cập nhật nội dung thời gian chờ hiển thị trên màn hình.
+  /// _setWaitLabel: cập nhật chữ thời gian chờ hiển thị trên màn hình.
   void _setWaitLabel(String label) {
     if (!mounted) return;
     setState(() => _waitLabel = label);
   }
 
-  /// _refresh: tải lại chi tiết lịch hẹn và hàng chờ.
-  void _refresh() {
-    setState(() {
-      _waitLabel = 'Đang tính...';
-      _detailsFuture = _loadDetails();
-    });
-    context.showAppSnackBar(
-      title: 'Đang cập nhật lịch hẹn',
-      message: 'Đang cập nhật số thứ tự mới nhất...',
-      duration: const Duration(seconds: 1),
-    );
-  }
+  // ───────────── Thao tác ─────────────
 
-  /// _openTicket: dựng vé khám điện tử từ dữ liệu lịch hẹn rồi mở bảng xem trước và chia sẻ.
+  /// _openTicket: dựng vé khám điện tử từ dữ liệu lịch rồi mở bảng xem trước và chia sẻ.
   void _openTicket(Map<String, dynamic> data) {
     final appointment = widget.appointment;
-    final queue = int.tryParse(data['so_thu_tu']?.toString() ?? '') ?? 0;
-    final patient = (data['ten_nguoi_kham'] ?? data['tenNguoiKham'] ?? '')
-        .toString();
+    final patient =
+        (data['ten_nguoi_kham'] ?? data['tenNguoiKham'] ?? '').toString();
     final qr = (data['ma_qr'] ?? data['maQr'] ?? '').toString();
 
     showAppointmentTicketSheet(
@@ -203,7 +203,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
       timeLabel: appointment.timeLabel,
       appointmentId: _cleanId,
       qrData: qr.isEmpty ? _cleanId : qr,
-      queueNumber: queue,
+      queueNumber: int.tryParse(data['so_thu_tu']?.toString() ?? '') ?? 0,
     );
   }
 
@@ -216,8 +216,17 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
     );
   }
 
-  /// _cancelAppointment: hủy lịch hẹn, báo kết quả rồi quay lại màn hình trước.
-  Future<void> _cancelAppointment(BuildContext context) async {
+  /// _runWithLoading: hiện vòng xoay chặn màn hình, chạy [action], báo kết quả
+  /// bằng snackbar rồi (nếu thành công) đóng màn chi tiết.
+  /// [popResult] là giá trị trả về cho màn trước (true để màn trước tải lại).
+  Future<void> _runWithLoading(
+    BuildContext context, {
+    required Future<void> Function(LichHenProvider provider) action,
+    required String successTitle,
+    required String successMessage,
+    required String failTitle,
+    bool? popResult,
+  }) async {
     final provider = context.read<LichHenProvider>();
     final navigator = Navigator.of(context);
 
@@ -228,71 +237,56 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
     );
 
     try {
-      await provider.huyLichHen(
-        benhNhanId: _benhNhanId,
-        lichHenId: widget.appointment.id,
-      );
-
+      await action(provider);
       if (!navigator.canPop()) return;
-      navigator.pop();
+      navigator.pop(); // đóng vòng xoay
 
       if (!context.mounted) return;
       context.showAppSnackBar(
-        title: 'Hủy lịch thành công',
-        message: 'Đã hủy lịch khám thành công',
+        title: successTitle,
+        message: successMessage,
         type: SnackBarType.success,
       );
-
-      if (navigator.canPop()) navigator.pop(true);
+      if (navigator.canPop()) navigator.pop(popResult);
     } catch (e) {
       if (!navigator.canPop()) return;
-      navigator.pop();
+      navigator.pop(); // đóng vòng xoay
 
       if (!context.mounted) return;
       context.showAppSnackBar(
-        title: 'Hủy lịch thất bại',
+        title: failTitle,
         message: e.toString().replaceFirst('Exception: ', ''),
         type: SnackBarType.error,
       );
     }
   }
 
-  /// _deleteAppointment: xóa lịch đã hủy khỏi danh sách rồi quay lại màn hình trước.
-  Future<void> _deleteAppointment(BuildContext context) async {
-    final provider = context.read<LichHenProvider>();
-    final navigator = Navigator.of(context);
+  /// _cancelAppointment: hủy lịch hẹn rồi quay lại màn trước (trả về true để tải lại danh sách).
+  Future<void> _cancelAppointment(BuildContext context) => _runWithLoading(
+    context,
+    action: (p) => p.huyLichHen(
+      benhNhanId: _benhNhanId,
+      lichHenId: widget.appointment.id,
+    ),
+    successTitle: 'Hủy lịch thành công',
+    successMessage: 'Đã hủy lịch khám thành công',
+    failTitle: 'Hủy lịch thất bại',
+    popResult: true,
+  );
 
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
-    );
+  /// _deleteAppointment: xóa lịch đã hủy khỏi danh sách rồi quay lại màn trước.
+  Future<void> _deleteAppointment(BuildContext context) => _runWithLoading(
+    context,
+    action: (p) => p.xoaLichHen(
+      benhNhanId: _benhNhanId,
+      lichHenId: widget.appointment.id,
+    ),
+    successTitle: 'Xóa lịch thành công',
+    successMessage: 'Đã xóa lịch khám',
+    failTitle: 'Xóa lịch thất bại',
+  );
 
-    try {
-      await provider.xoaLichHen(
-        benhNhanId: _benhNhanId,
-        lichHenId: widget.appointment.id,
-      );
-      navigator.pop();
-      if (!context.mounted) return;
-      context.showAppSnackBar(
-        title: 'Xóa lịch thành công',
-        message: 'Đã xóa lịch khám',
-        type: SnackBarType.success,
-      );
-      navigator.pop();
-    } catch (e) {
-      navigator.pop();
-      if (!context.mounted) return;
-      context.showAppSnackBar(
-        title: 'Xóa lịch thất bại',
-        message: e.toString().replaceFirst('Exception: ', ''),
-        type: SnackBarType.error,
-      );
-    }
-  }
-
-  /// _showCancelDialog: hiện hộp thoại xác nhận hủy lịch khám.
+  /// _showCancelDialog: hộp thoại xác nhận hủy lịch.
   void _showCancelDialog(BuildContext context) {
     showDialog<void>(
       context: context,
@@ -311,7 +305,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
     );
   }
 
-  /// _showDeleteDialog: hiện hộp thoại xác nhận xóa lịch khám đã hủy.
+  /// _showDeleteDialog: hộp thoại xác nhận xóa lịch đã hủy.
   void _showDeleteDialog(BuildContext context) {
     showDialog<void>(
       context: context,
@@ -329,6 +323,8 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
       ),
     );
   }
+
+  // ───────────── Giao diện ─────────────
 
   @override
   Widget build(BuildContext context) {

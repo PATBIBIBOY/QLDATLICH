@@ -7,6 +7,7 @@ class _SnackStyle {
   final Color color;
   final IconData icon;
   final String title;
+
   const _SnackStyle(this.color, this.icon, this.title);
 }
 
@@ -41,7 +42,6 @@ _SnackStyle _styleOf(SnackBarType type) {
 
 extension AppSnackBarExtension on BuildContext {
   /// Hiển thị thông báo dùng chung cho toàn bộ ứng dụng.
-  ///
   /// - [title]: tiêu đề in đậm; không truyền thì dùng tiêu đề mặc định theo [type].
   /// - [actionLabel] + [onAction]: nút hành động ở bên phải (vd: "Hoàn tác", "Thử lại").
   void showAppSnackBar({
@@ -165,6 +165,7 @@ class _AppSnackBarContent extends StatelessWidget {
                             ),
                             child: Icon(style.icon, size: 24, color: color),
                           ),
+
                           const SizedBox(width: 12),
 
                           // Tiêu đề + nội dung
@@ -184,6 +185,7 @@ class _AppSnackBarContent extends StatelessWidget {
                                     color: color,
                                   ),
                                 ),
+
                                 const SizedBox(height: 3),
                                 Text(
                                   message,

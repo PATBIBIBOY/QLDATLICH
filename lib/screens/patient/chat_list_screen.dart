@@ -1,12 +1,14 @@
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:flutter/material.dart';
+
 import '../../models/conversation_model.dart';
+import '../../screens/patient/chat_detail_screen.dart';
 import '../../services/chat_service.dart';
 import '../../utils/chat_common.dart';
-import '../../screens/patient/chat_detail_screen.dart';
 
-/// Danh sách các cuộc trò chuyện của bệnh nhân với CSKH từng bệnh viện.
-/// Dữ liệu realtime từ Firestore: Conversations (benhNhanId == uid).
+/// ChatListScreen: danh sách cuộc trò chuyện của bệnh nhân với CSKH từng bệnh viện
+/// (realtime từ Firestore, collection Conversations với benhNhanId == uid).
+/// Có ô tìm theo tên bệnh viện hoặc nội dung tin cuối.
 class ChatListScreen extends StatefulWidget {
   /// Hiện nút quay lại (tắt nếu màn hình là một tab của thanh điều hướng).
   final bool showBack;
@@ -18,7 +20,7 @@ class ChatListScreen extends StatefulWidget {
 }
 
 class _ChatListScreenState extends State<ChatListScreen> {
-  final ChatService _service = ChatService();
+  final _service = ChatService();
   final _searchCtrl = TextEditingController();
   String _query = '';
 
@@ -33,6 +35,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     super.dispose();
   }
 
+  /// _filter: lọc cuộc trò chuyện theo từ khóa (tên bệnh viện hoặc tin nhắn cuối).
   List<ConversationModel> _filter(List<ConversationModel> all) {
     final q = _query.trim().toLowerCase();
     if (q.isEmpty) return all;
@@ -45,6 +48,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         .toList();
   }
 
+  /// _open: mở màn chat chi tiết.
   void _open(ConversationModel c) {
     Navigator.push(
       context,
@@ -54,11 +58,21 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
+  /// _onSearchChanged / _clearSearch: cập nhật hoặc xóa từ khóa tìm kiếm.
+  void _onSearchChanged(String v) => setState(() => _query = v);
+
+  void _clearSearch() {
+    _searchCtrl.clear();
+    setState(() => _query = '');
+  }
+
   @override
   Widget build(BuildContext context) {
+    final stream = _stream;
+
     return Scaffold(
       backgroundColor: ChatColors.bg,
-      body: _stream == null
+      body: stream == null
           ? Column(
               children: [
                 _Header(
@@ -78,57 +92,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
               ],
             )
           : StreamBuilder<List<ConversationModel>>(
-              stream: _stream,
+              stream: stream,
               builder: (context, snap) {
                 final all = snap.data ?? const <ConversationModel>[];
                 final unread = all.fold<int>(
                   0,
-                  (s, c) => s + c.unreadCountPatient,
+                  (sum, c) => sum + c.unreadCountPatient,
                 );
-                final list = _filter(all);
-
-                Widget body;
-                if (snap.hasError) {
-                  body = const _MessageState(
-                    icon: Icons.wifi_off_rounded,
-                    title: 'Không tải được tin nhắn',
-                    text: 'Vui lòng kiểm tra kết nối và thử lại sau.',
-                    isError: true,
-                  );
-                } else if (!snap.hasData) {
-                  body = const Center(
-                    child: CircularProgressIndicator(
-                      color: ChatColors.primary,
-                    ),
-                  );
-                } else if (list.isEmpty) {
-                  final searching = _query.trim().isNotEmpty;
-                  body = _MessageState(
-                    icon: searching
-                        ? Icons.search_off_rounded
-                        : Icons.chat_bubble_outline_rounded,
-                    title: searching
-                        ? 'Không tìm thấy kết quả'
-                        : 'Chưa có cuộc trò chuyện',
-                    text: searching
-                        ? 'Hãy thử tìm bằng tên bệnh viện khác.'
-                        : 'Bấm "Nhắn tin với CSKH" ở trang bệnh viện hoặc '
-                              'lịch khám để bắt đầu trò chuyện.',
-                  );
-                } else {
-                  body = ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-                    itemCount: list.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, i) => _FadeIn(
-                      index: i,
-                      child: _ConversationCard(
-                        conversation: list[i],
-                        onTap: () => _open(list[i]),
-                      ),
-                    ),
-                  );
-                }
 
                 return Column(
                   children: [
@@ -136,23 +106,65 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       showBack: widget.showBack,
                       unread: unread,
                       controller: _searchCtrl,
-                      onChanged: (v) => setState(() => _query = v),
-                      onClear: () {
-                        _searchCtrl.clear();
-                        setState(() => _query = '');
-                      },
+                      onChanged: _onSearchChanged,
+                      onClear: _clearSearch,
                     ),
-                    Expanded(child: body),
+                    Expanded(child: _buildBody(snap, _filter(all))),
                   ],
                 );
               },
             ),
     );
   }
+
+  /// _buildBody: nội dung theo trạng thái (lỗi, đang tải, rỗng / không có kết quả, danh sách).
+  Widget _buildBody(
+    AsyncSnapshot<List<ConversationModel>> snap,
+    List<ConversationModel> list,
+  ) {
+    if (snap.hasError) {
+      return const _MessageState(
+        icon: Icons.wifi_off_rounded,
+        title: 'Không tải được tin nhắn',
+        text: 'Vui lòng kiểm tra kết nối và thử lại sau.',
+        isError: true,
+      );
+    }
+    if (!snap.hasData) {
+      return const Center(
+        child: CircularProgressIndicator(color: ChatColors.primary),
+      );
+    }
+    if (list.isEmpty) {
+      final searching = _query.trim().isNotEmpty;
+      return _MessageState(
+        icon: searching
+            ? Icons.search_off_rounded
+            : Icons.chat_bubble_outline_rounded,
+        title: searching ? 'Không tìm thấy kết quả' : 'Chưa có cuộc trò chuyện',
+        text: searching
+            ? 'Hãy thử tìm bằng tên bệnh viện khác.'
+            : 'Bấm "Nhắn tin với CSKH" ở trang bệnh viện hoặc '
+                  'lịch khám để bắt đầu trò chuyện.',
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+      itemCount: list.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, i) => _FadeIn(
+        index: i,
+        child: _ConversationCard(
+          conversation: list[i],
+          onTap: () => _open(list[i]),
+        ),
+      ),
+    );
+  }
 }
 
-// ───────────────────────── Đầu trang ─────────────────────────
-
+/// _Header: đầu trang gradient gồm nút quay lại (tùy chọn), tiêu đề, số tin chưa đọc và ô tìm kiếm.
 class _Header extends StatelessWidget {
   final bool showBack;
   final int unread;
@@ -168,8 +180,44 @@ class _Header extends StatelessWidget {
     required this.onClear,
   });
 
+  Widget _bubble(double size, double opacity) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: Colors.white.withValues(alpha: opacity),
+    ),
+  );
+
+  /// _squareButton: nút vuông bo góc nền trắng mờ (quay lại, biểu tượng hỗ trợ).
+  Widget _squareButton({required Widget child, VoidCallback? onTap, double size = 44}) {
+    final box = Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+      ),
+      child: child,
+    );
+
+    return Material(
+      color: Colors.white.withValues(alpha: 0.18),
+      borderRadius: BorderRadius.circular(14),
+      child: onTap == null
+          ? box
+          : InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: onTap,
+              child: box,
+            ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    const radius = BorderRadius.vertical(bottom: Radius.circular(32));
+
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
@@ -178,10 +226,10 @@ class _Header extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [Color(0xFF0B3F8F), ChatColors.primary, Color(0xFF3B8BF0)],
         ),
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+        borderRadius: radius,
       ),
       child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
+        borderRadius: radius,
         child: Stack(
           children: [
             Positioned(right: -40, top: -40, child: _bubble(170, 0.08)),
@@ -196,27 +244,12 @@ class _Header extends StatelessWidget {
                     Row(
                       children: [
                         if (showBack) ...[
-                          Material(
-                            color: Colors.white.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(14),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(14),
-                              onTap: () => Navigator.maybePop(context),
-                              child: Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.25),
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.arrow_back_ios_new_rounded,
-                                  size: 18,
-                                  color: Colors.white,
-                                ),
-                              ),
+                          _squareButton(
+                            onTap: () => Navigator.maybePop(context),
+                            child: const Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              size: 18,
+                              color: Colors.white,
                             ),
                           ),
                           const SizedBox(width: 14),
@@ -246,16 +279,7 @@ class _Header extends StatelessWidget {
                             ],
                           ),
                         ),
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.25),
-                            ),
-                          ),
+                        _squareButton(
                           child: const Icon(
                             Icons.support_agent_rounded,
                             color: Colors.white,
@@ -265,51 +289,7 @@ class _Header extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 18),
-                    Container(
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.14),
-                            blurRadius: 18,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: TextField(
-                        controller: controller,
-                        onChanged: onChanged,
-                        textInputAction: TextInputAction.search,
-                        style: chatFont(14.5, weight: FontWeight.w500),
-                        decoration: InputDecoration(
-                          hintText: 'Tìm cuộc trò chuyện...',
-                          hintStyle: chatFont(
-                            14.5,
-                            color: const Color(0xFF94A3B8),
-                          ),
-                          prefixIcon: const Icon(
-                            Icons.search_rounded,
-                            color: ChatColors.primary,
-                          ),
-                          suffixIcon: controller.text.isEmpty
-                              ? null
-                              : IconButton(
-                                  icon: const Icon(
-                                    Icons.close_rounded,
-                                    size: 20,
-                                    color: ChatColors.muted,
-                                  ),
-                                  onPressed: onClear,
-                                ),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 15,
-                          ),
-                        ),
-                      ),
-                    ),
+                    _buildSearchField(),
                   ],
                 ),
               ),
@@ -320,21 +300,54 @@ class _Header extends StatelessWidget {
     );
   }
 
-  Widget _bubble(double size, double opacity) => Container(
-    width: size,
-    height: size,
-    decoration: BoxDecoration(
-      shape: BoxShape.circle,
-      color: Colors.white.withValues(alpha: opacity),
-    ),
-  );
+  /// _buildSearchField: ô tìm cuộc trò chuyện (có nút xóa khi đã nhập).
+  Widget _buildSearchField() {
+    return Container(
+      height: 52,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.14),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        textInputAction: TextInputAction.search,
+        style: chatFont(14.5, weight: FontWeight.w500),
+        decoration: InputDecoration(
+          hintText: 'Tìm cuộc trò chuyện...',
+          hintStyle: chatFont(14.5, color: const Color(0xFF94A3B8)),
+          prefixIcon: const Icon(Icons.search_rounded, color: ChatColors.primary),
+          suffixIcon: controller.text.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: 20,
+                    color: ChatColors.muted,
+                  ),
+                  onPressed: onClear,
+                ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 15),
+        ),
+      ),
+    );
+  }
 }
 
-// ───────────────────────── Thẻ cuộc trò chuyện ─────────────────────────
-
+/// _ConversationCard: thẻ một cuộc trò chuyện gồm avatar, tên bệnh viện, tin cuối, thời gian,
+/// trạng thái đóng và huy hiệu số tin chưa đọc (9+ nếu quá 9).
 class _ConversationCard extends StatelessWidget {
   final ConversationModel conversation;
   final VoidCallback onTap;
+
   const _ConversationCard({required this.conversation, required this.onTap});
 
   @override
@@ -430,41 +443,9 @@ class _ConversationCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 if (hasUnread)
-                  Container(
-                    constraints: const BoxConstraints(
-                      minWidth: 26,
-                      minHeight: 26,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 7),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFFF6B6B), ChatColors.danger],
-                      ),
-                      borderRadius: BorderRadius.circular(13),
-                      boxShadow: [
-                        BoxShadow(
-                          color: ChatColors.danger.withValues(alpha: 0.35),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        unread > 9 ? '9+' : '$unread',
-                        style: chatFont(
-                          12,
-                          weight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  )
+                  _UnreadBadge(count: unread)
                 else
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    color: Color(0xFFB6C2D1),
-                  ),
+                  const Icon(Icons.chevron_right_rounded, color: Color(0xFFB6C2D1)),
               ],
             ),
           ),
@@ -474,8 +455,41 @@ class _ConversationCard extends StatelessWidget {
   }
 }
 
-// ───────────────────────── Trạng thái trống / lỗi ─────────────────────────
+/// _UnreadBadge: huy hiệu đỏ hiện số tin chưa đọc.
+class _UnreadBadge extends StatelessWidget {
+  final int count;
 
+  const _UnreadBadge({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+      padding: const EdgeInsets.symmetric(horizontal: 7),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFF6B6B), ChatColors.danger],
+        ),
+        borderRadius: BorderRadius.circular(13),
+        boxShadow: [
+          BoxShadow(
+            color: ChatColors.danger.withValues(alpha: 0.35),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Text(
+          count > 9 ? '9+' : '$count',
+          style: chatFont(12, weight: FontWeight.w800, color: Colors.white),
+        ),
+      ),
+    );
+  }
+}
+
+/// _MessageState: thông báo giữa màn hình (chưa đăng nhập, lỗi, rỗng); [isError] đổi sang màu đỏ.
 class _MessageState extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -492,6 +506,7 @@ class _MessageState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = isError ? ChatColors.danger : ChatColors.primary;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -536,10 +551,11 @@ class _MessageState extends StatelessWidget {
   }
 }
 
-/// Mờ dần + trượt nhẹ từ dưới lên, các thẻ sau xuất hiện trễ hơn một chút.
+/// _FadeIn: hiệu ứng mờ dần và trượt nhẹ từ dưới lên; thẻ phía sau xuất hiện trễ hơn một chút.
 class _FadeIn extends StatelessWidget {
   final int index;
   final Widget child;
+
   const _FadeIn({required this.index, required this.child});
 
   @override
@@ -551,10 +567,7 @@ class _FadeIn extends StatelessWidget {
       curve: Curves.easeOutCubic,
       builder: (context, v, child) => Opacity(
         opacity: v,
-        child: Transform.translate(
-          offset: Offset(0, 16 * (1 - v)),
-          child: child,
-        ),
+        child: Transform.translate(offset: Offset(0, 16 * (1 - v)), child: child),
       ),
       child: child,
     );

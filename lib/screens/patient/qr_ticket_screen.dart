@@ -1,15 +1,16 @@
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:flutter/rendering.dart';
 
 import '../../models/lichhen_model.dart';
 import '../../models/ticket_data.dart';
 import '../../utils/app_snackbar.dart';
 
-// Màu dùng riêng cho màn hình này.
+/// Bảng màu riêng của màn vé QR.
 class _C {
   static const primary = Color(0xFF1976D2);
   static const primaryLight = Color(0xFF42A5F5);
@@ -21,16 +22,17 @@ class _C {
   static const qrInk = Color(0xFF0B2545);
 }
 
-// ───────────────────────── Màn hình ─────────────────────────
+/// QrTicketScreen: vé khám điện tử gồm mã đặt lịch, số thứ tự, mã QR check-in và thông tin
+/// bệnh nhân. Có thể sao chép mã đặt lịch và lưu vé thành ảnh vào thư viện.
+/// Lịch hẹn lấy từ [booking] hoặc route arguments (LichHenModel).
 class QrTicketScreen extends StatefulWidget {
   final LichHenModel? booking;
   final String? patientName;
   final ValueChanged<int>? onNavTap;
 
-  // ✅ LOẠI BỎ CÁC DỮ LIỆU GIẢ (DUMMY DATA)
   const QrTicketScreen({
     super.key,
-    required this.booking, // Bắt buộc phải có hoặc xử lý null
+    required this.booking,
     this.patientName,
     this.onNavTap,
   });
@@ -40,21 +42,19 @@ class QrTicketScreen extends StatefulWidget {
 }
 
 class _QrTicketScreenState extends State<QrTicketScreen> {
+  /// Khóa của RepaintBoundary bao quanh vé, dùng để chụp vé thành ảnh.
   final GlobalKey _ticketKey = GlobalKey();
   bool _saving = false;
 
-  // ✅ CHỈ LẤY DỮ LIỆU THỰC TẾ, KHÔNG CÓ FALLBACK GIẢ
+  /// _resolveData: dựng dữ liệu vé từ lịch hẹn; không có lịch hợp lệ thì trả null.
   TicketData? _resolveData(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments;
     final booking = widget.booking ?? (args is LichHenModel ? args : null);
-
-    if (booking != null) {
-      return TicketData.fromBooking(booking, patientName: widget.patientName);
-    }
-
-    return null; // Trả về null nếu không có dữ liệu thật
+    if (booking == null) return null;
+    return TicketData.fromBooking(booking, patientName: widget.patientName);
   }
 
+  /// _toast: hiện snackbar (bỏ qua nếu màn hình đã đóng).
   void _toast(
     String message, {
     SnackBarType type = SnackBarType.info,
@@ -64,6 +64,7 @@ class _QrTicketScreenState extends State<QrTicketScreen> {
     context.showAppSnackBar(message: message, type: type, title: title);
   }
 
+  /// _copyCode: sao chép mã đặt lịch.
   Future<void> _copyCode(String code) async {
     await Clipboard.setData(ClipboardData(text: code));
     _toast(
@@ -73,14 +74,14 @@ class _QrTicketScreenState extends State<QrTicketScreen> {
     );
   }
 
+  /// _saveTicket: chụp vé thành ảnh PNG rồi lưu vào album "MediConnect" trong thư viện ảnh.
   Future<void> _saveTicket() async {
     if (_saving) return;
     setState(() => _saving = true);
 
     try {
       final boundary =
-          _ticketKey.currentContext!.findRenderObject()
-              as RenderRepaintBoundary;
+          _ticketKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
       final image = await boundary.toImage(pixelRatio: 3);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) throw Exception('Không tạo được ảnh');
@@ -109,56 +110,7 @@ class _QrTicketScreenState extends State<QrTicketScreen> {
   @override
   Widget build(BuildContext context) {
     final data = _resolveData(context);
-
-    // ✅ XỬ LÝ KHI KHÔNG CÓ DỮ LIỆU THAY VÌ HIỆN VÉ GIẢ
-    if (data == null) {
-      return Scaffold(
-        backgroundColor: _C.bg,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.receipt_long_outlined,
-                size: 64,
-                color: _C.textGrey,
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Không tìm thấy thông tin vé',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: _C.textDark,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Vui lòng chọn lịch hẹn hợp lệ',
-                style: TextStyle(fontSize: 14, color: _C.textGrey),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: () => Navigator.maybePop(context),
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-                label: const Text('Quay lại'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _C.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 14,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    if (data == null) return _buildNotFound();
 
     return Scaffold(
       backgroundColor: _C.bg,
@@ -194,15 +146,59 @@ class _QrTicketScreenState extends State<QrTicketScreen> {
       ),
     );
   }
+
+  /// _buildNotFound: màn hiển thị khi không có dữ liệu vé hợp lệ.
+  Widget _buildNotFound() {
+    return Scaffold(
+      backgroundColor: _C.bg,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.receipt_long_outlined, size: 64, color: _C.textGrey),
+            const SizedBox(height: 16),
+            const Text(
+              'Không tìm thấy thông tin vé',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: _C.textDark,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Vui lòng chọn lịch hẹn hợp lệ',
+              style: TextStyle(fontSize: 14, color: _C.textGrey),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.maybePop(context),
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+              label: const Text('Quay lại'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _C.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-// ───────────────────────── Nền và thanh tiêu đề ─────────────────────────
-
+/// _HeaderBackground: dải nền gradient xanh bo cong phía trên màn hình.
 class _HeaderBackground extends StatelessWidget {
   const _HeaderBackground();
 
   @override
   Widget build(BuildContext context) {
+    const radius = BorderRadius.vertical(bottom: Radius.circular(36));
+
     return Positioned(
       top: 0,
       left: 0,
@@ -215,24 +211,14 @@ class _HeaderBackground extends StatelessWidget {
             end: Alignment.bottomRight,
             colors: [Color(0xFF0D47A1), _C.primary, _C.primaryLight],
           ),
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(36)),
+          borderRadius: radius,
         ),
-        child: ClipRRect(
-          borderRadius: const BorderRadius.vertical(
-            bottom: Radius.circular(36),
-          ),
+        child: const ClipRRect(
+          borderRadius: radius,
           child: Stack(
             children: [
-              Positioned(
-                top: -40,
-                right: -30,
-                child: _Bubble(size: 160, opacity: 0.10),
-              ),
-              Positioned(
-                top: 90,
-                left: -50,
-                child: _Bubble(size: 130, opacity: 0.07),
-              ),
+              Positioned(top: -40, right: -30, child: _Bubble(size: 160, opacity: 0.10)),
+              Positioned(top: 90, left: -50, child: _Bubble(size: 130, opacity: 0.07)),
             ],
           ),
         ),
@@ -241,9 +227,11 @@ class _HeaderBackground extends StatelessWidget {
   }
 }
 
+/// _Bubble: hình tròn trắng mờ trang trí.
 class _Bubble extends StatelessWidget {
   final double size;
   final double opacity;
+
   const _Bubble({required this.size, required this.opacity});
 
   @override
@@ -259,6 +247,7 @@ class _Bubble extends StatelessWidget {
   }
 }
 
+/// _TopBar: nút quay lại cùng tiêu đề "Xuất trình mã khám".
 class _TopBar extends StatelessWidget {
   const _TopBar();
 
@@ -312,8 +301,7 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-// ───────────────────────── Vé ─────────────────────────
-
+/// _Ticket: tấm vé gồm phần đầu (mã đặt lịch), số thứ tự, mã QR, đường xé và thông tin chi tiết.
 class _Ticket extends StatelessWidget {
   final TicketData data;
   final VoidCallback onCopy;
@@ -343,18 +331,12 @@ class _Ticket extends StatelessWidget {
               children: [
                 _QueueNumber(number: data.queueNumber),
                 const SizedBox(height: 20),
-                _QrFrame(
-                  data: data.qrData,
-                ), // ✅ Dữ liệu QR ở đây giờ là JSON chuẩn
+                _QrFrame(data: data.qrData),
                 const SizedBox(height: 14),
                 const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      Icons.qr_code_scanner_rounded,
-                      size: 18,
-                      color: _C.primary,
-                    ),
+                    Icon(Icons.qr_code_scanner_rounded, size: 18, color: _C.primary),
                     SizedBox(width: 8),
                     Flexible(
                       child: Text(
@@ -411,6 +393,7 @@ class _Ticket extends StatelessWidget {
   }
 }
 
+/// _TicketHeader: phần đầu vé gradient hiện mã đặt lịch (có nút sao chép) và trạng thái.
 class _TicketHeader extends StatelessWidget {
   final TicketData data;
   final VoidCallback onCopy;
@@ -423,7 +406,7 @@ class _TicketHeader extends StatelessWidget {
       borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+        padding: const EdgeInsets.all(20),
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -450,7 +433,7 @@ class _TicketHeader extends StatelessWidget {
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
-                      data.bookingCode, // ✅ Lấy mã thật từ LichHenModel
+                      data.bookingCode,
                       style: const TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w900,
@@ -466,11 +449,7 @@ class _TicketHeader extends StatelessWidget {
                   onTap: onCopy,
                   child: const Padding(
                     padding: EdgeInsets.all(6),
-                    child: Icon(
-                      Icons.copy_rounded,
-                      size: 19,
-                      color: Colors.white,
-                    ),
+                    child: Icon(Icons.copy_rounded, size: 19, color: Colors.white),
                   ),
                 ),
               ],
@@ -511,8 +490,10 @@ class _TicketHeader extends StatelessWidget {
   }
 }
 
+/// _QueueNumber: số thứ tự cỡ lớn.
 class _QueueNumber extends StatelessWidget {
   final String number;
+
   const _QueueNumber({required this.number});
 
   @override
@@ -537,7 +518,7 @@ class _QueueNumber extends StatelessWidget {
             border: Border.all(color: _C.primary.withOpacity(0.15)),
           ),
           child: Text(
-            number, // ✅ Lấy số thứ tự thật
+            number,
             style: const TextStyle(
               fontSize: 44,
               height: 1.15,
@@ -551,8 +532,10 @@ class _QueueNumber extends StatelessWidget {
   }
 }
 
+/// _QrFrame: khung chứa mã QR (mức sửa lỗi cao, logo bệnh viện ở giữa, bốn góc nhấn màu).
 class _QrFrame extends StatelessWidget {
   final String data;
+
   const _QrFrame({required this.data});
 
   @override
@@ -576,7 +559,7 @@ class _QrFrame extends StatelessWidget {
         alignment: Alignment.center,
         children: [
           QrImageView(
-            data: data, // ✅ Dữ liệu JSON từ TicketData
+            data: data,
             version: QrVersions.auto,
             size: 190,
             padding: EdgeInsets.zero,
@@ -614,8 +597,10 @@ class _QrFrame extends StatelessWidget {
   }
 }
 
+/// _CornerPainter: vẽ bốn góc nhấn kiểu máy quét quanh mã QR.
 class _CornerPainter extends CustomPainter {
   final Color color;
+
   const _CornerPainter({required this.color});
 
   @override
@@ -631,34 +616,21 @@ class _CornerPainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
 
-    canvas.drawPath(
-      Path()
-        ..moveTo(inset, inset + len)
-        ..lineTo(inset, inset)
-        ..lineTo(inset + len, inset),
-      paint,
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(w - inset - len, inset)
-        ..lineTo(w - inset, inset)
-        ..lineTo(w - inset, inset + len),
-      paint,
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(inset, h - inset - len)
-        ..lineTo(inset, h - inset)
-        ..lineTo(inset + len, h - inset),
-      paint,
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(w - inset - len, h - inset)
-        ..lineTo(w - inset, h - inset)
-        ..lineTo(w - inset, h - inset - len),
-      paint,
-    );
+    // Trên-trái, trên-phải, dưới-trái, dưới-phải.
+    for (final points in [
+      [Offset(inset, inset + len), Offset(inset, inset), Offset(inset + len, inset)],
+      [Offset(w - inset - len, inset), Offset(w - inset, inset), Offset(w - inset, inset + len)],
+      [Offset(inset, h - inset - len), Offset(inset, h - inset), Offset(inset + len, h - inset)],
+      [Offset(w - inset - len, h - inset), Offset(w - inset, h - inset), Offset(w - inset, h - inset - len)],
+    ]) {
+      canvas.drawPath(
+        Path()
+          ..moveTo(points[0].dx, points[0].dy)
+          ..lineTo(points[1].dx, points[1].dy)
+          ..lineTo(points[2].dx, points[2].dy),
+        paint,
+      );
+    }
   }
 
   @override
@@ -666,6 +638,7 @@ class _CornerPainter extends CustomPainter {
       oldDelegate.color != color;
 }
 
+/// _TearLine: đường xé nét đứt giữa vé, hai đầu có khuyết tròn.
 class _TearLine extends StatelessWidget {
   const _TearLine();
 
@@ -684,7 +657,6 @@ class _TearLine extends StatelessWidget {
                   final count = (constraints.maxWidth / 10).floor();
                   return Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: List.generate(
                       count,
                       (_) => Container(width: 5, height: 1.6, color: _C.border),
@@ -702,6 +674,7 @@ class _TearLine extends StatelessWidget {
   }
 }
 
+/// _Notch: khuyết tròn ở mép vé (cùng màu nền màn hình).
 class _Notch extends StatelessWidget {
   const _Notch();
 
@@ -715,6 +688,7 @@ class _Notch extends StatelessWidget {
   }
 }
 
+/// _InfoLine: một dòng thông tin trên vé (icon, nhãn, giá trị và giá trị phụ tùy chọn).
 class _InfoLine extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -785,6 +759,7 @@ class _InfoLine extends StatelessWidget {
   }
 }
 
+/// _SaveBar: thanh cố định ở đáy với nút "Lưu vé vào máy điện thoại".
 class _SaveBar extends StatelessWidget {
   final bool saving;
   final VoidCallback onSave;
@@ -830,9 +805,7 @@ class _SaveBar extends StatelessWidget {
             disabledBackgroundColor: _C.primary.withOpacity(0.6),
             disabledForegroundColor: Colors.white,
             elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           ),
         ),
       ),

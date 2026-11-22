@@ -9,6 +9,7 @@ import '../../services/chat_service.dart';
 import '../../utils/app_snackbar.dart';
 import '../../utils/chat_common.dart';
 
+/// openHospitalChat: mở màn hình, hộp thoại hoặc menu.
 Future<void> openHospitalChat(
   BuildContext context, {
   required String benhVienId,
@@ -120,8 +121,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     super.dispose();
   }
 
-  // ───────────────────────── Hành động ─────────────────────────
-
+  /// _send: gửi dữ liệu hoặc yêu cầu.
   Future<void> _send([String? preset]) async {
     final text = (preset ?? _inputCtrl.text).trim();
     if (text.isEmpty || _myUid.isEmpty) return;
@@ -198,8 +198,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  // ───────────────────────── Giao diện ─────────────────────────
-
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<ConversationModel?>(
@@ -264,6 +262,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
         final items = <Widget>[
           _HotlineBanner(hotline: widget.hotline, onCall: _copyHotline),
+
           const SizedBox(height: 14),
         ];
 
@@ -293,10 +292,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 }
 
-// ───────────────────────── Đầu trang ─────────────────────────
-
 class _ChatHeader extends StatelessWidget {
   final ConversationModel? conversation;
+
   const _ChatHeader({required this.conversation});
 
   @override
@@ -352,6 +350,7 @@ class _ChatHeader extends StatelessWidget {
                   ),
                 ),
               ),
+
               const SizedBox(width: 12),
               Container(
                 padding: const EdgeInsets.all(2.5),
@@ -365,6 +364,7 @@ class _ChatHeader extends StatelessWidget {
                   size: 40,
                 ),
               ),
+
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -380,6 +380,7 @@ class _ChatHeader extends StatelessWidget {
                         color: Colors.white,
                       ),
                     ),
+
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
@@ -393,6 +394,7 @@ class _ChatHeader extends StatelessWidget {
                   ],
                 ),
               ),
+
               const SizedBox(width: 8),
               _StatusPill(open: c?.isOpen ?? true),
             ],
@@ -405,6 +407,7 @@ class _ChatHeader extends StatelessWidget {
 
 class _StatusPill extends StatelessWidget {
   final bool open;
+
   const _StatusPill({required this.open});
 
   @override
@@ -426,6 +429,7 @@ class _StatusPill extends StatelessWidget {
               shape: BoxShape.circle,
             ),
           ),
+
           const SizedBox(width: 6),
           Text(
             open ? 'Đang hỗ trợ' : 'Đã đóng',
@@ -441,11 +445,10 @@ class _StatusPill extends StatelessWidget {
   }
 }
 
-// ───────────────────────── Tổng đài khẩn cấp ─────────────────────────
-
 class _HotlineBanner extends StatelessWidget {
   final String hotline;
   final VoidCallback onCall;
+
   const _HotlineBanner({required this.hotline, required this.onCall});
 
   @override
@@ -474,6 +477,7 @@ class _HotlineBanner extends StatelessWidget {
               size: 24,
             ),
           ),
+
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -487,6 +491,7 @@ class _HotlineBanner extends StatelessWidget {
                     color: ChatColors.danger,
                   ),
                 ),
+
                 const SizedBox(height: 2),
                 Text(
                   'Bấm gọi ngay nếu cần cấp cứu',
@@ -495,6 +500,7 @@ class _HotlineBanner extends StatelessWidget {
               ],
             ),
           ),
+
           const SizedBox(width: 8),
           Material(
             color: ChatColors.danger,
@@ -515,6 +521,7 @@ class _HotlineBanner extends StatelessWidget {
                       size: 17,
                       color: Colors.white,
                     ),
+
                     const SizedBox(width: 6),
                     Text(
                       'Gọi',
@@ -537,6 +544,7 @@ class _HotlineBanner extends StatelessWidget {
 
 class _DateChip extends StatelessWidget {
   final String label;
+
   const _DateChip({required this.label});
 
   @override
@@ -557,10 +565,9 @@ class _DateChip extends StatelessWidget {
   }
 }
 
-// ───────────────────────── Tin nhắn ─────────────────────────
-
 class _MessageItem extends StatelessWidget {
   final MessageModel message;
+
   const _MessageItem({required this.message});
 
   @override
@@ -638,6 +645,7 @@ class _MessageItem extends StatelessWidget {
                 color: ChatColors.primary,
               ),
             ),
+
             const SizedBox(width: 8),
             Flexible(
               child: Text(
@@ -687,6 +695,7 @@ class _MessageItem extends StatelessWidget {
             ),
             child: _content(Colors.white),
           ),
+
           const SizedBox(height: 5),
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -695,6 +704,7 @@ class _MessageItem extends StatelessWidget {
                 chatHm(message.createdAt),
                 style: chatFont(11.5, color: ChatColors.muted),
               ),
+
               const SizedBox(width: 4),
               Icon(
                 message.isRead ? Icons.done_all_rounded : Icons.done_rounded,
@@ -731,6 +741,7 @@ class _MessageItem extends StatelessWidget {
             color: Colors.white,
           ),
         ),
+
         const SizedBox(width: 10),
         Flexible(
           child: Column(
@@ -742,6 +753,7 @@ class _MessageItem extends StatelessWidget {
                     'Tư vấn viên',
                     style: chatFont(13, weight: FontWeight.w800),
                   ),
+
                   const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -763,6 +775,7 @@ class _MessageItem extends StatelessWidget {
                   ),
                 ],
               ),
+
               const SizedBox(height: 5),
               Container(
                 constraints: BoxConstraints(maxWidth: maxWidth),
@@ -789,6 +802,7 @@ class _MessageItem extends StatelessWidget {
                 ),
                 child: _content(ChatColors.ink),
               ),
+
               const SizedBox(height: 5),
               Text(
                 chatHm(message.createdAt),
@@ -802,11 +816,10 @@ class _MessageItem extends StatelessWidget {
   }
 }
 
-// ───────────────────────── Gợi ý trả lời nhanh ─────────────────────────
-
 class _QuickReplies extends StatelessWidget {
   final List<String> items;
   final ValueChanged<String> onTap;
+
   const _QuickReplies({required this.items, required this.onTap});
 
   @override
@@ -848,8 +861,6 @@ class _QuickReplies extends StatelessWidget {
     );
   }
 }
-
-// ───────────────────────── Ô nhập tin nhắn ─────────────────────────
 
 class _InputBar extends StatelessWidget {
   final TextEditingController controller;
@@ -900,6 +911,7 @@ class _InputBar extends StatelessWidget {
                 ),
               ),
             ),
+
             const SizedBox(width: 10),
             Expanded(
               child: Container(
@@ -926,6 +938,7 @@ class _InputBar extends StatelessWidget {
                 ),
               ),
             ),
+
             const SizedBox(width: 10),
             AnimatedContainer(
               duration: const Duration(milliseconds: 180),
@@ -999,6 +1012,7 @@ class _ClosedBar extends StatelessWidget {
               size: 20,
               color: ChatColors.muted,
             ),
+
             const SizedBox(width: 10),
             Expanded(
               child: Text(

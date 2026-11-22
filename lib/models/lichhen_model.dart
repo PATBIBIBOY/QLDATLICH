@@ -122,8 +122,8 @@ class LichHenModel {
       tenCa: tenCa ?? this.tenCa,
       gioBatDau: gioBatDau ?? this.gioBatDau,
       gioKetThuc: gioKetThuc ?? this.gioKetThuc,
-      profileId: profileId, 
-      tenNguoiKham: tenNguoiKham, 
+      profileId: profileId,
+      tenNguoiKham: tenNguoiKham,
       quanHe: quanHe,
     );
   }

@@ -3,12 +3,12 @@
 import 'package:flutter/material.dart';
 
 enum AppointmentStatus {
-  pending,    // Chờ duyệt (1)
-  approved,   // Đã xác nhận (2)
-  cancelled,  // Đã hủy (3, 4)
-  completed,  // Hoàn thành (5)
-  missed,     // Vắng mặt (6)
-  late,       // Đến trễ (7)
+  pending, // Chờ duyệt (1)
+  approved, // Đã xác nhận (2)
+  cancelled, // Đã hủy (3, 4)
+  completed, // Hoàn thành (5)
+  missed, // Vắng mặt (6)
+  late, // Đến trễ (7)
 }
 
 class MyAppointmentItem {
@@ -43,11 +43,11 @@ AppointmentStatus statusFromTrangThaiId(dynamic trangThaiId) {
     case 4:
       return AppointmentStatus.cancelled;
     case 5:
-      return AppointmentStatus.completed; // ✅ MỚI
+      return AppointmentStatus.completed;
     case 6:
-      return AppointmentStatus.missed;    // ✅ MỚI
+      return AppointmentStatus.missed;
     case 7:
-      return AppointmentStatus.late;      // ✅ MỚI
+      return AppointmentStatus.late;
     default:
       return AppointmentStatus.pending;
   }
@@ -64,11 +64,11 @@ extension AppointmentStatusX on AppointmentStatus {
       case AppointmentStatus.cancelled:
         return 'Đã hủy';
       case AppointmentStatus.completed:
-        return 'Hoàn thành'; // ✅ MỚI
+        return 'Hoàn thành';
       case AppointmentStatus.missed:
-        return 'Vắng mặt';   // ✅ MỚI
+        return 'Vắng mặt';
       case AppointmentStatus.late:
-        return 'Đến trễ';    // ✅ MỚI
+        return 'Đến trễ';
     }
   }
 
@@ -115,11 +115,11 @@ extension AppointmentStatusX on AppointmentStatus {
       case AppointmentStatus.cancelled:
         return const Color(0xFFF8CACA);
       case AppointmentStatus.completed:
-        return const Color(0xFFB2DFDB); 
+        return const Color(0xFFB2DFDB);
       case AppointmentStatus.missed:
-        return const Color(0xFFE2E8F0); 
+        return const Color(0xFFE2E8F0);
       case AppointmentStatus.late:
-        return const Color(0xFFFED7AA); 
+        return const Color(0xFFFED7AA);
     }
   }
 }

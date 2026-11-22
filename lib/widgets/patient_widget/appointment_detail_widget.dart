@@ -4,7 +4,8 @@ import '../../config/app_routes.dart';
 import '../../models/appointment_item.dart';
 import '../../widgets/appointment_card.dart';
 import '../../utils/app_snackbar.dart';
-import 'book_appointment_widget.dart' show AppTheme, AppCard, InfoPill, SectionTitle;
+import 'book_appointment_widget.dart'
+    show AppTheme, AppCard, InfoPill, SectionTitle;
 
 /// AppointmentDetailHeader: thanh tiêu đề của màn chi tiết lịch khám.
 class AppointmentDetailHeader extends StatelessWidget {
@@ -182,6 +183,7 @@ class AppointmentStatusSteps extends StatelessWidget {
   Widget _circle(int step) {
     final done = step < completed;
     final isCurrent = step == current;
+
     return Container(
       width: 26,
       height: 26,
@@ -215,6 +217,7 @@ class AppointmentStatusSteps extends StatelessWidget {
       children: List.generate(5, (i) {
         if (i.isOdd) {
           final lineDone = (i ~/ 2) + 1 < completed;
+
           return Expanded(
             child: Padding(
               padding: const EdgeInsets.only(top: 12, left: 6, right: 6),
@@ -230,6 +233,7 @@ class AppointmentStatusSteps extends StatelessWidget {
         }
         final step = i ~/ 2;
         final highlighted = step < completed || step == current;
+
         return Column(
           children: [
             _circle(step),
@@ -449,7 +453,11 @@ class AppointmentPendingSection extends StatelessWidget {
           child: const Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.info_outline_rounded, size: 20, color: AppTheme.warning),
+              Icon(
+                Icons.info_outline_rounded,
+                size: 20,
+                color: AppTheme.warning,
+              ),
               SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -756,10 +764,7 @@ class AppointmentCancelledSection extends StatelessWidget {
         SuggestionTile(
           background: AppTheme.tint(AppTheme.primaryBlue, 0.08),
           accent: AppTheme.primaryBlue,
-          leading: _iconBox(
-            Icons.calendar_month_rounded,
-            AppTheme.primaryBlue,
-          ),
+          leading: _iconBox(Icons.calendar_month_rounded, AppTheme.primaryBlue),
           title: 'Chọn ngày khác',
           subtitle: 'Xem lịch trống các ngày tới',
           onTap: onGoToBooking,

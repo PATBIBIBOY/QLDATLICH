@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../widgets/patient_widget/book_appointment_widget.dart';
 
 /// showBookingConfirmSheet: mở bảng xác nhận đặt lịch, trả về true nếu người dùng xác nhận.
@@ -27,9 +28,12 @@ Future<bool?> showBookingConfirmSheet(
   );
 }
 
-/// BookingConfirmSheet: bảng tóm tắt bệnh viện, người khám và lịch khám trước khi gửi yêu cầu.
+/// BookingConfirmSheet: bảng tóm tắt bệnh viện, người khám và lịch khám
+/// của từng chuyên khoa trước khi gửi yêu cầu đặt lịch.
 class BookingConfirmSheet extends StatelessWidget {
   final String hospitalName;
+
+  /// Mỗi phần tử gồm các khóa: departmentName, shiftLabel (tùy chọn: roomName, dateLabel).
   final List<Map<String, String>> bookingDetails;
   final String dateLabel;
   final String address;
@@ -45,6 +49,42 @@ class BookingConfirmSheet extends StatelessWidget {
     required this.bhytNote,
     this.patientName,
   });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppTheme.bgColor,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildHeader(),
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHospitalCard(),
+                  if (patientName?.isNotEmpty == true) ...[
+                    const SizedBox(height: 12),
+                    _buildPatientCard(),
+                  ],
+                  const SizedBox(height: 20),
+                  _buildDepartmentList(),
+                  const SizedBox(height: 16),
+                  _buildNotice(),
+                ],
+              ),
+            ),
+          ),
+          Container(color: Colors.white, child: _buildActions(context)),
+        ],
+      ),
+    );
+  }
 
   /// _metaRow: dòng thông tin nhỏ gồm biểu tượng và nội dung.
   Widget _metaRow(IconData icon, String text, {Color? color}) {
@@ -169,8 +209,7 @@ class BookingConfirmSheet extends StatelessWidget {
               ),
             ],
           ),
-          if (address.isNotEmpty)
-            _metaRow(Icons.location_on_rounded, address),
+          if (address.isNotEmpty) _metaRow(Icons.location_on_rounded, address),
           if (bhytNote.isNotEmpty) ...[
             const SizedBox(height: 12),
             InfoPill(
@@ -227,7 +266,43 @@ class BookingConfirmSheet extends StatelessWidget {
     );
   }
 
-  /// _departmentTile: thẻ lịch khám của một chuyên khoa.
+  /// _buildDepartmentList: tiêu đề "Lịch khám đã chọn" kèm số chuyên khoa và danh sách thẻ.
+  Widget _buildDepartmentList() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Lịch khám đã chọn',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.textDark,
+                ),
+              ),
+            ),
+            InfoPill(
+              text: '${bookingDetails.length} chuyên khoa',
+              color: AppTheme.primaryBlue,
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        for (var i = 0; i < bookingDetails.length; i++)
+          Padding(
+            padding: EdgeInsets.only(
+              bottom: i == bookingDetails.length - 1 ? 0 : 10,
+            ),
+            child: _departmentTile(bookingDetails[i]),
+          ),
+      ],
+    );
+  }
+
+  /// _departmentTile: thẻ lịch khám của một chuyên khoa (khoa, phòng, ngày, ca).
+  /// Ngày ưu tiên lấy trong [detail], nếu thiếu thì dùng [dateLabel] chung.
   Widget _departmentTile(Map<String, String> detail) {
     final department = detail['departmentName'] ?? '';
     final room = detail['roomName'] ?? '';
@@ -285,7 +360,7 @@ class BookingConfirmSheet extends StatelessWidget {
     );
   }
 
-  /// _buildNotice: lưu ý về việc bệnh viện sẽ xét duyệt lịch hẹn.
+  /// _buildNotice: lưu ý bệnh viện sẽ xét duyệt lịch hẹn.
   Widget _buildNotice() {
     return Container(
       width: double.infinity,
@@ -314,8 +389,10 @@ class BookingConfirmSheet extends StatelessWidget {
     );
   }
 
-  /// _buildActions: hai nút Hủy và Xác nhận cố định ở cuối bảng.
+  /// _buildActions: hai nút Hủy (trả false) và Xác nhận (trả true) cố định ở cuối bảng.
   Widget _buildActions(BuildContext context) {
+    final radius = BorderRadius.circular(AppTheme.radiusItem);
+
     return Container(
       padding: EdgeInsets.fromLTRB(
         20,
@@ -337,9 +414,7 @@ class BookingConfirmSheet extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppTheme.textGrey,
                   side: const BorderSide(color: AppTheme.borderColor),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppTheme.radiusItem),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: radius),
                 ),
                 child: const Text(
                   'Hủy',
@@ -366,74 +441,11 @@ class BookingConfirmSheet extends StatelessWidget {
                   backgroundColor: AppTheme.primaryBlue,
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppTheme.radiusItem),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: radius),
                 ),
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppTheme.bgColor,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildHeader(),
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHospitalCard(),
-                  if (patientName?.isNotEmpty == true) ...[
-                    const SizedBox(height: 12),
-                    _buildPatientCard(),
-                  ],
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Lịch khám đã chọn',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: AppTheme.textDark,
-                          ),
-                        ),
-                      ),
-                      InfoPill(
-                        text: '${bookingDetails.length} chuyên khoa',
-                        color: AppTheme.primaryBlue,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  for (var i = 0; i < bookingDetails.length; i++)
-                    Padding(
-                      padding: EdgeInsets.only(
-                        bottom: i == bookingDetails.length - 1 ? 0 : 10,
-                      ),
-                      child: _departmentTile(bookingDetails[i]),
-                    ),
-                  const SizedBox(height: 16),
-                  _buildNotice(),
-                ],
-              ),
-            ),
-          ),
-          Container(color: Colors.white, child: _buildActions(context)),
         ],
       ),
     );
