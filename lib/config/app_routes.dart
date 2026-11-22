@@ -50,6 +50,7 @@ import '../screens/hospital/guiYeuCauHopTac_Screen.dart';
 import '../screens/hospital/guiDonThanhCong_Screen.dart';
 import '../screens/hospital/statistics_screen.dart';
 import '../screens/hospital/staff_management_screen.dart';
+import '../screens/hospital/nhanSu_Screen.dart';
 import '../screens/admin/admin_dashboard.dart';
 
 // ⚠️ LƯU Ý: Nếu ThemKhoaScreen báo lỗi không tìm thấy, hãy thêm import đúng đường dẫn của nó, ví dụ:
