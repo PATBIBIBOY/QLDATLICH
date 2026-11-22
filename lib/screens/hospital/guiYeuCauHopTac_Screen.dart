@@ -8,8 +8,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+
+import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../config/app_routes.dart';
 import '../../config/app_session.dart';
@@ -17,8 +21,10 @@ import '../../config/constants.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/email_service.dart';
+import '../../services/geocoding_service.dart';
 import '../../services/hospital_sync_service.dart';
 import 'guiDonThanhCong_Screen.dart';
+import 'widgets/dialog_chon_dia_chi_map.dart';
 
 class GuiYeuCauHopTacScreen extends StatefulWidget {
   final String? initialTenBenhVien;
@@ -42,11 +48,16 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
   late final TextEditingController _maSoThueCtrl;
   late final TextEditingController _diaChiCtrl;
 
-  // Tọa độ GPS của thiết bị
+  // Tọa độ GPS & địa chỉ map (lưu ngầm vào Firestore, không hiện trên form)
   double? _viDo;
   double? _kinhDo;
-  bool _dangLayViTri = false;
-  String _viTriStatus = 'Chưa xác định tọa độ GPS';
+  String? _diaChiMap;
+
+  // Ảnh CCCD người đại diện (Mặt trước & Mặt sau)
+  Uint8List? _cccdTruocBytes;
+  String? _cccdTruocTen;
+  Uint8List? _cccdSauBytes;
+  String? _cccdSauTen;
 
   String _coSo = 'Tu_nhan'; // 'Cong_lap' hoặc 'Tu_nhan' theo collection CoSo
   String _bhyt = 'Co_BHYT'; // 'Co_BHYT' hoặc 'Khong_BHYT' theo collection BHYT
@@ -56,6 +67,573 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
   String? _pickedFilePath;
   bool _isSubmitting = false;
   String _submittingStatus = '';
+
+  Future<void> _chonAnhCccd(bool isMatTruoc) async {
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                isMatTruoc
+                    ? 'Chọn ảnh Mặt trước CCCD'
+                    : 'Chọn ảnh Mặt sau CCCD',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFEFF6FF),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.camera_alt_rounded,
+                    color: Color(0xFF0284C7),
+                  ),
+                ),
+                title: const Text(
+                  'Chụp ảnh',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+                subtitle: const Text(
+                  'Dùng camera thiết bị để chụp ảnh CCCD',
+                  style: TextStyle(fontSize: 12),
+                ),
+                onTap: () => Navigator.pop(ctx, ImageSource.camera),
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF0FDF4),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.photo_library_rounded,
+                    color: Color(0xFF16A34A),
+                  ),
+                ),
+                title: const Text(
+                  'Chọn từ thư viện máy',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+                subtitle: const Text(
+                  'Tải ảnh CCCD đã có sẵn từ bộ sưu tập',
+                  style: TextStyle(fontSize: 12),
+                ),
+                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    try {
+      final picker = ImagePicker();
+      final XFile? pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 1600,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        final bytes = await pickedFile.readAsBytes();
+        setState(() {
+          if (isMatTruoc) {
+            _cccdTruocBytes = bytes;
+            _cccdTruocTen = pickedFile.name;
+          } else {
+            _cccdSauBytes = bytes;
+            _cccdSauTen = pickedFile.name;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('⚠️ Lỗi chọn ảnh CCCD: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Không thể chọn ảnh: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _moChonDiaChiMap() async {
+    // Mở trực tiếp hộp thoại chọn bản đồ Google Map
+    final result = await DialogChonDiaChiMap.show(
+      context,
+      initialAddress: _diaChiCtrl.text.trim(),
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        _diaChiCtrl.text = result.diaChiDayDu;
+        _diaChiMap = result.diaChiDayDu;
+        _viDo = result.viDo;
+        _kinhDo = result.kinhDo;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('📍 Đã chọn vị trí cơ sở thành công từ bản đồ.'),
+          backgroundColor: Color(0xFF16A34A),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _capNhatToaDoMoi(double lat, double lon) async {
+    setState(() {
+      _viDo = lat;
+      _kinhDo = lon;
+    });
+    final item = await GeocodingService.traNguocToaDo(lat, lon);
+    if (item != null && mounted) {
+      setState(() {
+        _diaChiCtrl.text = item.diaChiDayDu;
+        _diaChiMap = item.diaChiDayDu;
+      });
+    }
+  }
+
+  /// Hộp thoại hỏi người dùng cho phép mở định vị GPS trên màn hình đăng ký
+  Future<bool> _hienThiDialogHoiMoDinhViMini() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+        ),
+        titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                color: Color(0xFFE0F2FE),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.my_location_rounded,
+                color: Color(0xFF0284C7),
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Cho phép định vị GPS?',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Ứng dụng cần sử dụng vị trí thiết bị để tự động ghim vị trí cơ sở y tế trên bản đồ và nhận diện địa chỉ chính xác nhất.',
+              style: TextStyle(
+                fontSize: 13,
+                color: Color(0xFF475569),
+                height: 1.45,
+              ),
+            ),
+            SizedBox(height: 10),
+            Text(
+              '• Tự động điền số nhà, tên đường, phường/xã\n• Giúp người bệnh dễ dàng tìm đường đến khám',
+              style: TextStyle(
+                fontSize: 12,
+                color: Color(0xFF0284C7),
+                fontWeight: FontWeight.w600,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text(
+              'Để sau',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            icon: const Icon(Icons.check_rounded, size: 18),
+            label: const Text(
+              'Bật định vị',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0284C7),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return result == true;
+  }
+
+  /// Kích hoạt định vị GPS cho form đăng ký cơ sở y tế
+  Future<void> _dinhViGpsChoFormMini() async {
+    final dongY = await _hienThiDialogHoiMoDinhViMini();
+    if (!dongY) return;
+
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vui lòng bật dịch vụ định vị (GPS) trên thiết bị.'),
+            backgroundColor: Color(0xFFD97706),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Quyền định vị bị từ chối. Bạn có thể tự ghim trên bản đồ.'),
+            backgroundColor: Color(0xFFD97706),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 5),
+        ),
+      );
+
+      await _capNhatToaDoMoi(pos.latitude, pos.longitude);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('📍 Đã định vị thành công vị trí của bạn!'),
+          backgroundColor: Color(0xFF16A34A),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Không thể lấy tọa độ GPS: $e'),
+          backgroundColor: const Color(0xFFEF4444),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Widget _buildEmbeddedMapCard() {
+    final lat = _viDo ?? 10.86012;
+    final lon = _kinhDo ?? 106.77234;
+    final center = LatLng(lat, lon);
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8, bottom: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 1. Khung bản đồ thu nhỏ tương tác trực tiếp
+          Container(
+            height: 190,
+            color: const Color(0xFFE2E8F0),
+            child: Stack(
+              children: [
+                FlutterMap(
+                  key: ValueKey('embed_map_${lat}_$lon'),
+                  options: MapOptions(
+                    initialCenter: center,
+                    initialZoom: 15.5,
+                    minZoom: 4,
+                    maxZoom: 19,
+                    interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                    ),
+                    onTap: (tapPos, point) {
+                      _capNhatToaDoMoi(point.latitude, point.longitude);
+                    },
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate:
+                          'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+                      fallbackUrl:
+                          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+                      maxZoom: 19,
+                    ),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: center,
+                          width: 46,
+                          height: 46,
+                          alignment: Alignment.topCenter,
+                          child: const Icon(
+                            Icons.location_on_rounded,
+                            size: 42,
+                            color: Color(0xFFEF4444),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+
+                // Nút "Định vị GPS" ở góc trên bên trái
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Material(
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    ),
+                    elevation: 2,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: _dinhViGpsChoFormMini,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 6,
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.my_location_rounded,
+                              size: 14,
+                              color: Color(0xFF0284C7),
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Định vị GPS',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0284C7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Nút "Mở rộng bản đồ" ở góc trên bên phải
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Material(
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    ),
+                    elevation: 2,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: _moChonDiaChiMap,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 6,
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.open_in_full_rounded,
+                              size: 14,
+                              color: Color(0xFF0284C7),
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Mở rộng',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0284C7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Nhãn chỉ dẫn chạm ở góc dưới bên trái
+                Positioned(
+                  bottom: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.touch_app_rounded,
+                          color: Colors.white,
+                          size: 12,
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          'Chạm bản đồ để ghim vị trí',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 2. Chân hiển thị địa chỉ đã chọn
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            color: const Color(0xFFF8FAFC),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.check_circle_rounded,
+                  size: 16,
+                  color: Color(0xFF16A34A),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _diaChiMap?.isNotEmpty == true
+                        ? _diaChiMap!
+                        : (_diaChiCtrl.text.isNotEmpty
+                            ? _diaChiCtrl.text
+                            : 'Vị trí cơ sở y tế đã được ghim trên bản đồ'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF334155),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                InkWell(
+                  onTap: _moChonDiaChiMap,
+                  borderRadius: BorderRadius.circular(6),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    child: Text(
+                      'Đổi vị trí',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0284C7),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -71,8 +649,8 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     final diaChi = widget.initialDiaChi ?? auth.hospital?.diaChi ?? '';
 
     _tenBenhVienCtrl = TextEditingController(text: tenBv);
-    _maCoSoCtrl = TextEditingController(text: 'BV-79-102');
-    _maSoThueCtrl = TextEditingController(text: '0312891201');
+    _maCoSoCtrl = TextEditingController();
+    _maSoThueCtrl = TextEditingController();
     _diaChiCtrl = TextEditingController(text: diaChi);
 
     if (auth.hospital?.coSo == 'Cong_lap' || auth.hospital?.coSo == 'Tu_nhan') {
@@ -86,15 +664,6 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     // Lấy tọa độ có sẵn nếu tài khoản đã từng lưu
     _viDo = auth.hospital?.viDo;
     _kinhDo = auth.hospital?.kinhDo;
-    if (_viDo != null && _kinhDo != null) {
-      _viTriStatus =
-          'Đã có tọa độ: ${_viDo!.toStringAsFixed(5)}, ${_kinhDo!.toStringAsFixed(5)}';
-    }
-
-    // Tự động yêu cầu định vị GPS từ thiết bị khi mở màn hình
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _layViTriTuThietBi(isAuto: true);
-    });
   }
 
   @override
@@ -177,114 +746,7 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     }
   }
 
-  /// Lấy vị trí GPS thực tế từ thiết bị để quy ra vĩ độ & kinh độ
-  Future<void> _layViTriTuThietBi({bool isAuto = false}) async {
-    if (_dangLayViTri) return;
 
-    setState(() {
-      _dangLayViTri = true;
-      _viTriStatus = 'Đang lấy vị trí GPS từ thiết bị...';
-    });
-
-    try {
-      // 1. Kiểm tra dịch vụ định vị (Location Service)
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        if (!mounted) return;
-        setState(() {
-          _dangLayViTri = false;
-          _viTriStatus = 'Dịch vụ GPS trên thiết bị chưa được bật';
-        });
-        if (!isAuto && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Vui lòng bật định vị GPS trên thiết bị để lấy tọa độ',
-              ),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-        return;
-      }
-
-      // 2. Kiểm tra và yêu cầu quyền truy cập vị trí
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          if (!mounted) return;
-          setState(() {
-            _dangLayViTri = false;
-            _viTriStatus = 'Quyền truy cập vị trí bị từ chối';
-          });
-          return;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        if (!mounted) return;
-        setState(() {
-          _dangLayViTri = false;
-          _viTriStatus = 'Quyền vị trí bị chặn trong Cài đặt thiết bị';
-        });
-        return;
-      }
-
-      // 3. Lấy tọa độ GPS (thử getCurrentPosition, nếu timeout thử getLastKnownPosition)
-      Position? position;
-      try {
-        position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.medium,
-            timeLimit: Duration(seconds: 8),
-          ),
-        );
-      } catch (e) {
-        debugPrint(
-          '⚠️ getCurrentPosition chậm hoặc lỗi, thử getLastKnownPosition: $e',
-        );
-        position = await Geolocator.getLastKnownPosition();
-      }
-
-      if (!mounted) return;
-
-      if (position != null) {
-        final pos = position;
-        setState(() {
-          _viDo = pos.latitude;
-          _kinhDo = pos.longitude;
-          _dangLayViTri = false;
-          _viTriStatus =
-              'Đã định vị: ${_viDo!.toStringAsFixed(5)}, ${_kinhDo!.toStringAsFixed(5)}';
-        });
-
-        if (!isAuto && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '✅ Đã lấy tọa độ GPS: Vĩ độ ${_viDo!.toStringAsFixed(5)}, Kinh độ ${_kinhDo!.toStringAsFixed(5)}',
-              ),
-              backgroundColor: const Color(0xFF16A34A),
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      } else {
-        setState(() {
-          _dangLayViTri = false;
-          _viTriStatus = 'Không lấy được tọa độ GPS từ thiết bị';
-        });
-      }
-    } catch (e) {
-      debugPrint('Lỗi khi định vị thiết bị: $e');
-      if (!mounted) return;
-      setState(() {
-        _dangLayViTri = false;
-        _viTriStatus = 'Lỗi định vị: $e';
-      });
-    }
-  }
 
   String _formatFileSize(int bytes) {
     if (bytes <= 0) return '0 B';
@@ -685,21 +1147,24 @@ startxref
       final randSuffix = Random().nextInt(900) + 100;
       final maHoSo = '#HS-BV-2026$randSuffix';
 
-      // Nếu chưa có tọa độ, thử lấy nhanh trước khi gửi
+      // Nếu chưa có tọa độ từ map, tự động quy đổi từ địa chỉ cơ sở
       if (_viDo == null || _kinhDo == null) {
         try {
-          final pos =
-              await Geolocator.getLastKnownPosition() ??
-              await Geolocator.getCurrentPosition(
-                locationSettings: const LocationSettings(
-                  accuracy: LocationAccuracy.low,
-                  timeLimit: Duration(seconds: 4),
-                ),
-              );
-          _viDo = pos.latitude;
-          _kinhDo = pos.longitude;
+          final addressText = _diaChiCtrl.text.trim();
+          if (addressText.isNotEmpty) {
+            final items = await GeocodingService.timKiemDiaChi(addressText);
+            if (items.isNotEmpty) {
+              _viDo = items.first.viDo;
+              _kinhDo = items.first.kinhDo;
+              _diaChiMap = items.first.diaChiDayDu;
+            }
+          }
         } catch (_) {}
       }
+
+      // Dự phòng tọa độ nếu mạng chưa phân giải kịp
+      _viDo ??= 10.776889;
+      _kinhDo ??= 106.700806;
 
       // 1. Chuẩn bị dữ liệu tệp để upload lên Firebase Storage
       Uint8List fileData;
@@ -817,6 +1282,58 @@ startxref
         }
       }
 
+      // Tải ảnh CCCD mặt trước & mặt sau lên Firebase Storage nếu có
+      String? cccdMatTruocUrl;
+      String? cccdMatSauUrl;
+
+      if (_cccdTruocBytes != null) {
+        try {
+          setState(() => _submittingStatus = 'Đang tải ảnh CCCD mặt trước...');
+          final cccdTruocName = _cccdTruocTen ?? 'cccd_mat_truoc.jpg';
+          final cccdTruocExt = cccdTruocName.contains('.')
+              ? cccdTruocName.split('.').last
+              : 'jpg';
+          final cccdTruocPath =
+              'YeuCauHopTac/$hospitalBvId/cccd/mat_truoc_${DateTime.now().millisecondsSinceEpoch}.$cccdTruocExt';
+          final cccdTruocRef =
+              FirebaseStorage.instance.ref().child(cccdTruocPath);
+          final snapTruoc = await cccdTruocRef.putData(
+            _cccdTruocBytes!,
+            SettableMetadata(contentType: 'image/$cccdTruocExt'),
+          );
+          cccdMatTruocUrl = await snapTruoc.ref.getDownloadURL();
+          debugPrint(
+            '✅ [STORAGE] Tải CCCD mặt trước thành công: $cccdMatTruocUrl',
+          );
+        } catch (e) {
+          debugPrint('⚠️ [STORAGE] Lỗi tải CCCD mặt trước: $e');
+        }
+      }
+
+      if (_cccdSauBytes != null) {
+        try {
+          setState(() => _submittingStatus = 'Đang tải ảnh CCCD mặt sau...');
+          final cccdSauName = _cccdSauTen ?? 'cccd_mat_sau.jpg';
+          final cccdSauExt = cccdSauName.contains('.')
+              ? cccdSauName.split('.').last
+              : 'jpg';
+          final cccdSauPath =
+              'YeuCauHopTac/$hospitalBvId/cccd/mat_sau_${DateTime.now().millisecondsSinceEpoch}.$cccdSauExt';
+          final cccdSauRef =
+              FirebaseStorage.instance.ref().child(cccdSauPath);
+          final snapSau = await cccdSauRef.putData(
+            _cccdSauBytes!,
+            SettableMetadata(contentType: 'image/$cccdSauExt'),
+          );
+          cccdMatSauUrl = await snapSau.ref.getDownloadURL();
+          debugPrint(
+            '✅ [STORAGE] Tải CCCD mặt sau thành công: $cccdMatSauUrl',
+          );
+        } catch (e) {
+          debugPrint('⚠️ [STORAGE] Lỗi tải CCCD mặt sau: $e');
+        }
+      }
+
       final coSo = _coSo;
       final bhyt = _bhyt;
       final bool coBhyt = (bhyt == 'Co_BHYT');
@@ -833,8 +1350,14 @@ startxref
         'so_giay_phep': _maCoSoCtrl.text.trim(),
         'ma_so_thue': _maSoThueCtrl.text.trim(),
         'dia_chi': _diaChiCtrl.text.trim(),
+        'dia_chi_map': _diaChiMap ?? _diaChiCtrl.text.trim(),
         'vi_do': _viDo,
         'kinh_do': _kinhDo,
+        'cccd_mat_truoc_url': cccdMatTruocUrl,
+        'cccd_mat_sau_url': cccdMatSauUrl,
+        'cccd_mat_truoc_ten': _cccdTruocTen,
+        'cccd_mat_sau_ten': _cccdSauTen,
+        'has_cccd': (cccdMatTruocUrl != null || cccdMatSauUrl != null),
         'co_so': coSo, // ✅ Khớp collection CoSo: Cong_lap / Tu_nhan
         'bhyt': bhyt, // ✅ Khớp collection BHYT: Co_BHYT / Khong_BHYT
         'co_bhyt': coBhyt,
@@ -870,6 +1393,16 @@ startxref
         // Lưu dự phòng chuỗi Base64 trực tiếp vào Firestore
         try {
           dataToSave['file_giay_phep_base64'] = base64Encode(fileData);
+        } catch (_) {}
+      }
+      if (_cccdTruocBytes != null && _cccdTruocBytes!.length < 250 * 1024) {
+        try {
+          dataToSave['cccd_mat_truoc_base64'] = base64Encode(_cccdTruocBytes!);
+        } catch (_) {}
+      }
+      if (_cccdSauBytes != null && _cccdSauBytes!.length < 250 * 1024) {
+        try {
+          dataToSave['cccd_mat_sau_base64'] = base64Encode(_cccdSauBytes!);
         } catch (_) {}
       }
 
@@ -1136,7 +1669,37 @@ startxref
                           const SizedBox(height: 16),
 
                           // 3. Địa chỉ cơ sở
-                          _buildLabelWithRequired('Địa chỉ cơ sở'),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              _buildLabelWithRequired('Địa chỉ cơ sở'),
+                              TextButton.icon(
+                                onPressed: _moChonDiaChiMap,
+                                icon: const Icon(
+                                  Icons.map_rounded,
+                                  size: 16,
+                                  color: Color(0xFF0284C7),
+                                ),
+                                label: const Text(
+                                  'Chọn trên Bản đồ',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0284C7),
+                                  ),
+                                ),
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                              ),
+                            ],
+                          ),
                           const SizedBox(height: 6),
                           TextFormField(
                             controller: _diaChiCtrl,
@@ -1149,6 +1712,16 @@ startxref
                             decoration: _inputDecoration(
                               hintText:
                                   'Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/TP',
+                            ).copyWith(
+                              suffixIcon: IconButton(
+                                icon: const Icon(
+                                  Icons.location_on_rounded,
+                                  color: Color(0xFF0284C7),
+                                  size: 22,
+                                ),
+                                tooltip: 'Chọn trên Bản đồ',
+                                onPressed: _moChonDiaChiMap,
+                              ),
                             ),
                             validator: (v) {
                               if (v == null || v.trim().isEmpty) {
@@ -1157,17 +1730,23 @@ startxref
                               return null;
                             },
                           ),
-                          const SizedBox(height: 12),
+                          // Khung bản đồ trực tiếp trên màn hình
+                          _buildEmbeddedMapCard(),
+                          const SizedBox(height: 16),
 
-                          // Tọa độ GPS cơ sở (Kinh độ & Vĩ độ từ thiết bị)
+                          // Ảnh CCCD người đại diện (Mặt trước & Mặt sau)
                           _buildSectionHeaderWithNote(
-                            title: 'Tọa độ GPS cơ sở',
-                            note: _viDo != null && _kinhDo != null
-                                ? 'Đã định vị'
-                                : 'Từ thiết bị',
+                            title: 'Ảnh CCCD người đại diện',
+                            note: 'Nhấn để chụp hoặc chọn ảnh *',
                           ),
                           const SizedBox(height: 8),
-                          _buildLocationCard(),
+                          Row(
+                            children: [
+                              _buildCccdCard(isMatTruoc: true),
+                              const SizedBox(width: 12),
+                              _buildCccdCard(isMatTruoc: false),
+                            ],
+                          ),
                           const SizedBox(height: 18),
 
                           // 4. Cơ sở y tế (Spinner lựa chọn theo collection CoSo)
@@ -1453,106 +2032,184 @@ startxref
     );
   }
 
-  /// Khung hiển thị và kích hoạt lấy vị trí GPS từ thiết bị
-  Widget _buildLocationCard() {
-    final hasCoords = _viDo != null && _kinhDo != null;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: hasCoords ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: hasCoords ? const Color(0xFF86EFAC) : const Color(0xFFE2E8F0),
+
+  /// Thẻ tải và hiển thị ảnh CCCD (Mặt trước / Mặt sau)
+  Widget _buildCccdCard({required bool isMatTruoc}) {
+    final bytes = isMatTruoc ? _cccdTruocBytes : _cccdSauBytes;
+    final title = isMatTruoc ? 'Mặt trước CCCD' : 'Mặt sau CCCD';
+    final hasImage = bytes != null;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => _chonAnhCccd(isMatTruoc),
+        child: Container(
+          height: 135,
+          decoration: BoxDecoration(
+            color: hasImage ? Colors.white : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: hasImage
+                  ? const Color(0xFF0284C7)
+                  : const Color(0xFFCBD5E1),
+              width: hasImage ? 1.5 : 1.0,
+            ),
+            boxShadow: hasImage
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF0284C7).withValues(alpha: 0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: hasImage
+              ? Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.memory(
+                      bytes,
+                      fit: BoxFit.cover,
+                    ),
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.65),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              color: Color(0xFF4ADE80),
+                              size: 14,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const Spacer(),
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  if (isMatTruoc) {
+                                    _cccdTruocBytes = null;
+                                    _cccdTruocTen = null;
+                                  } else {
+                                    _cccdSauBytes = null;
+                                    _cccdSauTen = null;
+                                  }
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.close_rounded,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 6,
+                      right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.65),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.edit_rounded,
+                              color: Colors.white,
+                              size: 12,
+                            ),
+                            SizedBox(width: 3),
+                            Text(
+                              'Đổi ảnh',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEFF6FF),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.add_a_photo_outlined,
+                        color: Color(0xFF0284C7),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    const Text(
+                      'Chụp hoặc chọn ảnh',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
         ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: hasCoords
-                  ? const Color(0xFFDCFCE7)
-                  : const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              hasCoords
-                  ? Icons.location_on_rounded
-                  : Icons.location_searching_rounded,
-              size: 22,
-              color: hasCoords
-                  ? const Color(0xFF16A34A)
-                  : const Color(0xFF64748B),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  hasCoords
-                      ? 'Vĩ độ: ${_viDo!.toStringAsFixed(6)}'
-                      : 'Chưa có tọa độ GPS',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: hasCoords
-                        ? const Color(0xFF166534)
-                        : const Color(0xFF1E293B),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  hasCoords
-                      ? 'Kinh độ: ${_kinhDo!.toStringAsFixed(6)}'
-                      : _viTriStatus,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: hasCoords
-                        ? const Color(0xFF15803D)
-                        : const Color(0xFF64748B),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_dangLayViTri)
-            const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Color(0xFF0284C7),
-              ),
-            )
-          else
-            TextButton.icon(
-              onPressed: () => _layViTriTuThietBi(isAuto: false),
-              icon: Icon(
-                hasCoords ? Icons.refresh_rounded : Icons.my_location_rounded,
-                size: 16,
-                color: const Color(0xFF0284C7),
-              ),
-              label: Text(
-                hasCoords ? 'Định vị lại' : 'Lấy vị trí',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF0284C7),
-                ),
-              ),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
-        ],
       ),
     );
   }
