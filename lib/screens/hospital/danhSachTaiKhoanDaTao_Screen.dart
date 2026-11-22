@@ -431,15 +431,108 @@ class _DanhSachTaiKhoanDaTaoScreenState
     } catch (e) {
       debugPrint('⚠️ Lỗi xuất file PDF: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi xuất file PDF: $e'),
-            backgroundColor: const Color(0xFFDC2626),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        if (e.toString().contains('MissingPluginException') ||
+            e.toString().contains('net.nfet.printing')) {
+          _hienThiDialogMissingPlugin(context, listToExport);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Lỗi khi xuất file PDF: $e'),
+              backgroundColor: const Color(0xFFDC2626),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
     }
+  }
+
+  /// Hiển thị hộp thoại hướng dẫn khi gặp lỗi MissingPluginException do app chưa được build lại sau khi thêm plugin
+  void _hienThiDialogMissingPlugin(
+    BuildContext context,
+    List<TaiKhoanItem> listToExport,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (dCtx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.restart_alt_rounded, color: Color(0xFFD97706), size: 26),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Cần Khởi Động Lại Ứng Dụng',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Thư viện in/xuất file PDF (printing) vừa được thêm mới vào dự án.',
+                style: TextStyle(fontSize: 13.5, color: Color(0xFF334155)),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 18),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Do đây là plugin có mã nguồn Native (Android), cơ chế Hot Reload không thể nạp plugin mới. Bạn cần Dừng chạy (Stop) và chạy lại (flutter run) để sử dụng tính năng in PDF.',
+                        style: TextStyle(fontSize: 12, color: Color(0xFF92400E)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Trong lúc chờ chạy lại ứng dụng, bạn có thể bấm sao chép toàn bộ danh sách tài khoản & mật khẩu bên dưới:',
+                style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
+          actions: [
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.pop(dCtx);
+                _saoChepTatCa(context, listToExport);
+              },
+              icon: const Icon(Icons.copy_all_rounded, size: 16),
+              label: const Text('Sao chép danh sách'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF0284C7),
+                side: const BorderSide(color: Color(0xFF0284C7)),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dCtx),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0284C7),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Đã hiểu'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   /// Mở hộp thoại "Lịch Sử Tài Khoản Đã Tạo" khi bấm nút Lịch Sử ở góc trên bên phải
