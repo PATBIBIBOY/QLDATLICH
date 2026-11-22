@@ -89,6 +89,10 @@ class AppDesignSystemC1 {
     HapticFeedback.mediumImpact();
   }
 
+  static void hapticError() {
+    HapticFeedback.heavyImpact();
+  }
+
   // 6. SNACKBAR ĐẸP THEO CHUẨN M3 VỚI ICON & MÀU TRẠNG THÁI
   static void showCustomSnackBar(
     BuildContext context, {

@@ -5,7 +5,7 @@ import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
 import 'cskh_duyetdon_khoa_screen_c1.dart';
 import 'letan_trangchu_screen_c1.dart';
-import '../../support_doctor/department_room_picker.dart';
+import '../../support_doctor/clinic_firestore_service.dart';
 
 /// MÀN HÌNH 3: THIẾT LẬP THÔNG TIN KHI LẦN ĐẦU ĐĂNG NHẬP (FIGMA C1)
 /// Nhân viên nhập Mã nhân viên được cấp -> Bổ sung Gmail, Họ tên, Ngày sinh, Giới tính, Mật khẩu mới.
@@ -62,8 +62,7 @@ class _LetanThietlapThongtinScreenC1State extends State<LetanThietlapThongtinScr
       initialDate: DateTime(1998, 8, 15),
       firstDate: DateTime(1950),
       lastDate: DateTime.now(),
-      locale: const Locale('vi', 'VN'),
-    );
+     );
     if (picked != null) {
       setState(() {
         final ngay = picked.day.toString().padLeft(2, '0');
@@ -96,6 +95,8 @@ class _LetanThietlapThongtinScreenC1State extends State<LetanThietlapThongtinScr
         gioiTinh: _gioiTinh,
         matKhauMoi: matKhauMoi,
       );
+      // Tự động lưu phiên đăng nhập bằng Gmail mới kích hoạt
+      await FirebaseServiceC1.luuPhienDangNhap(taiKhoan: emailMoi, matKhau: matKhauMoi);
     } catch (e) {
       // ignore: avoid_print
       print('Chế độ fallback mock do lỗi kết nối: $e');
@@ -136,7 +137,12 @@ class _LetanThietlapThongtinScreenC1State extends State<LetanThietlapThongtinScr
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const ClinicRoomPickerScreen(),
+          builder: (_) => FirestoreClinicRoomPickerScreen(
+            hospitalId: DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty
+                ? DuLieuProfileMauC1.thongTinHienTai.benhVienId
+                : 'BV001',
+            hospitalName: DuLieuProfileMauC1.thongTinHienTai.tenBenhVien,
+          ),
         ),
       );
     } else {

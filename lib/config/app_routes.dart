@@ -177,8 +177,6 @@ class AppRoutes {
         staffManagement: (_) => const StaffManagementScreen(),
         statistics: (_) => const StatisticsScreen(),
         adminDashboard: (_) => const AdminDashboard(),
-      };
-
 
     hospitalDashboard: (context) {
       final tabIndex = ModalRoute.of(context)?.settings.arguments as int? ?? 0;
