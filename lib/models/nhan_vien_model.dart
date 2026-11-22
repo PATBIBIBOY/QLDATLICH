@@ -6,6 +6,12 @@ class TaiKhoanItem {
   final String maTk;
   final String matKhau;
   final String trangThai;
+  final String vaiTro;
+  final String role;
+  final String khoa;
+  final String hoTen;
+  final bool daKichHoat;
+  final DateTime? ngayTao;
 
   const TaiKhoanItem({
     this.id,
@@ -13,6 +19,12 @@ class TaiKhoanItem {
     required this.maTk,
     required this.matKhau,
     this.trangThai = 'Đợi kích hoạt',
+    this.vaiTro = '',
+    this.role = '',
+    this.khoa = '',
+    this.hoTen = '',
+    this.daKichHoat = false,
+    this.ngayTao,
   });
 
   Map<String, dynamic> toMap() => {
@@ -21,17 +33,41 @@ class TaiKhoanItem {
     'maTk': maTk,
     'matKhau': matKhau,
     'trangThai': trangThai,
+    'vaiTro': vaiTro,
+    'role': role,
+    'khoa': khoa,
+    'hoTen': hoTen,
+    'daKichHoat': daKichHoat,
+    'ngayTao': ngayTao?.toIso8601String(),
   };
 
-  factory TaiKhoanItem.fromMap(Map<String, dynamic> map) => TaiKhoanItem(
-    id: map['id']?.toString(),
-    benhVienId: (map['benh_vien_id'] ?? map['benhVienId'])?.toString(),
-    maTk: (map['maTk'] ?? map['ma_nhan_vien'] ?? map['ma_tai_khoan'] ?? '')
-        .toString(),
-    matKhau: (map['matKhau'] ?? map['mat_khau'] ?? '123456').toString(),
-    trangThai: (map['trangThai'] ?? map['trang_thai'] ?? 'Đợi kích hoạt')
-        .toString(),
-  );
+  factory TaiKhoanItem.fromMap(Map<String, dynamic> map) {
+    DateTime? parsedNgayTao;
+    final rawNgay = map['ngay_tao'] ?? map['ngayTao'] ?? map['created_at'];
+    if (rawNgay is Timestamp) {
+      parsedNgayTao = rawNgay.toDate();
+    } else if (rawNgay is String && rawNgay.isNotEmpty) {
+      parsedNgayTao = DateTime.tryParse(rawNgay);
+    }
+
+    final bool isActivated = map['da_kich_hoat'] == true ||
+        map['trang_thai'] == 'dang_hoat_dong' ||
+        map['trangThai'] == 'Đã kích hoạt';
+
+    return TaiKhoanItem(
+      id: map['id']?.toString(),
+      benhVienId: (map['benh_vien_id'] ?? map['benhVienId'])?.toString(),
+      maTk: (map['maTk'] ?? map['ma_nhan_vien'] ?? map['ma_tai_khoan'] ?? '').toString(),
+      matKhau: (map['matKhau'] ?? map['mat_khau'] ?? '123456').toString(),
+      trangThai: isActivated ? 'Đã kích hoạt' : (map['trangThai'] ?? map['trang_thai'] ?? 'Đợi kích hoạt').toString(),
+      vaiTro: (map['vai_tro'] ?? map['vaiTro'] ?? '').toString(),
+      role: (map['role'] ?? '').toString(),
+      khoa: (map['khoa'] ?? map['ten_khoa'] ?? map['tenKhoa'] ?? '').toString(),
+      hoTen: (map['ho_ten'] ?? map['hoTen'] ?? '').toString(),
+      daKichHoat: isActivated,
+      ngayTao: parsedNgayTao,
+    );
+  }
 }
 
 class DotCapTaiKhoan {
@@ -111,7 +147,31 @@ class NhanVienModel {
     if (ngayPhanCong == ngayStr) {
       return trangThaiId;
     }
-    return 15; // Mặc định là 15: "chờ"
+    return daPhanCong ? 16 : 15; // Mặc định là 15: "chờ", nếu đã phân công thì 16
+  }
+
+  /// Kiểm tra nhân viên đã được phân công trực hay chưa (chung hoặc theo bất kỳ lịch nào)
+  bool get daPhanCong {
+    if (trangThaiId == 16 ||
+        trangThai == 'đã phân công' ||
+        trangThai == 'da_phan_cong') {
+      return true;
+    }
+    if (phongPhanCong != null && phongPhanCong!.trim().isNotEmpty) {
+      return true;
+    }
+    if (lichPhanCong != null && lichPhanCong!.isNotEmpty) {
+      for (final val in lichPhanCong!.values) {
+        if (val is Map) {
+          final id = val['trang_thai_id'] ?? val['trangThaiId'];
+          final tt = (val['trang_thai'] ?? val['trangThai'] ?? '').toString();
+          if (id == 16 || id == '16' || tt == 'đã phân công') {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
   }
 
   /// Lấy tên trạng thái ("chờ" hoặc "đã phân công") cho ngày cụ thể
@@ -181,16 +241,27 @@ class NhanVienModel {
 
     // Trạng thái theo TrangThai Document 15 ("chờ") và 16 ("đã phân công")
     int ttId = 15;
-    final rawTtId = data['trang_thai_id'];
+    final rawTtId = data['trang_thai_id'] ?? data['trangThaiId'];
     if (rawTtId is int) {
       ttId = rawTtId;
     } else if (rawTtId != null) {
       ttId = int.tryParse(rawTtId.toString()) ?? 15;
     }
 
+    final phongPc = (data['phong_phan_cong'] ?? data['phongPhanCong'])?.toString();
+    final ngayPc = (data['ngay_phan_cong'] ?? data['ngayPhanCong'])?.toString();
+    final khoaPc = (data['khoa_phan_cong'] ?? data['khoaPhanCong'])?.toString();
+
     final lichPhanCong = data['lich_phan_cong'] is Map
         ? Map<String, dynamic>.from(data['lich_phan_cong'] as Map)
         : null;
+
+    if (ttId != 16 &&
+        (trangThai == 'đã phân công' ||
+            trangThai == 'da_phan_cong' ||
+            (phongPc != null && phongPc.trim().isNotEmpty))) {
+      ttId = 16;
+    }
 
     return NhanVienModel(
       id: doc.id,
@@ -208,9 +279,9 @@ class NhanVienModel {
       trangThai: trangThai,
       trangThaiId: ttId,
       ngayTao: dt,
-      ngayPhanCong: data['ngay_phan_cong']?.toString(),
-      phongPhanCong: data['phong_phan_cong']?.toString(),
-      khoaPhanCong: data['khoa_phan_cong']?.toString(),
+      ngayPhanCong: ngayPc,
+      phongPhanCong: phongPc,
+      khoaPhanCong: khoaPc,
       lichPhanCong: lichPhanCong,
     );
   }

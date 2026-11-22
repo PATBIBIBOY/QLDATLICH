@@ -74,7 +74,7 @@ class NhanVienService {
   }
 
   /// Lấy tên bệnh viện từ Firestore để lưu vào Document cha `NhanVien/{benhVienId}`
-  Future<String> _layTenBenhVien(String bvid) async {
+  Future<String> layTenBenhVien(String bvid) async {
     try {
       final bvDoc = await _db.collection('BenhVien').doc(bvid).get();
       if (bvDoc.exists) {
@@ -236,10 +236,8 @@ class NhanVienService {
     return sorted;
   }
 
-  /// Lấy danh sách tài khoản vừa tạo đang ở trạng thái đợi kích hoạt (chỉ của bệnh viện này)
-  Future<List<TaiKhoanItem>> layDanhSachTaiKhoanChuaKichHoat([
-    String? benhVienId,
-  ]) async {
+  /// Lấy danh sách toàn bộ tài khoản nhân sự (cả đợi kích hoạt và đã kích hoạt) của bệnh viện
+  Future<List<TaiKhoanItem>> layTatCaTaiKhoan([String? benhVienId]) async {
     final rawId = (benhVienId != null && benhVienId.trim().isNotEmpty)
         ? benhVienId.trim()
         : (AppSession.benhVienId.isNotEmpty
@@ -248,6 +246,44 @@ class NhanVienService {
 
     final bvid = await _chuanHoaBenhVienId(rawId);
     final list = <TaiKhoanItem>[];
+
+    TaiKhoanItem parseFromDoc(String docId, Map<String, dynamic> data, String bvId) {
+      DateTime? parsedNgayTao;
+      final rawNgay = data['ngay_tao'] ?? data['ngayTao'] ?? data['created_at'];
+      if (rawNgay is Timestamp) {
+        parsedNgayTao = rawNgay.toDate();
+      } else if (rawNgay is String && rawNgay.isNotEmpty) {
+        parsedNgayTao = DateTime.tryParse(rawNgay);
+      }
+
+      final daKichHoat = data['da_kich_hoat'] == true ||
+          data['trang_thai'] == 'dang_hoat_dong' ||
+          data['trang_thai'] == 'da_kich_hoat';
+
+      final maTk = (data['ma_nhan_vien'] ??
+              data['ma_tai_khoan'] ??
+              docId)
+          .toString();
+      final matKhau = (data['mat_khau'] ?? '123456').toString();
+      final vaiTro = (data['vai_tro'] ?? data['vaiTro'] ?? '').toString();
+      final role = (data['role'] ?? '').toString();
+      final khoa = (data['khoa'] ?? data['ten_khoa'] ?? data['tenKhoa'] ?? '').toString();
+      final hoTen = (data['ho_ten'] ?? data['hoTen'] ?? '').toString();
+
+      return TaiKhoanItem(
+        id: docId,
+        benhVienId: bvId,
+        maTk: maTk,
+        matKhau: matKhau,
+        trangThai: daKichHoat ? 'Đã kích hoạt' : 'Đợi kích hoạt',
+        vaiTro: vaiTro,
+        role: role,
+        khoa: khoa,
+        hoTen: hoTen,
+        daKichHoat: daKichHoat,
+        ngayTao: parsedNgayTao,
+      );
+    }
 
     // 1. Quét từ NhanVien/{bvid}/danh_sach
     if (bvid.isNotEmpty) {
@@ -259,27 +295,7 @@ class NhanVienService {
             .get();
 
         for (final d in snap.docs) {
-          final data = d.data();
-          final daKichHoat = data['da_kich_hoat'] ?? false;
-          final trangThaiRaw = (data['trang_thai'] ?? '').toString();
-
-          if (daKichHoat == true ||
-              trangThaiRaw == 'dang_hoat_dong' ||
-              trangThaiRaw == 'da_khoa') {
-            continue;
-          }
-
-          final maTk =
-              (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? d.id).toString();
-          final matKhau = (data['mat_khau'] ?? '123456').toString();
-
-          list.add(TaiKhoanItem(
-            id: d.id,
-            benhVienId: bvid,
-            maTk: maTk,
-            matKhau: matKhau,
-            trangThai: 'Đợi kích hoạt',
-          ));
+          list.add(parseFromDoc(d.id, d.data(), bvid));
         }
       } catch (_) {}
     }
@@ -294,31 +310,25 @@ class NhanVienService {
         final snap = await query.get();
         for (final d in snap.docs) {
           final data = d.data();
-          final daKichHoat = data['da_kich_hoat'] ?? false;
-          final trangThaiRaw = (data['trang_thai'] ?? '').toString();
-
-          if (daKichHoat == true ||
-              trangThaiRaw == 'dang_hoat_dong' ||
-              trangThaiRaw == 'da_khoa') {
-            continue;
-          }
-
-          final maTk =
-              (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? d.id).toString();
-          final matKhau = (data['mat_khau'] ?? '123456').toString();
-
-          list.add(TaiKhoanItem(
-            id: d.id,
-            benhVienId: (data['benh_vien_id'] ?? bvid).toString(),
-            maTk: maTk,
-            matKhau: matKhau,
-            trangThai: 'Đợi kích hoạt',
-          ));
+          final bv = (data['benh_vien_id'] ?? bvid).toString();
+          list.add(parseFromDoc(d.id, data, bv));
         }
       } catch (_) {}
     }
 
     return list;
+  }
+
+  /// Lấy danh sách tài khoản đang ở trạng thái đợi kích hoạt
+  Future<List<TaiKhoanItem>> layDanhSachTaiKhoanChuaKichHoat([String? benhVienId]) async {
+    final all = await layTatCaTaiKhoan(benhVienId);
+    return all.where((e) => !e.daKichHoat).toList();
+  }
+
+  /// Lấy danh sách tài khoản đã kích hoạt
+  Future<List<TaiKhoanItem>> layDanhSachTaiKhoanDaKichHoat([String? benhVienId]) async {
+    final all = await layTatCaTaiKhoan(benhVienId);
+    return all.where((e) => e.daKichHoat).toList();
   }
 
   /// Tương thích ngược: Lấy danh sách tài khoản đợi kích hoạt
@@ -394,7 +404,7 @@ class NhanVienService {
             : (FirebaseAuth.instance.currentUser?.uid ?? ''));
 
     final bvid = await _chuanHoaBenhVienId(rawId);
-    final tenBenhVien = await _layTenBenhVien(bvid);
+    final tenBenhVien = await layTenBenhVien(bvid);
 
     // 1. Đảm bảo Document cha NhanVien/{bvid} tồn tại đúng chuẩn Firebase
     if (bvid.isNotEmpty) {
@@ -498,6 +508,12 @@ class NhanVienService {
         maTk: maTk,
         matKhau: commonPassword,
         trangThai: 'Đợi kích hoạt',
+        vaiTro: vaiTro,
+        role: roleCode,
+        khoa: tenKhoa,
+        hoTen: '$vaiTro ${maTk.split('_').last}',
+        daKichHoat: false,
+        ngayTao: DateTime.now(),
       ));
 
       final staffData = {

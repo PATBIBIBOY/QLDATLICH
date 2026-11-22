@@ -7,9 +7,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+
+import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../config/app_routes.dart';
 import '../../config/app_session.dart';
@@ -17,8 +22,31 @@ import '../../config/constants.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/email_service.dart';
+import '../../services/geocoding_service.dart';
 import '../../services/hospital_sync_service.dart';
 import 'guiDonThanhCong_Screen.dart';
+import 'widgets/dialog_chon_dia_chi_map.dart';
+
+/// Tệp giấy phép / tài liệu hoạt động y tế đính kèm
+class TepDinhKemItem {
+  final String id;
+  final String tenFile;
+  final String dungLuong;
+  final int dungLuongBytes;
+  final Uint8List? bytes;
+  final String? path;
+  final bool isSample;
+
+  TepDinhKemItem({
+    String? id,
+    required this.tenFile,
+    required this.dungLuong,
+    required this.dungLuongBytes,
+    this.bytes,
+    this.path,
+    this.isSample = false,
+  }) : id = id ?? DateTime.now().microsecondsSinceEpoch.toString();
+}
 
 class GuiYeuCauHopTacScreen extends StatefulWidget {
   final String? initialTenBenhVien;
@@ -42,20 +70,623 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
   late final TextEditingController _maSoThueCtrl;
   late final TextEditingController _diaChiCtrl;
 
-  // Tọa độ GPS của thiết bị
+  // Tọa độ GPS & địa chỉ map (lưu ngầm vào Firestore, không hiện trên form)
   double? _viDo;
   double? _kinhDo;
-  bool _dangLayViTri = false;
-  String _viTriStatus = 'Chưa xác định tọa độ GPS';
+  String? _diaChiMap;
+  Timer? _diaChiDebounceTimer;
+  bool _dangTimKiemDiaChiForm = false;
+
+  // Ảnh CCCD người đại diện (Mặt trước & Mặt sau)
+  Uint8List? _cccdTruocBytes;
+  String? _cccdTruocTen;
+  Uint8List? _cccdSauBytes;
+  String? _cccdSauTen;
 
   String _coSo = 'Tu_nhan'; // 'Cong_lap' hoặc 'Tu_nhan' theo collection CoSo
   String _bhyt = 'Co_BHYT'; // 'Co_BHYT' hoặc 'Khong_BHYT' theo collection BHYT
-  String _tenFileDinhKem = 'giay_phep_byt.pdf';
-  String _dungLuongFile = '62.0 KB • Đã tải lên';
-  Uint8List? _fileBytes;
-  String? _pickedFilePath;
+
+  // Danh sách tệp giấy phép / tài liệu đính kèm (hỗ trợ nhiều tệp & xem trước)
+  final List<TepDinhKemItem> _danhSachTepDinhKem = [];
+
   bool _isSubmitting = false;
   String _submittingStatus = '';
+
+  Future<void> _chonAnhCccd(bool isMatTruoc) async {
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                isMatTruoc
+                    ? 'Chọn ảnh Mặt trước CCCD'
+                    : 'Chọn ảnh Mặt sau CCCD',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFEFF6FF),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.camera_alt_rounded,
+                    color: Color(0xFF0284C7),
+                  ),
+                ),
+                title: const Text(
+                  'Chụp ảnh',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+                subtitle: const Text(
+                  'Dùng camera thiết bị để chụp ảnh CCCD',
+                  style: TextStyle(fontSize: 12),
+                ),
+                onTap: () => Navigator.pop(ctx, ImageSource.camera),
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF0FDF4),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.photo_library_rounded,
+                    color: Color(0xFF16A34A),
+                  ),
+                ),
+                title: const Text(
+                  'Chọn từ thư viện máy',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+                subtitle: const Text(
+                  'Tải ảnh CCCD đã có sẵn từ bộ sưu tập',
+                  style: TextStyle(fontSize: 12),
+                ),
+                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    try {
+      final picker = ImagePicker();
+      final XFile? pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 1600,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        final bytes = await pickedFile.readAsBytes();
+        setState(() {
+          if (isMatTruoc) {
+            _cccdTruocBytes = bytes;
+            _cccdTruocTen = pickedFile.name;
+          } else {
+            _cccdSauBytes = bytes;
+            _cccdSauTen = pickedFile.name;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('⚠️ Lỗi chọn ảnh CCCD: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Không thể chọn ảnh: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _onFormDiaChiChanged(String val) {
+    _diaChiDebounceTimer?.cancel();
+    final q = val.trim();
+    if (q.length < 3) return;
+
+    _diaChiDebounceTimer = Timer(const Duration(milliseconds: 650), () async {
+      if (!mounted) return;
+      setState(() => _dangTimKiemDiaChiForm = true);
+      try {
+        final items = await GeocodingService.timKiemDiaChi(q);
+        if (items.isNotEmpty && mounted) {
+          final first = items.first;
+          setState(() {
+            _viDo = first.viDo;
+            _kinhDo = first.kinhDo;
+            _diaChiMap = first.diaChiDayDu;
+            _dangTimKiemDiaChiForm = false;
+          });
+        } else {
+          if (mounted) setState(() => _dangTimKiemDiaChiForm = false);
+        }
+      } catch (_) {
+        if (mounted) setState(() => _dangTimKiemDiaChiForm = false);
+      }
+    });
+  }
+
+  Future<void> _moChonDiaChiMap() async {
+    // Mở trực tiếp màn hình chọn bản đồ Google Map toàn diện
+    final result = await DialogChonDiaChiMap.show(
+      context,
+      initialAddress: _diaChiCtrl.text.trim(),
+      initialLat: _viDo,
+      initialLon: _kinhDo,
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        _diaChiCtrl.text = result.diaChiDayDu;
+        _diaChiMap = result.diaChiDayDu;
+        _viDo = result.viDo;
+        _kinhDo = result.kinhDo;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('📍 Đã chọn vị trí cơ sở thành công từ bản đồ.'),
+          backgroundColor: Color(0xFF16A34A),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _capNhatToaDoMoi(double lat, double lon) async {
+    setState(() {
+      _viDo = lat;
+      _kinhDo = lon;
+    });
+    final item = await GeocodingService.traNguocToaDo(lat, lon);
+    if (item != null && mounted) {
+      setState(() {
+        _diaChiCtrl.text = item.diaChiDayDu;
+        _diaChiMap = item.diaChiDayDu;
+      });
+    }
+  }
+
+  /// Hộp thoại hỏi người dùng cho phép mở định vị GPS trên màn hình đăng ký
+  Future<bool> _hienThiDialogHoiMoDinhViMini() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+        ),
+        titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                color: Color(0xFFE0F2FE),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.my_location_rounded,
+                color: Color(0xFF0284C7),
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Cho phép định vị GPS?',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Ứng dụng cần sử dụng vị trí thiết bị để tự động ghim vị trí cơ sở y tế trên bản đồ và nhận diện địa chỉ chính xác nhất.',
+              style: TextStyle(
+                fontSize: 13,
+                color: Color(0xFF475569),
+                height: 1.45,
+              ),
+            ),
+            SizedBox(height: 10),
+            Text(
+              '• Tự động điền số nhà, tên đường, phường/xã\n• Giúp người bệnh dễ dàng tìm đường đến khám',
+              style: TextStyle(
+                fontSize: 12,
+                color: Color(0xFF0284C7),
+                fontWeight: FontWeight.w600,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text(
+              'Để sau',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            icon: const Icon(Icons.check_rounded, size: 18),
+            label: const Text(
+              'Bật định vị',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0284C7),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return result == true;
+  }
+
+  /// Kích hoạt định vị GPS cho form đăng ký cơ sở y tế
+  Future<void> _dinhViGpsChoFormMini() async {
+    final dongY = await _hienThiDialogHoiMoDinhViMini();
+    if (!dongY) return;
+
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vui lòng bật dịch vụ định vị (GPS) trên thiết bị.'),
+            backgroundColor: Color(0xFFD97706),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Quyền định vị bị từ chối. Bạn có thể tự ghim trên bản đồ.'),
+            backgroundColor: Color(0xFFD97706),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 5),
+        ),
+      );
+
+      await _capNhatToaDoMoi(pos.latitude, pos.longitude);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('📍 Đã định vị thành công vị trí của bạn!'),
+          backgroundColor: Color(0xFF16A34A),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Không thể lấy tọa độ GPS: $e'),
+          backgroundColor: const Color(0xFFEF4444),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Widget _buildEmbeddedMapCard() {
+    final lat = _viDo ?? 10.86012;
+    final lon = _kinhDo ?? 106.77234;
+    final center = LatLng(lat, lon);
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8, bottom: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 1. Khung bản đồ thu nhỏ tương tác trực tiếp
+          Container(
+            height: 190,
+            color: const Color(0xFFE2E8F0),
+            child: Stack(
+              children: [
+                FlutterMap(
+                  key: ValueKey('embed_map_${lat}_$lon'),
+                  options: MapOptions(
+                    initialCenter: center,
+                    initialZoom: 15.5,
+                    minZoom: 4,
+                    maxZoom: 19,
+                    interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                    ),
+                    onTap: (tapPos, point) {
+                      _capNhatToaDoMoi(point.latitude, point.longitude);
+                    },
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate:
+                          'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+                      fallbackUrl:
+                          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+                      maxZoom: 19,
+                    ),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: center,
+                          width: 46,
+                          height: 46,
+                          alignment: Alignment.topCenter,
+                          child: const Icon(
+                            Icons.location_on_rounded,
+                            size: 42,
+                            color: Color(0xFFEF4444),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+
+                // Nút "Định vị GPS" ở góc trên bên trái
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Material(
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    ),
+                    elevation: 2,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: _dinhViGpsChoFormMini,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 6,
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.my_location_rounded,
+                              size: 14,
+                              color: Color(0xFF0284C7),
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Định vị GPS',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0284C7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Nút "Mở rộng bản đồ" ở góc trên bên phải
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Material(
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    ),
+                    elevation: 2,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: _moChonDiaChiMap,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 6,
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.open_in_full_rounded,
+                              size: 14,
+                              color: Color(0xFF0284C7),
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Mở rộng',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0284C7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Nhãn chỉ dẫn chạm ở góc dưới bên trái
+                Positioned(
+                  bottom: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.touch_app_rounded,
+                          color: Colors.white,
+                          size: 12,
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          'Chạm bản đồ để ghim vị trí',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 2. Chân hiển thị địa chỉ đã chọn
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            color: const Color(0xFFF8FAFC),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.check_circle_rounded,
+                  size: 16,
+                  color: Color(0xFF16A34A),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _diaChiMap?.isNotEmpty == true
+                        ? _diaChiMap!
+                        : (_diaChiCtrl.text.isNotEmpty
+                            ? _diaChiCtrl.text
+                            : 'Vị trí cơ sở y tế đã được ghim trên bản đồ'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF334155),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                InkWell(
+                  onTap: _moChonDiaChiMap,
+                  borderRadius: BorderRadius.circular(6),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    child: Text(
+                      'Đổi vị trí',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0284C7),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -71,8 +702,8 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     final diaChi = widget.initialDiaChi ?? auth.hospital?.diaChi ?? '';
 
     _tenBenhVienCtrl = TextEditingController(text: tenBv);
-    _maCoSoCtrl = TextEditingController(text: 'BV-79-102');
-    _maSoThueCtrl = TextEditingController(text: '0312891201');
+    _maCoSoCtrl = TextEditingController();
+    _maSoThueCtrl = TextEditingController();
     _diaChiCtrl = TextEditingController(text: diaChi);
 
     if (auth.hospital?.coSo == 'Cong_lap' || auth.hospital?.coSo == 'Tu_nhan') {
@@ -86,19 +717,11 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     // Lấy tọa độ có sẵn nếu tài khoản đã từng lưu
     _viDo = auth.hospital?.viDo;
     _kinhDo = auth.hospital?.kinhDo;
-    if (_viDo != null && _kinhDo != null) {
-      _viTriStatus =
-          'Đã có tọa độ: ${_viDo!.toStringAsFixed(5)}, ${_kinhDo!.toStringAsFixed(5)}';
-    }
-
-    // Tự động yêu cầu định vị GPS từ thiết bị khi mở màn hình
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _layViTriTuThietBi(isAuto: true);
-    });
   }
 
   @override
   void dispose() {
+    _diaChiDebounceTimer?.cancel();
     _tenBenhVienCtrl.dispose();
     _maCoSoCtrl.dispose();
     _maSoThueCtrl.dispose();
@@ -177,114 +800,7 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     }
   }
 
-  /// Lấy vị trí GPS thực tế từ thiết bị để quy ra vĩ độ & kinh độ
-  Future<void> _layViTriTuThietBi({bool isAuto = false}) async {
-    if (_dangLayViTri) return;
 
-    setState(() {
-      _dangLayViTri = true;
-      _viTriStatus = 'Đang lấy vị trí GPS từ thiết bị...';
-    });
-
-    try {
-      // 1. Kiểm tra dịch vụ định vị (Location Service)
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        if (!mounted) return;
-        setState(() {
-          _dangLayViTri = false;
-          _viTriStatus = 'Dịch vụ GPS trên thiết bị chưa được bật';
-        });
-        if (!isAuto && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Vui lòng bật định vị GPS trên thiết bị để lấy tọa độ',
-              ),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-        return;
-      }
-
-      // 2. Kiểm tra và yêu cầu quyền truy cập vị trí
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          if (!mounted) return;
-          setState(() {
-            _dangLayViTri = false;
-            _viTriStatus = 'Quyền truy cập vị trí bị từ chối';
-          });
-          return;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        if (!mounted) return;
-        setState(() {
-          _dangLayViTri = false;
-          _viTriStatus = 'Quyền vị trí bị chặn trong Cài đặt thiết bị';
-        });
-        return;
-      }
-
-      // 3. Lấy tọa độ GPS (thử getCurrentPosition, nếu timeout thử getLastKnownPosition)
-      Position? position;
-      try {
-        position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.medium,
-            timeLimit: Duration(seconds: 8),
-          ),
-        );
-      } catch (e) {
-        debugPrint(
-          '⚠️ getCurrentPosition chậm hoặc lỗi, thử getLastKnownPosition: $e',
-        );
-        position = await Geolocator.getLastKnownPosition();
-      }
-
-      if (!mounted) return;
-
-      if (position != null) {
-        final pos = position;
-        setState(() {
-          _viDo = pos.latitude;
-          _kinhDo = pos.longitude;
-          _dangLayViTri = false;
-          _viTriStatus =
-              'Đã định vị: ${_viDo!.toStringAsFixed(5)}, ${_kinhDo!.toStringAsFixed(5)}';
-        });
-
-        if (!isAuto && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '✅ Đã lấy tọa độ GPS: Vĩ độ ${_viDo!.toStringAsFixed(5)}, Kinh độ ${_kinhDo!.toStringAsFixed(5)}',
-              ),
-              backgroundColor: const Color(0xFF16A34A),
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      } else {
-        setState(() {
-          _dangLayViTri = false;
-          _viTriStatus = 'Không lấy được tọa độ GPS từ thiết bị';
-        });
-      }
-    } catch (e) {
-      debugPrint('Lỗi khi định vị thiết bị: $e');
-      if (!mounted) return;
-      setState(() {
-        _dangLayViTri = false;
-        _viTriStatus = 'Lỗi định vị: $e';
-      });
-    }
-  }
 
   String _formatFileSize(int bytes) {
     if (bytes <= 0) return '0 B';
@@ -403,7 +919,7 @@ startxref
       try {
         files = await FilePicker.pickFiles(
           type: FileType.custom,
-          allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg', 'doc', 'docx'],
+          allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'doc', 'docx'],
         );
       } catch (err) {
         debugPrint('⚠️ Không thể mở custom type, fallback sang any: $err');
@@ -411,50 +927,69 @@ startxref
       }
 
       if (files.isNotEmpty) {
-        final file = files.first;
-        Uint8List? bytes;
-        try {
-          bytes = await file.readAsBytes();
-        } catch (_) {}
-        if (bytes == null || bytes.isEmpty) {
-          if (file.path != null && file.path!.isNotEmpty) {
-            try {
-              bytes = await File(file.path!).readAsBytes();
-            } catch (_) {}
+        final List<TepDinhKemItem> newItems = [];
+
+        for (final file in files) {
+          Uint8List? bytes;
+          try {
+            bytes = await file.readAsBytes();
+          } catch (_) {}
+          if (bytes == null || bytes.isEmpty) {
+            if (!kIsWeb && file.path != null && file.path!.isNotEmpty) {
+              try {
+                bytes = await File(file.path!).readAsBytes();
+              } catch (_) {}
+            }
           }
-        }
 
-        final sizeBytes =
-            file.lengthSync() ?? (await file.length()) ?? bytes?.length ?? 0;
-        final sizeText = _formatFileSize(sizeBytes);
+          final sizeBytes = file.lengthSync() ?? (await file.length()) ?? bytes?.length ?? 0;
+          final sizeText = _formatFileSize(sizeBytes);
 
-        setState(() {
-          _tenFileDinhKem = file.name;
-          _dungLuongFile = '$sizeText • Đã chọn từ thiết bị';
-          _fileBytes = bytes;
-          _pickedFilePath = file.path;
-        });
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(
-                    Icons.check_circle_rounded,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text('Đã chọn tệp: ${file.name} ($sizeText)'),
-                  ),
-                ],
-              ),
-              backgroundColor: const Color(0xFF0284C7),
-              duration: const Duration(seconds: 3),
+          newItems.add(
+            TepDinhKemItem(
+              tenFile: file.name,
+              dungLuong: '$sizeText • Đã tải lên',
+              dungLuongBytes: sizeBytes,
+              bytes: bytes,
+              path: file.path,
+              isSample: false,
             ),
           );
+        }
+
+        if (newItems.isNotEmpty) {
+          setState(() {
+            for (final newItem in newItems) {
+              _danhSachTepDinhKem.removeWhere((item) => item.tenFile == newItem.tenFile);
+              _danhSachTepDinhKem.add(newItem);
+            }
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Đã thêm ${newItems.length} tệp tài liệu thành công. Nhấn "Xem" để xem nội dung.',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: const Color(0xFF16A34A),
+                duration: const Duration(seconds: 3),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         }
       }
     } catch (e) {
@@ -464,6 +999,7 @@ startxref
           SnackBar(
             content: Text('Không thể truy cập tệp tin: $e'),
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -471,207 +1007,413 @@ startxref
   }
 
   void _doiFileDinhKem() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFCBD5E1),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const Text(
-              'Cập nhật giấy phép hoạt động y tế',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF0F172A),
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Chọn tệp giấy phép từ bộ nhớ máy hoặc dùng tài liệu mẫu:',
-              style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-            ),
-            const SizedBox(height: 16),
+    _chonTepTuThietBi();
+  }
 
-            // Nút nổi bật: Truy cập tệp tin của máy
-            InkWell(
-              onTap: () {
-                Navigator.pop(ctx);
-                _chonTepTuThietBi();
-              },
-              borderRadius: BorderRadius.circular(14),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0F9FF),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: const Color(0xFF0284C7),
-                    width: 1.5,
-                  ),
+  /// Xem trước nội dung file tài liệu trước khi gửi
+  void _xemNoiDungFile(TepDinhKemItem item) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 580, maxHeight: 720),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Thanh tiêu đề xem trước
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                  border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
                 ),
                 child: Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(7),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0284C7),
-                        borderRadius: BorderRadius.circular(10),
+                        color: _getFileColor(item.tenFile).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(
-                        Icons.file_upload_outlined,
-                        color: Colors.white,
-                        size: 24,
+                      child: Icon(
+                        _getFileIcon(item.tenFile),
+                        size: 20,
+                        color: _getFileColor(item.tenFile),
                       ),
                     ),
-                    const SizedBox(width: 14),
-                    const Expanded(
+                    const SizedBox(width: 10),
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Tải lên từ tệp tin của máy',
-                            style: TextStyle(
+                            item.tenFile,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
-                              color: Color(0xFF0284C7),
+                              color: Color(0xFF0F172A),
                             ),
                           ),
-                          SizedBox(height: 2),
+                          const SizedBox(height: 1),
                           Text(
-                            'Mở bộ nhớ máy (PDF, Word, Ảnh JPG/PNG)',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF475569),
+                            '${item.dungLuong} • Xem trước tài liệu',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF64748B),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      size: 16,
-                      color: Color(0xFF0284C7),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      tooltip: 'Đóng',
                     ),
                   ],
                 ),
               ),
-            ),
 
-            const SizedBox(height: 16),
-            const Divider(height: 1, color: Color(0xFFE2E8F0)),
-            const SizedBox(height: 12),
+              // Nội dung hiển thị xem trước tệp
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: _buildPreviewContent(item),
+                ),
+              ),
 
-            const Text(
-              'Hoặc chọn nhanh tệp mẫu có sẵn:',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF64748B),
+              // Chân hộp thoại hành động
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+                  border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    if (_danhSachTepDinhKem.length > 1)
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                          _xoaTep(item);
+                        },
+                        icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFEF4444)),
+                        label: const Text(
+                          'Xóa tệp này',
+                          style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.w600, fontSize: 13),
+                        ),
+                      )
+                    else
+                      const SizedBox.shrink(),
+                    ElevatedButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0284C7),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        elevation: 0,
+                      ),
+                      child: const Text('Đóng xem trước', style: TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Khung hiển thị nội dung chi tiết theo định dạng tệp (Ảnh, PDF, Văn bản)
+  Widget _buildPreviewContent(TepDinhKemItem item) {
+    final lower = item.tenFile.toLowerCase();
+    final isImage = lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.png') ||
+        lower.endsWith('.webp');
+
+    // 1. Xem trước ảnh (JPG, PNG, WebP)
+    if (isImage) {
+      if (item.bytes != null && item.bytes!.isNotEmpty) {
+        return Column(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: InteractiveViewer(
+                maxScale: 4.0,
+                child: Image.memory(
+                  item.bytes!,
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
-            const SizedBox(height: 8),
-
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFEE2E2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.picture_as_pdf,
-                  color: Color(0xFFDC2626),
-                  size: 20,
-                ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(8),
               ),
-              title: const Text(
-                'giay_phep_kinh_doanh_byt_2026.pdf',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.zoom_in_rounded, size: 14, color: Color(0xFF64748B)),
+                  SizedBox(width: 4),
+                  Text(
+                    'Dùng cử chỉ chạm hoặc chuột để phóng to / thu nhỏ ảnh',
+                    style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                  ),
+                ],
               ),
-              subtitle: const Text('128 KB • Giấy phép kinh doanh BYT mẫu'),
-              onTap: () {
-                final sampleBytes = _generateSamplePdfBytes(
-                  tenBenhVien: _tenBenhVienCtrl.text.trim(),
-                  maHoSo: '#HS-BYT-2026',
-                  maCoSo: _maCoSoCtrl.text.trim(),
-                  maSoThue: _maSoThueCtrl.text.trim(),
-                  diaChi: _diaChiCtrl.text.trim(),
-                );
-                setState(() {
-                  _tenFileDinhKem = 'giay_phep_kinh_doanh_byt_2026.pdf';
-                  _dungLuongFile =
-                      '${_formatFileSize(sampleBytes.length)} • Tệp PDF chuẩn BYT';
-                  _fileBytes = sampleBytes;
-                  _pickedFilePath = null;
-                });
-                Navigator.pop(ctx);
-              },
-            ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE0F2FE),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.description,
-                  color: Color(0xFF0284C7),
-                  size: 20,
-                ),
-              ),
-              title: const Text(
-                'chung_chi_hanh_nghe_coso.pdf',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-              subtitle: const Text('128 KB • Chứng chỉ hành nghề cơ sở mẫu'),
-              onTap: () {
-                final sampleBytes = _generateSamplePdfBytes(
-                  tenBenhVien: _tenBenhVienCtrl.text.trim(),
-                  maHoSo: '#CCHN-COSO-2026',
-                  maCoSo: _maCoSoCtrl.text.trim(),
-                  maSoThue: _maSoThueCtrl.text.trim(),
-                  diaChi: _diaChiCtrl.text.trim(),
-                );
-                setState(() {
-                  _tenFileDinhKem = 'chung_chi_hanh_nghe_coso.pdf';
-                  _dungLuongFile =
-                      '${_formatFileSize(sampleBytes.length)} • Chứng chỉ cơ sở mẫu';
-                  _fileBytes = sampleBytes;
-                  _pickedFilePath = null;
-                });
-                Navigator.pop(ctx);
-              },
             ),
           ],
+        );
+      }
+    }
+
+    // 2. Xem trước tài liệu PDF hoặc giấy tờ hành chính chuẩn BYT
+    final tenBv = _tenBenhVienCtrl.text.trim().isNotEmpty
+        ? _tenBenhVienCtrl.text.trim()
+        : 'Cơ sở Y tế Đăng ký';
+    final maCs = _maCoSoCtrl.text.trim().isNotEmpty
+        ? _maCoSoCtrl.text.trim()
+        : 'BYT-CS-2026';
+    final mst = _maSoThueCtrl.text.trim().isNotEmpty
+        ? _maSoThueCtrl.text.trim()
+        : '0312891201';
+    final diaChi = _diaChiCtrl.text.trim().isNotEmpty
+        ? _diaChiCtrl.text.trim()
+        : 'Thành phố Hồ Chí Minh';
+    final loaiHinh = _coSo == 'Cong_lap'
+        ? 'Công lập (Bệnh viện Nhà nước)'
+        : 'Tư nhân (Bệnh viện / Phòng khám Tư)';
+    final bhytStr = _bhyt == 'Co_BHYT'
+        ? 'Có khám chữa bệnh BHYT'
+        : 'Không BHYT (Dịch vụ 100%)';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFCFDFE),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFCBD5E1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Quốc hiệu & Tiêu ngữ
+          const Center(
+            child: Column(
+              children: [
+                Text(
+                  'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Độc lập - Tự do - Hạnh phúc',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF334155),
+                  ),
+                ),
+                SizedBox(height: 4),
+                SizedBox(
+                  width: 140,
+                  child: Divider(thickness: 1.2, color: Color(0xFF94A3B8)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Tên văn bản giấy phép
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFBFDBFE)),
+            ),
+            child: const Column(
+              children: [
+                Text(
+                  'BỘ Y TẾ - HỆ THỐNG MEDICONNECT',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0284C7),
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'GIẤY PHÉP HOẠT ĐỘNG & HỒ SƠ HỢP TÁC CƠ SỞ Y TẾ',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1E3A8A),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Thông tin cơ sở y tế
+          _buildInfoRow('Tên cơ sở y tế:', tenBv, isBold: true),
+          const SizedBox(height: 6),
+          _buildInfoRow('Mã cơ sở (BYT):', maCs),
+          const SizedBox(height: 6),
+          _buildInfoRow('Mã số thuế:', mst),
+          const SizedBox(height: 6),
+          _buildInfoRow('Địa chỉ cơ sở:', diaChi),
+          const SizedBox(height: 6),
+          _buildInfoRow('Loại hình:', loaiHinh),
+          const SizedBox(height: 6),
+          _buildInfoRow('Chính sách BHYT:', bhytStr),
+          const SizedBox(height: 6),
+          _buildInfoRow('Tên tệp đính kèm:', item.tenFile),
+          const SizedBox(height: 6),
+          _buildInfoRow('Dung lượng tệp:', item.dungLuong),
+
+          const SizedBox(height: 16),
+          const Divider(color: Color(0xFFE2E8F0)),
+          const SizedBox(height: 10),
+
+          // Khung mộc dấu chứng thực điện tử
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1F2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFF43F5E), width: 1.5),
+                ),
+                child: const Column(
+                  children: [
+                    Text(
+                      'BỘ Y TẾ - CỤC QUẢN LÝ KCB',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFE11D48),
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      '★ ĐÃ TIẾP NHẬN HỒ SƠ HỢP LỆ ★',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFFBE123C),
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'CHỮ KÝ SỐ ĐIỆN TỬ XÁC NHẬN',
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: Color(0xFF9F1239),
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value, {bool isBold = false}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 120,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF64748B),
+            ),
+          ),
         ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+              color: isBold ? const Color(0xFF0F172A) : const Color(0xFF334155),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _xoaTep(TepDinhKemItem item) {
+    setState(() {
+      _danhSachTepDinhKem.removeWhere((f) => f.id == item.id || f.tenFile == item.tenFile);
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Đã xóa tệp: ${item.tenFile}'),
+        duration: const Duration(seconds: 2),
+        backgroundColor: const Color(0xFF475569),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
   Future<void> _guiYeuCau() async {
     if (!_formKey.currentState!.validate()) return;
+
+    if (_danhSachTepDinhKem.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng đính kèm ít nhất một tệp giấy phép hoạt động y tế trước khi gửi đơn.'),
+          backgroundColor: Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isSubmitting = true);
 
@@ -685,135 +1427,187 @@ startxref
       final randSuffix = Random().nextInt(900) + 100;
       final maHoSo = '#HS-BV-2026$randSuffix';
 
-      // Nếu chưa có tọa độ, thử lấy nhanh trước khi gửi
+      // Nếu chưa có tọa độ từ map, tự động quy đổi từ địa chỉ cơ sở
       if (_viDo == null || _kinhDo == null) {
         try {
-          final pos =
-              await Geolocator.getLastKnownPosition() ??
-              await Geolocator.getCurrentPosition(
-                locationSettings: const LocationSettings(
-                  accuracy: LocationAccuracy.low,
-                  timeLimit: Duration(seconds: 4),
-                ),
-              );
-          _viDo = pos.latitude;
-          _kinhDo = pos.longitude;
+          final addressText = _diaChiCtrl.text.trim();
+          if (addressText.isNotEmpty) {
+            final items = await GeocodingService.timKiemDiaChi(addressText);
+            if (items.isNotEmpty) {
+              _viDo = items.first.viDo;
+              _kinhDo = items.first.kinhDo;
+              _diaChiMap = items.first.diaChiDayDu;
+            }
+          }
         } catch (_) {}
       }
 
-      // 1. Chuẩn bị dữ liệu tệp để upload lên Firebase Storage
-      Uint8List fileData;
-      String fileName = _tenFileDinhKem.trim();
-      if (fileName.isEmpty) fileName = 'giay_phep_byt.pdf';
+      // Dự phòng tọa độ nếu mạng chưa phân giải kịp
+      _viDo ??= 10.776889;
+      _kinhDo ??= 106.700806;
 
-      if (_fileBytes != null && _fileBytes!.isNotEmpty) {
-        fileData = _fileBytes!;
-      } else {
-        fileData = _generateSamplePdfBytes(
-          tenBenhVien: _tenBenhVienCtrl.text.trim(),
-          maHoSo: maHoSo,
-          maCoSo: _maCoSoCtrl.text.trim(),
-          maSoThue: _maSoThueCtrl.text.trim(),
-          diaChi: _diaChiCtrl.text.trim(),
-        );
-        if (!fileName.toLowerCase().endsWith('.pdf')) {
-          fileName = '$fileName.pdf';
-        }
-        _fileBytes = fileData;
-      }
-
-      String contentType = 'application/pdf';
-      final lower = fileName.toLowerCase();
-      if (lower.endsWith('.pdf')) {
-        contentType = 'application/pdf';
-      } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
-        contentType = 'image/jpeg';
-      } else if (lower.endsWith('.png')) {
-        contentType = 'image/png';
-      } else if (lower.endsWith('.doc') || lower.endsWith('.docx')) {
-        contentType = 'application/msword';
-      }
-
-      // 2. Upload file lên Firebase Storage
-      // Đường dẫn chuẩn: giay_phep_hop_tac/{hospitalBvId}/{timestamp}_{safeName}
-      String? fileDownloadUrl;
+      // 1. Chuẩn bị danh sách tệp đính kèm để upload lên Firebase Storage
+      final List<Map<String, dynamic>> uploadedFilesData = [];
+      String? primaryFileUrl;
       final safeUid = hospitalBvId.replaceAll(RegExp(r'[^\w\-]'), '_');
-      final safeName = fileName.replaceAll(RegExp(r'[^\w\.\-]'), '_');
-      final storagePath =
-          'giay_phep_hop_tac/$safeUid/${DateTime.now().millisecondsSinceEpoch}_$safeName';
-      final storageRef = FirebaseStorage.instance.ref().child(storagePath);
+      String primaryStoragePath = '';
+      String primaryContentType = 'application/pdf';
 
-      final metadata = SettableMetadata(
-        contentType: contentType,
-        customMetadata: {
-          'hospitalId': hospitalBvId,
-          'hospitalName': _tenBenhVienCtrl.text.trim(),
-          'maHoSo': maHoSo,
-          'originalName': fileName,
-          'uploadedAt': DateTime.now().toIso8601String(),
-        },
-      );
-
-      try {
-        setState(
-          () => _submittingStatus = 'Đang tải tệp lên máy chủ lưu trữ...',
-        );
-        debugPrint(
-          '📤 [STORAGE] Đang tải file lên Firebase Storage: $storagePath (${fileData.length} bytes)...',
-        );
-
-        UploadTask uploadTask;
-        if (_pickedFilePath != null &&
-            _pickedFilePath!.isNotEmpty &&
-            File(_pickedFilePath!).existsSync()) {
-          uploadTask = storageRef.putFile(File(_pickedFilePath!), metadata);
+      for (int i = 0; i < _danhSachTepDinhKem.length; i++) {
+        final fileItem = _danhSachTepDinhKem[i];
+        Uint8List fileData;
+        if (fileItem.bytes != null && fileItem.bytes!.isNotEmpty) {
+          fileData = fileItem.bytes!;
         } else {
-          uploadTask = storageRef.putData(fileData, metadata);
+          fileData = _generateSamplePdfBytes(
+            tenBenhVien: _tenBenhVienCtrl.text.trim(),
+            maHoSo: maHoSo,
+            maCoSo: _maCoSoCtrl.text.trim(),
+            maSoThue: _maSoThueCtrl.text.trim(),
+            diaChi: _diaChiCtrl.text.trim(),
+          );
         }
 
-        uploadTask.snapshotEvents.listen((TaskSnapshot snap) {
-          if (snap.totalBytes > 0 && mounted) {
-            final progress = (snap.bytesTransferred / snap.totalBytes * 100)
-                .toInt();
-            setState(() {
-              _submittingStatus =
-                  'Đang tải tệp: $progress% (${_formatFileSize(snap.bytesTransferred)}/${_formatFileSize(snap.totalBytes)})';
-            });
-          }
-        });
+        String fileName = fileItem.tenFile.trim();
+        if (fileName.isEmpty) fileName = 'giay_phep_${i + 1}.pdf';
 
-        final timeoutSec = max(
-          90,
-          (fileData.length / (1024 * 1024) * 8).toInt(),
+        String contentType = 'application/pdf';
+        final lower = fileName.toLowerCase();
+        if (lower.endsWith('.pdf')) {
+          contentType = 'application/pdf';
+        } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+          contentType = 'image/jpeg';
+        } else if (lower.endsWith('.png')) {
+          contentType = 'image/png';
+        } else if (lower.endsWith('.webp')) {
+          contentType = 'image/webp';
+        } else if (lower.endsWith('.doc') || lower.endsWith('.docx')) {
+          contentType = 'application/msword';
+        }
+
+        final safeName = fileName.replaceAll(RegExp(r'[^\w\.\-]'), '_');
+        final storagePath =
+            'giay_phep_hop_tac/$safeUid/${DateTime.now().millisecondsSinceEpoch}_${i}_$safeName';
+        final storageRef = FirebaseStorage.instance.ref().child(storagePath);
+
+        final metadata = SettableMetadata(
+          contentType: contentType,
+          customMetadata: {
+            'hospitalId': hospitalBvId,
+            'hospitalName': _tenBenhVienCtrl.text.trim(),
+            'maHoSo': maHoSo,
+            'originalName': fileName,
+            'uploadedAt': DateTime.now().toIso8601String(),
+          },
         );
-        final snapshot = await uploadTask.timeout(
-          Duration(seconds: timeoutSec),
-        );
-        fileDownloadUrl = await snapshot.ref.getDownloadURL().timeout(
-          const Duration(seconds: 30),
-        );
-        debugPrint(
-          '✅ [STORAGE] Tải file lên Firebase Storage thành công: $fileDownloadUrl',
-        );
-      } catch (storageError) {
-        debugPrint('⚠️ [STORAGE] Upload Firebase Storage: $storageError');
-        final errStr = storageError.toString().toLowerCase();
-        if (errStr.contains('object-not-found') ||
-            errStr.contains('does not exist') ||
-            errStr.contains('404')) {
-          throw Exception(
-            'Dự án Firebase chưa kích hoạt dịch vụ Storage (Bucket chưa được tạo). Vui lòng vào Firebase Console > Storage > bấm "Bắt đầu" (Get started).',
+
+        String? thisFileUrl;
+        try {
+          setState(() {
+            _submittingStatus =
+                'Đang tải tệp ${i + 1}/${_danhSachTepDinhKem.length}: $fileName...';
+          });
+          debugPrint('📤 [STORAGE] Tải tệp lên Firebase Storage ($storagePath)...');
+
+          UploadTask uploadTask;
+          if (fileItem.path != null &&
+              fileItem.path!.isNotEmpty &&
+              !kIsWeb &&
+              File(fileItem.path!).existsSync()) {
+            uploadTask = storageRef.putFile(File(fileItem.path!), metadata);
+          } else {
+            uploadTask = storageRef.putData(fileData, metadata);
+          }
+
+          uploadTask.snapshotEvents.listen((TaskSnapshot snap) {
+            if (snap.totalBytes > 0 && mounted) {
+              final progress =
+                  (snap.bytesTransferred / snap.totalBytes * 100).toInt();
+              setState(() {
+                _submittingStatus =
+                    'Đang tải tệp ${i + 1}/${_danhSachTepDinhKem.length}: $progress% (${_formatFileSize(snap.bytesTransferred)}/${_formatFileSize(snap.totalBytes)})';
+              });
+            }
+          });
+
+          final timeoutSec = max(
+            60,
+            (fileData.length / (1024 * 1024) * 8).toInt(),
           );
-        } else if (errStr.contains('unauthorized') ||
-            errStr.contains('permission-denied') ||
-            errStr.contains('permission denied')) {
-          throw Exception(
-            'Bị từ chối quyền truy cập Firebase Storage. Vui lòng kiểm tra Storage Rules trên Firebase Console.',
+          final snapshot = await uploadTask.timeout(Duration(seconds: timeoutSec));
+          thisFileUrl = await snapshot.ref.getDownloadURL().timeout(
+            const Duration(seconds: 30),
           );
-        } else {
-          throw Exception(
-            'Không thể tải tệp lên Firebase Storage ($storageError). Vui lòng kiểm tra kết nối mạng hoặc thử lại.',
+          debugPrint('✅ [STORAGE] Tải tệp thành công: $thisFileUrl');
+        } catch (storageError) {
+          debugPrint('⚠️ [STORAGE] Upload Firebase Storage: $storageError');
+        }
+
+        if (primaryFileUrl == null && thisFileUrl != null) {
+          primaryFileUrl = thisFileUrl;
+          primaryStoragePath = storagePath;
+          primaryContentType = contentType;
+        }
+
+        uploadedFilesData.add({
+          'ten_file': fileName,
+          'file_url': thisFileUrl ?? '',
+          'dung_luong': fileItem.dungLuong,
+          'dung_luong_bytes': fileData.length,
+          'loai_file': contentType,
+          'storage_path': storagePath,
+        });
+      }
+
+      // Tải ảnh CCCD mặt trước & mặt sau lên Firebase Storage nếu có
+      String? cccdMatTruocUrl;
+      String? cccdMatSauUrl;
+
+      if (_cccdTruocBytes != null) {
+        try {
+          setState(() => _submittingStatus = 'Đang tải ảnh CCCD mặt trước...');
+          final cccdTruocName = _cccdTruocTen ?? 'cccd_mat_truoc.jpg';
+          final cccdTruocExt = cccdTruocName.contains('.')
+              ? cccdTruocName.split('.').last
+              : 'jpg';
+          final cccdTruocPath =
+              'YeuCauHopTac/$hospitalBvId/cccd/mat_truoc_${DateTime.now().millisecondsSinceEpoch}.$cccdTruocExt';
+          final cccdTruocRef =
+              FirebaseStorage.instance.ref().child(cccdTruocPath);
+          final snapTruoc = await cccdTruocRef.putData(
+            _cccdTruocBytes!,
+            SettableMetadata(contentType: 'image/$cccdTruocExt'),
           );
+          cccdMatTruocUrl = await snapTruoc.ref.getDownloadURL();
+          debugPrint(
+            '✅ [STORAGE] Tải CCCD mặt trước thành công: $cccdMatTruocUrl',
+          );
+        } catch (e) {
+          debugPrint('⚠️ [STORAGE] Lỗi tải CCCD mặt trước: $e');
+        }
+      }
+
+      if (_cccdSauBytes != null) {
+        try {
+          setState(() => _submittingStatus = 'Đang tải ảnh CCCD mặt sau...');
+          final cccdSauName = _cccdSauTen ?? 'cccd_mat_sau.jpg';
+          final cccdSauExt = cccdSauName.contains('.')
+              ? cccdSauName.split('.').last
+              : 'jpg';
+          final cccdSauPath =
+              'YeuCauHopTac/$hospitalBvId/cccd/mat_sau_${DateTime.now().millisecondsSinceEpoch}.$cccdSauExt';
+          final cccdSauRef =
+              FirebaseStorage.instance.ref().child(cccdSauPath);
+          final snapSau = await cccdSauRef.putData(
+            _cccdSauBytes!,
+            SettableMetadata(contentType: 'image/$cccdSauExt'),
+          );
+          cccdMatSauUrl = await snapSau.ref.getDownloadURL();
+          debugPrint(
+            '✅ [STORAGE] Tải CCCD mặt sau thành công: $cccdMatSauUrl',
+          );
+        } catch (e) {
+          debugPrint('⚠️ [STORAGE] Lỗi tải CCCD mặt sau: $e');
         }
       }
 
@@ -833,8 +1627,14 @@ startxref
         'so_giay_phep': _maCoSoCtrl.text.trim(),
         'ma_so_thue': _maSoThueCtrl.text.trim(),
         'dia_chi': _diaChiCtrl.text.trim(),
+        'dia_chi_map': _diaChiMap ?? _diaChiCtrl.text.trim(),
         'vi_do': _viDo,
         'kinh_do': _kinhDo,
+        'cccd_mat_truoc_url': cccdMatTruocUrl,
+        'cccd_mat_sau_url': cccdMatSauUrl,
+        'cccd_mat_truoc_ten': _cccdTruocTen,
+        'cccd_mat_sau_ten': _cccdSauTen,
+        'has_cccd': (cccdMatTruocUrl != null || cccdMatSauUrl != null),
         'co_so': coSo, // ✅ Khớp collection CoSo: Cong_lap / Tu_nhan
         'bhyt': bhyt, // ✅ Khớp collection BHYT: Co_BHYT / Khong_BHYT
         'co_bhyt': coBhyt,
@@ -842,15 +1642,23 @@ startxref
         'chuyen_khoa_ids':
             <String>[], // ✅ Khởi tạo mảng rỗng chuẩn, không để null
         'ten_cac_khoa': <String>[],
-        'file_giay_phep': fileName,
-        'file_giay_phep_url': fileDownloadUrl,
-        'file_url': fileDownloadUrl,
-        'dung_luong_file': _dungLuongFile.isNotEmpty
-            ? _dungLuongFile
-            : _formatFileSize(fileData.length),
-        'dung_luong_bytes': fileData.length,
-        'loai_file': contentType,
-        'storage_path': storagePath,
+        'file_giay_phep': _danhSachTepDinhKem.isNotEmpty
+            ? _danhSachTepDinhKem.first.tenFile
+            : 'giay_phep_byt.pdf',
+        'file_giay_phep_url': primaryFileUrl,
+        'file_url': primaryFileUrl,
+        'dung_luong_file': _danhSachTepDinhKem.isNotEmpty
+            ? _danhSachTepDinhKem.first.dungLuong
+            : '',
+        'dung_luong_bytes': _danhSachTepDinhKem.isNotEmpty
+            ? _danhSachTepDinhKem.first.dungLuongBytes
+            : 0,
+        'loai_file': primaryContentType,
+        'storage_path': primaryStoragePath,
+        'danh_sach_file': uploadedFilesData,
+        'danh_sach_ten_file':
+            _danhSachTepDinhKem.map((f) => f.tenFile).toList(),
+        'so_luong_file': _danhSachTepDinhKem.length,
         'ngay_tai_file': FieldValue.serverTimestamp(),
         'ma_ho_so': maHoSo,
         'da_gui_don': true,
@@ -866,10 +1674,23 @@ startxref
         if (FirebaseAuth.instance.currentUser?.email != null)
           'email': FirebaseAuth.instance.currentUser!.email,
       };
-      if (fileData.length < 350 * 1024) {
+      if (_danhSachTepDinhKem.isNotEmpty &&
+          _danhSachTepDinhKem.first.bytes != null &&
+          _danhSachTepDinhKem.first.bytes!.length < 350 * 1024) {
         // Lưu dự phòng chuỗi Base64 trực tiếp vào Firestore
         try {
-          dataToSave['file_giay_phep_base64'] = base64Encode(fileData);
+          dataToSave['file_giay_phep_base64'] =
+              base64Encode(_danhSachTepDinhKem.first.bytes!);
+        } catch (_) {}
+      }
+      if (_cccdTruocBytes != null && _cccdTruocBytes!.length < 250 * 1024) {
+        try {
+          dataToSave['cccd_mat_truoc_base64'] = base64Encode(_cccdTruocBytes!);
+        } catch (_) {}
+      }
+      if (_cccdSauBytes != null && _cccdSauBytes!.length < 250 * 1024) {
+        try {
+          dataToSave['cccd_mat_sau_base64'] = base64Encode(_cccdSauBytes!);
         } catch (_) {}
       }
 
@@ -1136,10 +1957,41 @@ startxref
                           const SizedBox(height: 16),
 
                           // 3. Địa chỉ cơ sở
-                          _buildLabelWithRequired('Địa chỉ cơ sở'),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              _buildLabelWithRequired('Địa chỉ cơ sở'),
+                              TextButton.icon(
+                                onPressed: _moChonDiaChiMap,
+                                icon: const Icon(
+                                  Icons.map_rounded,
+                                  size: 16,
+                                  color: Color(0xFF0284C7),
+                                ),
+                                label: const Text(
+                                  'Chọn trên Bản đồ',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0284C7),
+                                  ),
+                                ),
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                              ),
+                            ],
+                          ),
                           const SizedBox(height: 6),
                           TextFormField(
                             controller: _diaChiCtrl,
+                            onChanged: _onFormDiaChiChanged,
                             maxLines: 2,
                             style: const TextStyle(
                               fontSize: 14,
@@ -1149,6 +2001,16 @@ startxref
                             decoration: _inputDecoration(
                               hintText:
                                   'Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/TP',
+                            ).copyWith(
+                              suffixIcon: IconButton(
+                                icon: const Icon(
+                                  Icons.location_on_rounded,
+                                  color: Color(0xFF0284C7),
+                                  size: 22,
+                                ),
+                                tooltip: 'Chọn trên Bản đồ',
+                                onPressed: _moChonDiaChiMap,
+                              ),
                             ),
                             validator: (v) {
                               if (v == null || v.trim().isEmpty) {
@@ -1157,17 +2019,48 @@ startxref
                               return null;
                             },
                           ),
-                          const SizedBox(height: 12),
+                          if (_dangTimKiemDiaChiForm)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 6, bottom: 2),
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 13,
+                                    height: 13,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Color(0xFF0284C7),
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Đang tự động định vị trên bản đồ...',
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      color: Color(0xFF0284C7),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          // Khung bản đồ trực tiếp trên màn hình
+                          _buildEmbeddedMapCard(),
+                          const SizedBox(height: 16),
 
-                          // Tọa độ GPS cơ sở (Kinh độ & Vĩ độ từ thiết bị)
+                          // Ảnh CCCD người đại diện (Mặt trước & Mặt sau)
                           _buildSectionHeaderWithNote(
-                            title: 'Tọa độ GPS cơ sở',
-                            note: _viDo != null && _kinhDo != null
-                                ? 'Đã định vị'
-                                : 'Từ thiết bị',
+                            title: 'Ảnh CCCD người đại diện',
+                            note: 'Nhấn để chụp hoặc chọn ảnh *',
                           ),
                           const SizedBox(height: 8),
-                          _buildLocationCard(),
+                          Row(
+                            children: [
+                              _buildCccdCard(isMatTruoc: true),
+                              const SizedBox(width: 12),
+                              _buildCccdCard(isMatTruoc: false),
+                            ],
+                          ),
                           const SizedBox(height: 18),
 
                           // 4. Cơ sở y tế (Spinner lựa chọn theo collection CoSo)
@@ -1310,10 +2203,8 @@ startxref
                           ),
                           const SizedBox(height: 18),
 
-                          // 6. Giấy phép hoạt động y tế (Đính kèm)
-                          _buildLabel('Giấy phép hoạt động y tế (Đính kèm)'),
-                          const SizedBox(height: 8),
-                          _buildAttachedFileCard(),
+                          // 6. Giấy phép hoạt động y tế (Đính kèm nhiều tệp)
+                          _buildAttachedFilesSection(),
                           const SizedBox(height: 16),
                         ],
                       ),
@@ -1390,17 +2281,6 @@ startxref
     );
   }
 
-  Widget _buildLabel(String label) {
-    return Text(
-      label,
-      style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        color: Color(0xFF1E293B),
-      ),
-    );
-  }
-
   Widget _buildLabelWithRequired(String label) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -1453,106 +2333,184 @@ startxref
     );
   }
 
-  /// Khung hiển thị và kích hoạt lấy vị trí GPS từ thiết bị
-  Widget _buildLocationCard() {
-    final hasCoords = _viDo != null && _kinhDo != null;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: hasCoords ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: hasCoords ? const Color(0xFF86EFAC) : const Color(0xFFE2E8F0),
+
+  /// Thẻ tải và hiển thị ảnh CCCD (Mặt trước / Mặt sau)
+  Widget _buildCccdCard({required bool isMatTruoc}) {
+    final bytes = isMatTruoc ? _cccdTruocBytes : _cccdSauBytes;
+    final title = isMatTruoc ? 'Mặt trước CCCD' : 'Mặt sau CCCD';
+    final hasImage = bytes != null;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => _chonAnhCccd(isMatTruoc),
+        child: Container(
+          height: 135,
+          decoration: BoxDecoration(
+            color: hasImage ? Colors.white : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: hasImage
+                  ? const Color(0xFF0284C7)
+                  : const Color(0xFFCBD5E1),
+              width: hasImage ? 1.5 : 1.0,
+            ),
+            boxShadow: hasImage
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF0284C7).withValues(alpha: 0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: hasImage
+              ? Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.memory(
+                      bytes,
+                      fit: BoxFit.cover,
+                    ),
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.65),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              color: Color(0xFF4ADE80),
+                              size: 14,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const Spacer(),
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  if (isMatTruoc) {
+                                    _cccdTruocBytes = null;
+                                    _cccdTruocTen = null;
+                                  } else {
+                                    _cccdSauBytes = null;
+                                    _cccdSauTen = null;
+                                  }
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.close_rounded,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 6,
+                      right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.65),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.edit_rounded,
+                              color: Colors.white,
+                              size: 12,
+                            ),
+                            SizedBox(width: 3),
+                            Text(
+                              'Đổi ảnh',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEFF6FF),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.add_a_photo_outlined,
+                        color: Color(0xFF0284C7),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    const Text(
+                      'Chụp hoặc chọn ảnh',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
         ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: hasCoords
-                  ? const Color(0xFFDCFCE7)
-                  : const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              hasCoords
-                  ? Icons.location_on_rounded
-                  : Icons.location_searching_rounded,
-              size: 22,
-              color: hasCoords
-                  ? const Color(0xFF16A34A)
-                  : const Color(0xFF64748B),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  hasCoords
-                      ? 'Vĩ độ: ${_viDo!.toStringAsFixed(6)}'
-                      : 'Chưa có tọa độ GPS',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: hasCoords
-                        ? const Color(0xFF166534)
-                        : const Color(0xFF1E293B),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  hasCoords
-                      ? 'Kinh độ: ${_kinhDo!.toStringAsFixed(6)}'
-                      : _viTriStatus,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: hasCoords
-                        ? const Color(0xFF15803D)
-                        : const Color(0xFF64748B),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_dangLayViTri)
-            const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Color(0xFF0284C7),
-              ),
-            )
-          else
-            TextButton.icon(
-              onPressed: () => _layViTriTuThietBi(isAuto: false),
-              icon: Icon(
-                hasCoords ? Icons.refresh_rounded : Icons.my_location_rounded,
-                size: 16,
-                color: const Color(0xFF0284C7),
-              ),
-              label: Text(
-                hasCoords ? 'Định vị lại' : 'Lấy vị trí',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF0284C7),
-                ),
-              ),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
-        ],
       ),
     );
   }
@@ -1587,82 +2545,286 @@ startxref
     );
   }
 
-  Widget _buildAttachedFileCard() {
-    final fileColor = _getFileColor(_tenFileDinhKem);
-    final fileIcon = _getFileIcon(_tenFileDinhKem);
-
-    return InkWell(
-      onTap: _doiFileDinhKem,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: const Color(0xFF93C5FD),
-            style: BorderStyle.solid,
-          ),
-        ),
-        child: Row(
+  Widget _buildAttachedFilesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: fileColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(fileIcon, size: 22, color: fileColor),
-            ),
-            const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    _tenFileDinhKem,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                  const Flexible(
+                    child: Text(
+                      'Giấy phép hoạt động y tế',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1E293B),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Text(
+                    '*',
+                    style: TextStyle(
                       fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.red,
+                    ),
+                  ),
+                  if (_danhSachTepDinhKem.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE0F2FE),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${_danhSachTepDinhKem.length} tệp',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0284C7),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (_danhSachTepDinhKem.isNotEmpty)
+              InkWell(
+                onTap: _doiFileDinhKem,
+                borderRadius: BorderRadius.circular(6),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add_rounded, size: 16, color: Color(0xFF0284C7)),
+                      SizedBox(width: 2),
+                      Text(
+                        'Thêm tệp',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0284C7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        // Khi chưa có tệp đính kèm nào: Hiển thị khung tải lên để người dùng tự thêm
+        if (_danhSachTepDinhKem.isEmpty)
+          InkWell(
+            onTap: _doiFileDinhKem,
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: const Color(0xFFBAE6FD),
+                  width: 1.3,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE0F2FE),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.upload_file_rounded,
+                      color: Color(0xFF0284C7),
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Tải lên giấy phép hoạt động y tế',
+                    style: TextStyle(
+                      fontSize: 13.5,
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF0F172A),
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _dungLuongFile,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF16A34A),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Chạm để chọn tệp từ máy (PDF, Word, Ảnh JPG/PNG)',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: Color(0xFF64748B),
                     ),
                   ),
                 ],
               ),
             ),
-            TextButton(
-              onPressed: _doiFileDinhKem,
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
+          )
+        else ...[
+          // Danh sách các tệp do người dùng tải lên
+          ..._danhSachTepDinhKem.map((fileItem) {
+            final fileColor = _getFileColor(fileItem.tenFile);
+            final fileIcon = _getFileIcon(fileItem.tenFile);
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: const Color(0xFFBAE6FD),
+                  width: 1.2,
                 ),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              child: const Text(
-                'Đổi',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF0284C7),
+              child: Material(
+                color: Colors.transparent,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: fileColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(fileIcon, size: 20, color: fileColor),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              fileItem.tenFile,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              fileItem.dungLuong,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF16A34A),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      // Nút "Xem" trước nội dung
+                      ElevatedButton.icon(
+                        onPressed: () => _xemNoiDungFile(fileItem),
+                        icon: const Icon(Icons.visibility_rounded, size: 13),
+                        label: const Text(
+                          'Xem',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFF0F9FF),
+                          foregroundColor: const Color(0xFF0284C7),
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 5,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            side: const BorderSide(color: Color(0xFFBAE6FD)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      // Nút Xóa tệp (cho phép xóa bất kỳ tệp nào)
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 19,
+                          color: Color(0xFFEF4444),
+                        ),
+                        tooltip: 'Xóa tệp này',
+                        onPressed: () => _xoaTep(fileItem),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      ),
+                    ],
+                  ),
                 ),
+              ),
+            );
+          }),
+
+          // Nút thêm tệp phụ
+          InkWell(
+            onTap: _doiFileDinhKem,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 9),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFFCBD5E1),
+                  style: BorderStyle.solid,
+                ),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.add_circle_outline_rounded,
+                    size: 15,
+                    color: Color(0xFF0284C7),
+                  ),
+                  SizedBox(width: 6),
+                  Text(
+                    'Chọn thêm tệp giấy phép / tài liệu khác',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0284C7),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+        ],
+      ],
     );
   }
 }

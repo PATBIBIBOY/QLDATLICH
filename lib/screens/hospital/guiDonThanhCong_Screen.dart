@@ -321,8 +321,65 @@ class _GuiDonThanhCongScreenState extends State<GuiDonThanhCongScreen> {
                 const SizedBox(height: 6),
               ],
             ],
-            if (widget.extraData?['vi_do'] != null && widget.extraData?['kinh_do'] != null)
-              _rowChiTiet('Tọa độ GPS', '${widget.extraData!['vi_do']}, ${widget.extraData!['kinh_do']}'),
+
+            if (widget.extraData?['cccd_mat_truoc_url'] != null ||
+                widget.extraData?['cccd_mat_sau_url'] != null) ...[
+              _rowChiTiet('Ảnh CCCD', 'Đã tải lên đầy đủ'),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  if (widget.extraData?['cccd_mat_truoc_url'] != null)
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _moFile(
+                          context,
+                          widget.extraData!['cccd_mat_truoc_url'],
+                        ),
+                        icon: const Icon(Icons.badge_outlined, size: 14),
+                        label: const Text(
+                          'Xem mặt trước',
+                          style: TextStyle(fontSize: 11.5),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          foregroundColor: const Color(0xFF0284C7),
+                          side: const BorderSide(color: Color(0xFFBAE6FD)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (widget.extraData?['cccd_mat_truoc_url'] != null &&
+                      widget.extraData?['cccd_mat_sau_url'] != null)
+                    const SizedBox(width: 8),
+                  if (widget.extraData?['cccd_mat_sau_url'] != null)
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _moFile(
+                          context,
+                          widget.extraData!['cccd_mat_sau_url'],
+                        ),
+                        icon: const Icon(Icons.badge_outlined, size: 14),
+                        label: const Text(
+                          'Xem mặt sau',
+                          style: TextStyle(fontSize: 11.5),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          foregroundColor: const Color(0xFF0284C7),
+                          side: const BorderSide(color: Color(0xFFBAE6FD)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,

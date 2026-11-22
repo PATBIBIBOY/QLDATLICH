@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../config/constants.dart';
+import '../../../services/thong_bao_service.dart';
+import '../thong_bao_screen.dart';
 
-/// Header hiển thị avatar chữ viết tắt, tên bệnh viện, huy hiệu trạng thái và nút thông báo.
+/// Header hiển thị avatar chữ viết tắt, tên bệnh viện, huy hiệu trạng thái và nút chuông thông báo.
 class HospitalHeader extends StatelessWidget {
   final String hospitalUid;
   final String tenBenhVien;
@@ -9,6 +11,8 @@ class HospitalHeader extends StatelessWidget {
   final bool daXacThuc;
   final int trangThaiId;
   final String? email;
+  final VoidCallback? onNotificationTap;
+  final VoidCallback? onChuyenTabPhanCong;
 
   const HospitalHeader({
     super.key,
@@ -18,6 +22,8 @@ class HospitalHeader extends StatelessWidget {
     required this.daXacThuc,
     required this.trangThaiId,
     this.email,
+    this.onNotificationTap,
+    this.onChuyenTabPhanCong,
   });
 
   /// "Bệnh Viện Đa Khoa An Bình" -> "AB"
@@ -26,6 +32,18 @@ class HospitalHeader extends StatelessWidget {
     if (tu.isEmpty) return 'AB';
     if (tu.length == 1) return tu[0].substring(0, 1).toUpperCase();
     return (tu.first[0] + tu.last[0]).toUpperCase();
+  }
+
+  void _moManHinhThongBao(BuildContext context) {
+    if (onNotificationTap != null) {
+      onNotificationTap!();
+      return;
+    }
+    ThongBaoScreen.showModal(
+      context,
+      benhVienId: hospitalUid,
+      onChuyenTabPhanCong: onChuyenTabPhanCong,
+    );
   }
 
   @override
@@ -113,29 +131,71 @@ class HospitalHeader extends StatelessWidget {
               ],
             ),
           ),
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              icon: const Icon(
-                Icons.notifications_none_rounded,
-                color: Color(0xFF334155),
-                size: 20,
-              ),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Không có thông báo mới.'),
-                    duration: Duration(seconds: 1),
+          // Nút chuông thông báo có badge số lượng chưa đọc realtime
+          StreamBuilder<int>(
+            stream: ThongBaoService.instance.streamSoLuongChuaDoc(hospitalUid),
+            builder: (context, snapshot) {
+              final unreadCount = snapshot.data ?? 0;
+
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: unreadCount > 0
+                          ? const Color(0xFFEFF6FF)
+                          : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      icon: Icon(
+                        unreadCount > 0
+                            ? Icons.notifications_active_rounded
+                            : Icons.notifications_none_rounded,
+                        color: unreadCount > 0
+                            ? const Color(0xFF2563EB)
+                            : const Color(0xFF334155),
+                        size: 20,
+                      ),
+                      onPressed: () => _moManHinhThongBao(context),
+                    ),
                   ),
-                );
-              },
-            ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      top: -4,
+                      right: -4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        child: Text(
+                          unreadCount > 99 ? '99+' : '$unreadCount',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            height: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ],
       ),

@@ -7,7 +7,7 @@ class PhanCongService {
   final FirebaseFirestore _firestore;
 
   PhanCongService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   /// Tạo mã vai trò cho phân công trực: ví dụ LT001, LT002, BS001,...
   /// ID collection chuẩn: tg_tenkhoa_vaitro (ví dụ: 2026-11-18_DL001_LT001)
@@ -181,12 +181,13 @@ class PhanCongService {
     required Map<String, dynamic> pcData,
     required int soLuongDangTruc,
   }) async {
-    final docId = (pcData['id'] ??
-            pcData['_docId'] ??
-            '${ngayStr}_${phong.tenPhong}_${pcData['vai_tro_code']}')
+    final docId =
+        (pcData['id'] ??
+                pcData['_docId'] ??
+                '${ngayStr}_${phong.tenPhong}_${pcData['vai_tro_code']}')
+            .toString();
+    final maNv = (pcData['nhan_vien_id'] ?? pcData['ma_nhan_vien'] ?? '')
         .toString();
-    final maNv =
-        (pcData['nhan_vien_id'] ?? pcData['ma_nhan_vien'] ?? '').toString();
 
     final batch = _firestore.batch();
 
@@ -264,12 +265,12 @@ class PhanCongService {
     final batch = _firestore.batch();
 
     for (final pc in danhSachDangTruc) {
-      final docId = (pc['id'] ??
-              pc['_docId'] ??
-              '${ngayStr}_${phong.tenPhong}_${pc['vai_tro_code']}')
-          .toString();
-      final maNv =
-          (pc['nhan_vien_id'] ?? pc['ma_nhan_vien'] ?? '').toString();
+      final docId =
+          (pc['id'] ??
+                  pc['_docId'] ??
+                  '${ngayStr}_${phong.tenPhong}_${pc['vai_tro_code']}')
+              .toString();
+      final maNv = (pc['nhan_vien_id'] ?? pc['ma_nhan_vien'] ?? '').toString();
 
       if (maNv.isNotEmpty) {
         final nvRef = _firestore

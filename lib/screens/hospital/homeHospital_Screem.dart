@@ -567,6 +567,9 @@ class _HomeHospitalScreenState extends State<HomeHospitalScreen> {
                       daXacThuc: daXacThuc,
                       trangThaiId: trangThaiId ?? 0,
                       email: hospitalEmail,
+                      onChuyenTabPhanCong: () {
+                        setState(() => _currentBottomNavIndex = 3);
+                      },
                     ),
 
                     // Thân trang: chuyển đổi linh hoạt theo trạng thái và tab
