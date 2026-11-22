@@ -85,7 +85,8 @@ class _DanhSachTaiKhoanDaTaoScreenState
     setState(() => _isLoading = true);
 
     // 1. Nếu có đợt vừa tạo truyền qua constructor
-    if (widget.danhSachTaiKhoan != null && widget.danhSachTaiKhoan!.isNotEmpty) {
+    if (widget.danhSachTaiKhoan != null &&
+        widget.danhSachTaiKhoan!.isNotEmpty) {
       _vuaTaoBatch = DotCapTaiKhoan(
         tenKhoa: widget.tenKhoa ?? 'Khoa',
         vaiTro: widget.vaiTro ?? 'Nhân viên',
@@ -103,7 +104,8 @@ class _DanhSachTaiKhoanDaTaoScreenState
       final accounts = await _nhanVienService.layTatCaTaiKhoan(bvid);
 
       // Nếu có danh sách từ constructor nhưng Firestore chưa kịp sync hết, gộp vào
-      if (widget.danhSachTaiKhoan != null && widget.danhSachTaiKhoan!.isNotEmpty) {
+      if (widget.danhSachTaiKhoan != null &&
+          widget.danhSachTaiKhoan!.isNotEmpty) {
         for (final item in widget.danhSachTaiKhoan!) {
           if (!accounts.any((a) => a.maTk == item.maTk)) {
             accounts.add(item);
@@ -119,7 +121,8 @@ class _DanhSachTaiKhoanDaTaoScreenState
       if (tenBv.isEmpty) {
         try {
           final authUser = FirebaseAuth.instance.currentUser;
-          if (authUser?.displayName != null && authUser!.displayName!.isNotEmpty) {
+          if (authUser?.displayName != null &&
+              authUser!.displayName!.isNotEmpty) {
             tenBv = authUser.displayName!;
           }
         } catch (_) {}
@@ -173,7 +176,10 @@ class _DanhSachTaiKhoanDaTaoScreenState
   }
 
   // Lọc theo vai trò và SẮP XẾP TỪ MỚI ĐẾN CŨ
-  List<TaiKhoanItem> _locVaSapXep(List<TaiKhoanItem> sourceList, String roleFilter) {
+  List<TaiKhoanItem> _locVaSapXep(
+    List<TaiKhoanItem> sourceList,
+    String roleFilter,
+  ) {
     var filtered = sourceList;
 
     // 1. Lọc theo vai trò
@@ -182,11 +188,27 @@ class _DanhSachTaiKhoanDaTaoScreenState
         final r = item.vaiTro.toLowerCase();
         final filter = roleFilter.toLowerCase();
         if (r == filter) return true;
-        if (filter == 'bác sĩ' && (r.contains('bác sĩ') || item.role == 'doctor')) return true;
-        if (filter == 'điều dưỡng' && (r.contains('điều dưỡng') || item.role == 'nurse')) return true;
-        if (filter == 'dược sĩ' && (r.contains('dược') || item.role == 'pharmacist')) return true;
-        if (filter == 'lễ tân' && (r.contains('lễ tân') || item.role == 'receptionist')) return true;
-        if (filter == 'cskh' && (r.contains('cskh') || item.role == 'customerSupport')) return true;
+        if (filter == 'bác sĩ' &&
+            (r.contains('bác sĩ') || item.role == 'doctor')) {
+          return true;
+        }
+        if (filter == 'điều dưỡng' &&
+            (r.contains('điều dưỡng') || item.role == 'nurse')) {
+          return true;
+        }
+        if (filter == 'dược sĩ' &&
+            (r.contains('dược') || item.role == 'pharmacist')) {
+          return true;
+        }
+        if (filter == 'lễ tân' &&
+            (r.contains('lễ tân') || item.role == 'receptionist')) {
+          return true;
+        }
+        if (filter == 'cskh' &&
+            (r.contains('cskh') || item.role == 'customerSupport')) {
+          return true;
+        }
+
         return false;
       }).toList();
     }
@@ -240,7 +262,9 @@ class _DanhSachTaiKhoanDaTaoScreenState
 
     final tabName = _selectedTabIndex == 0 ? 'ĐỢI KÍCH HOẠT' : 'ĐÃ KÍCH HOẠT';
     final buffer = StringBuffer();
-    buffer.writeln('=== DANH SÁCH TÀI KHOẢN $tabName ($_selectedRoleFilter) ===');
+    buffer.writeln(
+      '=== DANH SÁCH TÀI KHOẢN $tabName ($_selectedRoleFilter) ===',
+    );
     buffer.writeln('Bệnh viện: $_tenBenhVien');
     buffer.writeln('Mật khẩu khởi tạo: ${StaffAccountStore.matKhauMacDinh}');
     buffer.writeln('Tổng số: ${list.length} tài khoản\n');
@@ -277,16 +301,24 @@ class _DanhSachTaiKhoanDaTaoScreenState
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dCtx, false),
-            child: const Text('Hủy', style: TextStyle(color: Color(0xFF64748B))),
+            child: const Text(
+              'Hủy',
+              style: TextStyle(color: Color(0xFF64748B)),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dCtx, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFDC2626),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-            child: const Text('Xóa', style: TextStyle(fontWeight: FontWeight.w700)),
+            child: const Text(
+              'Xóa',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
@@ -295,7 +327,10 @@ class _DanhSachTaiKhoanDaTaoScreenState
     if (confirm != true || !mounted) return;
 
     try {
-      await _nhanVienService.xoaNhanVien(item.id ?? item.maTk, _getBenhVienId());
+      await _nhanVienService.xoaNhanVien(
+        item.id ?? item.maTk,
+        _getBenhVienId(),
+      );
 
       if (!mounted) return;
 
@@ -338,11 +373,17 @@ class _DanhSachTaiKhoanDaTaoScreenState
   }
 
   /// Xuất file PDF danh sách tài khoản thực sự
-  Future<void> _xuatFilePdf(List<TaiKhoanItem> listToExport, {String? tieuDeTuyChinh, String? vaiTroTuyChinh}) async {
+  Future<void> _xuatFilePdf(
+    List<TaiKhoanItem> listToExport, {
+    String? tieuDeTuyChinh,
+    String? vaiTroTuyChinh,
+  }) async {
     if (listToExport.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Không có tài khoản nào trong danh sách để xuất file PDF.'),
+          content: Text(
+            'Không có tài khoản nào trong danh sách để xuất file PDF.',
+          ),
           backgroundColor: Color(0xFFF59E0B),
           behavior: SnackBarBehavior.floating,
         ),
@@ -350,7 +391,8 @@ class _DanhSachTaiKhoanDaTaoScreenState
       return;
     }
 
-    final tabTitle = tieuDeTuyChinh ??
+    final tabTitle =
+        tieuDeTuyChinh ??
         (_selectedTabIndex == 0
             ? 'Danh Sách Tài Khoản Đợi Kích Hoạt'
             : 'Danh Sách Tài Khoản Đã Kích Hoạt');
@@ -365,7 +407,10 @@ class _DanhSachTaiKhoanDaTaoScreenState
               SizedBox(
                 width: 16,
                 height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
               ),
               SizedBox(width: 10),
               Text('Đang tạo và chuẩn bị tệp PDF...'),
@@ -409,16 +454,17 @@ class _DanhSachTaiKhoanDaTaoScreenState
             final doiList = _danhSachDoiKichHoat;
             final daList = _danhSachDaKichHoat;
 
-            final activeSourceList =
-                _selectedTabIndex == 0 ? doiList : daList;
+            final activeSourceList = _selectedTabIndex == 0 ? doiList : daList;
             final roles = _layDanhSachVaiTro(activeSourceList);
 
             if (!roles.contains(_selectedRoleFilter)) {
               _selectedRoleFilter = 'Tất cả';
             }
 
-            final filteredHistoryList =
-                _locVaSapXep(activeSourceList, _selectedRoleFilter);
+            final filteredHistoryList = _locVaSapXep(
+              activeSourceList,
+              _selectedRoleFilter,
+            );
 
             return Container(
               height: MediaQuery.of(ctx).size.height * 0.88,
@@ -488,9 +534,15 @@ class _DanhSachTaiKhoanDaTaoScreenState
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(ctx),
-                          icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: Color(0xFF64748B),
+                          ),
                           padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          constraints: const BoxConstraints(
+                            minWidth: 32,
+                            minHeight: 32,
+                          ),
                         ),
                       ],
                     ),
@@ -524,14 +576,20 @@ class _DanhSachTaiKhoanDaTaoScreenState
                               borderRadius: BorderRadius.circular(9),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 180),
-                                padding: const EdgeInsets.symmetric(vertical: 9),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 9,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: _selectedTabIndex == 0 ? Colors.white : Colors.transparent,
+                                  color: _selectedTabIndex == 0
+                                      ? Colors.white
+                                      : Colors.transparent,
                                   borderRadius: BorderRadius.circular(9),
                                   boxShadow: _selectedTabIndex == 0
                                       ? [
                                           BoxShadow(
-                                            color: Colors.black.withValues(alpha: 0.05),
+                                            color: Colors.black.withValues(
+                                              alpha: 0.05,
+                                            ),
                                             blurRadius: 4,
                                             offset: const Offset(0, 1),
                                           ),
@@ -583,14 +641,20 @@ class _DanhSachTaiKhoanDaTaoScreenState
                               borderRadius: BorderRadius.circular(9),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 180),
-                                padding: const EdgeInsets.symmetric(vertical: 9),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 9,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: _selectedTabIndex == 1 ? Colors.white : Colors.transparent,
+                                  color: _selectedTabIndex == 1
+                                      ? Colors.white
+                                      : Colors.transparent,
                                   borderRadius: BorderRadius.circular(9),
                                   boxShadow: _selectedTabIndex == 1
                                       ? [
                                           BoxShadow(
-                                            color: Colors.black.withValues(alpha: 0.05),
+                                            color: Colors.black.withValues(
+                                              alpha: 0.05,
+                                            ),
                                             blurRadius: 4,
                                             offset: const Offset(0, 1),
                                           ),
@@ -680,7 +744,10 @@ class _DanhSachTaiKhoanDaTaoScreenState
                                   const SizedBox(height: 4),
                                   Text(
                                     'Bộ lọc vai trò: $_selectedRoleFilter',
-                                    style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF64748B),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -690,7 +757,8 @@ class _DanhSachTaiKhoanDaTaoScreenState
                             padding: const EdgeInsets.all(16),
                             physics: const BouncingScrollPhysics(),
                             itemCount: filteredHistoryList.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: 10),
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 10),
                             itemBuilder: (lCtx, index) {
                               return _buildAccountCard(
                                 context,
@@ -701,56 +769,33 @@ class _DanhSachTaiKhoanDaTaoScreenState
                           ),
                   ),
 
-                  // Nút xuất PDF trực tiếp từ Modal Lịch Sử
+                  // Nút đóng Modal Lịch Sử
                   Container(
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
                     decoration: const BoxDecoration(
                       color: Colors.white,
                       border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
                     ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              _xuatFilePdf(
-                                filteredHistoryList,
-                                tieuDeTuyChinh: _selectedTabIndex == 0
-                                    ? 'Danh Sách Lịch Sử Tài Khoản Đợi Kích Hoạt'
-                                    : 'Danh Sách Lịch Sử Tài Khoản Đã Kích Hoạt',
-                                vaiTroTuyChinh: _selectedRoleFilter,
-                              );
-                            },
-                            icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
-                            label: Text(
-                              'Xuất File PDF (${filteredHistoryList.length})',
-                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0284C7),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 46,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF334155),
+                          side: const BorderSide(color: Color(0xFFCBD5E1)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        OutlinedButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF475569),
-                            side: const BorderSide(color: Color(0xFFCBD5E1)),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
+                        child: const Text(
+                          'Đóng',
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
                           ),
-                          child: const Text('Đóng', style: TextStyle(fontWeight: FontWeight.w600)),
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ],
@@ -768,8 +813,9 @@ class _DanhSachTaiKhoanDaTaoScreenState
     required List<String> availableRoles,
     required ValueChanged<String> onChanged,
   }) {
-    final validCurrentRole =
-        availableRoles.contains(currentRole) ? currentRole : availableRoles.first;
+    final validCurrentRole = availableRoles.contains(currentRole)
+        ? currentRole
+        : availableRoles.first;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
@@ -782,14 +828,14 @@ class _DanhSachTaiKhoanDaTaoScreenState
         children: [
           const Icon(Icons.badge_outlined, size: 18, color: Color(0xFF0284C7)),
           const SizedBox(width: 8),
-          const Text(
-            'Xem vai trò:',
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF475569),
-            ),
-          ),
+          // const Text(
+          //   'Xem vai trò:',
+          //   style: TextStyle(
+          //     fontSize: 12.5,
+          //     fontWeight: FontWeight.w600,
+          //     color: Color(0xFF475569),
+          //   ),
+          // ),
           const SizedBox(width: 10),
           Expanded(
             child: DropdownButtonHideUnderline(
@@ -870,8 +916,9 @@ class _DanhSachTaiKhoanDaTaoScreenState
     }
 
     // Danh sách tài khoản đang hiển thị trên màn hình chính
-    final currentSourceList =
-        _selectedTabIndex == 0 ? _danhSachDoiKichHoat : _danhSachDaKichHoat;
+    final currentSourceList = _selectedTabIndex == 0
+        ? _danhSachDoiKichHoat
+        : _danhSachDaKichHoat;
 
     final displayedList = _locVaSapXep(currentSourceList, _selectedRoleFilter);
     final availableRoles = _layDanhSachVaiTro(currentSourceList);
@@ -934,8 +981,16 @@ class _DanhSachTaiKhoanDaTaoScreenState
                               const SizedBox(height: 10),
 
                               // Danh sách các thẻ tài khoản (sắp xếp từ mới đến cũ)
-                              for (int i = 0; i < displayedList.length; i++) ...[
-                                _buildAccountCard(context, i + 1, displayedList[i]),
+                              for (
+                                int i = 0;
+                                i < displayedList.length;
+                                i++
+                              ) ...[
+                                _buildAccountCard(
+                                  context,
+                                  i + 1,
+                                  displayedList[i],
+                                ),
                                 const SizedBox(height: 10),
                               ],
                             ],
@@ -995,7 +1050,8 @@ class _DanhSachTaiKhoanDaTaoScreenState
           ),
           // NÚT LỊCH SỬ Ở GÓC TRÊN BÊN PHẢI (thay cho nút PDF cũ)
           Tooltip(
-            message: 'Mở lịch sử tài khoản đã tạo (Đợi kích hoạt & Đã kích hoạt)',
+            message:
+                'Mở lịch sử tài khoản đã tạo (Đợi kích hoạt & Đã kích hoạt)',
             child: InkWell(
               onTap: _moLichSuTaiKhoan,
               borderRadius: BorderRadius.circular(10),
@@ -1048,7 +1104,10 @@ class _DanhSachTaiKhoanDaTaoScreenState
                   ),
                   const SizedBox(width: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 1.5,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFE0F2FE),
                       borderRadius: BorderRadius.circular(8),
@@ -1087,7 +1146,11 @@ class _DanhSachTaiKhoanDaTaoScreenState
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.copy_all_rounded, size: 14, color: Color(0xFF0284C7)),
+                Icon(
+                  Icons.copy_all_rounded,
+                  size: 14,
+                  color: Color(0xFF0284C7),
+                ),
                 SizedBox(width: 3),
                 Text(
                   'Sao chép tất cả',
@@ -1213,7 +1276,10 @@ class _DanhSachTaiKhoanDaTaoScreenState
                 children: [
                   // Badge trạng thái
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: isActivated
                           ? const Color(0xFFDCFCE7)
@@ -1287,7 +1353,11 @@ class _DanhSachTaiKhoanDaTaoScreenState
                 ),
               ),
               const Spacer(),
-              const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFF94A3B8)),
+              const Icon(
+                Icons.access_time_rounded,
+                size: 12,
+                color: Color(0xFF94A3B8),
+              ),
               const SizedBox(width: 3),
               Text(
                 ngayTaoStr,
@@ -1317,10 +1387,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
                   children: [
                     const Text(
                       'Mật khẩu khởi tạo: ',
-                      style: TextStyle(
-                        color: Color(0xFF64748B),
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
                     ),
                     Text(
                       item.matKhau,
@@ -1345,7 +1412,11 @@ class _DanhSachTaiKhoanDaTaoScreenState
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.copy_rounded, size: 13, color: Color(0xFF0284C7)),
+                        Icon(
+                          Icons.copy_rounded,
+                          size: 13,
+                          color: Color(0xFF0284C7),
+                        ),
                         SizedBox(width: 3),
                         Text(
                           'Chép',
@@ -1403,7 +1474,8 @@ class _DanhSachTaiKhoanDaTaoScreenState
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => CapTaiKhoanNhanVienScreen(benhVienId: _getBenhVienId()),
+                    builder: (_) =>
+                        CapTaiKhoanNhanVienScreen(benhVienId: _getBenhVienId()),
                   ),
                 );
               },
@@ -1423,7 +1495,10 @@ class _DanhSachTaiKhoanDaTaoScreenState
     );
   }
 
-  Widget _buildBottomButtons(BuildContext context, List<TaiKhoanItem> displayedList) {
+  Widget _buildBottomButtons(
+    BuildContext context,
+    List<TaiKhoanItem> displayedList,
+  ) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
       decoration: const BoxDecoration(
@@ -1442,7 +1517,10 @@ class _DanhSachTaiKhoanDaTaoScreenState
               icon: const Icon(Icons.picture_as_pdf_rounded, size: 20),
               label: Text(
                 'Xuất File PDF / In Danh Sách (${displayedList.length})',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF0284C7),
