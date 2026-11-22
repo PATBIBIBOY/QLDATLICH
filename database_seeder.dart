@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'config/constants.dart';
+import '../../QLDATLICH/lib/config/app_routes.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class DatabaseSeeder {
@@ -55,7 +55,7 @@ class DatabaseSeeder {
             'ma_admin': adminData['maAdmin'],
             'ngay_tao': DateTime.now().toIso8601String(),
             'da_xac_thuc_email': true, // Admin không cần xác thực email
-            'trang_thai_id': TrangThaiId.hoatDong,
+            //'trang_thai_id': TrangThaiId.hoatDong,
           });
 
           print('✅ Đã tạo admin: $email (UID: $uid)');
