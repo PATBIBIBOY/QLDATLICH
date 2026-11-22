@@ -14,6 +14,7 @@ import 'providers/lich_hen_provider.dart';
 import 'providers/review_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/khoa_provider.dart';
+import 'services/admin_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/splash_screen.dart';
 import 'seeder/hospital_seeder.dart';
@@ -55,6 +56,7 @@ class QLDatLichApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ReviewProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ChangeNotifierProvider(create: (_) => KhoaProvider()),
+        ChangeNotifierProvider(create: (_) => AdminProvider()),
       ],
       child: MaterialApp(
         title: 'QLDATLICH',
@@ -62,6 +64,10 @@ class QLDatLichApp extends StatelessWidget {
         theme: AppTheme.lightTheme,
         home: const SplashScreen(),
         routes: AppRoutes.routes,
+        localizationsDelegates: const [
+          DefaultMaterialLocalizations.delegate,
+          DefaultWidgetsLocalizations.delegate,
+        ],
       ),
     );
   }

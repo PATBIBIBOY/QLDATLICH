@@ -1,67 +1,46 @@
+enum TrangThaiNgayKhamC1 {
+  dungNgay,     // Hôm nay đúng ngày hẹn khám
+  chuaToiNgay,  // Lịch hẹn ở tương lai (chưa tới ngày khám)
+  daQuaHan,     // Lịch hẹn ở quá khứ (đã quá hạn hoặc đã khám)
+  khongXacDinh, // Lỗi hoặc không tìm thấy
+}
+
 class KetQuaQuetQrC1 {
   final bool thanhCong;
   final String thongBao;
   final String chiTietLoi;
+  final TrangThaiNgayKhamC1 trangThaiNgayKham;
   final int? soThuTu;
   final String? gioKhamDuKien;
+  final String? ngayKham;
   final String? hoTen;
+  final String? maLichHen;
   final String? maBenhNhan;
   final String? namSinhGioiTinh;
   final String? cccd;
   final String? bhyt;
   final String? khoaKham;
   final String? phongKham;
+  final String? caKham;
   final String? bacSi;
 
   const KetQuaQuetQrC1({
     required this.thanhCong,
     required this.thongBao,
     this.chiTietLoi = '',
+    this.trangThaiNgayKham = TrangThaiNgayKhamC1.dungNgay,
     this.soThuTu,
     this.gioKhamDuKien,
+    this.ngayKham,
     this.hoTen,
+    this.maLichHen,
     this.maBenhNhan,
     this.namSinhGioiTinh,
     this.cccd,
     this.bhyt,
     this.khoaKham,
     this.phongKham,
+    this.caKham,
     this.bacSi,
   });
-}
-
-class DuLieuQuetQrMauC1 {
-  // Truong hop 1: Thanh cong theo dung mockup
-  static const KetQuaQuetQrC1 thanhCongMockup = KetQuaQuetQrC1(
-    thanhCong: true,
-    thongBao: 'Xác thực QR thành công',
-    chiTietLoi: 'Mã phiếu hợp lệ - Đã ghi nhận tiếp đón',
-    soThuTu: 14,
-    gioKhamDuKien: '08:35 - 08:50',
-    hoTen: 'NGUYỄN VĂN AN',
-    maBenhNhan: 'BN-2026-8891',
-    namSinhGioiTinh: '1992 (34 tuổi) - Nam',
-    cccd: '001092008892',
-    bhyt: 'BHYT 100%',
-    khoaKham: 'Khoa Tim Mạch',
-    phongKham: 'Phòng 204 - Tầng 2 Khu A',
-    bacSi: 'BS. CKII Lê Hoàng Nam',
-  );
-
-  // Truong hop 2a: Ma QR da duoc xac thuc truoc do
-  static const KetQuaQuetQrC1 daXacThucTruocDo = KetQuaQuetQrC1(
-    thanhCong: false,
-    thongBao: 'Phiếu đã được tiếp đón trước đó!',
-    chiTietLoi: 'Mã QR này đã thực hiện check-in vào lúc 08:15 hôm nay.',
-    hoTen: 'TRẦN THỊ HOA',
-    maBenhNhan: 'BN-2026-5542',
-    khoaKham: 'Khoa Tim Mạch',
-  );
-
-  // Truong hop 2b: Ma QR khong hop le / sai khoa
-  static const KetQuaQuetQrC1 maKhongHopLe = KetQuaQuetQrC1(
-    thanhCong: false,
-    thongBao: 'Mã QR không hợp lệ hoặc sai khoa!',
-    chiTietLoi: 'Không tìm thấy phiếu hẹn hoặc lịch khám thuộc cơ sở khác.',
-  );
 }

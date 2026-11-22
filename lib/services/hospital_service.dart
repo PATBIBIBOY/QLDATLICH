@@ -318,21 +318,35 @@ class HospitalService {
     required String khoaId,
   }) async {
     try {
-      final snapshot = await _firestore
+      // 1. Thử lấy từ subcollection PhongKham/{hospitalId}/danh_sach/{khoaId}/danh_sach
+      final subSnapshot = await _firestore
+          .collection('PhongKham')
+          .doc(hospitalId)
+          .collection('danh_sach')
+          .doc(khoaId)
+          .collection('danh_sach')
+          .get();
+
+      if (subSnapshot.docs.isNotEmpty) {
+        debugPrint('✅ Tìm thấy ${subSnapshot.docs.length} phòng khám (subcollection).');
+        return subSnapshot.docs.map((doc) {
+          return PhongKhamModel.fromMap(doc.data(), doc.id);
+        }).toList()
+          ..sort((a, b) => a.tenPhong.compareTo(b.tenPhong));
+      }
+
+      // 2. Dự phòng: Tìm trực tiếp trong root collection PhongKham
+      final rootSnap = await _firestore
           .collection(_colPhongKham)
           .where('hospitalId', isEqualTo: hospitalId)
           .where('khoaId', isEqualTo: khoaId)
           .get();
 
-      debugPrint('✅ Tìm thấy ${snapshot.docs.length} phòng khám.');
-
-      final rooms =
-          snapshot.docs
-              .map((doc) => PhongKhamModel.fromMap(doc.data(), doc.id))
-              .toList()
-            ..sort((a, b) => a.tenPhong.compareTo(b.tenPhong));
-
-      return rooms;
+      debugPrint('✅ Tìm thấy ${rootSnap.docs.length} phòng khám (root collection).');
+      return rootSnap.docs.map((doc) {
+        return PhongKhamModel.fromMap(doc.data(), doc.id);
+      }).toList()
+        ..sort((a, b) => a.tenPhong.compareTo(b.tenPhong));
     } catch (e) {
       debugPrint('❌ Lỗi khi lấy danh sách phòng khám: $e');
 

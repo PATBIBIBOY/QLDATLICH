@@ -11,18 +11,72 @@ class RoomSessionSnapshot {
   /// Khi chưa mở, trang chính hiển thị đúng dữ liệu phòng ban đầu.
   bool started = false;
 
+  /// Phòng đã bấm nút “Bắt đầu” chưa. Trước khi bấm, số hiện tại giữ đúng
+  /// số bắt đầu mặc định là 0 và nút chính hiện chữ “Bắt đầu”.
+  bool daBatDau = false;
+
   /// Số hiện tại và số kế tiếp đang hiển thị ở màn hình hàng chờ.
-  int current = 1;
-  int next = 2;
+  int current = 0;
+  int next = 0;
 
   /// Các số đang đợi (đúng thứ tự sẽ gọi).
   List<int> waiting = <int>[];
 
-  /// Số lớn nhất đã phát ra.
+  /// Các số đã xác nhận vắng mặt trong chế độ lấy số từ lịch hẹn.
+  /// Danh sách này ngăn số vừa ghi vắng mặt bị nạp lại vào hàng chờ
+  /// trong lúc trạng thái lịch hẹn trên Firebase chưa kịp đổi, hoặc
+  /// khi lần ghi trạng thái đó chưa thành công.
+  List<int> absentNumbers = <int>[];
+
+  /// Các số đã xin đợi vừa được chèn lại trong phiên và đang chờ
+  /// Firebase xác nhận lịch hẹn đã trở về trạng thái `2`. Danh sách
+  /// này giữ tạm số trong hàng chờ khi rời phòng rồi mở lại trong lúc
+  /// luồng lịch hẹn vẫn còn thấy trạng thái `7`, hoặc khi lần ghi về
+  /// `2` chưa thành công.
+  List<int> requeuedNumbers = <int>[];
+
+  /// Ánh xạ số thứ tự → mã document lịch hẹn trong phiên. Cần giữ lại
+  /// để khi rời phòng rồi mở lại vẫn ghi được trạng thái cho số đã xin
+  /// đợi (`7`), vì lúc đó luồng lịch hẹn trạng thái `2` không còn phát
+  /// document của số đó nữa.
+  Map<int, String> appointmentIdByNumber = <int, String>{};
+
+  /// Tên bệnh nhân gắn với từng số thứ tự lấy từ lịch hẹn trong phiên.
+  /// Dùng để màn hình hàng chờ hiện đúng tên dưới STT đang khám/số tiếp
+  /// theo, kể cả khi rời phòng rồi mở lại trong cùng phiên.
+  Map<int, String> patientNameByNumber = <int, String>{};
+
+  /// Tên bệnh nhân của các số đang nằm trong “SỐ ĐÃ CHO QUA”, giữ theo
+  /// số lúc bấm “Đợi” (số này không đổi khi các số phía sau được đánh lại).
+  Map<int, String> deferredNameByNumber = <int, String>{};
+
+  /// Mã lịch hẹn của từng số trong “SỐ ĐÃ CHO QUA”, chốt lúc bấm “Đợi”.
+  /// Cần khôi phục cùng phiên để khi mở lại phòng vẫn chèn lại đúng người
+  /// (dùng số hiển thị làm khoá sẽ bị trùng với người đang chạy).
+  Map<int, String> deferredAppointmentIdByNumber = <int, String>{};
+
+  /// STT lớn nhất đã biết từ danh sách lịch hẹn/phiên; không dùng để
+  /// tự sinh thêm số bệnh nhân.
   int lastIssued = 0;
 
   /// Các số đã bấm "Đợi" (đang chờ chèn lại).
   List<int> deferredNumbers = <int>[];
+
+  /// LỊCH SỬ tất cả số đã từng bấm "Đợi". Khác với [deferredNumbers], danh
+  /// sách này KHÔNG bị xoá khi số được gọi lại, chèn lại hay xác nhận vắng
+  /// mặt — chỉ xoá khi bấm "Đặt lại số".
+  ///
+  /// Dùng cho các việc khác (báo cáo, thống kê, màn hình khác…). Đọc qua:
+  /// `RoomSessionStore.instance.sessionOf(roomId).deferredHistory`.
+  List<int> deferredHistory = <int>[];
+
+  /// Các lượt chèn đang chờ một số mốc TƯƠNG LAI xuất hiện trong hàng chờ.
+  ///
+  /// Mỗi phần tử là một số đã cho qua (`number`) cần nằm ngay sau số mốc
+  /// (`afterNumber`) khi số mốc xuất hiện trong danh sách lịch hẹn. Khi số mốc xuất
+  /// hiện, màn hình hàng chờ chuyển số này vào [waiting] và xoá lịch.
+  List<({int number, int afterNumber})> scheduledFutureInserts =
+      <({int number, int afterNumber})>[];
 
   /// Các số đã khám xong (dùng cho "Gọi lại").
   List<int> examinedNumbers = <int>[];
@@ -30,9 +84,27 @@ class RoomSessionSnapshot {
   /// Bác sĩ đang tạm dừng khám.
   bool paused = false;
 
-  /// Trạng thái phòng: chỉ "Tạm dừng" khi bác sĩ đã nhấn nút "Tạm dừng khám".
-  RoomRuntimeStatus get status =>
-      paused ? RoomRuntimeStatus.paused : RoomRuntimeStatus.open;
+  /// Phòng khám đã ĐÓNG (nút "Đóng phòng khám" ở dưới cùng màn hình hàng
+  /// chờ). Khác với [paused]: đóng phòng là trạng thái cuối buổi, các thao
+  /// tác gọi số bị khoá cho đến khi bác sĩ bấm "Mở phòng khám".
+  bool closed = false;
+
+  /// Mốc thời gian (giờ MÁY) được chụp ở lần bấm "Tạm dừng khám" hoặc
+  /// "Tiếp tục khám" gần nhất. Giờ này KHÔNG chạy liên tục: nó đứng yên
+  /// cho đến lần bấm tiếp theo, và được giữ lại khi rồi mở lại phòng.
+  /// Bấm "Đóng / Mở phòng khám" KHÔNG đổi mốc này.
+  DateTime? statusChangedAt;
+
+  /// Nhãn đi kèm mốc giờ: "Tạm dừng lúc" / "Tiếp tục lúc".
+  String statusChangeLabel = '';
+
+  /// Trạng thái phòng theo thứ tự ưu tiên: Đóng > Tạm dừng > Đang khám.
+  /// Màn hình chọn khoa/phòng đọc getter này để hiện đúng nhãn/bộ lọc.
+  RoomRuntimeStatus get status => closed
+      ? RoomRuntimeStatus.closed
+      : paused
+      ? RoomRuntimeStatus.paused
+      : RoomRuntimeStatus.open;
 
   /// Số bệnh nhân đang đợi (bằng độ dài hàng chờ).
   int get waitingCount => waiting.length;
@@ -40,15 +112,16 @@ class RoomSessionSnapshot {
   /// Số bệnh nhân đã khám xong.
   int get examinedCount => examinedNumbers.length;
 
-  /// Số hiện tại đang khám (1 nếu phòng chưa mở lần nào).
+  /// Số hiện tại đang khám (0 nếu chưa có bệnh nhân nào được nạp).
   int get currentNumber => current;
 }
 
 /// Kho trạng thái dùng chung giữa màn hình chọn khoa/phòng và màn hình hàng chờ.
 ///
-/// Nhờ lớp này, khi bác sĩ nhấn "Tạm dừng khám" / "Tiếp tục khám" ở màn hình
-/// hàng chờ thì trang chính hiển thị đúng trạng thái mới ngay khi quay lại,
-/// kèm số hiện tại – số đang đợi – số đã khám của phòng đó.
+/// Nhờ lớp này, khi bác sĩ nhấn "Tạm dừng khám" / "Tiếp tục khám" hay
+/// "Đóng phòng khám" / "Mở phòng khám" ở màn hình hàng chờ thì trang chính
+/// hiển thị đúng trạng thái mới ngay khi quay lại, kèm số hiện tại –
+/// số đang đợi – số đã khám của phòng đó.
 class RoomSessionStore extends ChangeNotifier {
   RoomSessionStore._();
 
@@ -61,6 +134,11 @@ class RoomSessionStore extends ChangeNotifier {
   /// Lấy (hoặc tạo) trạng thái của một phòng theo [roomId].
   RoomSessionSnapshot sessionOf(String roomId) =>
       _sessions.putIfAbsent(roomId, RoomSessionSnapshot.new);
+
+  /// Lịch sử các số đã từng bấm "Đợi" của một phòng – bản chỉ đọc, dùng cho
+  /// các việc khác (báo cáo, thống kê, màn hình khác…).
+  List<int> deferredHistoryOf(String roomId) =>
+      List<int>.unmodifiable(sessionOf(roomId).deferredHistory);
 
   /// Báo cho các màn hình đang lắng nghe vẽ lại.
   void refresh() => notifyListeners();
