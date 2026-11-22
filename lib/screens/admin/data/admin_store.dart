@@ -873,33 +873,14 @@ class AdminStore extends ChangeNotifier {
           }
         } catch (_) {}
 
-        // Chặn quyền đăng nhập trong collection NhanVien của bệnh viện này
-        try {
-          final nvDoc = await _firestore.collection('NhanVien').doc(code).get();
-          if (nvDoc.exists) {
-            await _firestore.collection('NhanVien').doc(code).update({
-              'trangThaiHoatDong': false,
-              'chan_dang_nhap': true,
-              'trang_thai_hop_tac_id': 9,
-            });
-          }
-
-          final staffQueries = [
-            _firestore.collection('NhanVien').where('id_benh_vien', isEqualTo: code).get(),
-            _firestore.collection('NhanVien').where('benh_vien_id', isEqualTo: code).get(),
-            _firestore.collection('NhanVien').where('ma_benh_vien', isEqualTo: code).get(),
-          ];
-          final results = await Future.wait(staffQueries);
-          for (final snap in results) {
-            for (final doc in snap.docs) {
-              await doc.reference.update({
-                'trangThaiHoatDong': false,
-                'chan_dang_nhap': true,
-                'trang_thai_hop_tac_id': 9,
-              });
-            }
-          }
-        } catch (_) {}
+        // Chặn quyền đăng nhập trong collection NhanVien của bệnh viện này và tất cả nhân viên
+        await _syncHospitalAndStaffStatusInNhanVien(
+          code: code,
+          maBenhVien: h.code,
+          hospitalName: h.name,
+          isBlocked: true,
+          reason: reason,
+        );
 
         // Vô hiệu hóa tài khoản gốc trên Firebase Auth và thu hồi phiên đăng nhập
         try {
@@ -980,33 +961,13 @@ class AdminStore extends ChangeNotifier {
           }
         } catch (_) {}
 
-        // Mở khóa quyền đăng nhập tài khoản nhân viên / quản lý trong collection NhanVien
-        try {
-          final nvDoc = await _firestore.collection('NhanVien').doc(code).get();
-          if (nvDoc.exists) {
-            await _firestore.collection('NhanVien').doc(code).update({
-              'trangThaiHoatDong': true,
-              'chan_dang_nhap': false,
-              'trang_thai_hop_tac_id': 10,
-            });
-          }
-
-          final staffQueries = [
-            _firestore.collection('NhanVien').where('id_benh_vien', isEqualTo: code).get(),
-            _firestore.collection('NhanVien').where('benh_vien_id', isEqualTo: code).get(),
-            _firestore.collection('NhanVien').where('ma_benh_vien', isEqualTo: code).get(),
-          ];
-          final results = await Future.wait(staffQueries);
-          for (final snap in results) {
-            for (final doc in snap.docs) {
-              await doc.reference.update({
-                'trangThaiHoatDong': true,
-                'chan_dang_nhap': false,
-                'trang_thai_hop_tac_id': 10,
-              });
-            }
-          }
-        } catch (_) {}
+        // Mở khóa quyền đăng nhập tài khoản bệnh viện và tất cả nhân viên trong collection NhanVien
+        await _syncHospitalAndStaffStatusInNhanVien(
+          code: code,
+          maBenhVien: h.code,
+          hospitalName: h.name,
+          isBlocked: false,
+        );
 
         // Mở khóa tài khoản gốc trên Firebase Auth
         try {
@@ -1042,6 +1003,270 @@ class AdminStore extends ChangeNotifier {
     }
   }
 
+  /// ĐỒNG BỘ KHÓA HOẶC MỞ KHÓA TẤT CẢ TÀI KHOẢN NHÂN VIÊN TRONG 'NhanVien' (Bao gồm subcollection danh_sach & Firebase Auth)
+  Future<void> _syncHospitalAndStaffStatusInNhanVien({
+    required String code,
+    String? maBenhVien,
+    String? hospitalName,
+    required bool isBlocked,
+    String? reason,
+  }) async {
+    final Set<String> targetDocIds = {};
+    if (code.isNotEmpty) targetDocIds.add(code);
+    if (maBenhVien != null && maBenhVien.isNotEmpty) targetDocIds.add(maBenhVien);
+
+    try {
+      // 1. Kiểm tra document NhanVien theo các ID
+      for (final id in targetDocIds.toList()) {
+        try {
+          final nvDoc = await _firestore.collection('NhanVien').doc(id).get();
+          if (nvDoc.exists) {
+            targetDocIds.add(nvDoc.id);
+            final mbv = nvDoc.data()?['ma_benh_vien']?.toString();
+            if (mbv != null && mbv.isNotEmpty) targetDocIds.add(mbv);
+          }
+        } catch (_) {}
+      }
+
+      // 2. Tìm theo các trường liên kết trong NhanVien
+      for (final key in targetDocIds.toList()) {
+        try {
+          final q1 = await _firestore.collection('NhanVien').where('ma_benh_vien', isEqualTo: key).get();
+          for (final d in q1.docs) {
+            targetDocIds.add(d.id);
+          }
+        } catch (_) {}
+        try {
+          final q2 = await _firestore.collection('NhanVien').where('benh_vien_id', isEqualTo: key).get();
+          for (final d in q2.docs) {
+            targetDocIds.add(d.id);
+          }
+        } catch (_) {}
+        try {
+          final q3 = await _firestore.collection('NhanVien').where('id_benh_vien', isEqualTo: key).get();
+          for (final d in q3.docs) {
+            targetDocIds.add(d.id);
+          }
+        } catch (_) {}
+      }
+
+      if (hospitalName != null && hospitalName.isNotEmpty) {
+        try {
+          final qName = await _firestore.collection('NhanVien').where('ten_benh_vien', isEqualTo: hospitalName).get();
+          for (final d in qName.docs) {
+            targetDocIds.add(d.id);
+          }
+        } catch (_) {}
+      }
+
+      // 3. Cập nhật trạng thái từng document bệnh viện và subcollection danh_sach
+      for (final nvDocId in targetDocIds) {
+        try {
+          final nvDocRef = _firestore.collection('NhanVien').doc(nvDocId);
+
+          // Cập nhật document cha
+          await nvDocRef.set({
+            'trangThaiHoatDong': !isBlocked,
+            'chan_dang_nhap': isBlocked,
+            'is_blocked': isBlocked,
+            'trang_thai_hop_tac_id': isBlocked ? 9 : 10,
+            if (isBlocked && reason != null) 'ly_do_huy': reason,
+            if (!isBlocked) 'ly_do_huy': FieldValue.delete(),
+          }, SetOptions(merge: true));
+
+          // Cập nhật tất cả nhân viên trong subcollection danh_sach
+          final danhSachSnap = await nvDocRef.collection('danh_sach').get();
+          for (final staffDoc in danhSachSnap.docs) {
+            final sData = staffDoc.data();
+            final sUid = sData['uid']?.toString() ?? sData['auth_uid']?.toString();
+            final sEmail = sData['email']?.toString();
+
+            await staffDoc.reference.update({
+              'chan_dang_nhap': isBlocked,
+              'trangThaiHoatDong': !isBlocked,
+              'da_kich_hoat': !isBlocked,
+              'trang_thai': isBlocked ? 'tam_khoa' : 'dang_hoat_dong',
+              if (isBlocked && reason != null) 'ly_do_khoa': reason,
+            });
+
+            // Đồng bộ Firebase Authentication (khóa hoặc mở khóa)
+            if (sUid != null || sEmail != null) {
+              if (isBlocked) {
+                await FirebaseAdminAuthService.instance.disableAndRevokeUser(
+                  uid: sUid ?? '',
+                  email: sEmail,
+                );
+              } else {
+                await FirebaseAdminAuthService.instance.enableUser(
+                  uid: sUid ?? '',
+                  email: sEmail,
+                );
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('❌ [NhanVien Sync] Lỗi cập nhật NhanVien/$nvDocId: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ [NhanVien Sync] Lỗi: $e');
+    }
+  }
+
+  /// XÓA HOÀN TOÀN BỆNH VIỆN VÀ TOÀN BỘ TÀI KHOẢN NHÂN VIÊN TRONG 'NhanVien' (SUBCOLLECTION danh_sach & AUTH CONSOLE)
+  Future<void> _deleteHospitalAndStaffInNhanVien({
+    required String code,
+    String? maBenhVien,
+    String? hospitalName,
+    String? authUid,
+  }) async {
+    final Set<String> targetDocIds = {};
+    if (code.isNotEmpty) targetDocIds.add(code);
+    if (maBenhVien != null && maBenhVien.isNotEmpty) targetDocIds.add(maBenhVien);
+    if (authUid != null && authUid.isNotEmpty) targetDocIds.add(authUid);
+
+    try {
+      // 1. Kiểm tra document NhanVien theo các ID trực tiếp
+      for (final id in targetDocIds.toList()) {
+        try {
+          final nvDoc = await _firestore.collection('NhanVien').doc(id).get();
+          if (nvDoc.exists) {
+            targetDocIds.add(nvDoc.id);
+            final data = nvDoc.data();
+            final mbv = data?['ma_benh_vien']?.toString();
+            if (mbv != null && mbv.isNotEmpty) targetDocIds.add(mbv);
+          }
+        } catch (_) {}
+      }
+
+      // 2. Tìm theo các trường liên kết trong NhanVien: ma_benh_vien, benh_vien_id, id_benh_vien
+      for (final key in targetDocIds.toList()) {
+        try {
+          final q1 = await _firestore.collection('NhanVien').where('ma_benh_vien', isEqualTo: key).get();
+          for (final d in q1.docs) {
+            targetDocIds.add(d.id);
+          }
+        } catch (_) {}
+        try {
+          final q2 = await _firestore.collection('NhanVien').where('benh_vien_id', isEqualTo: key).get();
+          for (final d in q2.docs) {
+            targetDocIds.add(d.id);
+          }
+        } catch (_) {}
+        try {
+          final q3 = await _firestore.collection('NhanVien').where('id_benh_vien', isEqualTo: key).get();
+          for (final d in q3.docs) {
+            targetDocIds.add(d.id);
+          }
+        } catch (_) {}
+      }
+
+      // 3. Tìm theo tên bệnh viện nếu có
+      if (hospitalName != null && hospitalName.isNotEmpty) {
+        try {
+          final qName = await _firestore.collection('NhanVien').where('ten_benh_vien', isEqualTo: hospitalName).get();
+          for (final d in qName.docs) {
+            targetDocIds.add(d.id);
+          }
+        } catch (_) {}
+      }
+
+      debugPrint('🏥 [NhanVien Cleanup] Danh sách bệnh viện trong NhanVien cần xóa: $targetDocIds');
+
+      // 4. Xóa toàn bộ nhân viên trong subcollection danh_sach và xóa document bệnh viện
+      for (final nvDocId in targetDocIds) {
+        try {
+          final nvDocRef = _firestore.collection('NhanVien').doc(nvDocId);
+
+          // Lấy tất cả nhân viên trong subcollection danh_sach
+          final danhSachSnap = await nvDocRef.collection('danh_sach').get();
+          debugPrint('👨‍⚕️ [NhanVien Cleanup] Tìm thấy ${danhSachSnap.docs.length} nhân viên trong NhanVien/$nvDocId/danh_sach');
+
+          for (final staffDoc in danhSachSnap.docs) {
+            final sData = staffDoc.data();
+            final sUid = sData['uid']?.toString() ?? sData['auth_uid']?.toString();
+            final sEmail = sData['email']?.toString();
+
+            // Xóa tài khoản nhân viên khỏi Firebase Authentication Console
+            if (sUid != null || sEmail != null) {
+              try {
+                await FirebaseAdminAuthService.instance.deleteUser(
+                  uid: sUid ?? '',
+                  email: sEmail,
+                );
+                debugPrint('✅ [NhanVien Cleanup] Đã xóa Auth nhân viên: $sUid ($sEmail)');
+              } catch (e) {
+                debugPrint('❌ [NhanVien Cleanup] Lỗi xóa Auth nhân viên: $e');
+              }
+            }
+
+            // Xóa document nhân viên trong Firestore
+            await staffDoc.reference.delete();
+          }
+
+          // Xóa chính document bệnh viện trong collection NhanVien
+          await nvDocRef.delete();
+          debugPrint('✅ [NhanVien Cleanup] Đã xóa hoàn toàn document NhanVien/$nvDocId');
+        } catch (e) {
+          debugPrint('❌ [NhanVien Cleanup] Lỗi khi xử lý NhanVien/$nvDocId: $e');
+        }
+      }
+
+      // 5. Quét collectionGroup danh_sach để không bỏ sót bất kỳ nhân viên nào
+      for (final key in targetDocIds) {
+        try {
+          final group1 = await _firestore.collectionGroup('danh_sach').where('ma_benh_vien', isEqualTo: key).get();
+          for (final d in group1.docs) {
+            final sData = d.data();
+            final sUid = sData['uid']?.toString() ?? sData['auth_uid']?.toString();
+            final sEmail = sData['email']?.toString();
+            if (sUid != null || sEmail != null) {
+              try {
+                await FirebaseAdminAuthService.instance.deleteUser(uid: sUid ?? '', email: sEmail);
+              } catch (_) {}
+            }
+            await d.reference.delete();
+          }
+        } catch (_) {}
+
+        try {
+          final group2 = await _firestore.collectionGroup('danh_sach').where('benh_vien_id', isEqualTo: key).get();
+          for (final d in group2.docs) {
+            final sData = d.data();
+            final sUid = sData['uid']?.toString() ?? sData['auth_uid']?.toString();
+            final sEmail = sData['email']?.toString();
+            if (sUid != null || sEmail != null) {
+              try {
+                await FirebaseAdminAuthService.instance.deleteUser(uid: sUid ?? '', email: sEmail);
+              } catch (_) {}
+            }
+            await d.reference.delete();
+          }
+        } catch (_) {}
+      }
+
+      // 6. Xóa các document nhân viên lẻ nếu có ở tầng ngoài NhanVien
+      for (final key in targetDocIds) {
+        try {
+          final qStaff = await _firestore.collection('NhanVien').where('ma_benh_vien', isEqualTo: key).get();
+          for (final doc in qStaff.docs) {
+            final sData = doc.data();
+            final sUid = sData['uid']?.toString() ?? sData['auth_uid']?.toString();
+            final sEmail = sData['email']?.toString();
+            if (sUid != null || sEmail != null) {
+              try {
+                await FirebaseAdminAuthService.instance.deleteUser(uid: sUid ?? '', email: sEmail);
+              } catch (_) {}
+            }
+            await doc.reference.delete();
+          }
+        } catch (_) {}
+      }
+    } catch (e) {
+      debugPrint('❌ [NhanVien Cleanup] Lỗi dọn dẹp NhanVien: $e');
+    }
+  }
+
   /// XÓA VĨNH VIỄN TÀI KHOẢN BỆNH VIỆN TRÊN FIREBASE (FIRESTORE & FIREBASE AUTHENTICATION)
   Future<void> deleteHospitalAccount(Hospital h) async {
     final email = h.email;
@@ -1056,6 +1281,7 @@ class AdminStore extends ChangeNotifier {
       if (code != null && code.isNotEmpty) {
         String? finalEmail = email;
         String targetAuthUid = code;
+        String? maBenhVien = code;
 
         // 0. Đọc thông tin từ collection BenhVien trước khi xóa tài liệu
         try {
@@ -1063,6 +1289,10 @@ class AdminStore extends ChangeNotifier {
           if (bvSnap.exists) {
             final data = bvSnap.data();
             if (data != null) {
+              maBenhVien = data['ma_benh_vien']?.toString() ??
+                  data['code']?.toString() ??
+                  data['id']?.toString() ??
+                  maBenhVien;
               if (finalEmail == null || finalEmail.isEmpty) {
                 finalEmail = data['email']?.toString();
               }
@@ -1084,11 +1314,13 @@ class AdminStore extends ChangeNotifier {
             final ycSnap = await _firestore.collection('YeuCauHopTac').doc(code).get();
             if (ycSnap.exists) {
               finalEmail = ycSnap.data()?['email']?.toString();
+              final mbv = ycSnap.data()?['ma_benh_vien']?.toString();
+              if (mbv != null && mbv.isNotEmpty) maBenhVien = mbv;
             }
           } catch (_) {}
         }
 
-        // 1. XÓA VĨNH VIỄN TÀI KHOẢN KHỎI FIREBASE AUTHENTICATION (BẢNG USERS TRÊN CONSOLE)
+        // 1. XÓA VĨNH VIỄN TÀI KHOẢN BỆNH VIỆN KHỎI FIREBASE AUTHENTICATION (BẢNG USERS TRÊN CONSOLE)
         try {
           final deletedAuth = await FirebaseAdminAuthService.instance.deleteUser(
             uid: targetAuthUid,
@@ -1103,24 +1335,64 @@ class AdminStore extends ChangeNotifier {
           debugPrint('❌ Lỗi xóa tài khoản bệnh viện trên Firebase Auth: $e');
         }
 
-        // 2. Xóa trong collection BenhVien
-        await _firestore.collection('BenhVien').doc(code).delete();
+        // 2. XÓA HOÀN TOÀN TRONG PHẦN NHÂN VIÊN (NhanVien):
+        // Xóa document bệnh viện trong NhanVien, xóa sạch tất cả nhân viên trong subcollection danh_sach
+        // và XÓA TOÀN BỘ TÀI KHOẢN NHÂN VIÊN KHỎI FIREBASE AUTHENTICATION để không thể đăng nhập vào nhà nữa!
+        await _deleteHospitalAndStaffInNhanVien(
+          code: code,
+          maBenhVien: maBenhVien,
+          hospitalName: name,
+          authUid: targetAuthUid,
+        );
 
-        // 3. Xóa trong YeuCauHopTac
+        // 3. Xóa trong collection BenhVien
+        await _firestore.collection('BenhVien').doc(code).delete();
+        if (maBenhVien != null && maBenhVien != code) {
+          try {
+            await _firestore.collection('BenhVien').doc(maBenhVien).delete();
+          } catch (_) {}
+        }
+
+        // 4. Xóa trong YeuCauHopTac
         try {
           await _firestore.collection('YeuCauHopTac').doc(code).delete();
         } catch (_) {}
+        if (maBenhVien != null && maBenhVien != code) {
+          try {
+            await _firestore.collection('YeuCauHopTac').doc(maBenhVien).delete();
+          } catch (_) {}
+        }
 
-        // 4. Xóa trong NhanVien
-        try {
-          await _firestore.collection('NhanVien').doc(code).delete();
-        } catch (_) {}
+        // 5. Xóa các dữ liệu liên quan khác: PhongKham, Khoa, PhanCong
+        final relatedCollections = ['PhongKham', 'Khoa', 'PhanCong'];
+        for (final colName in relatedCollections) {
+          for (final key in {code, maBenhVien, targetAuthUid}.whereType<String>().where((s) => s.isNotEmpty)) {
+            try {
+              final snap1 = await _firestore.collection(colName).where('benh_vien_id', isEqualTo: key).get();
+              for (final d in snap1.docs) {
+                await d.reference.delete();
+              }
+            } catch (_) {}
+            try {
+              final snap2 = await _firestore.collection(colName).where('ma_benh_vien', isEqualTo: key).get();
+              for (final d in snap2.docs) {
+                await d.reference.delete();
+              }
+            } catch (_) {}
+            try {
+              final snap3 = await _firestore.collection(colName).where('id_benh_vien', isEqualTo: key).get();
+              for (final d in snap3.docs) {
+                await d.reference.delete();
+              }
+            } catch (_) {}
+          }
+        }
 
-        // 5. Ghi nhật ký thông báo hệ thống
+        // 6. Ghi nhật ký thông báo hệ thống
         try {
           await _firestore.collection('ThongBaoHeThong').add({
-            'tieu_de': 'Đã xóa vĩnh viễn bệnh viện',
-            'noi_dung': 'Quản trị viên đã xóa hoàn toàn hồ sơ và tài khoản bệnh viện: $name ($code)',
+            'tieu_de': 'Đã xóa vĩnh viễn bệnh viện và nhân viên',
+            'noi_dung': 'Quản trị viên đã xóa hoàn toàn hồ sơ và tài khoản bệnh viện cùng toàn bộ nhân viên: $name ($code)',
             'loai': 'xoa_tai_khoan_bv',
             'da_doc': false,
             'thoi_gian_hien_thi': 'Vừa xong',
@@ -1128,7 +1400,7 @@ class AdminStore extends ChangeNotifier {
           });
         } catch (_) {}
 
-        // 6. Gửi email thông báo xóa tài khoản bệnh viện
+        // 7. Gửi email thông báo xóa tài khoản bệnh viện
         if (finalEmail != null && finalEmail.isNotEmpty) {
           await EmailService.instance.sendAccountDeletedEmail(
             toEmail: finalEmail,
