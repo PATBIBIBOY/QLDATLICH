@@ -419,6 +419,11 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// resetPassword: gửi email đặt lại mật khẩu.
+  Future<void> resetPassword(String email) {
+    return _authService.resetPassword(email);
+  }
+
   Future<void> _handleExistingEmail(String email, String password, PatientModel user) async {
     try {
       final oldUser = await _authService.findPatientByEmail(email);
