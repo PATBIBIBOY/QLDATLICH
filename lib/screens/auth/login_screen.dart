@@ -6,12 +6,14 @@ import '../../database_seeder.dart';
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth, FirebaseAuthException;
 import '../../config/app_session.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/validators.dart';
 import '../letan_c1/cskh_duyetdon_khoa_screen_c1.dart';
 import '../letan_c1/letan_thietlap_thongtin_screen_c1.dart';
 import '../letan_c1/letan_trangchu_screen_c1.dart';
 import '../../support_doctor/clinic_firestore_service.dart';
 
 import '../../models/letan_c1/letan_profile_model_c1.dart';
+import 'otp_screen.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -28,9 +30,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
-  int _selectedRoleIndex = 0; // 0: Bệnh nhân, 1: Bệnh viện, 2: Admin
-
+  int _selectedRoleIndex = 0;
   bool _obscure = true;
+  bool _isPhone = false;
 
   final List<Map<String, dynamic>> _roles = [
     {'name': 'Bệnh nhân', 'icon': Icons.person_outline, 'code': 'benh_nhan'},
@@ -39,13 +41,45 @@ class _LoginScreenState extends State<LoginScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _emailCtrl.addListener(_onInputChanged);
+  }
+
+  @override
   void dispose() {
     _emailCtrl.dispose();
     _passCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _login() async {
+  /// _isPhoneInput: kiểm tra chuỗi nhập có phải số điện thoại Việt Nam (0xxxxxxxxx hoặc +84xxxxxxxxx).
+  bool _isPhoneInput(String input) =>
+      RegExp(r'^(\+84|0)\d{9}$').hasMatch(input.replaceAll(RegExp(r'\s+'), ''));
+
+  /// _onInputChanged: khi người dùng gõ, đổi giao diện giữa chế độ email/mật khẩu và chế độ số điện thoại/OTP.
+  void _onInputChanged() {
+    final value = _isPhoneInput(_emailCtrl.text.trim());
+    if (value != _isPhone) setState(() => _isPhone = value);
+  }
+
+  /// _isStaffRole: kiểm tra role có thuộc nhóm nhân viên (lễ tân, CSKH, hỗ trợ bác sĩ).
+  bool _isStaffRole(String role) =>
+      _roleLeTan.contains(role) ||
+      _roleCskh.contains(role) ||
+      _roleBacSi.contains(role);
+
+  /// _showError: hiển thị thông báo lỗi dạng SnackBar màu đỏ.
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: _danger),
+    );
+  }
+
+  /// _login: điểm vào đăng nhập; điều hướng theo loại tài khoản
+  /// (số điện thoại + OTP, mã nhân viên, admin, bệnh viện, bệnh nhân bằng email).
+    Future<void> _login() async {
     final email = _emailCtrl.text.trim();
     final password = _passCtrl.text;
 
@@ -60,7 +94,16 @@ class _LoginScreenState extends State<LoginScreen> {
       final auth = context.read<AuthProvider>();
       final selectedRoleCode = _roles[_selectedRoleIndex]['code'] as String;
 
-      // ✅ 1. ƯU TIÊN KIỂM TRA ĐĂNG NHẬP NHÂN VIÊN Y TẾ (DÙ NHẬP MÃ HAY GMAIL, DÙ CHỌN TAB NÀO)
+      // 1. Xử lý đăng nhập bằng số điện thoại (Chỉ dành cho Bệnh nhân)
+      if (_isPhoneInput(email)) {
+        if (selectedRoleCode != 'benh_nhan') {
+          throw Exception('Đăng nhập bằng số điện thoại chỉ dành cho bệnh nhân. Vui lòng chọn tab Bệnh nhân.');
+        }
+        await _loginByPhone(email);
+        return;
+      }
+
+      // 2. Ưu tiên kiểm tra đăng nhập NHÂN VIÊN Y TẾ (nếu không phải Admin)
       if (selectedRoleCode != 'admin') {
         Map<String, dynamic>? nhanVienData;
         try {
@@ -69,170 +112,89 @@ class _LoginScreenState extends State<LoginScreen> {
             matKhau: password,
           );
         } catch (e) {
-          // Nếu nhập mã nhân viên (không có @) mà sai hoặc không tìm thấy -> Ném lỗi trực tiếp ra UI
-          if (!email.contains('@')) {
-            rethrow;
-          }
-          // Nếu nhập email nhưng sai mật khẩu nhân viên -> Ném lỗi ra UI
           final errStr = e.toString();
-          if (errStr.contains('Mật khẩu không chính xác') ||
-              errStr.contains('Mật khẩu cấp ban đầu không chính xác')) {
+          // Nếu là lỗi mật khẩu sai của nhân viên -> Báo lỗi ngay
+          if (errStr.contains('Mật khẩu không chính xác') || errStr.contains('Mật khẩu cấp ban đầu không chính xác')) {
             rethrow;
           }
-          // Email không phải nhân viên -> Để trôi xuống luồng xác thực Bệnh nhân / Bệnh viện bên dưới
+          // Nếu không phải nhân viên (ví dụ: nhập email bệnh nhân) -> Bỏ qua, để code chạy tiếp xuống phần 3
         }
 
+        // Nếu tìm thấy dữ liệu nhân viên hợp lệ
         if (nhanVienData != null) {
           final role = (nhanVienData['role'] ?? nhanVienData['vai_tro'] ?? '').toString();
-          final bool daKichHoat = (nhanVienData['da_kich_hoat'] == true) ||
-              (nhanVienData['trang_thai'] == 'dang_hoat_dong');
-          final maNvThucTe = (nhanVienData['ma_nhan_vien'] ??
-                  nhanVienData['ma_tai_khoan'] ??
-                  email)
-              .toString();
-          final bvId = (nhanVienData['ma_benh_vien'] ??
-                  nhanVienData['benh_vien_id'] ??
-                  'BV502')
-              .toString();
-          final tenBv = (nhanVienData['ten_benh_vien'] ?? 'Bệnh viện Quân y 17')
-              .toString();
+          final bool daKichHoat = (nhanVienData['da_kich_hoat'] == true) || (nhanVienData['trang_thai'] == 'dang_hoat_dong');
+          final maNvThucTe = (nhanVienData['ma_nhan_vien'] ?? nhanVienData['ma_tai_khoan'] ?? email).toString();
+          final bvId = (nhanVienData['ma_benh_vien'] ?? nhanVienData['benh_vien_id'] ?? 'BV502').toString();
+          final tenBv = (nhanVienData['ten_benh_vien'] ?? 'Bệnh viện Quân y 17').toString();
 
-          // Cập nhật thông tin profile nhân viên hiện tại
-          DuLieuProfileMauC1.thongTinHienTai =
-              DuLieuProfileMauC1.thongTinHienTai.copyWith(
+          DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai.copyWith(
             maNhanVien: maNvThucTe,
             hoTen: (nhanVienData['ho_ten'] ?? 'Nhân viên').toString(),
-            chucVu: (nhanVienData['chuc_vu'] ??
-                    (role.contains('cskh') ||
-                            role.contains('customer') ||
-                            role.contains('cham_soc')
-                        ? 'Chăm sóc khách hàng'
-                        : 'Lễ tân tiếp đón'))
-                .toString(),
-            khoa: (nhanVienData['khoa'] ??
-                    (role.contains('cskh') ||
-                            role.contains('customer') ||
-                            role.contains('cham_soc')
-                        ? 'Bộ Phận CSKH & Tiếp Nhận'
-                        : 'Khoa Khám Bệnh'))
-                .toString(),
+            chucVu: (nhanVienData['chuc_vu'] ?? (role.contains('cskh') ? 'Chăm sóc khách hàng' : 'Lễ tân tiếp đón')).toString(),
+            khoa: (nhanVienData['khoa'] ?? (role.contains('cskh') ? 'Bộ Phận CSKH & Tiếp Nhận' : 'Khoa Khám Bệnh')).toString(),
             email: (nhanVienData['email'] ?? email).toString(),
             benhVienId: bvId,
             tenBenhVien: tenBv,
           );
 
-          // Tự động ghi nhớ phiên đăng nhập
-          await FirebaseServiceC1.luuPhienDangNhap(
-              taiKhoan: email, matKhau: password);
-
+          await FirebaseServiceC1.luuPhienDangNhap(taiKhoan: email, matKhau: password);
           if (!mounted) return;
 
-          // Nếu chưa kích hoạt -> Màn hình thiết lập thông tin ban đầu
           if (!daKichHoat) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (_) => LetanThietlapThongtinScreenC1(
-                  maNhanVienMacDinh: maNvThucTe,
-                ),
-              ),
-            );
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => LetanThietlapThongtinScreenC1(maNhanVienMacDinh: maNvThucTe)));
             return;
           }
 
-          // Đã kích hoạt -> Điều hướng chính xác theo vai trò
-          if (role == 'customerSupport' ||
-              role == 'cskh' ||
-              role == 'cham_soc_khach_hang') {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => const CskhDuyetdonKhoaScreenC1()),
-            );
-            return;
+          // Điều hướng theo vai trò nhân viên
+          if (role == 'customerSupport' || role == 'cskh' || role == 'cham_soc_khach_hang') {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const CskhDuyetdonKhoaScreenC1()));
           } else if (role == 'receptionist' || role == 'le_tan') {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()),
-            );
-            return;
-          } else if (role == 'doctorAssistant' ||
-              role == 'ho_tro_bac_si' ||
-              role == 'bac_si') {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (_) => FirestoreClinicRoomPickerScreen(
-                  hospitalId: bvId.isNotEmpty ? bvId : 'BV001',
-                  hospitalName: tenBv.isNotEmpty
-                      ? tenBv
-                      : DuLieuProfileMauC1.thongTinHienTai.tenBenhVien,
-                ),
-              ),
-            );
-            return;
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()));
+          } else if (role == 'doctorAssistant' || role == 'ho_tro_bac_si' || role == 'bac_si') {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => FirestoreClinicRoomPickerScreen(hospitalId: bvId, hospitalName: tenBv)));
           } else {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()),
-            );
-            return;
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LeTanHomeScreenC1()));
           }
+          return; // Kết thúc luồng nhân viên
         }
       }
 
-      // ✅ 2. NẾU KHÔNG PHẢI NHÂN VIÊN Y TẾ -> ĐĂNG NHẬP THEO VAI TRÒ CHỌN TRÊN GIAO DIỆN (BN / BV / ADMIN)
+      // 3. Nếu KHÔNG PHẢI nhân viên -> Đăng nhập theo vai trò chuẩn (Admin / Bệnh viện / Bệnh nhân)
       if (selectedRoleCode == 'admin') {
         await auth.loginAdmin(email: email, password: password);
-        await DatabaseSeeder.seedAllData();
+        // await DatabaseSeeder.seedAllData(); // Bỏ comment nếu cần
       } else {
-        await auth.login(
-          email: email,
-          password: password,
-          role: selectedRoleCode,
-        );
+        await auth.login(email: email, password: password, role: selectedRoleCode);
       }
 
       if (!mounted) return;
 
-      // ✅ 2.3. Nếu chọn Bệnh viện nhưng KHÔNG PHẢI tài khoản Bệnh viện
-      if (selectedRoleCode == 'benh_vien') {
-        if (auth.hospital != null) {
-          AppSession.benhVienId = auth.hospital?.uid ??
-              FirebaseAuth.instance.currentUser?.uid ??
-              '';
-          Navigator.pushNamedAndRemoveUntil(
-              context, AppRoutes.hospitalDashboard, (route) => false);
-          return;
-        } else {
-          throw Exception('Tài khoản này không có quyền truy cập vai trò Bệnh viện!');
-        }
-      }
-
-      // ✅ 2.4. Nếu chọn Admin
-      if (selectedRoleCode == 'admin') {
-        if (auth.admin != null) {
-          Navigator.pushNamedAndRemoveUntil(
-              context, AppRoutes.adminDashboard, (route) => false);
-          return;
-        } else {
-          throw Exception('Tài khoản này không có quyền truy cập Admin!');
-        }
-      }
-
-      if (!mounted) return;
-      // ✅ 2.5. Nếu chọn Bệnh nhân: chỉ cho phép nếu tài khoản là bệnh nhân thật
-      if (auth.user != null) {
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          AppRoutes.patientMain,
-          (route) => false,
-          arguments: 0,
-        );
+      // 4. Xử lý chuyển hướng sau khi đăng nhập chuẩn thành công
+      if (selectedRoleCode == 'admin' && auth.admin != null) {
+        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.adminDashboard, (route) => false);
         return;
       }
 
-      // Mặc định: Chặn các trường hợp sai lệch role
+      if (selectedRoleCode == 'benh_vien') {
+        if (auth.hospital != null) {
+          AppSession.benhVienId = auth.hospital?.uid ?? FirebaseAuth.instance.currentUser?.uid ?? '';
+          Navigator.pushNamedAndRemoveUntil(context, AppRoutes.hospitalDashboard, (route) => false);
+          return;
+        } else {
+          await auth.logout();
+          throw Exception('Tài khoản này chưa đăng ký là bệnh viện. Vui lòng chọn tab Bệnh nhân.');
+        }
+      }
+
+      // Mặc định hoặc khi chọn tab Bệnh nhân
+      if (auth.user != null) {
+        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.patientMain, (route) => false, arguments: 0);
+        return;
+      }
+
+      // Nếu không khớp với bất kỳ trường hợp nào ở trên
+      await auth.logout();
       throw Exception('Không tìm thấy thông tin tài khoản phù hợp với vai trò đã chọn!');
 
     } catch (e) {
@@ -240,22 +202,213 @@ class _LoginScreenState extends State<LoginScreen> {
       
       String errorMessage = _loginErrorMessage(e);
       
-      // ✅ 3. Xử lý riêng trường hợp chưa xác thực email (chỉ áp dụng cho BN/BV)
       if (errorMessage.contains('EMAIL_NOT_VERIFIED')) {
-        Navigator.pushReplacementNamed(
-          context,
-          AppRoutes.emailVerification,
-          arguments: email,
-        );
+        Navigator.pushReplacementNamed(context, AppRoutes.emailVerification, arguments: email);
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage), backgroundColor: _danger),
-      );
+      _showError(errorMessage);
     }
   }
 
+  /// _goToPatientMain: vào màn hình chính của bệnh nhân và xóa toàn bộ stack điều hướng.
+  void _goToPatientMain() {
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      AppRoutes.patientMain,
+      (route) => false,
+      arguments: 0,
+    );
+  }
+
+  /// _loginByPhone: gửi OTP tới số điện thoại, mở màn nhập mã; xác thực đúng thì vào màn hình bệnh nhân.
+  Future<void> _loginByPhone(String phone) async {
+    final auth = context.read<AuthProvider>();
+
+    await auth.sendOtp(
+      phone: phone,
+      onCodeSent: () {
+        if (!mounted) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OtpScreen(
+              phone: phone,
+              onVerify: (code) async {
+                try {
+                  await auth.loginWithPhoneOtp(smsCode: code);
+                  if (!mounted) return;
+                  _goToPatientMain();
+                } catch (e) {
+                  _showError(_loginErrorMessage(e));
+                }
+              },
+              onResend: () => auth.sendOtp(
+                phone: phone,
+                onCodeSent: () {},
+                onError: _showError,
+              ),
+            ),
+          ),
+        );
+      },
+      onError: _showError,
+    );
+  }
+
+  /// _loginByStaffCode: đăng nhập nhân viên nội bộ bằng mã nhân viên và mật khẩu lưu trong Firestore.
+  /// Trả về true nếu đã xử lý (vào màn hình nhân viên), false nếu không phải mã nhân viên.
+  Future<bool> _loginByStaffCode(String input, String password) async {
+    final firestore = FirebaseFirestore.instance;
+
+    DocumentSnapshot<Map<String, dynamic>> nhanVienDoc = await firestore
+        .collection('NhanVien')
+        .doc(input)
+        .get();
+
+    if (!nhanVienDoc.exists) {
+      final q = await firestore
+          .collection('NhanVien')
+          .where('ma_tai_khoan', isEqualTo: input)
+          .limit(1)
+          .get();
+      if (q.docs.isNotEmpty) nhanVienDoc = q.docs.first;
+    }
+
+    final upper = input.toUpperCase();
+    if (!nhanVienDoc.exists && (upper == 'LT_TM_01' || upper == 'CSKH_01')) {
+      if (password != '123456') {
+        throw Exception('Mật khẩu cấp ban đầu không chính xác! (Mặc định: 123456)');
+      }
+      final isCskh = upper.contains('CSKH');
+      await firestore.collection('NhanVien').doc(upper).set({
+        'ma_tai_khoan': upper,
+        'ma_nhan_vien': upper,
+        'mat_khau': '123456',
+        'ho_ten': isCskh ? 'Nhân Viên CSKH' : 'Đinh Hoàng Cước',
+        'role': isCskh ? 'customerSupport' : 'receptionist',
+        'khoa': 'KHOA TIM',
+        'da_kich_hoat': false,
+        'ngay_tao': FieldValue.serverTimestamp(),
+      });
+      nhanVienDoc = await firestore.collection('NhanVien').doc(upper).get();
+    }
+
+    if (!nhanVienDoc.exists) return false;
+
+    final nvData = nhanVienDoc.data()!;
+    if (nvData['mat_khau'] != null && nvData['mat_khau'] != password) {
+      throw Exception('Mật khẩu không chính xác!');
+    }
+
+    return _enterStaffHome(
+      data: nvData,
+      defaultRole: 'receptionist',
+      fallbackId: input,
+      setupId: upper,
+      requireStaffRole: false,
+    );
+  }
+
+  /// _loginStaffByAccount: sau khi đăng nhập Firebase, tìm hồ sơ nhân viên theo uid/email và vào màn hình nhân viên.
+  /// Trả về false nếu tài khoản không phải nhân viên.
+  Future<bool> _loginStaffByAccount(String currentUid, String email) async {
+    final firestore = FirebaseFirestore.instance;
+
+    DocumentSnapshot<Map<String, dynamic>> userDoc = await firestore
+        .collection('NhanVien')
+        .doc(currentUid)
+        .get();
+
+    if (userDoc.exists) {
+      final maNvGoc = userDoc.data()?['ma_nhan_vien'] ?? userDoc.data()?['ma_tai_khoan'];
+      if (maNvGoc != null && maNvGoc.toString().isNotEmpty && maNvGoc.toString() != currentUid) {
+        final docGoc = await firestore.collection('NhanVien').doc(maNvGoc.toString()).get();
+        if (docGoc.exists) userDoc = docGoc;
+      }
+    }
+
+    if (!userDoc.exists || userDoc.data()?['role'] == null) {
+      final qUid = await firestore.collection('NhanVien').where('uid', isEqualTo: currentUid).limit(1).get();
+      if (qUid.docs.isNotEmpty) userDoc = qUid.docs.first;
+    }
+
+    if (!userDoc.exists) {
+      final q = await firestore.collection('NhanVien').where('email', isEqualTo: email).limit(1).get();
+      if (q.docs.isNotEmpty) userDoc = q.docs.first;
+    }
+
+    var fromUsers = false;
+    if (!userDoc.exists) {
+      userDoc = await firestore.collection('users').doc(currentUid).get();
+      fromUsers = true;
+    }
+
+    if (!userDoc.exists) return false;
+
+    final data = userDoc.data() ?? <String, dynamic>{};
+    return _enterStaffHome(
+      data: data,
+      defaultRole: 'patient',
+      fallbackId: currentUid,
+      fallbackEmail: email,
+      requireStaffRole: fromUsers,
+    );
+  }
+
+  /// _enterStaffHome: mở màn hình theo role nhân viên (thiết lập lần đầu, lễ tân, CSKH, hỗ trợ bác sĩ).
+  /// Trả về false nếu role không hợp lệ.
+  Future<bool> _enterStaffHome({
+    required Map<String, dynamic> data,
+    required String defaultRole,
+    required String fallbackId,
+    required bool requireStaffRole,
+    String? setupId,
+    String fallbackEmail = '',
+  }) async {
+    final role = (data['role'] ?? defaultRole).toString();
+
+    if (requireStaffRole && !_isStaffRole(role)) return false;
+    if (!mounted) return false;
+
+    final maNvThucTe = (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? fallbackId).toString();
+
+    if (data['da_kich_hoat'] != true) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LetanThietlapThongtinScreenC1(
+            maNhanVienMacDinh: setupId ?? maNvThucTe,
+          ),
+        ),
+      );
+      return true;
+    }
+
+    final isLeTan = _roleLeTan.contains(role);
+    DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai.copyWith(
+      maNhanVien: maNvThucTe,
+      hoTen: (data['ho_ten'] ?? 'Nhân viên').toString(),
+      chucVu: (data['chuc_vu'] ?? (isLeTan ? 'Lễ tân tiếp đón' : 'Chăm sóc khách hàng')).toString(),
+      khoa: (data['khoa'] ?? 'Khoa Khám Bệnh').toString(),
+      email: (data['email'] ?? fallbackEmail).toString(),
+    );
+
+    final Widget? screen = isLeTan
+        ? const LeTanHomeScreenC1()
+        : _roleCskh.contains(role)
+            ? const CskhDuyetdonKhoaScreenC1()
+            : _roleBacSi.contains(role)
+                ? const ClinicRoomPickerScreen()
+                : null;
+
+    if (screen == null) return false;
+
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => screen));
+    return true;
+  }
+
+  /// _loginErrorMessage: đổi lỗi FirebaseAuth/Exception thành thông báo tiếng Việt cho người dùng.
   String _loginErrorMessage(Object error) {
     if (error is FirebaseAuthException) {
       switch (error.code) {
@@ -274,6 +427,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return error.toString().replaceAll('Exception: ', '');
   }
 
+  /// _border: tạo viền ô nhập liệu theo màu chỉ định.
   OutlineInputBorder _border(Color c) => OutlineInputBorder(
     borderRadius: BorderRadius.circular(12),
     borderSide: BorderSide(color: c, width: 1.5),
@@ -408,58 +562,100 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Email Input
-              TextField(
-                controller: _emailCtrl,
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  hintText: 'Email',
-                  prefixIcon: const Icon(Icons.email_outlined, color: _grey),
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  border: _border(const Color(0xFFE2E8F0)),
-                  enabledBorder: _border(const Color(0xFFE2E8F0)),
-                  focusedBorder: _border(_primary),
+              Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (value) {
+                        final input = (value ?? '').trim();
+                        if (input.isEmpty) return 'Vui lòng nhập email hoặc số điện thoại';
+                        if (input.contains('@')) return validateEmail(input);
+                        if (_isPhoneInput(input)) return validatePhone(input);
+                        return null;
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Email Hoặc Số điện thoại',
+                        prefixIcon: Icon(
+                          _isPhone ? Icons.phone_outlined : Icons.email_outlined,
+                          color: _grey,
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                        border: _border(const Color(0xFFE2E8F0)),
+                        enabledBorder: _border(const Color(0xFFE2E8F0)),
+                        focusedBorder: _border(_primary),
+                        errorBorder: _border(_danger),
+                        focusedErrorBorder: _border(_danger),
+                      ),
+                    ),
+
+                    if (!_isPhone) ...[
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _passCtrl,
+                        obscureText: _obscure,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Vui lòng nhập mật khẩu';
+                          }
+                          if (value.trim().length < 6) {
+                            return 'Mật khẩu phải có ít nhất 6 ký tự';
+                          }
+                          return null;
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Mật khẩu',
+                          prefixIcon: const Icon(Icons.lock_outline, color: _grey),
+                          suffixIcon: IconButton(
+                            icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, color: _grey),
+                            onPressed: () => setState(() => _obscure = !_obscure),
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          border: _border(const Color(0xFFE2E8F0)),
+                          enabledBorder: _border(const Color(0xFFE2E8F0)),
+                          focusedBorder: _border(_primary),
+                          errorBorder: _border(_danger),
+                          focusedErrorBorder: _border(_danger),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               const SizedBox(height: 16),
 
-              // Password Input
-              TextField(
-                controller: _passCtrl,
-                obscureText: _obscure,
-                decoration: InputDecoration(
-                  hintText: 'Mật khẩu',
-                  prefixIcon: const Icon(Icons.lock_outline, color: _grey),
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, color: _grey),
-                    onPressed: () => setState(() => _obscure = !_obscure),
+              if (_isPhone)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Bạn sẽ nhận mã OTP qua SMS để đăng nhập.',
+                      style: TextStyle(fontSize: 13, color: _grey),
+                    ),
                   ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  border: _border(const Color(0xFFE2E8F0)),
-                  enabledBorder: _border(const Color(0xFFE2E8F0)),
-                  focusedBorder: _border(_primary),
-                ),
-              ),
-              
-              // ✅ Quên mật khẩu (Đã chuyển xuống dưới ô mật khẩu cho đúng UX)
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => Navigator.pushNamed(
-                    context,
-                    AppRoutes.forgotPassword,
-                    arguments: _emailCtrl.text.trim(),
-                  ),
-                  child: const Text(
-                    'Quên mật khẩu?',
-                    style: TextStyle(fontSize: 14, color: _primary, fontWeight: FontWeight.w600),
+                )
+              else
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.pushNamed(
+                      context,
+                      AppRoutes.forgotPassword,
+                      arguments: _emailCtrl.text.trim(),
+                    ),
+                    child: const Text(
+                      'Quên mật khẩu?',
+                      style: TextStyle(fontSize: 14, color: _primary, fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ),
-              ),
               const SizedBox(height: 16),
 
               // Login Button
@@ -480,9 +676,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           height: 24,
                           child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
                         )
-                      : const Text(
-                          'Đăng nhập',
-                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                      : Text(
+                          _isPhone ? 'Gửi mã OTP' : 'Đăng nhập',
+                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
                         ),
                 ),
               ),
