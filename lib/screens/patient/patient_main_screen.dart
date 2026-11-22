@@ -59,8 +59,6 @@ class _PatientMainScreenState extends State<PatientMainScreen> {
       bottomNavigationBar: MedicalBottomNavBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
-        notificationCount: unread,
-        chatCount: 1, // TODO: lấy số tin chưa đọc thật từ ChatProvider
       ),
     );
   }
