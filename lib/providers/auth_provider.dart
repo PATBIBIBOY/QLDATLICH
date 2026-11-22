@@ -113,6 +113,7 @@ class AuthProvider extends ChangeNotifier {
         return;
       }
 
+      // ✅ ĐOẠN ĐÃ ĐƯỢC LÀM SẠCH CONFLICT (Giữ logic chuẩn, format gọn gàng)
       final patientModel = await _authService.getPatientFromFirestore(currentUser.uid);
       _user = patientModel;
       
@@ -126,6 +127,7 @@ class AuthProvider extends ChangeNotifier {
         _hospital = null;
       }
       _selectedRole = patientModel?.role ?? _hospital?.role;
+
     } catch (e) {
       print('❌ Lỗi khi lấy thông tin user hiện tại: $e');
     } finally {
@@ -419,7 +421,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// resetPassword: gửi email đặt lại mật khẩu.
   Future<void> resetPassword(String email) {
     return _authService.resetPassword(email);
   }

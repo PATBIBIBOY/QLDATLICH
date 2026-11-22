@@ -44,7 +44,7 @@ class ChatService {
 
   /// streamHospitalConversations: lắng nghe danh sách cuộc trò chuyện dành riêng cho CSKH bệnh viện.
   Stream<List<ConversationModel>> streamHospitalConversations(String benhVienId) {
-    final bvid = benhVienId.trim().isNotEmpty ? benhVienId.trim() : 'BV502';
+    final bvid = benhVienId.trim();
     debugPrint('📡 [ChatService] Lắng nghe realtime Conversations cho bệnh viện: $bvid');
 
     return _db.collection(_colConv).snapshots().map((snap) {
@@ -52,17 +52,20 @@ class ChatService {
       final list = <ConversationModel>[];
       for (final doc in snap.docs) {
         final d = doc.data();
-        final docBv = (d['benhVienId'] ?? d['benh_vien_id'] ?? '').toString();
-        final docId = doc.id;
+        final docBv = (d['benhVienId'] ?? d['benh_vien_id'] ?? '').toString().trim();
+        final docId = doc.id.trim();
 
         debugPrint('👉 Doc: $docId | benhVienId: $docBv | tenBenhNhan: ${d['tenBenhNhan']}');
 
-        final isMatch = docBv.toLowerCase() == bvid.toLowerCase() ||
-            docBv.toLowerCase().contains(bvid.toLowerCase()) ||
-            bvid.toLowerCase().contains(docBv.toLowerCase()) ||
-            docId.toLowerCase().contains(bvid.toLowerCase()) ||
-            docId.toLowerCase().contains('bv502') ||
-            docBv.toLowerCase().contains('bv502');
+        // CHỈ LẤY ĐÚNG HỘI THOẠI CỦA BỆNH VIỆN HIỆN TẠI (VD: BV514, BV502)
+        bool isMatch = false;
+        if (bvid.isNotEmpty) {
+          isMatch = docBv.toLowerCase() == bvid.toLowerCase() ||
+              docId.toLowerCase().startsWith('conv_${bvid.toLowerCase()}_') ||
+              docId.toLowerCase().contains('_${bvid.toLowerCase()}_');
+        } else {
+          isMatch = true;
+        }
 
         if (isMatch) {
           list.add(ConversationModel.fromMap(d, id: doc.id));
@@ -80,7 +83,7 @@ class ChatService {
 
   /// fetchHospitalConversationsOnce: tải trực tiếp 1 lần hỗ trợ phòng hờ Stream bị treo hoặc chưa kịp kích hoạt.
   Future<List<ConversationModel>> fetchHospitalConversationsOnce(String benhVienId) async {
-    final bvid = benhVienId.trim().isNotEmpty ? benhVienId.trim() : 'BV502';
+    final bvid = benhVienId.trim();
     debugPrint('🔄 [ChatService] fetchHospitalConversationsOnce cho: $bvid');
     try {
       final snap = await _db.collection(_colConv).get();
@@ -88,15 +91,17 @@ class ChatService {
       final list = <ConversationModel>[];
       for (final doc in snap.docs) {
         final d = doc.data();
-        final docBv = (d['benhVienId'] ?? d['benh_vien_id'] ?? '').toString();
-        final docId = doc.id;
+        final docBv = (d['benhVienId'] ?? d['benh_vien_id'] ?? '').toString().trim();
+        final docId = doc.id.trim();
 
-        final isMatch = docBv.toLowerCase() == bvid.toLowerCase() ||
-            docBv.toLowerCase().contains(bvid.toLowerCase()) ||
-            bvid.toLowerCase().contains(docBv.toLowerCase()) ||
-            docId.toLowerCase().contains(bvid.toLowerCase()) ||
-            docId.toLowerCase().contains('bv502') ||
-            docBv.toLowerCase().contains('bv502');
+        bool isMatch = false;
+        if (bvid.isNotEmpty) {
+          isMatch = docBv.toLowerCase() == bvid.toLowerCase() ||
+              docId.toLowerCase().startsWith('conv_${bvid.toLowerCase()}_') ||
+              docId.toLowerCase().contains('_${bvid.toLowerCase()}_');
+        } else {
+          isMatch = true;
+        }
 
         if (isMatch) {
           list.add(ConversationModel.fromMap(d, id: doc.id));

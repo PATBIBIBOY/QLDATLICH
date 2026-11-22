@@ -23,10 +23,8 @@ class HospitalModel {
   final double? viDo; // Latitude
   final double? kinhDo; // Longitude
 
-  final List<String>?
-  chuyenKhoaIds; // Ví dụ: ['CK01', 'CK04'] -> Dùng để query filter
-  final List<String>?
-  tenCacKhoa; // Ví dụ: ['Khoa Tim mạch', 'Khoa Hô hấp'] -> Dùng để hiển thị UI nhanh
+  final List<String>? chuyenKhoaIds; // Ví dụ: ['CK01', 'CK04'] -> Dùng để query filter
+  final List<String>? tenCacKhoa;    // Ví dụ: ['Khoa Tim mạch', 'Khoa Hô hấp'] -> Dùng để hiển thị UI nhanh
 
   HospitalModel({
     this.id,

@@ -140,12 +140,24 @@ class _LoginScreenState extends State<LoginScreen> {
                   nhanVienData['ma_tai_khoan'] ??
                   email)
               .toString();
+          
+          // ✅ 3. GIỮ LOGIC LINH HOẠT, TỰ ĐỘNG FALLBACK NHIỀU KEY KHÁC NHAU
           final bvId = (nhanVienData['ma_benh_vien'] ??
                   nhanVienData['benh_vien_id'] ??
-                  'BV502')
-              .toString();
-          final tenBv =
-              (nhanVienData['ten_benh_vien'] ?? 'Bệnh viện Quân y 17').toString();
+                  nhanVienData['benhVienId'] ??
+                  nhanVienData['hospital_id'] ??
+                  nhanVienData['hospitalId'] ??
+                  nhanVienData['id_benh_vien'] ??
+                  'BV502') // Fallback cuối cùng an toàn
+              .toString()
+              .trim();
+              
+          final tenBv = (nhanVienData['ten_benh_vien'] ??
+                  nhanVienData['tenBenhVien'] ??
+                  nhanVienData['hospital_name'] ??
+                  'Bệnh viện')
+              .toString()
+              .trim();
 
           DuLieuProfileMauC1.thongTinHienTai =
               DuLieuProfileMauC1.thongTinHienTai.copyWith(
@@ -207,7 +219,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
-      // 3. Nếu KHÔNG PHẢI nhân viên -> Đăng nhập theo vai trò chuẩn
+      // 4. Nếu KHÔNG PHẢI nhân viên -> Đăng nhập theo vai trò chuẩn
       if (selectedRoleCode == 'admin') {
         await auth.loginAdmin(email: email, password: password);
       } else {
@@ -216,7 +228,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      // 4. Xử lý chuyển hướng sau khi đăng nhập chuẩn thành công
+      // 5. Xử lý chuyển hướng sau khi đăng nhập chuẩn thành công
       if (selectedRoleCode == 'admin' && auth.admin != null) {
         Navigator.pushNamedAndRemoveUntil(
             context, AppRoutes.adminDashboard, (route) => false);
@@ -239,14 +251,14 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
-      // 5. Xử lý trường hợp Bệnh nhân
+      // 6. Xử lý trường hợp Bệnh nhân
       if (auth.user != null) {
         Navigator.pushNamedAndRemoveUntil(
             context, AppRoutes.patientMain, (route) => false, arguments: 0);
         return;
       }
 
-      // 6. Fallback
+      // 7. Fallback
       await auth.logout();
       final isHospital = auth.hospital != null;
       throw Exception(
@@ -459,7 +471,7 @@ class _LoginScreenState extends State<LoginScreen> {
       email: (data['email'] ?? fallbackEmail).toString(),
     );
 
-    // ✅ 3. SỬA TÊN CLASS ĐÚNG VỚI IMPORT
+    // ✅ 4. SỬA TÊN CLASS ĐÚNG VỚI IMPORT
     final Widget? screen = isLeTan
         ? const LeTanHomeScreenC1()
         : _roleCskh.contains(role)
@@ -643,7 +655,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 24),
               
-              // ✅ 4. SỬ DỤNG _formKey ĐÃ KHAI BÁO
+              // ✅ 5. SỬ DỤNG _formKey ĐÃ KHAI BÁO
               Form(
                 key: _formKey,
                 child: Column(

@@ -305,7 +305,6 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
             tenKhoaHienTai: _tenKhoaHienTai,
             ngayChon: _ngayChon,
             onSelectDate: _chonNgayLichHen,
-            onOpenLichSu: () => setState(() => _currentIndex = 2),
           ),
           const SizedBox(height: 16),
           _buildDanhSachCho(),
@@ -325,7 +324,6 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
   Widget _buildHeader([PhanCongCaTrucModelC1? phanCong]) {
     final isDark = AppDesignSystemC1.laCheDoToi;
     final textCol = isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E);
-    final subTextCol = isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -341,7 +339,9 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
                   Text(
                     DuLieuProfileMauC1.thongTinHienTai.tenBenhVien.isNotEmpty
                         ? DuLieuProfileMauC1.thongTinHienTai.tenBenhVien
-                        : 'Bệnh viện BV502',
+                        : (DuLieuProfileMauC1.thongTinHienTai.benhVienId.isNotEmpty
+                            ? 'Bệnh viện ${DuLieuProfileMauC1.thongTinHienTai.benhVienId}'
+                            : 'Bệnh viện'),
                     style: const TextStyle(
                       color: Color(0xFFFF9500),
                       fontSize: 12,
@@ -443,57 +443,47 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
           ],
         ),
         const SizedBox(height: 6),
-        Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            Text(
-              'Xin chào, Lễ tân ${DuLieuProfileMauC1.thongTinHienTai.hoTen}',
-              style: TextStyle(
-                color: subTextCol,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: (phanCong?.duocPhanCong == true)
+                ? (isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE))
+                : (isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2)),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: (phanCong?.duocPhanCong == true)
+                  ? const Color(0xFF0284C7).withValues(alpha: 0.3)
+                  : const Color(0xFFEF4444).withValues(alpha: 0.3),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: (phanCong?.duocPhanCong == true)
-                    ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5))
-                    : (isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2)),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: (phanCong?.duocPhanCong == true)
-                      ? (isDark ? const Color(0xFF059669) : const Color(0xFFA7F3D0))
-                      : (isDark ? const Color(0xFFEF4444) : const Color(0xFFFECACA)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  color: (phanCong?.duocPhanCong == true) ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                  shape: BoxShape.circle,
                 ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    (phanCong?.duocPhanCong == true) ? Icons.verified_rounded : Icons.lock_clock_rounded,
-                    size: 11,
-                    color: (phanCong?.duocPhanCong == true) ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    (phanCong?.duocPhanCong == true)
-                        ? 'Ca trực: ${phanCong!.tenPhong.isNotEmpty ? phanCong.tenPhong : _tenKhoaHienTai}${phanCong.ngay.isNotEmpty ? ' • Ngày ${phanCong.ngay}' : ''} (TT: 16)'
-                        : (phanCong?.trangThaiId != 0
-                            ? 'Chờ ca trực (TT: ${phanCong?.trangThaiId} != 16)'
-                            : 'Chưa phân công ca trực'),
-                    style: TextStyle(
-                      color: (phanCong?.duocPhanCong == true) ? const Color(0xFF059669) : const Color(0xFFDC2626),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+              const SizedBox(width: 5),
+              Text(
+                (phanCong?.duocPhanCong == true)
+                    ? _tenKhoaHienTai
+                    : (phanCong?.trangThai.isNotEmpty == true && phanCong?.trangThai != 'Chờ phân công'
+                        ? 'Chờ ca trực (${phanCong?.trangThai})'
+                        : 'Chờ phân công ca trực'),
+                style: TextStyle(
+                  color: (phanCong?.duocPhanCong == true)
+                      ? const Color(0xFF0284C7)
+                      : const Color(0xFFDC2626),
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );

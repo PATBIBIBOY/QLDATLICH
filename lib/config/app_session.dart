@@ -10,6 +10,7 @@ class AppSession {
     }
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null && uid.isNotEmpty) {
+      _benhVienId = uid;
       return uid;
     }
     return _benhVienId;
