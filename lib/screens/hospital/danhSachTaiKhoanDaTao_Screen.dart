@@ -372,6 +372,111 @@ class _DanhSachTaiKhoanDaTaoScreenState
     }
   }
 
+  /// Hộp thoại xác nhận xuất file: "bạn có muốn xuất file không và chọn có hoặc không"
+  Future<void> _xacNhanXuatFilePdf(
+    List<TaiKhoanItem> listToExport, {
+    String? tieuDeTuyChinh,
+    String? vaiTroTuyChinh,
+  }) async {
+    if (listToExport.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không có tài khoản nào trong danh sách để xuất file.'),
+          backgroundColor: Color(0xFFF59E0B),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final xacNhan = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(
+                Icons.picture_as_pdf_rounded,
+                color: Color(0xFF0284C7),
+                size: 24,
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Xác nhận xuất file',
+                  style: TextStyle(
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'Bạn có muốn xuất file PDF cho danh sách ${listToExport.length} tài khoản này không?',
+            style: const TextStyle(
+              fontSize: 14,
+              color: Color(0xFF334155),
+              height: 1.4,
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(dCtx, false),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF64748B),
+                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text(
+                'Không',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dCtx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0284C7),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                elevation: 0,
+              ),
+              child: const Text(
+                'Có',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (xacNhan == true) {
+      await _xuatFilePdf(
+        listToExport,
+        tieuDeTuyChinh: tieuDeTuyChinh,
+        vaiTroTuyChinh: vaiTroTuyChinh,
+      );
+    }
+  }
+
   /// Xuất file PDF danh sách tài khoản thực sự
   Future<void> _xuatFilePdf(
     List<TaiKhoanItem> listToExport, {
@@ -461,7 +566,11 @@ class _DanhSachTaiKhoanDaTaoScreenState
           ),
           title: const Row(
             children: [
-              Icon(Icons.restart_alt_rounded, color: Color(0xFFD97706), size: 26),
+              Icon(
+                Icons.restart_alt_rounded,
+                color: Color(0xFFD97706),
+                size: 26,
+              ),
               SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -490,12 +599,19 @@ class _DanhSachTaiKhoanDaTaoScreenState
                 child: const Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 18),
+                    Icon(
+                      Icons.info_outline_rounded,
+                      color: Color(0xFFD97706),
+                      size: 18,
+                    ),
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Do đây là plugin có mã nguồn Native (Android), cơ chế Hot Reload không thể nạp plugin mới. Bạn cần Dừng chạy (Stop) và chạy lại (flutter run) để sử dụng tính năng in PDF.',
-                        style: TextStyle(fontSize: 12, color: Color(0xFF92400E)),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF92400E),
+                        ),
                       ),
                     ),
                   ],
@@ -1606,7 +1722,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
             width: double.infinity,
             height: 48,
             child: ElevatedButton.icon(
-              onPressed: () => _xuatFilePdf(displayedList),
+              onPressed: () => _xacNhanXuatFilePdf(displayedList),
               icon: const Icon(Icons.picture_as_pdf_rounded, size: 20),
               label: Text(
                 'Xuất File PDF / In Danh Sách (${displayedList.length})',
