@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../utils/validators.dart';
 import '../../config/app_routes.dart';
 import '../../models/hospital_model.dart';
 import '../../models/patient_model.dart';
@@ -20,20 +21,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   final _formKey = GlobalKey<FormState>();
 
-  // Controllers cho Bệnh nhân
   final _patientNameCtrl = TextEditingController();
   final _patientIdCtrl = TextEditingController();
   final _patientPassCtrl = TextEditingController();
   final _patientConfirmCtrl = TextEditingController();
 
-  // Controllers cho Bệnh viện
   final _hospitalNameCtrl = TextEditingController();
   final _hospitalEmailCtrl = TextEditingController();
   final _hospitalAddressCtrl = TextEditingController();
   final _hospitalPassCtrl = TextEditingController();
   final _hospitalConfirmCtrl = TextEditingController();
 
-  // ✅ Danh sách vai trò sẽ được load và LỌC từ Firebase
   List<Map<String, dynamic>> _roles = [];
   int _roleIndex = 0;
   bool _isLoadingRoles = true;
@@ -41,38 +39,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscure = true;
   bool _obscureConfirm = true;
   bool _agreed = true;
+  bool _isPhoneId = false;
 
   @override
   void initState() {
     super.initState();
+    _patientIdCtrl.addListener(_onPatientIdChanged);
     _loadRoles();
-  }
-
-  // ✅ Hàm load danh sách vai trò từ Firebase và CHỈ GIỮ LẠI 2 ROLE
-  Future<void> _loadRoles() async {
-    final auth = context.read<AuthProvider>();
-    await auth.loadRoles();
-
-    if (mounted) {
-      setState(() {
-        // 🛡️ LỌC: Chỉ giữ lại 'benh_nhan' và 'benh_vien'
-        _roles = auth.roles.where((role) {
-          final maVaiTro = role['ma_vai_tro'] as String?;
-          return maVaiTro == 'benh_nhan' || maVaiTro == 'benh_vien';
-        }).toList();
-
-        _isLoadingRoles = false;
-
-        // Nếu đã có selectedRole từ màn hình trước, tìm index tương ứng
-        if (auth.selectedRole != null && _roles.isNotEmpty) {
-          _roleIndex = _roles.indexWhere(
-            (role) => role['ma_vai_tro'] == auth.selectedRole,
-          );
-          if (_roleIndex == -1)
-            _roleIndex = 0; // Fallback về 0 nếu không tìm thấy
-        }
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadRoles();
+      }
+    });
   }
 
   @override
@@ -89,6 +67,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
+  /// _isPhoneInput: kiểm tra chuỗi nhập có phải số điện thoại Việt Nam (0xxxxxxxxx hoặc +84xxxxxxxxx).
+  bool _isPhoneInput(String input) =>
+      RegExp(r'^(\+84|0)\d{9}$').hasMatch(input.replaceAll(RegExp(r'\s+'), ''));
+
+  /// _onPatientIdChanged: khi người dùng gõ email/số điện thoại, ẩn ô mật khẩu nếu là số điện thoại (đăng nhập bằng OTP).
+  void _onPatientIdChanged() {
+    final value = _isPhoneInput(_patientIdCtrl.text.trim());
+    if (value != _isPhoneId) setState(() => _isPhoneId = value);
+  }
+
+  /// _loadRoles: tải vai trò từ Firebase và chỉ giữ 'benh_nhan' và 'benh_vien'.
+  Future<void> _loadRoles() async {
+    final auth = context.read<AuthProvider>();
+    await auth.loadRoles();
+
+    if (mounted) {
+      setState(() {
+        _roles = auth.roles.where((role) {
+          final maVaiTro = role['ma_vai_tro'] as String?;
+          return maVaiTro == 'benh_nhan' || maVaiTro == 'benh_vien';
+        }).toList();
+
+        _isLoadingRoles = false;
+
+        if (auth.selectedRole != null && _roles.isNotEmpty) {
+          _roleIndex = _roles.indexWhere(
+            (role) => role['ma_vai_tro'] == auth.selectedRole,
+          );
+          if (_roleIndex == -1) _roleIndex = 0;
+        }
+      });
+    }
+  }
+
+  /// _onRoleChanged: đổi tab vai trò, ẩn lại mật khẩu và lưu vai trò vào AuthProvider.
   void _onRoleChanged(int index) {
     setState(() {
       _roleIndex = index;
@@ -99,14 +112,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
     auth.setSelectedRole(_roles[index]['ma_vai_tro']);
   }
 
+  /// _showMessage: hiển thị thông báo SnackBar.
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// _register: đăng ký theo vai trò.
+  /// Email (bệnh nhân/bệnh viện) thì gửi mail xác thực; số điện thoại (bệnh nhân) thì gửi OTP,
+  /// xác thực xong tạo hồ sơ và vào thẳng màn hình chính.
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_agreed) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng đồng ý với Điều khoản & chính sách'),
-        ),
-      );
+      _showMessage('Vui lòng đồng ý với Điều khoản & chính sách');
       return;
     }
 
@@ -122,7 +142,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (maVaiTro == 'benh_nhan') {
       final id = _patientIdCtrl.text.trim();
       emailOrPhone = id;
-      password = _patientPassCtrl.text;
+      password = _isPhoneInput(id) ? '' : _patientPassCtrl.text;
 
       patient = PatientModel(
         uid: '',
@@ -142,12 +162,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         role: maVaiTro,
       );
     } else {
-      // Fallback an toàn (về lý thuyết sẽ không bao giờ rơi vào đây vì đã lọc ở trên)
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vai trò này chưa hỗ trợ đăng ký trực tiếp trên app.'),
-        ),
-      );
+      _showMessage('Vai trò này chưa hỗ trợ đăng ký trực tiếp trên app.');
       return;
     }
 
@@ -174,10 +189,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           arguments: emailOrPhone,
         );
       } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
-        );
+        _showMessage(e.toString().replaceAll('Exception: ', ''));
       }
     } else {
       if (patient == null) return;
@@ -197,54 +209,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       user: patient!,
                     );
                     if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Đăng ký thành công!')),
-                    );
+                    _showMessage('Đăng ký thành công!');
                     Navigator.pushNamedAndRemoveUntil(
                       context,
-                      AppRoutes.login,
+                      AppRoutes.patientMain,
                       (route) => false,
+                      arguments: 0,
                     );
                   } catch (e) {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          e.toString().replaceAll('Exception: ', ''),
-                        ),
-                      ),
-                    );
+                    _showMessage(e.toString().replaceAll('Exception: ', ''));
                   }
                 },
                 onResend: () => auth.sendOtp(
                   phone: emailOrPhone,
                   onCodeSent: () {},
-                  onError: (msg) {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text(msg)));
-                  },
+                  onError: _showMessage,
                 ),
               ),
             ),
           );
         },
-        onError: (msg) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(msg)));
-        },
+        onError: _showMessage,
       );
     }
   }
 
+  /// _border: tạo viền ô nhập liệu theo màu chỉ định.
   OutlineInputBorder _border(Color c) => OutlineInputBorder(
     borderRadius: BorderRadius.circular(16),
     borderSide: BorderSide(color: c),
   );
 
+  /// _decoration: tạo InputDecoration dùng chung cho các ô nhập liệu.
   InputDecoration _decoration(IconData icon, String hint, {Widget? suffix}) =>
       InputDecoration(
         hintText: hint,
@@ -260,6 +256,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         focusedErrorBorder: _border(_danger),
       );
 
+  /// _label: tạo nhãn cho ô nhập liệu, có thể kèm dấu * bắt buộc và ghi chú.
   Widget _label(String text, {bool required = false, String? note}) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
     child: Text.rich(
@@ -298,6 +295,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const CircularProgressIndicator(color: _primary),
+
               const SizedBox(height: 16),
               Text(
                 'Đang tải thông tin...',
@@ -313,6 +311,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ? _roles[_roleIndex]['ten_vai_tro'] ?? 'Vai trò'
         : 'Vai trò';
     final maVaiTro = _roles.isNotEmpty ? _roles[_roleIndex]['ma_vai_tro'] : '';
+    final isPatientPhone = maVaiTro == 'benh_nhan' && _isPhoneId;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -324,7 +323,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Logo
                 Center(
                   child: Column(
                     children: [
@@ -343,7 +341,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           size: 44,
                         ),
                       ),
+
                       const SizedBox(height: 10),
+
                       const Text(
                         'MEDICONNECT',
                         style: TextStyle(
@@ -359,9 +359,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ],
                   ),
                 ),
+
                 const SizedBox(height: 20),
 
-                // ✅ Tabs vai trò - Giờ đây chỉ render đúng 2 tab đã được lọc
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
@@ -371,6 +371,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: Row(
                     children: List.generate(_roles.length, (i) {
                       final active = i == _roleIndex;
+
                       return Expanded(
                         child: GestureDetector(
                           onTap: () => _onRoleChanged(i),
@@ -396,9 +397,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     }),
                   ),
                 ),
+
                 const SizedBox(height: 16),
 
-                // ✅ CÁC Ô NHẬP LIỆU THAY ĐỔI THEO TAB
                 if (maVaiTro == 'benh_nhan') ...[
                   _label('Họ và Tên', required: true),
                   TextFormField(
@@ -411,6 +412,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ? 'Vui lòng nhập họ và tên'
                         : null,
                   ),
+
                   const SizedBox(height: 16),
 
                   _label('Email hoặc số điện thoại', required: true),
@@ -418,72 +420,86 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _patientIdCtrl,
                     keyboardType: TextInputType.emailAddress,
                     decoration: _decoration(
-                      Icons.mail_outline,
+                      isPatientPhone
+                          ? Icons.phone_outlined
+                          : Icons.mail_outline,
                       'an.nguyen@gmail.com / 0912 345 678',
                     ),
                     validator: (v) {
                       final value = (v ?? '').trim();
-                      if (value.isEmpty)
+                      if (value.isEmpty) {
                         return 'Vui lòng nhập email hoặc số điện thoại';
-                      if (value.contains('@')) {
-                        return RegExp(
-                              r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                            ).hasMatch(value)
-                            ? null
-                            : 'Email không hợp lệ';
                       }
-                      return RegExp(
-                            r'^(0|\+84)[3|5|7|8|9][0-9]{8}$',
-                          ).hasMatch(value.replaceAll(' ', ''))
-                          ? null
-                          : 'Số điện thoại không hợp lệ';
+                      if (value.contains('@')) {
+                        /// validateEmail: kiểm tra tính hợp lệ của dữ liệu.
+                        return validateEmail(value);
+                      }
+
+                      /// validatePhone: kiểm tra tính hợp lệ của dữ liệu.
+                      return validatePhone(value);
                     },
                   ),
-                  const SizedBox(height: 16),
-
-                  _label('Mật khẩu', required: true),
-                  TextFormField(
-                    controller: _patientPassCtrl,
-                    obscureText: _obscure,
-                    decoration: _decoration(
-                      Icons.lock_outline,
-                      'Nhập mật khẩu',
-                      suffix: IconButton(
-                        icon: Icon(
-                          _obscure ? Icons.visibility_off : Icons.visibility,
-                          color: _grey,
-                        ),
-                        onPressed: () => setState(() => _obscure = !_obscure),
+                  if (isPatientPhone)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Đăng ký bằng số điện thoại sẽ xác thực và đăng nhập bằng mã OTP, không cần mật khẩu.',
+                        style: TextStyle(fontSize: 13, color: _grey),
                       ),
                     ),
-                    validator: (v) => (v == null || v.length < 6)
-                        ? 'Mật khẩu tối thiểu 6 ký tự'
-                        : null,
-                  ),
+
                   const SizedBox(height: 16),
 
-                  _label('Nhập lại mật khẩu', required: true),
-                  TextFormField(
-                    controller: _patientConfirmCtrl,
-                    obscureText: _obscureConfirm,
-                    decoration: _decoration(
-                      Icons.lock_outline,
-                      'Nhập lại mật khẩu',
-                      suffix: IconButton(
-                        icon: Icon(
-                          _obscureConfirm
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                          color: _grey,
+                  if (!isPatientPhone) ...[
+                    _label('Mật khẩu', required: true),
+                    TextFormField(
+                      controller: _patientPassCtrl,
+                      obscureText: _obscure,
+                      decoration: _decoration(
+                        Icons.lock_outline,
+                        'Nhập mật khẩu',
+                        suffix: IconButton(
+                          icon: Icon(
+                            _obscure ? Icons.visibility_off : Icons.visibility,
+                            color: _grey,
+                          ),
+                          onPressed: () => setState(() => _obscure = !_obscure),
                         ),
-                        onPressed: () =>
-                            setState(() => _obscureConfirm = !_obscureConfirm),
                       ),
+                      validator: validatePassword,
                     ),
-                    validator: (v) => (v == null || v != _patientPassCtrl.text)
-                        ? 'Mật khẩu nhập lại không khớp'
-                        : null,
-                  ),
+
+                    const SizedBox(height: 16),
+
+                    _label('Nhập lại mật khẩu', required: true),
+                    TextFormField(
+                      controller: _patientConfirmCtrl,
+                      obscureText: _obscureConfirm,
+                      decoration: _decoration(
+                        Icons.lock_outline,
+                        'Nhập lại mật khẩu',
+                        suffix: IconButton(
+                          icon: Icon(
+                            _obscureConfirm
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            color: _grey,
+                          ),
+                          onPressed: () => setState(
+                            () => _obscureConfirm = !_obscureConfirm,
+                          ),
+                        ),
+                      ),
+                      validator: (v) {
+                        final passwordError = validatePassword(v);
+                        if (passwordError != null) return passwordError;
+                        if (v != _patientPassCtrl.text) {
+                          return 'Mật khẩu nhập lại không khớp';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
                 ] else if (maVaiTro == 'benh_vien') ...[
                   _label('Tên bệnh viện / Cơ sở y tế', required: true),
                   TextFormField(
@@ -496,6 +512,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ? 'Vui lòng nhập tên bệnh viện'
                         : null,
                   ),
+
                   const SizedBox(height: 16),
 
                   _label('Email đại diện bệnh viện', required: true),
@@ -506,16 +523,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       Icons.mail_outline,
                       'admin@benhvien.vn',
                     ),
-                    validator: (v) {
-                      final value = (v ?? '').trim();
-                      if (value.isEmpty) return 'Vui lòng nhập email';
-                      return RegExp(
-                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                          ).hasMatch(value)
-                          ? null
-                          : 'Email không hợp lệ';
-                    },
+                    validator: (v) => validateEmail(v),
                   ),
+
                   const SizedBox(height: 16),
 
                   _label('Địa chỉ bệnh viện', required: true),
@@ -529,6 +539,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ? 'Vui lòng nhập địa chỉ bệnh viện'
                         : null,
                   ),
+
                   const SizedBox(height: 16),
 
                   _label('Mật khẩu', required: true),
@@ -546,10 +557,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         onPressed: () => setState(() => _obscure = !_obscure),
                       ),
                     ),
-                    validator: (v) => (v == null || v.length < 6)
-                        ? 'Mật khẩu tối thiểu 6 ký tự'
-                        : null,
+                    validator: validatePassword,
                   ),
+
                   const SizedBox(height: 16),
 
                   _label('Nhập lại mật khẩu', required: true),
@@ -571,17 +581,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                     validator: (v) {
-                      if (v == null || v.isEmpty)
-                        return 'Vui lòng nhập lại mật khẩu';
-                      return (v != _hospitalPassCtrl.text)
-                          ? 'Mật khẩu nhập lại không khớp'
-                          : null;
+                      final passwordError = validatePassword(v);
+                      if (passwordError != null) return passwordError;
+                      if (v != _hospitalPassCtrl.text) {
+                        return 'Mật khẩu nhập lại không khớp';
+                      }
+                      return null;
                     },
                   ),
                 ],
+
                 const SizedBox(height: 12),
 
-                // Điều khoản
                 Row(
                   children: [
                     Checkbox(
@@ -616,9 +627,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 8),
 
-                // Nút đăng ký
                 SizedBox(
                   width: double.infinity,
                   height: 56,
@@ -645,18 +656,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                'Đăng Ký Tài Khoản $roleLabel',
+                                isPatientPhone
+                                    ? 'Gửi mã OTP'
+                                    : 'Đăng Ký Tài Khoản $roleLabel',
                                 style: const TextStyle(
                                   fontSize: 17,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
+
                               const SizedBox(width: 8),
+
                               const Icon(Icons.arrow_forward, size: 22),
                             ],
                           ),
                   ),
                 ),
+
                 const SizedBox(height: 12),
 
                 Center(

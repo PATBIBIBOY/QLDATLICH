@@ -6,11 +6,11 @@ import '../config/app_session.dart';
 class BenhVienService {
   static final Map<String, String> _cache = {};
 
+  /// _chuanHoa: chuẩn hóa tên field (chữ thường, bỏ dấu gạch dưới và khoảng trắng) để so khớp.
   static String _chuanHoa(String k) =>
       k.toLowerCase().replaceAll('_', '').replaceAll(' ', '');
 
-  /// Tìm tên trong dữ liệu document, chấp nhận nhiều kiểu đặt tên field:
-  /// ten_benh_vien, tenBenhVien, TenBenhVien, ten, name...
+  /// _timTen: tìm tên bệnh viện trong document, chấp nhận nhiều kiểu đặt tên field (ten_benh_vien, tenBenhVien, ten, name...).
   static String _timTen(Map<String, dynamic> data) {
     const uuTien = ['tenbenhvien', 'tenbv', 'ten', 'name', 'hospitalname'];
     final chuan = {for (final e in data.entries) _chuanHoa(e.key): e.value};
@@ -18,7 +18,6 @@ class BenhVienService {
       final v = chuan[k];
       if (v is String && v.trim().isNotEmpty) return v.trim();
     }
-    // Dự phòng: field nào bắt đầu bằng "ten" và là chuỗi
     for (final e in data.entries) {
       final v = e.value;
       if (_chuanHoa(e.key).startsWith('ten') &&
@@ -30,11 +29,8 @@ class BenhVienService {
     return '';
   }
 
-  /// Lấy tên bệnh viện theo ID.
-  /// - Nếu AppSession.benhVienPath có giá trị: đọc thẳng document đó.
-  /// - Nếu không: quét collection group `danh_sach`, tìm document có đúng ID
-  ///   (bỏ qua nhánh `Khoa/`). Kết quả được nhớ lại.
-  /// Trả về chuỗi rỗng nếu không tìm thấy; ném lỗi nếu Firestore từ chối.
+  /// layTen: lấy tên bệnh viện theo ID (có cache); trả về chuỗi rỗng nếu không tìm thấy, ném lỗi nếu Firestore từ chối.
+  /// Có AppSession.benhVienPath thì đọc thẳng document đó, không thì tìm trong 'BenhVien' rồi quét collection group 'danh_sach' (bỏ nhánh Khoa/).
   static Future<String> layTen(String benhVienId) async {
     if (_cache.containsKey(benhVienId)) return _cache[benhVienId]!;
     final db = FirebaseFirestore.instance;
@@ -88,14 +84,13 @@ class BenhVienService {
     }
   }
 
-  // ---------- Thống kê bệnh nhân theo ngày ----------
-  // ThongKe/{benhVienId}/danh_sach/{yyyy-MM-dd}
-  //   tongBenhNhan: number, dangKham: number
+  /// homNay: trả về ngày hôm nay dạng "yyyy-MM-dd" (id document thống kê).
   static String homNay() {
     final n = DateTime.now();
     return '${n.year}-${n.month.toString().padLeft(2, '0')}-${n.day.toString().padLeft(2, '0')}';
   }
 
+  /// thongKeHomNay: lắng nghe thống kê hôm nay (tongBenhNhan, dangKham) tại ThongKe/{benhVienId}/danh_sach/{yyyy-MM-dd}.
   static Stream<DocumentSnapshot<Map<String, dynamic>>> thongKeHomNay(
     String benhVienId,
   ) => FirebaseFirestore.instance
@@ -105,7 +100,7 @@ class BenhVienService {
       .doc(homNay())
       .snapshots();
 
-  /// Gọi mỗi khi có bệnh nhân đăng ký / bắt đầu khám (tự tạo doc nếu chưa có).
+  /// tangBenhNhan: cộng dồn số bệnh nhân hôm nay khi có người đăng ký hoặc bắt đầu khám (tự tạo document nếu chưa có).
   static Future<void> tangBenhNhan(
     String benhVienId, {
     int tong = 1,

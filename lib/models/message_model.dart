@@ -27,6 +27,7 @@ class MessageModel {
 
   factory MessageModel.fromMap(Map<String, dynamic> m, {String? id}) {
     final ts = m['createdAt'];
+
     return MessageModel(
       id: id ?? (m['id'] ?? '').toString(),
       conversationId: (m['conversationId'] ?? '').toString(),

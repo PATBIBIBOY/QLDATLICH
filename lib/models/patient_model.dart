@@ -2,7 +2,6 @@ import '../config/constants.dart';
 
 class PatientModel {
   final String uid;
-  final String? maBenhNhan;
   final String? hoTen;
   final String? email;
   final String? soDienThoai;
@@ -14,10 +13,11 @@ class PatientModel {
   final DateTime? ngayTao;
   final String? role;
   final bool daXacThucEmail;
+  final String? cccd;
+  final String? soBhyt;
 
   PatientModel({
     required this.uid,
-    this.maBenhNhan,
     this.hoTen,
     this.email,
     this.soDienThoai,
@@ -29,12 +29,13 @@ class PatientModel {
     DateTime? ngayTao,
     this.role = 'benh_nhan',
     this.daXacThucEmail = false,
+    this.cccd,
+    this.soBhyt,
   }) : ngayTao = ngayTao ?? DateTime.now();
 
   Map<String, dynamic> toMap() {
     return {
       'uid': uid,
-      'ma_benh_nhan': maBenhNhan,
       'ho_ten': hoTen,
       'email': email,
       'so_dien_thoai': soDienThoai,
@@ -46,13 +47,14 @@ class PatientModel {
       'ngay_tao': ngayTao?.toIso8601String(),
       'role': role,
       'da_xac_thuc_email': daXacThucEmail,
+      'cccd': cccd,
+      'so_bhyt': soBhyt,
     };
   }
 
   factory PatientModel.fromMap(Map<String, dynamic> map) {
     return PatientModel(
       uid: map['uid'] ?? '',
-      maBenhNhan: map['ma_benh_nhan'],
       hoTen: map['ho_ten'],
       email: map['email'],
       soDienThoai: map['so_dien_thoai'],
@@ -68,12 +70,13 @@ class PatientModel {
       ngayTao: map['ngay_tao'] != null ? DateTime.parse(map['ngay_tao']) : null,
       role: map['role'] ?? 'benh_nhan',
       daXacThucEmail: map['da_xac_thuc_email'] ?? false,
+      cccd: map['cccd'],
+      soBhyt: map['so_bhyt'],
     );
   }
 
   PatientModel copyWith({
     String? uid,
-    String? maBenhNhan,
     String? hoTen,
     String? email,
     String? soDienThoai,
@@ -85,10 +88,11 @@ class PatientModel {
     DateTime? ngayTao,
     String? role,
     bool? daXacThucEmail,
+    String? cccd,
+    String? soBhyt,
   }) {
     return PatientModel(
       uid: uid ?? this.uid,
-      maBenhNhan: maBenhNhan ?? this.maBenhNhan,
       hoTen: hoTen ?? this.hoTen,
       email: email ?? this.email,
       soDienThoai: soDienThoai ?? this.soDienThoai,
@@ -100,6 +104,8 @@ class PatientModel {
       ngayTao: ngayTao ?? this.ngayTao,
       role: role ?? this.role,
       daXacThucEmail: daXacThucEmail ?? this.daXacThucEmail,
+      cccd: cccd ?? this.cccd,
+      soBhyt: soBhyt ?? this.soBhyt,
     );
   }
 

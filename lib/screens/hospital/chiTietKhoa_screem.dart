@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -6,21 +8,87 @@ import '../../config/app_session.dart';
 import '../../services/khoa_service.dart';
 import 'addKhoaHospital_Screen.dart';
 
-// Trạng thái phòng khám: mã lưu trong Firestore -> (nhãn, màu nền, màu chữ)
-const Map<String, String> _dsTrangThai = {
-  'san_sang': 'Sẵn sàng',
-  'dang_kham': 'Đang khám',
-  'tam_dong': 'Tạm đóng',
-};
+/// Model trạng thái phòng khám đồng bộ 100% với collection `TrangThai` trên Firebase Firestore:
+/// - 11: Sẵn sàng (Phòng khám sẵn sàng tiếp nhận khám)
+/// - 12: Tạm dừng (Phòng đang trong trạng thái tạm dừng khám)
+/// - 13: Đang khám (Phòng khám đang trong trạng thái khám)
+/// - 14: Đóng (Phòng khám đang đóng cửa)
+class TrangThaiPhongModel {
+  final int id;
+  final String ma;
+  final String tenTrangThai;
+  final String moTa;
+  final Color mauNen;
+  final Color mauChu;
 
-(String, Color, Color) _trangThaiPhong(String? ma) {
-  switch (ma) {
-    case 'dang_kham':
-      return ('Đang khám', const Color(0xFFE9F2FF), const Color(0xFF1D78D8));
-    case 'tam_dong':
-      return ('Tạm đóng', const Color(0xFFFEE2E2), const Color(0xFFDC2626));
-    default: // san_sang, hoặc phòng cũ chưa có field trangThai
-      return ('Sẵn sàng', const Color(0xFFE8F9F2), const Color(0xFF16A34A));
+  const TrangThaiPhongModel({
+    required this.id,
+    required this.ma,
+    required this.tenTrangThai,
+    required this.moTa,
+    required this.mauNen,
+    required this.mauChu,
+  });
+
+  Map<String, dynamic> toFirestoreData() => {
+    'trang_thai': ma,
+    'trang_thai_id': id,
+  };
+}
+
+class DanhSachTrangThaiPhong {
+  static const dangKham = TrangThaiPhongModel(
+    id: 13,
+    ma: 'dang_kham',
+    tenTrangThai: 'Đang khám',
+    moTa: 'Phòng khám đang trong trạng thái khám',
+    mauNen: Color(0xFFE9F2FF),
+    mauChu: Color(0xFF1D78D8),
+  );
+
+  static const tamDung = TrangThaiPhongModel(
+    id: 12,
+    ma: 'tam_dung',
+    tenTrangThai: 'Tạm dừng',
+    moTa: 'Phòng đang trong trạng thái tạm dừng khám',
+    mauNen: Color(0xFFFEF3C7),
+    mauChu: Color(0xFFD97706),
+  );
+
+  static const dong = TrangThaiPhongModel(
+    id: 14,
+    ma: 'dong',
+    tenTrangThai: 'Đóng',
+    moTa: 'Phòng khám đang đóng cửa',
+    mauNen: Color(0xFFFEE2E2),
+    mauChu: Color(0xFFDC2626),
+  );
+
+  static const List<TrangThaiPhongModel> danhSach = [
+    dangKham,
+    tamDung,
+    dong,
+  ];
+
+  static TrangThaiPhongModel parse(dynamic rawValue) {
+    if (rawValue == null) return dangKham;
+    if (rawValue is int) {
+      if (rawValue == 12) return tamDung;
+      if (rawValue == 13) return dangKham;
+      if (rawValue == 14) return dong;
+      return dangKham;
+    }
+    final s = rawValue.toString().trim().toLowerCase();
+    if (s == '12' || s == 'tam_dung' || s == 'tam_dong' || s.contains('tạm')) {
+      return tamDung;
+    }
+    if (s == '14' || s == 'dong' || s == 'dong_cua' || s.contains('đóng')) {
+      return dong;
+    }
+    if (s == '13' || s == 'dang_kham' || s.contains('đang khám')) {
+      return dangKham;
+    }
+    return dangKham;
   }
 }
 
@@ -31,9 +99,10 @@ String _gioText(dynamic kg) {
 }
 
 String _getHospitalId() {
-  final uid = FirebaseAuth.instance.currentUser?.uid;
-  if (uid != null && uid.isNotEmpty) return uid;
-  return AppSession.benhVienId;
+  if (AppSession.benhVienId.isNotEmpty) {
+    return AppSession.benhVienId;
+  }
+  return FirebaseAuth.instance.currentUser?.uid ?? '';
 }
 
 class ChiTietKhoaScreen extends StatefulWidget {
@@ -50,7 +119,9 @@ class ChiTietKhoaScreen extends StatefulWidget {
 }
 
 class _ChiTietKhoaScreenState extends State<ChiTietKhoaScreen> {
-  String get _bvid => _getHospitalId();
+  String _bvid = _getHospitalId();
+  Map<String, Map<String, dynamic>> _rootPhongData = {};
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _rootPkSub;
 
   DocumentReference<Map<String, dynamic>> get _khoaDocRef => FirebaseFirestore
       .instance
@@ -61,6 +132,117 @@ class _ChiTietKhoaScreenState extends State<ChiTietKhoaScreen> {
 
   CollectionReference<Map<String, dynamic>> get _phongRef =>
       _khoaDocRef.collection('phongKham');
+
+  @override
+  void initState() {
+    super.initState();
+    _bvid = _getHospitalId();
+    _khoiTao();
+  }
+
+  @override
+  void dispose() {
+    _rootPkSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _khoiTao() async {
+    if (!_bvid.startsWith('BV')) {
+      final chuan = await KhoaService().chuanHoaBenhVienId(_bvid);
+      if (chuan.isNotEmpty && chuan != _bvid && mounted) {
+        setState(() {
+          _bvid = chuan;
+        });
+        AppSession.benhVienId = chuan;
+      }
+    }
+    _batDauLangNgheRootPhongKham();
+  }
+
+  void _batDauLangNgheRootPhongKham() {
+    _rootPkSub?.cancel();
+    if (_bvid.isEmpty) return;
+
+    final prefix = '${_bvid}_${widget.khoaId}_';
+    _rootPkSub = FirebaseFirestore.instance
+        .collection('PhongKham')
+        .where(FieldPath.documentId, isGreaterThanOrEqualTo: prefix)
+        .where(FieldPath.documentId, isLessThan: '$prefix\uf8ff')
+        .snapshots()
+        .listen((snap) async {
+          final updateMap = <String, Map<String, dynamic>>{};
+          for (final doc in snap.docs) {
+            final data = doc.data();
+            final ten = (data['tenPhong'] ?? data['ten_phong'] ?? '')
+                .toString();
+            if (ten.isNotEmpty) {
+              updateMap[ten] = data;
+            }
+
+            final rawId = data['trang_thai_id'];
+            final rawMa = data['trang_thai'];
+            final tt = DanhSachTrangThaiPhong.parse(rawId ?? rawMa);
+
+            // 1. Tự động đồng bộ trên Firebase Console nếu trường trang_thai và trang_thai_id chưa khớp
+            final bool canCapNhatMa = data['trang_thai'] != tt.ma;
+            final bool canCapNhatId = data['trang_thai_id'] != tt.id;
+
+            if (canCapNhatMa || canCapNhatId) {
+              await doc.reference
+                  .update({'trang_thai': tt.ma, 'trang_thai_id': tt.id})
+                  .catchError((_) {});
+            }
+
+            // 2. Đồng bộ tức thời sang subcollection Khoa/.../phongKham
+            if (ten.isNotEmpty) {
+              final subRef = _phongRef.doc(ten);
+              subRef
+                  .set({
+                    'trang_thai': tt.ma,
+                    'trang_thai_id': tt.id,
+                  }, SetOptions(merge: true))
+                  .catchError((_) {});
+            }
+          }
+
+          if (mounted) {
+            setState(() {
+              _rootPhongData = {..._rootPhongData, ...updateMap};
+            });
+            _dongBoTrangThaiKhoa();
+          }
+        });
+  }
+
+  Future<void> _dongBoTrangThaiKhoa() async {
+    try {
+      final snap = await _phongRef.get();
+      if (snap.docs.isEmpty) return;
+
+      final statuses = snap.docs.map((d) {
+        final p = d.data();
+        final ten = (p['tenPhong'] ?? p['ten_phong'] ?? d.id).toString();
+        final rootP = _rootPhongData[ten] ?? {};
+        final rawId = rootP['trang_thai_id'] ?? p['trang_thai_id'];
+        final rawMa = rootP['trang_thai'] ?? p['trang_thai'];
+        return DanhSachTrangThaiPhong.parse(rawId ?? rawMa);
+      }).toList();
+
+      String maKhoa = 'dang_mo';
+      if (statuses.any((s) => s.id == 13 || s.ma == 'dang_kham')) {
+        maKhoa = 'dang_mo';
+      } else if (statuses.any((s) => s.id == 12 || s.ma == 'tam_dung')) {
+        maKhoa = 'tam_dung';
+      } else if (statuses.every((s) => s.id == 14 || s.ma == 'dong')) {
+        maKhoa = 'dong_cua';
+      }
+
+      await _khoaDocRef.set({
+        'trangThai': maKhoa,
+        'trang_thai': maKhoa,
+      }, SetOptions(merge: true));
+    } catch (_) {}
+  }
 
   Future<void> _xacNhanXoaKhoa(String tenKhoa) async {
     final confirm = await showDialog<bool>(
@@ -78,7 +260,10 @@ class _ChiTietKhoaScreenState extends State<ChiTietKhoaScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dCtx, false),
-            child: const Text('Hủy', style: TextStyle(color: Color(0xFF64748B))),
+            child: const Text(
+              'Hủy',
+              style: TextStyle(color: Color(0xFF64748B)),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dCtx, true),
@@ -89,8 +274,10 @@ class _ChiTietKhoaScreenState extends State<ChiTietKhoaScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child:
-                const Text('Xóa Khoa', style: TextStyle(fontWeight: FontWeight.w700)),
+            child: const Text(
+              'Xóa Khoa',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
@@ -99,10 +286,7 @@ class _ChiTietKhoaScreenState extends State<ChiTietKhoaScreen> {
     if (confirm != true || !mounted) return;
 
     try {
-      await KhoaService().xoaKhoa(
-        benhVienId: _bvid,
-        khoaId: widget.khoaId,
-      );
+      await KhoaService().xoaKhoa(benhVienId: _bvid, khoaId: widget.khoaId);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -182,7 +366,7 @@ class _ChiTietKhoaScreenState extends State<ChiTietKhoaScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            (data['tenKhoa'] ?? '').toString(),
+            (data['tenKhoa'] ?? data['ten_khoa'] ?? '').toString(),
             style: const TextStyle(
               fontSize: 19,
               fontWeight: FontWeight.w800,
@@ -235,11 +419,17 @@ class _ChiTietKhoaScreenState extends State<ChiTietKhoaScreen> {
     QueryDocumentSnapshot<Map<String, dynamic>> d,
   ) {
     final p = d.data();
-    final (nhan, nen, chu) = _trangThaiPhong(p['trangThai'] as String?);
-    final ten = (p['tenPhong'] ?? '').toString();
+    final ten = (p['tenPhong'] ?? p['ten_phong'] ?? p['id'] ?? d.id).toString();
+    final rootP = _rootPhongData[ten] ?? {};
+    final rawId = rootP['trang_thai_id'] ?? p['trang_thai_id'];
+    final rawMa = rootP['trang_thai'] ?? p['trang_thai'];
+    final tt = DanhSachTrangThaiPhong.parse(rawId ?? rawMa);
     final gio = (p['gioMoCua'] != null && p['gioDongCua'] != null)
         ? '${p['gioMoCua']} - ${p['gioDongCua']}'
+        : (p['gio_mo_cua'] != null && p['gio_dong_cua'] != null)
+        ? '${p['gio_mo_cua']} - ${p['gio_dong_cua']}'
         : '-';
+    final soBn = p['soBenhNhanToiDa'] ?? p['so_benh_nhan_toi_da'] ?? '-';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -265,7 +455,7 @@ class _ChiTietKhoaScreenState extends State<ChiTietKhoaScreen> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Giờ khám: $gio  •  Tối đa ${p['soBenhNhanToiDa'] ?? '-'} BN/ca',
+                  'Giờ khám: $gio  •  Tối đa $soBn BN/ca',
                   style: const TextStyle(
                     color: Color(0xFF6B7280),
                     fontSize: 12,
@@ -274,23 +464,115 @@ class _ChiTietKhoaScreenState extends State<ChiTietKhoaScreen> {
               ],
             ),
           ),
-          PopupMenuButton<String>(
-            tooltip: 'Đổi trạng thái',
-            onSelected: (ma) async {
+          PopupMenuButton<TrangThaiPhongModel>(
+            tooltip: 'Đổi trạng thái phòng khám',
+            onSelected: (ttMoi) async {
               try {
-                await d.reference.update({'trangThai': ma});
+                // CHỈ thay đổi 2 trường: trang_thai và trang_thai_id
+                final updateData = <String, dynamic>{
+                  'trang_thai': ttMoi.ma,
+                  'trang_thai_id': ttMoi.id,
+                };
+
+                final pkDocId = (p['id'] ?? '${_bvid}_${widget.khoaId}_$ten')
+                    .toString();
+
+                final batch = FirebaseFirestore.instance.batch();
+
+                // 1. Cập nhật subcollection Khoa/.../phongKham
+                batch.set(d.reference, updateData, SetOptions(merge: true));
+
+                // 2. Cập nhật root collection PhongKham/{pkDocId} (hình 5 Firestore)
+                final rootRef = FirebaseFirestore.instance
+                    .collection('PhongKham')
+                    .doc(pkDocId);
+                batch.set(rootRef, updateData, SetOptions(merge: true));
+
+                // 3. Cập nhật nested subcollection PhongKham/{bvId}/danh_sach/{khoaId}/danh_sach/{pkDocId}
+                final treeRef = FirebaseFirestore.instance
+                    .collection('PhongKham')
+                    .doc(_bvid)
+                    .collection('danh_sach')
+                    .doc(widget.khoaId)
+                    .collection('danh_sach')
+                    .doc(pkDocId);
+                batch.set(treeRef, updateData, SetOptions(merge: true));
+
+                await batch.commit();
+
+                if (mounted) {
+                  setState(() {
+                    _rootPhongData[ten] = {
+                      ...?_rootPhongData[ten],
+                      'trang_thai': ttMoi.ma,
+                      'trang_thai_id': ttMoi.id,
+                    };
+                  });
+                  _dongBoTrangThaiKhoa();
+                }
+
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Đã cập nhật $ten sang "${ttMoi.tenTrangThai}"',
+                          ),
+                        ),
+                      ],
+                    ),
+                    backgroundColor: const Color(0xFF16A34A),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
               } catch (e) {
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Không đổi được trạng thái: $e')),
+                  SnackBar(
+                    content: Text('Lỗi khi đổi trạng thái: $e'),
+                    backgroundColor: const Color(0xFFDC2626),
+                  ),
                 );
               }
             },
             itemBuilder: (_) => [
-              for (final e in _dsTrangThai.entries)
-                PopupMenuItem(value: e.key, child: Text(e.value)),
+              for (final item in DanhSachTrangThaiPhong.danhSach)
+                PopupMenuItem<TrangThaiPhongModel>(
+                  value: item,
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: item.mauChu,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        item.tenTrangThai,
+                        style: TextStyle(
+                          fontWeight: item.id == tt.id
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: const Color(0xFF1F2937),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                  ),
+                ),
             ],
-            child: _chip(nhan, nen, chu, mui: true),
+            child: _chip(tt.tenTrangThai, tt.mauNen, tt.mauChu, mui: true),
           ),
         ],
       ),
@@ -334,8 +616,10 @@ class _ChiTietKhoaScreenState extends State<ChiTietKhoaScreen> {
               ),
               IconButton(
                 tooltip: 'Xóa khoa',
-                icon: const Icon(Icons.delete_outline_rounded,
-                    color: Color(0xFFDC2626)),
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Color(0xFFDC2626),
+                ),
                 onPressed: () => _xacNhanXoaKhoa(tenKhoa),
               ),
             ],
@@ -356,27 +640,38 @@ class _ChiTietKhoaScreenState extends State<ChiTietKhoaScreen> {
                     (b.data()['tenPhong'] ?? '').toString(),
                   ),
                 );
-              final dau =
-                  phong.isEmpty ? <String, dynamic>{} : phong.first.data();
+              final dau = phong.isEmpty
+                  ? <String, dynamic>{}
+                  : phong.first.data();
 
               // Khoa tạo từ bản cũ chưa có khungGio/gioiHan -> lấy từ phòng đầu tiên
               final khungGio = currentData['khungGio'] ?? dau['khungGio'];
               final gioiHan =
                   currentData['gioiHanBenhNhan'] ?? dau['soBenhNhanToiDa'];
 
-              // Đếm số phòng theo từng trạng thái
-              final dem = {for (final k in _dsTrangThai.keys) k: 0};
+              // Đếm số phòng theo từng trạng thái chuẩn Firestore TrangThai (11, 13, 12, 14)
+              final dem = {
+                for (final item in DanhSachTrangThaiPhong.danhSach) item.id: 0,
+              };
               for (final d in phong) {
-                final ma = d.data()['trangThai'] as String?;
-                final k = dem.containsKey(ma) ? ma! : 'san_sang';
-                dem[k] = dem[k]! + 1;
+                final pData = d.data();
+                final ten = (pData['tenPhong'] ?? pData['ten_phong'] ?? d.id)
+                    .toString();
+                final rootP = _rootPhongData[ten] ?? {};
+                final rawId = rootP['trang_thai_id'] ?? pData['trang_thai_id'];
+                final rawMa = rootP['trang_thai'] ?? pData['trang_thai'];
+                final tt = DanhSachTrangThaiPhong.parse(rawId ?? rawMa);
+                dem[tt.id] = (dem[tt.id] ?? 0) + 1;
               }
 
               return ListView(
                 padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
                 children: [
-                  _thongTinCard(currentData,
-                      khungGio: khungGio, gioiHan: gioiHan),
+                  _thongTinCard(
+                    currentData,
+                    khungGio: khungGio,
+                    gioiHan: gioiHan,
+                  ),
                   const SizedBox(height: 22),
                   Row(
                     children: [
@@ -395,11 +690,12 @@ class _ChiTietKhoaScreenState extends State<ChiTietKhoaScreen> {
                     spacing: 8,
                     runSpacing: 6,
                     children: [
-                      for (final e in dem.entries)
-                        () {
-                          final (nhan, nen, chu) = _trangThaiPhong(e.key);
-                          return _chip('$nhan: ${e.value}', nen, chu);
-                        }(),
+                      for (final item in DanhSachTrangThaiPhong.danhSach)
+                        _chip(
+                          '${item.tenTrangThai}: ${dem[item.id] ?? 0}',
+                          item.mauNen,
+                          item.mauChu,
+                        ),
                     ],
                   ),
                   const SizedBox(height: 14),
