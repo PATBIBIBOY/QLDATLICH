@@ -10,20 +10,30 @@ import '../../../services/geocoding_service.dart';
 /// Màn hình Bản đồ toàn diện chọn vị trí cơ sở y tế
 class DialogChonDiaChiMap extends StatefulWidget {
   final String initialAddress;
+  final double? initialLat;
+  final double? initialLon;
 
   const DialogChonDiaChiMap({
     super.key,
     required this.initialAddress,
+    this.initialLat,
+    this.initialLon,
   });
 
   /// Mở màn hình bản đồ toàn diện (Fullscreen) mượt mà trên cả Mobile & Web
   static Future<DiaChiMapItem?> show(
     BuildContext context, {
     String initialAddress = '',
+    double? initialLat,
+    double? initialLon,
   }) {
     return Navigator.of(context).push<DiaChiMapItem>(
       MaterialPageRoute(
-        builder: (ctx) => DialogChonDiaChiMap(initialAddress: initialAddress),
+        builder: (ctx) => DialogChonDiaChiMap(
+          initialAddress: initialAddress,
+          initialLat: initialLat,
+          initialLon: initialLon,
+        ),
       ),
     );
   }
@@ -33,11 +43,10 @@ class DialogChonDiaChiMap extends StatefulWidget {
 }
 
 class _DialogChonDiaChiMapState extends State<DialogChonDiaChiMap> {
-  MapController? _mapController;
   late final TextEditingController _inputDiaChiCtrl;
 
-  // Tọa độ ghim trên bản đồ (Mặc định: 11 Linh Trung, Thủ Đức, TP.HCM)
-  LatLng _viTriGhim = const LatLng(10.86012, 106.77234);
+  // Tọa độ ghim trên bản đồ (Mặc định: 11 Linh Trung, Thủ Đức, TP.HCM hoặc vị trí truyền vào)
+  late LatLng _viTriGhim;
   double _currentZoom = 16.0;
 
   String _diaChiHienThi =
@@ -100,28 +109,36 @@ class _DialogChonDiaChiMapState extends State<DialogChonDiaChiMap> {
   @override
   void initState() {
     super.initState();
-    _mapController = MapController();
     final init = widget.initialAddress.trim();
     _inputDiaChiCtrl = TextEditingController(text: init);
+
+    // Ưu tiên tọa độ được truyền vào từ màn hình trước
+    if (widget.initialLat != null && widget.initialLon != null) {
+      _viTriGhim = LatLng(widget.initialLat!, widget.initialLon!);
+    } else {
+      _viTriGhim = const LatLng(10.86012, 106.77234);
+    }
 
     if (init.isNotEmpty) {
       _diaChiHienThi = init;
       _tenNgan = init.contains(',') ? init.split(',').first.trim() : init;
     }
 
-    // Tra cứu tọa độ địa chỉ ban đầu sau khi widget đã mount
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (init.isNotEmpty && mounted) {
-        _traCuuDiaChiKhoiDau(init);
-      }
-    });
+    // Nếu có địa chỉ dạng chữ nhưng chưa có tọa độ truyền vào, tự động phân giải tọa độ
+    if ((widget.initialLat == null || widget.initialLon == null) &&
+        init.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _traCuuDiaChiKhoiDau(init);
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
     _debounceTimer?.cancel();
     _inputDiaChiCtrl.dispose();
-    _mapController?.dispose();
     super.dispose();
   }
 
@@ -243,7 +260,8 @@ class _DialogChonDiaChiMapState extends State<DialogChonDiaChiMap> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Chạm bản đồ hoặc nhập địa chỉ để chọn vị trí cơ sở y tế.'),
+              content:
+                  Text('Chạm bản đồ hoặc nhập địa chỉ để chọn vị trí cơ sở y tế.'),
               duration: Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
             ),
@@ -349,7 +367,8 @@ class _DialogChonDiaChiMapState extends State<DialogChonDiaChiMap> {
   void _thongBaoBiTuChoiQuyen() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Quyền định vị bị từ chối. Bạn có thể tự ghim trên bản đồ.'),
+        content: const Text(
+            'Quyền định vị bị từ chối. Bạn có thể tự ghim trên bản đồ.'),
         backgroundColor: const Color(0xFFD97706),
         duration: const Duration(seconds: 3),
         behavior: SnackBarBehavior.floating,
@@ -398,30 +417,40 @@ class _DialogChonDiaChiMapState extends State<DialogChonDiaChiMap> {
     }
   }
 
+  /// Khi người dùng gõ vào ô tìm kiếm: tự động tìm và load map theo thời gian thực
+  void _onSearchInputChanged(String val) {
+    _debounceTimer?.cancel();
+    final q = val.trim();
+    if (q.length < 3) return;
+
+    _debounceTimer = Timer(const Duration(milliseconds: 600), () {
+      _apDungDiaChiNhap(q);
+    });
+  }
+
   Future<void> _apDungDiaChiNhap(String query) async {
     final q = query.trim();
     if (q.isEmpty) return;
-
-    FocusScope.of(context).unfocus();
 
     if (!mounted) return;
     setState(() => _isGeocoding = true);
     try {
       final results = await GeocodingService.timKiemDiaChi(q);
       if (!mounted) return;
-      setState(() => _isGeocoding = false);
 
       if (results.isNotEmpty) {
         final first = results.first;
         final target = LatLng(first.viDo, first.kinhDo);
 
         setState(() {
+          _isGeocoding = false;
           _viTriGhim = target;
           _diaChiHienThi = first.diaChiDayDu;
           _tenNgan = first.tenNgan;
         });
       } else {
         setState(() {
+          _isGeocoding = false;
           _diaChiHienThi = q;
           _tenNgan = q.contains(',') ? q.split(',').first.trim() : q;
         });
@@ -445,6 +474,9 @@ class _DialogChonDiaChiMapState extends State<DialogChonDiaChiMap> {
 
   @override
   Widget build(BuildContext context) {
+    final lat = _viTriGhim.latitude;
+    final lon = _viTriGhim.longitude;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -503,604 +535,547 @@ class _DialogChonDiaChiMapState extends State<DialogChonDiaChiMap> {
           const SizedBox(width: 4),
         ],
       ),
-      body: SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            // 1. THANH NHẬP ĐỊA CHỈ & TÌM KIẾM CỐ ĐỊNH Ở ĐẦU
-            Container(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(
-                  bottom: BorderSide(color: Color(0xFFE2E8F0)),
-                ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Ô nhập địa chỉ tìm kiếm
-                  Container(
+      body: _xemCheDoDanhSach
+          ? ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              itemCount: _goiYList.length,
+              separatorBuilder: (_, _) =>
+                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              itemBuilder: (context, idx) {
+                final item = _goiYList[idx];
+                final point =
+                    LatLng(item['lat'] as double, item['lon'] as double);
+                final isSelected = (_viTriGhim.latitude == point.latitude &&
+                    _viTriGhim.longitude == point.longitude);
+
+                return ListTile(
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFCBD5E1)),
+                      color: isSelected
+                          ? const Color(0xFFE0F2FE)
+                          : const Color(0xFFF1F5F9),
+                      shape: BoxShape.circle,
                     ),
-                    child: Row(
-                      children: [
-                        const SizedBox(width: 10),
-                        const Icon(
-                          Icons.search_rounded,
+                    child: Icon(
+                      Icons.location_on_rounded,
+                      size: 20,
+                      color: isSelected
+                          ? const Color(0xFF0284C7)
+                          : const Color(0xFF64748B),
+                    ),
+                  ),
+                  title: Text(
+                    item['ten'].toString(),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight:
+                          isSelected ? FontWeight.w700 : FontWeight.w600,
+                      color: isSelected
+                          ? const Color(0xFF0284C7)
+                          : const Color(0xFF0F172A),
+                    ),
+                  ),
+                  subtitle: Text(
+                    item['diaChi'].toString(),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                  trailing: isSelected
+                      ? const Icon(
+                          Icons.check_circle_rounded,
                           color: Color(0xFF0284C7),
                           size: 22,
+                        )
+                      : null,
+                  onTap: () {
+                    setState(() {
+                      _xemCheDoDanhSach = false;
+                    });
+                    _inputDiaChiCtrl.text = item['diaChi'].toString();
+                    _onMapTapped(point);
+                  },
+                );
+              },
+            )
+          : Stack(
+              children: [
+                // 1. BẢN ĐỒ CHIẾM TOÀN BỘ MÀN HÌNH (DÙNG ĐÚNG CẤU HÌNH NHƯ BẢN ĐỒ MINI)
+                Positioned.fill(
+                  child: Container(
+                    color: const Color(0xFFE2E8F0),
+                    child: FlutterMap(
+                      key: ValueKey('full_map_${lat}_${lon}_$_currentZoom'),
+                      options: MapOptions(
+                        initialCenter: _viTriGhim,
+                        initialZoom: _currentZoom,
+                        minZoom: 4,
+                        maxZoom: 19,
+                        interactionOptions: const InteractionOptions(
+                          flags:
+                              InteractiveFlag.all & ~InteractiveFlag.rotate,
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: _inputDiaChiCtrl,
-                            style: const TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF0F172A),
-                            ),
-                            decoration: const InputDecoration(
-                              hintText:
-                                  'Nhập số nhà, tên đường, khu vực cần tìm...',
-                              hintStyle: TextStyle(
-                                fontSize: 12.5,
-                                color: Color(0xFF94A3B8),
-                                fontWeight: FontWeight.w400,
-                              ),
-                              border: InputBorder.none,
-                              isDense: true,
-                              contentPadding:
-                                  EdgeInsets.symmetric(vertical: 10),
-                            ),
-                            onSubmitted: _apDungDiaChiNhap,
-                          ),
+                        onTap: (tapPosition, point) => _onMapTapped(point),
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate:
+                              'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+                          fallbackUrl:
+                              'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+                          maxZoom: 19,
                         ),
-                        if (_inputDiaChiCtrl.text.isNotEmpty)
-                          IconButton(
-                            icon: const Icon(Icons.clear_rounded,
-                                size: 18, color: Color(0xFF94A3B8)),
-                            onPressed: () {
-                              _inputDiaChiCtrl.clear();
-                              setState(() {});
-                            },
-                          ),
-                        Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: ElevatedButton(
-                            onPressed: _isGeocoding
-                                ? null
-                                : () =>
-                                    _apDungDiaChiNhap(_inputDiaChiCtrl.text),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0284C7),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 9,
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: _viTriGhim,
+                              width: 50,
+                              height: 50,
+                              alignment: Alignment.topCenter,
+                              child: const Icon(
+                                Icons.location_on_rounded,
+                                size: 46,
+                                color: Color(0xFFEF4444),
                               ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(9),
-                              ),
-                              elevation: 0,
                             ),
-                            child: _isGeocoding
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // 2. KHUNG TÌM KIẾM NỔI Ở ĐẦU TRANG (CÓ CHIP GỢI Ý & TỰ ĐỘNG LOAD MAP KHI NHẬP)
+                Positioned(
+                  top: 10,
+                  left: 12,
+                  right: 12,
+                  child: Material(
+                    color: Colors.white,
+                    elevation: 4,
+                    shadowColor: Colors.black26,
+                    borderRadius: BorderRadius.circular(14),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Ô nhập địa chỉ tìm kiếm
+                          Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(10),
+                              border:
+                                  Border.all(color: const Color(0xFFCBD5E1)),
+                            ),
+                            child: Row(
+                              children: [
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.search_rounded,
+                                  color: Color(0xFF0284C7),
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _inputDiaChiCtrl,
+                                    onChanged: _onSearchInputChanged,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF0F172A),
+                                    ),
+                                    decoration: const InputDecoration(
+                                      hintText:
+                                          'Nhập địa chỉ, tên đường (tự động load map)...',
+                                      hintStyle: TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF94A3B8),
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                      border: InputBorder.none,
+                                      isDense: true,
+                                      contentPadding:
+                                          EdgeInsets.symmetric(vertical: 8),
+                                    ),
+                                    onSubmitted: _apDungDiaChiNhap,
+                                  ),
+                                ),
+                                if (_isGeocoding)
+                                  const Padding(
+                                    padding: EdgeInsets.only(right: 8),
+                                    child: SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Color(0xFF0284C7),
+                                      ),
+                                    ),
+                                  ),
+                                if (!_isGeocoding &&
+                                    _inputDiaChiCtrl.text.isNotEmpty)
+                                  IconButton(
+                                    icon: const Icon(Icons.clear_rounded,
+                                        size: 18, color: Color(0xFF94A3B8)),
+                                    onPressed: () {
+                                      _inputDiaChiCtrl.clear();
+                                      setState(() {});
+                                    },
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+
+                          // Dải chip gợi ý nhanh có thể cuộn ngang
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                // Chip Định vị vị trí
+                                InkWell(
+                                  onTap: _isLocating
+                                      ? null
+                                      : () => _kichHoatDinhViGPS(
+                                          showDialogHoi: true),
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 9,
+                                      vertical: 5,
+                                    ),
+                                    margin: const EdgeInsets.only(right: 6),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFE0F2FE),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                          color: const Color(0xFFBAE6FD)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _isLocating
+                                            ? const SizedBox(
+                                                width: 12,
+                                                height: 12,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  color: Color(0xFF0284C7),
+                                                ),
+                                              )
+                                            : const Icon(
+                                                Icons.my_location_rounded,
+                                                size: 13,
+                                                color: Color(0xFF0284C7),
+                                              ),
+                                        const SizedBox(width: 4),
+                                        const Text(
+                                          'Định vị của tôi',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF0284C7),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                // Các gợi ý bệnh viện / khu vực phổ biến
+                                ..._goiYList.map((item) {
+                                  return InkWell(
+                                    onTap: () {
+                                      final point = LatLng(
+                                        item['lat'] as double,
+                                        item['lon'] as double,
+                                      );
+                                      _inputDiaChiCtrl.text =
+                                          item['diaChi'].toString();
+                                      _onMapTapped(point);
+                                    },
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 5,
+                                      ),
+                                      margin: const EdgeInsets.only(right: 6),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF8FAFC),
+                                        borderRadius:
+                                            BorderRadius.circular(14),
+                                        border: Border.all(
+                                            color: const Color(0xFFCBD5E1)),
+                                      ),
+                                      child: Text(
+                                        item['ten'].toString(),
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF334155),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 3. NÚT ĐIỀU KHIỂN BẢN ĐỒ BÊN PHẢI (GPS + ZOOM)
+                Positioned(
+                  right: 14,
+                  bottom: 155,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Nút GPS vị trí của tôi
+                      Material(
+                        color: const Color(0xFF0284C7),
+                        shape: const CircleBorder(),
+                        elevation: 3,
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: () =>
+                              _kichHoatDinhViGPS(showDialogHoi: true),
+                          child: Padding(
+                            padding: const EdgeInsets.all(9),
+                            child: _isLocating
                                 ? const SizedBox(
-                                    width: 14,
-                                    height: 14,
+                                    width: 18,
+                                    height: 18,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
                                       color: Colors.white,
                                     ),
                                   )
-                                : const Text(
-                                    'Tìm',
-                                    style: TextStyle(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                : const Icon(
+                                    Icons.my_location_rounded,
+                                    size: 20,
+                                    color: Colors.white,
                                   ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Danh sách chip gợi ý ngang cuộn nhanh
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        // Chip Định vị vị trí (Có hỏi xác nhận)
-                        InkWell(
-                          onTap: _isLocating
-                              ? null
-                              : () => _kichHoatDinhViGPS(showDialogHoi: true),
-                          borderRadius: BorderRadius.circular(16),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            margin: const EdgeInsets.only(right: 6),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE0F2FE),
-                              borderRadius: BorderRadius.circular(16),
-                              border:
-                                  Border.all(color: const Color(0xFFBAE6FD)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _isLocating
-                                    ? const SizedBox(
-                                        width: 12,
-                                        height: 12,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Color(0xFF0284C7),
-                                        ),
-                                      )
-                                    : const Icon(
-                                        Icons.my_location_rounded,
-                                        size: 13,
-                                        color: Color(0xFF0284C7),
-                                      ),
-                                const SizedBox(width: 4),
-                                const Text(
-                                  'Định vị của tôi',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF0284C7),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        // Các gợi ý bệnh viện / khu vực phổ biến
-                        ..._goiYList.map((item) {
-                          return InkWell(
-                            onTap: () {
-                              final point = LatLng(
-                                item['lat'] as double,
-                                item['lon'] as double,
-                              );
-                              _inputDiaChiCtrl.text = item['diaChi'].toString();
-                              _onMapTapped(point);
-                            },
-                            borderRadius: BorderRadius.circular(16),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              margin: const EdgeInsets.only(right: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border:
-                                    Border.all(color: const Color(0xFFCBD5E1)),
-                              ),
-                              child: Text(
-                                item['ten'].toString(),
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF334155),
-                                ),
-                              ),
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // 2. PHẦN BẢN ĐỒ CHIẾM TOÀN BỘ PHẦN Ở GIỮA
-            Expanded(
-              child: _xemCheDoDanhSach
-                  ? ListView.separated(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      itemCount: _goiYList.length,
-                      separatorBuilder: (_, _) =>
-                          const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                      itemBuilder: (context, idx) {
-                        final item = _goiYList[idx];
-                        final point = LatLng(
-                            item['lat'] as double, item['lon'] as double);
-                        final isSelected =
-                            (_viTriGhim.latitude == point.latitude &&
-                                _viTriGhim.longitude == point.longitude);
-
-                        return ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                              vertical: 4, horizontal: 8),
-                          leading: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? const Color(0xFFE0F2FE)
-                                  : const Color(0xFFF1F5F9),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.location_on_rounded,
-                              size: 20,
-                              color: isSelected
-                                  ? const Color(0xFF0284C7)
-                                  : const Color(0xFF64748B),
-                            ),
-                          ),
-                          title: Text(
-                            item['ten'].toString(),
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: isSelected
-                                  ? FontWeight.w700
-                                  : FontWeight.w600,
-                              color: isSelected
-                                  ? const Color(0xFF0284C7)
-                                  : const Color(0xFF0F172A),
-                            ),
-                          ),
-                          subtitle: Text(
-                            item['diaChi'].toString(),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF64748B),
-                            ),
-                          ),
-                          trailing: isSelected
-                              ? const Icon(
-                                  Icons.check_circle_rounded,
-                                  color: Color(0xFF0284C7),
-                                  size: 22,
-                                )
-                              : null,
+                      ),
+                      const SizedBox(height: 8),
+                      // Nút Zoom In (+)
+                      Material(
+                        color: Colors.white,
+                        shape: const CircleBorder(),
+                        elevation: 3,
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
                           onTap: () {
                             setState(() {
-                              _xemCheDoDanhSach = false;
+                              _currentZoom =
+                                  (_currentZoom + 1).clamp(4.0, 19.0);
                             });
-                            _inputDiaChiCtrl.text = item['diaChi'].toString();
-                            _onMapTapped(point);
                           },
-                        );
-                      },
-                    )
-                  : Container(
-                      color: const Color(0xFFE2E8F0),
-                      child: Stack(
+                          child: const Padding(
+                            padding: EdgeInsets.all(9),
+                            child: Icon(
+                              Icons.add,
+                              size: 20,
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      // Nút Zoom Out (-)
+                      Material(
+                        color: Colors.white,
+                        shape: const CircleBorder(),
+                        elevation: 3,
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: () {
+                            setState(() {
+                              _currentZoom =
+                                  (_currentZoom - 1).clamp(4.0, 19.0);
+                            });
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.all(9),
+                            child: Icon(
+                              Icons.remove,
+                              size: 20,
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 4. CHỈ DẪN CHẠM BẢN ĐỒ GÓC TRÁI DƯỚI
+                Positioned(
+                  left: 14,
+                  bottom: 155,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.touch_app_rounded,
+                            color: Colors.white, size: 14),
+                        SizedBox(width: 4),
+                        Text(
+                          'Chạm bản đồ để dời ghim',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // 5. KHUNG XEM VỊ TRÍ & NÚT XÁC NHẬN NỔI Ở ĐÁY MÀN HÌNH
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  bottom: 14,
+                  child: Material(
+                    color: Colors.white,
+                    elevation: 6,
+                    shadowColor: Colors.black38,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          FlutterMap(
-                            key: ValueKey(
-                              'map_full_${_viTriGhim.latitude}_${_viTriGhim.longitude}_$_currentZoom',
-                            ),
-                            mapController: _mapController,
-                            options: MapOptions(
-                              initialCenter: _viTriGhim,
-                              initialZoom: _currentZoom,
-                              minZoom: 4,
-                              maxZoom: 19,
-                              interactionOptions: const InteractionOptions(
-                                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-                              ),
-                              onTap: (tapPosition, point) =>
-                                  _onMapTapped(point),
-                            ),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              TileLayer(
-                                urlTemplate:
-                                    'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-                                fallbackUrl:
-                                    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-                                maxZoom: 19,
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFDCFCE7),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.location_on_rounded,
+                                  size: 20,
+                                  color: Color(0xFF16A34A),
+                                ),
                               ),
-                              MarkerLayer(
-                                markers: [
-                                  Marker(
-                                    point: _viTriGhim,
-                                    width: 140,
-                                    height: 70,
-                                    alignment: Alignment.topCenter,
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 3,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF0F172A),
-                                            borderRadius:
-                                                BorderRadius.circular(6),
-                                            boxShadow: const [
-                                              BoxShadow(
-                                                color: Colors.black26,
-                                                blurRadius: 4,
-                                                offset: Offset(0, 2),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _tenNgan,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    _isGeocoding
+                                        ? const Row(
+                                            children: [
+                                              SizedBox(
+                                                width: 12,
+                                                height: 12,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  strokeWidth: 1.5,
+                                                  color: Color(0xFF0284C7),
+                                                ),
+                                              ),
+                                              SizedBox(width: 6),
+                                              Text(
+                                                'Đang tìm vị trí...',
+                                                style: TextStyle(
+                                                  fontSize: 11.5,
+                                                  color: Color(0xFF64748B),
+                                                ),
                                               ),
                                             ],
-                                          ),
-                                          child: Text(
-                                            _tenNgan,
-                                            maxLines: 1,
+                                          )
+                                        : Text(
+                                            _diaChiHienThi,
+                                            maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 10.5,
-                                              fontWeight: FontWeight.w700,
+                                              fontSize: 12,
+                                              color: Color(0xFF475569),
+                                              height: 1.3,
                                             ),
                                           ),
-                                        ),
-                                        const Icon(
-                                          Icons.location_on_rounded,
-                                          size: 42,
-                                          color: Color(0xFFEF4444),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ],
                           ),
-
-                          // Nút Zoom (+ / -) và Nút Định vị GPS nhanh góc phải (dùng Material sạch sẽ)
-                          Positioned(
-                            right: 14,
-                            bottom: 16,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // Nút GPS vị trí của tôi
-                                Material(
-                                  color: const Color(0xFF0284C7),
-                                  shape: const CircleBorder(),
-                                  elevation: 3,
-                                  child: InkWell(
-                                    customBorder: const CircleBorder(),
-                                    onTap: () => _kichHoatDinhViGPS(showDialogHoi: true),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(10),
-                                      child: _isLocating
-                                          ? const SizedBox(
-                                              width: 18,
-                                              height: 18,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Colors.white,
-                                              ),
-                                            )
-                                          : const Icon(
-                                              Icons.my_location_rounded,
-                                              size: 20,
-                                              color: Colors.white,
-                                            ),
-                                    ),
-                                  ),
+                          const SizedBox(height: 10),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).pop(
+                                DiaChiMapItem(
+                                  diaChiDayDu: _diaChiHienThi,
+                                  tenNgan: _tenNgan,
+                                  viDo: _viTriGhim.latitude,
+                                  kinhDo: _viTriGhim.longitude,
                                 ),
-                                const SizedBox(height: 10),
-                                // Nút Zoom In (+)
-                                Material(
-                                  color: Colors.white,
-                                  shape: const CircleBorder(),
-                                  elevation: 3,
-                                  child: InkWell(
-                                    customBorder: const CircleBorder(),
-                                    onTap: () {
-                                      setState(() {
-                                        _currentZoom =
-                                            (_currentZoom + 1).clamp(4.0, 19.0);
-                                      });
-                                    },
-                                    child: const Padding(
-                                      padding: EdgeInsets.all(10),
-                                      child: Icon(
-                                        Icons.add,
-                                        size: 20,
-                                        color: Color(0xFF334155),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                // Nút Zoom Out (-)
-                                Material(
-                                  color: Colors.white,
-                                  shape: const CircleBorder(),
-                                  elevation: 3,
-                                  child: InkWell(
-                                    customBorder: const CircleBorder(),
-                                    onTap: () {
-                                      setState(() {
-                                        _currentZoom =
-                                            (_currentZoom - 1).clamp(4.0, 19.0);
-                                      });
-                                    },
-                                    child: const Padding(
-                                      padding: EdgeInsets.all(10),
-                                      child: Icon(
-                                        Icons.remove,
-                                        size: 20,
-                                        color: Color(0xFF334155),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                              );
+                            },
+                            icon:
+                                const Icon(Icons.check_circle_rounded, size: 20),
+                            label: const Text(
+                              'Xác nhận vị trí cơ sở này',
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
-
-                          // Hướng dẫn chạm bản đồ góc dưới bên trái
-                          Positioned(
-                            left: 14,
-                            bottom: 16,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.65),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.touch_app_rounded,
-                                      color: Colors.white, size: 14),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Chạm bản đồ để dời ghim',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0284C7),
+                              foregroundColor: Colors.white,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 11),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
                               ),
                             ),
                           ),
                         ],
                       ),
                     ),
-            ),
-
-            // 3. KHUNG XEM & XÁC NHẬN VỊ TRÍ CỐ ĐỊNH Ở ĐÁY MÀN HÌNH
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 10,
-                    offset: const Offset(0, -3),
                   ),
-                ],
-                border: const Border(
-                  top: BorderSide(color: Color(0xFFE2E8F0)),
                 ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFDCFCE7),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.location_on_rounded,
-                          size: 18,
-                          color: Color(0xFF16A34A),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _tenNgan,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF0F172A),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            _isGeocoding
-                                ? const Row(
-                                    children: [
-                                      SizedBox(
-                                        width: 12,
-                                        height: 12,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 1.5,
-                                          color: Color(0xFF0284C7),
-                                        ),
-                                      ),
-                                      SizedBox(width: 6),
-                                      Text(
-                                        'Đang phân giải tên đường...',
-                                        style: TextStyle(
-                                          fontSize: 11.5,
-                                          color: Color(0xFF64748B),
-                                        ),
-                                      ),
-                                    ],
-                                  )
-                                : Text(
-                                    _diaChiHienThi,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF475569),
-                                      height: 1.3,
-                                    ),
-                                  ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pop(
-                        DiaChiMapItem(
-                          diaChiDayDu: _diaChiHienThi,
-                          tenNgan: _tenNgan,
-                          viDo: _viTriGhim.latitude,
-                          kinhDo: _viTriGhim.longitude,
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.check_circle_rounded, size: 20),
-                    label: const Text(
-                      'Xác nhận vị trí cơ sở này',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0284C7),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
     );
   }
 }

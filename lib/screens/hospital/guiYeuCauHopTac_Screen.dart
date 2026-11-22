@@ -52,6 +52,8 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
   double? _viDo;
   double? _kinhDo;
   String? _diaChiMap;
+  Timer? _diaChiDebounceTimer;
+  bool _dangTimKiemDiaChiForm = false;
 
   // Ảnh CCCD người đại diện (Mặt trước & Mặt sau)
   Uint8List? _cccdTruocBytes;
@@ -187,11 +189,40 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     }
   }
 
+  void _onFormDiaChiChanged(String val) {
+    _diaChiDebounceTimer?.cancel();
+    final q = val.trim();
+    if (q.length < 3) return;
+
+    _diaChiDebounceTimer = Timer(const Duration(milliseconds: 650), () async {
+      if (!mounted) return;
+      setState(() => _dangTimKiemDiaChiForm = true);
+      try {
+        final items = await GeocodingService.timKiemDiaChi(q);
+        if (items.isNotEmpty && mounted) {
+          final first = items.first;
+          setState(() {
+            _viDo = first.viDo;
+            _kinhDo = first.kinhDo;
+            _diaChiMap = first.diaChiDayDu;
+            _dangTimKiemDiaChiForm = false;
+          });
+        } else {
+          if (mounted) setState(() => _dangTimKiemDiaChiForm = false);
+        }
+      } catch (_) {
+        if (mounted) setState(() => _dangTimKiemDiaChiForm = false);
+      }
+    });
+  }
+
   Future<void> _moChonDiaChiMap() async {
-    // Mở trực tiếp hộp thoại chọn bản đồ Google Map
+    // Mở trực tiếp màn hình chọn bản đồ Google Map toàn diện
     final result = await DialogChonDiaChiMap.show(
       context,
       initialAddress: _diaChiCtrl.text.trim(),
+      initialLat: _viDo,
+      initialLon: _kinhDo,
     );
 
     if (result != null && mounted) {
@@ -668,6 +699,7 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
 
   @override
   void dispose() {
+    _diaChiDebounceTimer?.cancel();
     _tenBenhVienCtrl.dispose();
     _maCoSoCtrl.dispose();
     _maSoThueCtrl.dispose();
@@ -1703,6 +1735,7 @@ startxref
                           const SizedBox(height: 6),
                           TextFormField(
                             controller: _diaChiCtrl,
+                            onChanged: _onFormDiaChiChanged,
                             maxLines: 2,
                             style: const TextStyle(
                               fontSize: 14,
@@ -1730,6 +1763,31 @@ startxref
                               return null;
                             },
                           ),
+                          if (_dangTimKiemDiaChiForm)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 6, bottom: 2),
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 13,
+                                    height: 13,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Color(0xFF0284C7),
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Đang tự động định vị trên bản đồ...',
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      color: Color(0xFF0284C7),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           // Khung bản đồ trực tiếp trên màn hình
                           _buildEmbeddedMapCard(),
                           const SizedBox(height: 16),
