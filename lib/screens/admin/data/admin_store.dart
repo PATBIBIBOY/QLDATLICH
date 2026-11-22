@@ -313,11 +313,29 @@ class AdminStore extends ChangeNotifier {
             'location': address,
             'so_giay_phep': data['so_giay_phep']?.toString() ?? doc.id,
             'ma_so_thue': data['ma_so_thue']?.toString() ?? '',
+            'ma_co_so_byt': data['ma_co_so_byt']?.toString() ?? data['ma_byt']?.toString() ?? '',
+            'co_so': data['co_so']?.toString() ?? '',
+            'loai_hinh': data['loai_hinh']?.toString() ?? type,
+            'dia_chi_map': data['dia_chi_map']?.toString() ?? '',
+            'vi_do': data['vi_do']?.toString() ?? '',
+            'kinh_do': data['kinh_do']?.toString() ?? '',
             'email': data['email']?.toString() ?? '',
             'phone': data['so_dien_thoai']?.toString() ?? '',
             'mo_ta': data['mo_ta']?.toString() ?? '',
-            'bhyt': data['bhyt']?.toString() ?? (data['co_bhyt'] == true ? 'Có hỗ trợ BHYT' : ''),
+            'bhyt': data['bhyt']?.toString() ?? (data['co_bhyt'] == true ? 'Có BHYT (Tiếp nhận KCB BHYT)' : ''),
+            'co_bhyt': (data['co_bhyt'] == true).toString(),
             'nguoi_dai_dien': data['nguoi_dai_dien']?.toString() ?? '',
+            'cccd_mat_truoc_base64': data['cccd_mat_truoc_base64']?.toString() ?? data['cccd_truoc_base64']?.toString() ?? '',
+            'cccd_mat_truoc_url': data['cccd_mat_truoc_url']?.toString() ?? '',
+            'cccd_mat_truoc_ten': data['cccd_mat_truoc_ten']?.toString() ?? '',
+            'cccd_mat_sau_base64': data['cccd_mat_sau_base64']?.toString() ?? data['cccd_sau_base64']?.toString() ?? '',
+            'cccd_mat_sau_url': data['cccd_mat_sau_url']?.toString() ?? '',
+            'cccd_mat_sau_ten': data['cccd_mat_sau_ten']?.toString() ?? '',
+            'has_cccd': (data['has_cccd'] == true || (data['cccd_mat_truoc_base64'] != null && data['cccd_mat_truoc_base64'].toString().isNotEmpty)).toString(),
+            'file_giay_phep': data['file_giay_phep']?.toString() ?? '',
+            'file_giay_phep_url': data['file_giay_phep_url']?.toString() ?? fileDoc,
+            'dung_luong_file': data['dung_luong_file']?.toString() ?? '',
+            'loai_file': data['loai_file']?.toString() ?? '',
             'hinh_anh': data['hinh_anh']?.toString() ?? '',
             'fromCollection': 'BenhVien',
           };
@@ -358,21 +376,39 @@ class AdminStore extends ChangeNotifier {
               '';
           final location = data['dia_chi']?.toString() ??
               'Chưa cập nhật địa chỉ';
+          final cccdTruoc = data['cccd_mat_truoc_base64']?.toString() ?? data['cccd_truoc_base64']?.toString() ?? '';
+          final cccdSau = data['cccd_mat_sau_base64']?.toString() ?? data['cccd_sau_base64']?.toString() ?? '';
+          final cccdTruocUrl = data['cccd_mat_truoc_url']?.toString() ?? '';
+          final cccdSauUrl = data['cccd_mat_sau_url']?.toString() ?? '';
 
           if (pendingMap.containsKey(doc.id)) {
             final existing = pendingMap[doc.id]!;
             if (docFile.isNotEmpty) {
               existing['docs'] = docFile;
               existing['file_url'] = docFile;
+              existing['file_giay_phep_url'] = docFile;
             }
             existing['time'] = 'Gửi: $timeStr';
             if (data['so_giay_phep'] != null) existing['so_giay_phep'] = data['so_giay_phep'].toString();
             if (data['ma_so_thue'] != null) existing['ma_so_thue'] = data['ma_so_thue'].toString();
+            if (data['ma_co_so_byt'] != null) existing['ma_co_so_byt'] = data['ma_co_so_byt'].toString();
+            if (data['co_so'] != null) existing['co_so'] = data['co_so'].toString();
+            if (data['loai_hinh'] != null) existing['loai_hinh'] = data['loai_hinh'].toString();
+            if (data['dia_chi_map'] != null) existing['dia_chi_map'] = data['dia_chi_map'].toString();
+            if (data['vi_do'] != null) existing['vi_do'] = data['vi_do'].toString();
+            if (data['kinh_do'] != null) existing['kinh_do'] = data['kinh_do'].toString();
             if (data['email'] != null && existing['email']!.isEmpty) existing['email'] = data['email'].toString();
             if (data['so_dien_thoai'] != null && existing['phone']!.isEmpty) existing['phone'] = data['so_dien_thoai'].toString();
             if (data['mo_ta'] != null && existing['mo_ta']!.isEmpty) existing['mo_ta'] = data['mo_ta'].toString();
             if (data['nguoi_dai_dien'] != null && existing['nguoi_dai_dien']!.isEmpty) existing['nguoi_dai_dien'] = data['nguoi_dai_dien'].toString();
-            if (data['co_bhyt'] != null && existing['bhyt']!.isEmpty) existing['bhyt'] = data['co_bhyt'] == true ? 'Có hỗ trợ BHYT' : 'Không hỗ trợ BHYT';
+            if (data['co_bhyt'] != null && existing['bhyt']!.isEmpty) existing['bhyt'] = data['co_bhyt'] == true ? 'Có BHYT (Tiếp nhận KCB BHYT)' : 'Không hỗ trợ BHYT';
+            if (cccdTruoc.isNotEmpty) existing['cccd_mat_truoc_base64'] = cccdTruoc;
+            if (cccdSau.isNotEmpty) existing['cccd_mat_sau_base64'] = cccdSau;
+            if (cccdTruocUrl.isNotEmpty) existing['cccd_mat_truoc_url'] = cccdTruocUrl;
+            if (cccdSauUrl.isNotEmpty) existing['cccd_mat_sau_url'] = cccdSauUrl;
+            if (data['dung_luong_file'] != null) existing['dung_luong_file'] = data['dung_luong_file'].toString();
+            if (data['loai_file'] != null) existing['loai_file'] = data['loai_file'].toString();
+            if (data['file_giay_phep'] != null) existing['file_giay_phep'] = data['file_giay_phep'].toString();
           } else {
             pendingMap[doc.id] = {
               'docId': doc.id,
@@ -387,11 +423,29 @@ class AdminStore extends ChangeNotifier {
               'location': location,
               'so_giay_phep': data['so_giay_phep']?.toString() ?? '',
               'ma_so_thue': data['ma_so_thue']?.toString() ?? '',
+              'ma_co_so_byt': data['ma_co_so_byt']?.toString() ?? data['ma_byt']?.toString() ?? '',
+              'co_so': data['co_so']?.toString() ?? '',
+              'loai_hinh': data['loai_hinh']?.toString() ?? type,
+              'dia_chi_map': data['dia_chi_map']?.toString() ?? '',
+              'vi_do': data['vi_do']?.toString() ?? '',
+              'kinh_do': data['kinh_do']?.toString() ?? '',
               'email': data['email']?.toString() ?? '',
               'phone': data['so_dien_thoai']?.toString() ?? '',
               'mo_ta': data['mo_ta']?.toString() ?? data['ghi_chu']?.toString() ?? '',
-              'bhyt': data['bhyt']?.toString() ?? (data['co_bhyt'] == true ? 'Có hỗ trợ BHYT' : ''),
+              'bhyt': data['bhyt']?.toString() ?? (data['co_bhyt'] == true ? 'Có BHYT (Tiếp nhận KCB BHYT)' : (data['co_bhyt'] == false ? 'Không hỗ trợ BHYT' : '')),
+              'co_bhyt': (data['co_bhyt'] == true).toString(),
               'nguoi_dai_dien': data['nguoi_dai_dien']?.toString() ?? '',
+              'cccd_mat_truoc_base64': cccdTruoc,
+              'cccd_mat_truoc_url': cccdTruocUrl,
+              'cccd_mat_truoc_ten': data['cccd_mat_truoc_ten']?.toString() ?? '',
+              'cccd_mat_sau_base64': cccdSau,
+              'cccd_mat_sau_url': cccdSauUrl,
+              'cccd_mat_sau_ten': data['cccd_mat_sau_ten']?.toString() ?? '',
+              'has_cccd': (data['has_cccd'] == true || cccdTruoc.isNotEmpty || cccdTruocUrl.isNotEmpty).toString(),
+              'file_giay_phep': data['file_giay_phep']?.toString() ?? '',
+              'file_giay_phep_url': docFile,
+              'dung_luong_file': data['dung_luong_file']?.toString() ?? '',
+              'loai_file': data['loai_file']?.toString() ?? '',
               'hinh_anh': data['hinh_anh']?.toString() ?? '',
               'fromCollection': 'YeuCauHopTac',
             };
@@ -723,9 +777,10 @@ class AdminStore extends ChangeNotifier {
     // Ghi lên Firestore
     try {
       // 1. Cập nhật hoặc tạo mới trong BenhVien với trạng thái ĐÃ DUYỆT (10)
-      await _firestore.collection('BenhVien').doc(docId).set({
+      final Map<String, dynamic> bvData = {
         'ten_benh_vien': h['name'],
-        'co_so': h['type'],
+        'co_so': (h['co_so'] != null && h['co_so']!.isNotEmpty) ? h['co_so'] : (h['type'] ?? 'Tư nhân'),
+        'loai_hinh': (h['loai_hinh'] != null && h['loai_hinh']!.isNotEmpty) ? h['loai_hinh'] : (h['type'] ?? 'Bệnh viện Tư nhân'),
         'dia_chi': h['location'],
         'trang_thai_hop_tac_id': 10,
         'trang_thai': 'da_duyet',
@@ -737,19 +792,90 @@ class AdminStore extends ChangeNotifier {
         'ngay_hop_tac': FieldValue.serverTimestamp(),
         'da_xac_thuc_email': true,
         'role': 'benh_vien',
-      }, SetOptions(merge: true));
+      };
+
+      if (h['ma_co_so_byt'] != null && h['ma_co_so_byt']!.isNotEmpty) {
+        bvData['ma_co_so_byt'] = h['ma_co_so_byt'];
+      }
+      if (h['ma_so_thue'] != null && h['ma_so_thue']!.isNotEmpty) {
+        bvData['ma_so_thue'] = h['ma_so_thue'];
+      }
+      if (h['so_giay_phep'] != null && h['so_giay_phep']!.isNotEmpty) {
+        bvData['so_giay_phep'] = h['so_giay_phep'];
+      }
+      if (h['dia_chi_map'] != null && h['dia_chi_map']!.isNotEmpty) {
+        bvData['dia_chi_map'] = h['dia_chi_map'];
+      }
+      if (h['vi_do'] != null && h['vi_do']!.isNotEmpty) {
+        bvData['vi_do'] = double.tryParse(h['vi_do']!) ?? h['vi_do'];
+      }
+      if (h['kinh_do'] != null && h['kinh_do']!.isNotEmpty) {
+        bvData['kinh_do'] = double.tryParse(h['kinh_do']!) ?? h['kinh_do'];
+      }
+      if (h['bhyt'] != null && h['bhyt']!.isNotEmpty) {
+        bvData['bhyt'] = h['bhyt'];
+        bvData['co_bhyt'] = h['co_bhyt'] == 'true' || h['bhyt']!.toLowerCase().contains('có');
+      }
+      if (h['cccd_mat_truoc_base64'] != null && h['cccd_mat_truoc_base64']!.isNotEmpty) {
+        bvData['cccd_mat_truoc_base64'] = h['cccd_mat_truoc_base64'];
+      }
+      if (h['cccd_mat_truoc_url'] != null && h['cccd_mat_truoc_url']!.isNotEmpty) {
+        bvData['cccd_mat_truoc_url'] = h['cccd_mat_truoc_url'];
+      }
+      if (h['cccd_mat_truoc_ten'] != null && h['cccd_mat_truoc_ten']!.isNotEmpty) {
+        bvData['cccd_mat_truoc_ten'] = h['cccd_mat_truoc_ten'];
+      }
+      if (h['cccd_mat_sau_base64'] != null && h['cccd_mat_sau_base64']!.isNotEmpty) {
+        bvData['cccd_mat_sau_base64'] = h['cccd_mat_sau_base64'];
+      }
+      if (h['cccd_mat_sau_url'] != null && h['cccd_mat_sau_url']!.isNotEmpty) {
+        bvData['cccd_mat_sau_url'] = h['cccd_mat_sau_url'];
+      }
+      if (h['cccd_mat_sau_ten'] != null && h['cccd_mat_sau_ten']!.isNotEmpty) {
+        bvData['cccd_mat_sau_ten'] = h['cccd_mat_sau_ten'];
+      }
+      bvData['has_cccd'] = h['has_cccd'] == 'true' ||
+          (h['cccd_mat_truoc_base64'] != null && h['cccd_mat_truoc_base64']!.isNotEmpty) ||
+          (h['cccd_mat_truoc_url'] != null && h['cccd_mat_truoc_url']!.isNotEmpty);
+      if (h['file_giay_phep'] != null && h['file_giay_phep']!.isNotEmpty) {
+        bvData['file_giay_phep'] = h['file_giay_phep'];
+      }
+      if (h['file_giay_phep_url'] != null && h['file_giay_phep_url']!.isNotEmpty) {
+        bvData['file_giay_phep_url'] = h['file_giay_phep_url'];
+      }
+      if (h['dung_luong_file'] != null && h['dung_luong_file']!.isNotEmpty) {
+        bvData['dung_luong_file'] = h['dung_luong_file'];
+      }
+      if (h['loai_file'] != null && h['loai_file']!.isNotEmpty) {
+        bvData['loai_file'] = h['loai_file'];
+      }
+      if (h['email'] != null && h['email']!.isNotEmpty) {
+        bvData['email'] = h['email'];
+      }
+      if (h['phone'] != null && h['phone']!.isNotEmpty) {
+        bvData['so_dien_thoai'] = h['phone'];
+      }
+      if (h['nguoi_dai_dien'] != null && h['nguoi_dai_dien']!.isNotEmpty) {
+        bvData['nguoi_dai_dien'] = h['nguoi_dai_dien'];
+      }
+      if (h['mo_ta'] != null && h['mo_ta']!.isNotEmpty) {
+        bvData['mo_ta'] = h['mo_ta'];
+      }
+
+      await _firestore.collection('BenhVien').doc(docId).set(bvData, SetOptions(merge: true));
 
       // 2. Cập nhật YeuCauHopTac nếu tồn tại
       try {
         final ycDoc = await _firestore.collection('YeuCauHopTac').doc(docId).get();
         if (ycDoc.exists) {
-          await _firestore.collection('YeuCauHopTac').doc(docId).set({
+          final Map<String, dynamic> ycData = {
             'trang_thai_hop_tac_id': 10,
             'trang_thai': 'da_duyet',
             'trangThai': 'DA_DUYET',
             'da_duyet': true,
             'ngay_duyet': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+          };
+          await _firestore.collection('YeuCauHopTac').doc(docId).set(ycData, SetOptions(merge: true));
         }
       } catch (_) {}
     } catch (e) {
