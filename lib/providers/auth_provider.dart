@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../config/app_session.dart';
+import '../config/staff_session.dart';
 import '../models/hospital_model.dart';
 import '../models/patient_model.dart';
 import '../services/auth_service.dart';
+import '../services/fcm_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
@@ -54,83 +56,16 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get pendingPhone => _pendingPhone;
 
-  Future<Map<String, dynamic>?> getAdminFromFirestore(String uid) async {
+  Map<String, dynamic>? get currentRoleInfo {
+    if (_selectedRole == null || _roles.isEmpty) return null;
+    return _roles.firstWhere(
+      (role) => role['ma_vai_tro'] == _selectedRole,
+      orElse: () => {},
+    );
+  }
+
+  Future<Map<String, dynamic>?> getAdminFromFirestore(String uid) {
     return _authService.getAdminFromFirestore(uid);
-  }
-
-  Future<void> loginAdmin({
-    required String email,
-    required String password,
-  }) async {
-    _isLoading = true;
-    notifyListeners();
-
-    try {
-      final adminData = await _authService.loginAdmin(
-        email: email,
-        password: password,
-      );
-      if (adminData == null) {
-        throw Exception('Tài khoản này không có quyền quản trị viên.');
-      }
-
-      _user = null;
-      _hospital = null;
-      _admin = adminData;
-      _selectedRole = 'admin';
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> fetchCurrentUser({String? preferredRole}) async {
-    _isLoading = true;
-    notifyListeners();
-    try {
-      final currentUser = _authService.currentUser;
-      if (currentUser != null) {
-        if (preferredRole == 'benh_vien') {
-          var hospital = await _authService.getHospitalFromFirestore(
-            currentUser.uid,
-          );
-          hospital ??= await _authService.findHospitalByEmail(
-            currentUser.email ?? '',
-          );
-
-          if (hospital != null) {
-            _hospital = hospital;
-            _user = null;
-            AppSession.benhVienId =
-                hospital.maBenhVien ?? hospital.uid ?? currentUser.uid;
-            _selectedRole = 'benh_vien';
-            return;
-          }
-        }
-
-        final patientModel = await _authService.getPatientFromFirestore(
-          currentUser.uid,
-        );
-        _user = patientModel;
-        if (patientModel == null) {
-          _hospital = await _authService.getHospitalFromFirestore(
-            currentUser.uid,
-          );
-          _hospital ??= await _authService.findHospitalByEmail(
-            currentUser.email ?? '',
-          );
-          if (_hospital != null) {
-            AppSession.benhVienId = _hospital!.maBenhVien ?? _hospital!.uid ?? currentUser.uid;
-          }
-        }
-        _selectedRole = patientModel?.role ?? _hospital?.role;
-      }
-    } catch (e) {
-      print('❌ Lỗi khi lấy thông tin user hiện tại: $e');
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
   }
 
   Future<void> loadRoles() async {
@@ -155,12 +90,111 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Map<String, dynamic>? get currentRoleInfo {
-    if (_selectedRole == null || _roles.isEmpty) return null;
-    return _roles.firstWhere(
-      (role) => role['ma_vai_tro'] == _selectedRole,
-      orElse: () => {},
-    );
+  Future<void> fetchCurrentUser({String? preferredRole}) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final currentUser = _authService.currentUser;
+      if (currentUser == null) return;
+
+      if (preferredRole == 'benh_vien') {
+        var hospital = await _authService.getHospitalFromFirestore(currentUser.uid);
+        hospital ??= await _authService.findHospitalByEmail(currentUser.email ?? '');
+
+        final patient = await _authService.getPatientFromFirestore(currentUser.uid);
+        if (patient != null) hospital = null;
+
+        _hospital = hospital;
+        _user = null;
+        _selectedRole = hospital != null ? 'benh_vien' : null;
+        if (hospital != null) {
+          AppSession.benhVienId = hospital.maBenhVien ?? hospital.uid ?? currentUser.uid;
+        }
+        return;
+      }
+
+      // ✅ ĐOẠN ĐÃ ĐƯỢC LÀM SẠCH CONFLICT (Giữ logic chuẩn, format gọn gàng)
+      final patientModel = await _authService.getPatientFromFirestore(currentUser.uid);
+      _user = patientModel;
+      
+      if (patientModel == null) {
+        _hospital = await _authService.getHospitalFromFirestore(currentUser.uid);
+        _hospital ??= await _authService.findHospitalByEmail(currentUser.email ?? '');
+        if (_hospital != null) {
+          AppSession.benhVienId = _hospital!.uid ?? currentUser.uid;
+        }
+      } else {
+        _hospital = null;
+      }
+      _selectedRole = patientModel?.role ?? _hospital?.role;
+
+    } catch (e) {
+      print('❌ Lỗi khi lấy thông tin user hiện tại: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<String> restoreSession() async {
+    final firebaseUser = _authService.currentUser;
+    if (firebaseUser == null) return 'login';
+
+    final admin = await _authService.getAdminFromFirestore(firebaseUser.uid);
+    if (admin != null) {
+      _admin = admin;
+      _user = null;
+      _hospital = null;
+      _selectedRole = 'admin';
+      notifyListeners();
+      return 'admin';
+    }
+
+    await fetchCurrentUser();
+
+    final hasEmail = (firebaseUser.email ?? '').isNotEmpty;
+    final isEmailUnverified = hasEmail && (_user?.daXacThucEmail == false || _hospital?.daXacThucEmail == false);
+    
+    if (isEmailUnverified) {
+      await _authService.signOut();
+      _user = null;
+      _hospital = null;
+      notifyListeners();
+      return 'login';
+    }
+
+    if (_user != null) {
+      await FCMService().init();
+      return 'patient';
+    }
+    if (_hospital != null) {
+      await FCMService().init();
+      return 'hospital';
+    }
+    return 'login';
+  }
+
+  Future<void> loginAdmin({
+    required String email,
+    required String password,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final adminData = await _authService.loginAdmin(email: email, password: password);
+      if (adminData == null) {
+        throw Exception('Tài khoản này không có quyền quản trị viên.');
+      }
+
+      _user = null;
+      _hospital = null;
+      _admin = adminData;
+      _selectedRole = 'admin';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> login({
@@ -171,10 +205,7 @@ class AuthProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      await _authService.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      await _authService.signInWithEmailAndPassword(email: email, password: password);
       _admin = null;
 
       // 1. Đồng bộ trạng thái xác thực từ Firebase Auth sang Firestore
@@ -185,35 +216,85 @@ class AuthProvider extends ChangeNotifier {
 
       if (freshFbUser != null && isAuthEmailVerified) {
         try {
-          await _authService.updateUserVerificationStatus(
-            freshFbUser.uid,
-            true,
-          );
+          await _authService.updateUserVerificationStatus(freshFbUser.uid, true);
         } catch (_) {}
       }
 
       await fetchCurrentUser(preferredRole: role);
 
-      // 2. Kiểm tra xác thực email: nếu cả Firebase Auth lẫn Firestore đều chưa xác thực
-      final isFirestoreEmailVerified = (_user?.daXacThucEmail ?? false) ||
-          (_hospital?.daXacThucEmail ?? false);
-
+      // 2. Kiểm tra xác thực email
+      final isFirestoreEmailVerified = (_user?.daXacThucEmail ?? false) || (_hospital?.daXacThucEmail ?? false);
       final isVerified = isAuthEmailVerified || isFirestoreEmailVerified;
 
       if (!isVerified) {
-        // KHÔNG gọi signOut() tại đây để phiên làm việc còn giữ lại cho màn hình EmailVerificationScreen
+        // KHÔNG gọi signOut() để giữ session cho màn hình EmailVerificationScreen
         throw Exception('EMAIL_NOT_VERIFIED');
       }
-    } catch (e) {
-      rethrow;
+
+      await FCMService().init();
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  Future<void> resetPassword(String email) {
-    return _authService.resetPassword(email);
+  Future<void> sendOtp({
+    required String phone,
+    required VoidCallback onCodeSent,
+    required void Function(String message) onError,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+    _pendingPhone = phone;
+
+    await _authService.sendOtp(
+      phone: phone,
+      resendToken: _resendToken,
+      onCodeSent: (id, token) {
+        _verificationId = id;
+        _resendToken = token;
+        _isLoading = false;
+        notifyListeners();
+        onCodeSent();
+      },
+      onError: (message) {
+        _isLoading = false;
+        notifyListeners();
+        onError(message);
+      },
+    );
+  }
+
+  Future<void> loginWithPhoneOtp({required String smsCode}) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      if (_verificationId == null) throw Exception('Mã xác thực không hợp lệ');
+      await _authService.verifyOtp(verificationId: _verificationId!, smsCode: smsCode);
+
+      _admin = null;
+      await fetchCurrentUser(preferredRole: 'benh_nhan');
+
+      if (_user == null) {
+        final hasAnyProfile = _hospital != null;
+        _hospital = null;
+        if (hasAnyProfile) {
+          await _authService.signOut();
+        } else {
+          try {
+            await _authService.currentUser?.delete();
+          } catch (_) {
+            await _authService.signOut();
+          }
+        }
+        throw Exception('Số điện thoại này chưa đăng ký tài khoản bệnh nhân. Vui lòng đăng ký trước.');
+      }
+
+      await FCMService().init();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> registerWithEmail({
@@ -225,11 +306,7 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final credential = await _authService.registerWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
+      final credential = await _authService.registerWithEmailAndPassword(email: email, password: password);
       await credential.user?.sendEmailVerification();
 
       final newUser = PatientModel.fromRegisterEmail(
@@ -242,10 +319,11 @@ class AuthProvider extends ChangeNotifier {
       await _authService.saveUserToFirestore(newUser);
       _user = newUser;
       _hospital = null;
+      await FCMService().init();
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
         await _handleExistingEmail(email, password, user);
-        return; // Thoát hàm an toàn, RegisterScreen sẽ tự động chuyển sang màn hình xác thực
+        return;
       }
       rethrow;
     } finally {
@@ -263,13 +341,9 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final credential = await _authService.registerWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final credential = await _authService.registerWithEmailAndPassword(email: email, password: password);
       await credential.user?.sendEmailVerification();
 
-      // ✅ Tự động sinh ID bệnh viện tăng dần theo CSDL
       final idData = await _authService.generateHospitalId();
       final nextId = idData['id'] as int;
       final nextMaBv = idData['ma_benh_vien'] as String;
@@ -301,91 +375,68 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _handleExistingHospitalEmail(
-    String email,
-    String password,
-    HospitalModel hospital,
-  ) async {
-    final oldHospital = await _authService.findHospitalByEmail(email);
-    if (oldHospital == null || oldHospital.daXacThucEmail) {
-      throw Exception(
-        'Email đã được sử dụng và xác thực. Vui lòng sử dụng tính năng Đăng nhập.',
-      );
-    }
-    await _signInToReplaceUnverifiedAccount(email, password);
-    await _authService.deleteUnverifiedHospital(oldHospital.uid ?? oldHospital.authUid ?? '');
-
-    final credential = await _authService.registerWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-    await credential.user?.sendEmailVerification();
-
-    final idData = await _authService.generateHospitalId();
-    final nextId = oldHospital.id ?? (idData['id'] as int);
-    final nextMaBv = oldHospital.maBenhVien ?? (idData['ma_benh_vien'] as String);
-
-    final newHospital = HospitalModel.fromRegisterEmail(
-      id: nextId,
-      maBenhVien: nextMaBv,
-      uid: nextMaBv,
-      authUid: credential.user!.uid,
-      tenBenhVien: hospital.tenBenhVien!,
-      email: email,
-      diaChi: hospital.diaChi,
-      role: hospital.role,
-    ).copyWith(daXacThucEmail: false);
-
-    await _authService.saveHospitalToFirestore(newHospital);
-    _hospital = newHospital;
-    _user = null;
-    AppSession.benhVienId = nextMaBv;
-  }
-
-  Future<void> _signInToReplaceUnverifiedAccount(
-    String email,
-    String password,
-  ) async {
+  Future<void> verifyOtpAndRegister({
+    required String smsCode,
+    required PatientModel user,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
     try {
-      await _authService.signInWithEmailAndPassword(
-        email: email,
-        password: password,
+      if (_verificationId == null) throw Exception('Mã xác thực không hợp lệ');
+      
+      final credential = await _authService.verifyOtp(
+        verificationId: _verificationId!,
+        smsCode: smsCode,
       );
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'invalid-credential' || e.code == 'wrong-password') {
-        throw Exception(
-          'Email đã có tài khoản chưa xác thực nhưng mật khẩu không khớp. '
-          'Vui lòng đăng nhập hoặc đặt lại mật khẩu.',
-        );
+
+      _admin = null;
+
+      // Kiểm tra xem UID này đã có hồ sơ bệnh nhân chưa (tránh ghi đè)
+      final existing = await _authService.getPatientFromFirestore(credential.user!.uid);
+      if (existing != null) {
+        await _authService.signOut();
+        throw Exception('Số điện thoại này đã được đăng ký. Vui lòng đăng nhập bằng mã OTP.');
       }
+
+      // Tạo và lưu hồ sơ bệnh nhân mới
+      final newUser = PatientModel.fromRegisterPhone(
+        uid: credential.user!.uid,
+        hoTen: user.hoTen!,
+        soDienThoai: _pendingPhone!,
+        role: user.role,
+      );
+      
+      await _authService.saveUserToFirestore(newUser);
+      _user = newUser;
+      _hospital = null;
+      _selectedRole = newUser.role;
+
+      await FCMService().init();
+    } catch (e) {
+      print('❌ Lỗi khi đăng ký bằng OTP: $e');
       rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
-  // ✅ ĐÃ TỐI ƯU: Thêm kiểm tra an toàn cho mật khẩu
-  Future<void> _handleExistingEmail(
-    String email,
-    String password,
-    PatientModel user,
-  ) async {
+  Future<void> resetPassword(String email) {
+    return _authService.resetPassword(email);
+  }
+
+  Future<void> _handleExistingEmail(String email, String password, PatientModel user) async {
     try {
       final oldUser = await _authService.findPatientByEmail(email);
 
       if (oldUser != null && oldUser.daXacThucEmail == false) {
-        print('⚠️ Phát hiện tài khoản cũ chưa xác thực: ${oldUser.uid}');
+        print('⚠️ Phát hiện tài khoản BN cũ chưa xác thực: ${oldUser.uid}');
 
         await _signInToReplaceUnverifiedAccount(email, password);
-
-        // 3. Xóa tài khoản Auth và Firestore
         await _authService.deleteUnverifiedPatient(oldUser.uid);
-        print('✅ Đã xóa sạch tài khoản cũ.');
+        print('✅ Đã xóa sạch tài khoản BN cũ.');
 
-        // 4. Đăng ký lại với thông tin mới của người dùng hiện tại
-        final newCredential = await _authService.registerWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
-
+        final newCredential = await _authService.registerWithEmailAndPassword(email: email, password: password);
         await newCredential.user?.sendEmailVerification();
 
         final newUser = PatientModel.fromRegisterEmail(
@@ -398,15 +449,68 @@ class AuthProvider extends ChangeNotifier {
         await _authService.saveUserToFirestore(newUser);
         _user = newUser;
         _hospital = null;
-        print('✅ Đã tạo tài khoản mới thành công cho email: $email');
+        print('✅ Đã tạo tài khoản BN mới thành công cho email: $email');
       } else {
-        throw Exception(
-          'Email đã được sử dụng và xác thực. Vui lòng sử dụng tính năng Đăng nhập.',
-        );
+        throw Exception('Email đã được sử dụng và xác thực. Vui lòng sử dụng tính năng Đăng nhập.');
       }
     } catch (e) {
-      print('❌ Lỗi khi xử lý email tồn tại: $e');
-      rethrow; // Ném lỗi để RegisterScreen bắt được và hiển thị cho người dùng
+      print('❌ Lỗi khi xử lý email BN tồn tại: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _handleExistingHospitalEmail(String email, String password, HospitalModel hospital) async {
+    final oldHospital = await _authService.findHospitalByEmail(email);
+    
+    if (oldHospital == null || oldHospital.daXacThucEmail) {
+      throw Exception('Email đã được sử dụng và xác thực. Vui lòng sử dụng tính năng Đăng nhập.');
+    }
+
+    try {
+      await _signInToReplaceUnverifiedAccount(email, password);
+      
+      final uidToDelete = oldHospital.uid ?? oldHospital.authUid ?? '';
+      await _authService.deleteUnverifiedHospital(uidToDelete);
+      print('✅ Đã xóa sạch tài khoản BV cũ chưa xác thực.');
+
+      final credential = await _authService.registerWithEmailAndPassword(email: email, password: password);
+      await credential.user?.sendEmailVerification();
+
+      final idData = await _authService.generateHospitalId();
+      final nextId = oldHospital.id ?? (idData['id'] as int);
+      final nextMaBv = oldHospital.maBenhVien ?? (idData['ma_benh_vien'] as String);
+
+      final newHospital = HospitalModel.fromRegisterEmail(
+        id: nextId,
+        maBenhVien: nextMaBv,
+        uid: nextMaBv,
+        authUid: credential.user!.uid,
+        tenBenhVien: hospital.tenBenhVien!,
+        email: email,
+        diaChi: hospital.diaChi,
+        role: hospital.role,
+      ).copyWith(daXacThucEmail: false);
+
+      await _authService.saveHospitalToFirestore(newHospital);
+      _hospital = newHospital;
+      _user = null;
+      AppSession.benhVienId = nextMaBv;
+      
+      print('✅ Đã tạo lại tài khoản BV mới thành công cho email: $email');
+    } catch (e) {
+      print('❌ Lỗi khi xử lý email BV tồn tại: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _signInToReplaceUnverifiedAccount(String email, String password) async {
+    try {
+      await _authService.signInWithEmailAndPassword(email: email, password: password);
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'invalid-credential' || e.code == 'wrong-password') {
+        throw Exception('Email đã có tài khoản chưa xác thực nhưng mật khẩu không khớp. Vui lòng đăng nhập hoặc đặt lại mật khẩu.');
+      }
+      rethrow;
     }
   }
 
@@ -415,10 +519,10 @@ class AuthProvider extends ChangeNotifier {
       final user = _authService.currentUser;
       if (user != null) {
         await _authService.updateUserVerificationStatus(user.uid, true);
+        
         _user = await _authService.getPatientFromFirestore(user.uid);
-        _hospital = _user == null
-            ? await _authService.getHospitalFromFirestore(user.uid)
-            : null;
+        _hospital = _user == null ? await _authService.getHospitalFromFirestore(user.uid) : null;
+        
         if (_hospital != null) {
           AppSession.benhVienId = _hospital!.maBenhVien ?? _hospital!.uid ?? user.uid;
         }
@@ -430,60 +534,57 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // ... (Giữ nguyên các hàm sendOtp, verifyOtpAndRegister, logout như cũ) ...
-  Future<void> sendOtp({
-    required String phone,
-    required VoidCallback onCodeSent,
-    required void Function(String message) onError,
+  Future<void> updateUserProfile({
+    String? hoTen,
+    String? gioiTinh,
+    DateTime? ngaySinh,
+    String? diaChi,
+    String? email,
+    String? soDienThoai,
+    String? cccd,
+    String? soBhyt,
   }) async {
+    if (_user == null) {
+      throw Exception('Không tìm thấy thông tin người dùng để cập nhật.');
+    }
+
     _isLoading = true;
     notifyListeners();
-    _pendingPhone = phone;
 
-    await _authService.sendOtp(
-      phone: phone,
-      resendToken: _resendToken,
-      onCodeSent: (id, token) {
-        _verificationId = id;
-        _resendToken = token;
-        _isLoading = false;
-        notifyListeners();
-        onCodeSent();
-      },
-      onAutoVerified: (credential) async {
-        _isLoading = false;
-        notifyListeners();
-      },
-      onError: (message) {
-        _isLoading = false;
-        notifyListeners();
-        onError(message);
-      },
-    );
-  }
-
-  Future<void> verifyOtpAndRegister({
-    required String smsCode,
-    required PatientModel user,
-  }) async {
-    _isLoading = true;
-    notifyListeners();
     try {
-      if (_verificationId == null) throw Exception('Mã xác thực không hợp lệ');
-      final credential = await _authService.verifyOtp(
-        verificationId: _verificationId!,
-        smsCode: smsCode,
+      await _authService.updateUserProfile(
+        uid: _user!.uid,
+        hoTen: hoTen,
+        gioiTinh: gioiTinh,
+        ngaySinh: ngaySinh,
+        diaChi: diaChi,
+        email: email,
+        soDienThoai: soDienThoai,
+        cccd: cccd,
+        soBhyt: soBhyt,
       );
-      final newUser = PatientModel.fromRegisterPhone(
-        uid: credential.user!.uid,
-        hoTen: user.hoTen!,
-        soDienThoai: _pendingPhone!,
-        role: user.role,
+
+      _user = _user!.copyWith(
+        hoTen: hoTen ?? _user!.hoTen,
+        gioiTinh: gioiTinh ?? _user!.gioiTinh,
+        ngaySinh: ngaySinh ?? _user!.ngaySinh,
+        diaChi: diaChi ?? _user!.diaChi,
+        email: email ?? _user!.email,
+        soDienThoai: soDienThoai ?? _user!.soDienThoai,
+        cccd: cccd ?? _user!.cccd,
+        soBhyt: soBhyt ?? _user!.soBhyt,
       );
-      await _authService.saveUserToFirestore(newUser);
-      _user = newUser;
-      _hospital = null;
+
+      if (email != null && email != _authService.currentUser?.email) {
+        try {
+          await _authService.currentUser?.updateEmail(email);
+          print('✅ [DEBUG] Đã cập nhật email Firebase Auth.');
+        } catch (e) {
+          print('⚠️ [DEBUG] Không thể cập nhật email Firebase Auth (yêu cầu xác thực lại): $e');
+        }
+      }
     } catch (e) {
+      print('❌ [DEBUG] Lỗi khi cập nhật hồ sơ: $e');
       rethrow;
     } finally {
       _isLoading = false;
@@ -502,6 +603,7 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _authService.signOut();
+      await StaffSession.clear();
       _user = null;
       _hospital = null;
       _admin = null;

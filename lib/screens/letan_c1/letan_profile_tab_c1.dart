@@ -41,7 +41,9 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
             email: (data['email'] ?? _thongTin.email).toString(),
             hoTen: (data['ho_ten'] ?? _thongTin.hoTen).toString(),
             chucVu: (data['chuc_vu'] ?? _thongTin.chucVu).toString(),
-            khoa: widget.tenKhoaHienTai ?? (data['khoa'] ?? _thongTin.khoa).toString(),
+            khoa: (data['khoa'] != null && data['khoa'].toString().trim().isNotEmpty) ? data['khoa'].toString().trim() : (widget.tenKhoaHienTai ?? _thongTin.khoa),
+            tenBenhVien: (data['ten_benh_vien'] ?? data['tenBenhVien'] ?? _thongTin.tenBenhVien).toString(),
+            benhVienId: (data['benh_vien_id'] ?? data['ma_benh_vien'] ?? _thongTin.benhVienId).toString(),
           );
           DuLieuProfileMauC1.thongTinHienTai = _thongTin;
         });
@@ -175,12 +177,17 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
           const SizedBox(height: 12),
 
           // Tên lễ tân
-          Text(
-            _thongTin.hoTen,
-            style: TextStyle(
-              color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              _thongTin.hoTen,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              style: TextStyle(
+                color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
           const SizedBox(height: 6),
@@ -202,6 +209,53 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
                 letterSpacing: 0.5,
               ),
             ),
+          ),
+          const SizedBox(height: 8),
+
+          // HUY HIỆU TRẠNG THÁI PHÂN CÔNG CA TRỰC TỪ FIREBASE /PhanCong
+          StreamBuilder<PhanCongCaTrucModelC1>(
+            stream: FirebaseServiceC1.streamPhanCongCaTruc(),
+            builder: (context, snap) {
+              final pc = snap.data ?? PhanCongCaTrucModelC1.chuaPhanCong();
+              final isAssigned = pc.duocPhanCong;
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: isAssigned
+                      ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5))
+                      : (isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2)),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isAssigned
+                        ? (isDark ? const Color(0xFF059669) : const Color(0xFFA7F3D0))
+                        : (isDark ? const Color(0xFFEF4444) : const Color(0xFFFECACA)),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isAssigned ? Icons.verified_rounded : Icons.lock_clock_rounded,
+                      size: 13,
+                      color: isAssigned ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      isAssigned
+                          ? 'ĐÃ PHÂN CÔNG • ${pc.tenPhong.isNotEmpty ? pc.tenPhong : pc.tenKhoa}'
+                          : (pc.trangThai.isNotEmpty && pc.trangThai != 'Chờ phân công'
+                              ? 'CHỜ CA TRỰC (${pc.trangThai})'
+                              : 'CHƯA PHÂN CÔNG CA TRỰC'),
+                      style: TextStyle(
+                        color: isAssigned ? const Color(0xFF065F46) : const Color(0xFFDC2626),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -232,26 +286,35 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              TextButton.icon(
-                onPressed: _moTrangChinhSua,
-                icon: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFFFF9500)),
-                label: const Text(
-                  'Chỉnh sửa',
-                  style: TextStyle(
-                    color: Color(0xFFFF9500),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
+              StreamBuilder<PhanCongCaTrucModelC1>(
+                stream: FirebaseServiceC1.streamPhanCongCaTruc(),
+                builder: (context, snap) {
+                  if (snap.data?.duocPhanCong != true) {
+                    return const SizedBox.shrink();
+                  }
+                  return TextButton.icon(
+                    onPressed: _moTrangChinhSua,
+                    icon: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFFFF9500)),
+                    label: const Text(
+                      'Chỉnh sửa',
+                      style: TextStyle(
+                        color: Color(0xFFFF9500),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  );
+                },
               ),
             ],
           ),
           Divider(height: 18, color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFF2F2F7)),
+          _buildItemInfo(Icons.local_hospital_rounded, 'Bệnh viện', _thongTin.tenBenhVien),
           _buildItemInfo(Icons.person_outline, 'Họ và tên', _thongTin.hoTen),
           _buildItemInfo(Icons.badge_outlined, 'Mã nhân viên', _thongTin.maNhanVien),
           _buildItemInfo(Icons.local_hospital_outlined, 'Thuộc khoa', _thongTin.khoa),
@@ -393,7 +456,7 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
       child: Row(
         children: [
           Icon(icon, color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF8E8E93), size: 18),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Text(
             label,
             style: TextStyle(
@@ -401,13 +464,18 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
               fontSize: 13,
             ),
           ),
-          const Spacer(),
-          Text(
-            value,
-            style: TextStyle(
-              color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
-              fontSize: 13.5,
-              fontWeight: FontWeight.w600,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1C1C1E),
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -513,10 +581,14 @@ class _LetanProfileTabC1State extends State<LetanProfileTabC1> {
                   final nav = Navigator.of(context);
                   await FirebaseServiceC1.xoaPhienDangNhap();
                   if (ctx.mounted) Navigator.pop(ctx);
-                  nav.pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                    (route) => false,
-                  );
+                  if (widget.onDangXuat != null) {
+                    widget.onDangXuat!();
+                  } else {
+                    nav.pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      (route) => false,
+                    );
+                  }
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF3B30), foregroundColor: Colors.white),
                 child: const Text('Đăng xuất'),

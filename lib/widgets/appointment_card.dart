@@ -44,6 +44,7 @@ class StatusChip extends StatelessWidget {
 class ApptCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
+
   const ApptCard({
     super.key,
     required this.child,
@@ -76,6 +77,7 @@ class ApptCard extends StatelessWidget {
 class ApptHeader extends StatelessWidget {
   final String title;
   final VoidCallback? onBack;
+
   const ApptHeader({super.key, required this.title, this.onBack});
 
   @override
@@ -106,6 +108,7 @@ class ApptHeader extends StatelessWidget {
               ),
             ),
           ),
+
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -155,7 +158,9 @@ class DetailRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          alignValueEnd ? labelText : SizedBox(width: labelWidth, child: labelText),
+          alignValueEnd
+              ? labelText
+              : SizedBox(width: labelWidth, child: labelText),
           if (alignValueEnd) const SizedBox(width: 16),
           Expanded(
             child: Text(
@@ -214,12 +219,18 @@ class ApptButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (icon != null) ...[Icon(icon, size: 20), const SizedBox(width: 8)],
+            if (icon != null) ...[
+              Icon(icon, size: 20),
+              const SizedBox(width: 8),
+            ],
             Flexible(
               child: Text(
                 text,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ],
@@ -232,6 +243,7 @@ class ApptButton extends StatelessWidget {
 class _NavItem {
   final IconData icon;
   final String label;
+
   const _NavItem(this.icon, this.label);
 }
 
@@ -239,6 +251,7 @@ class _NavItem {
 class PatientBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int>? onTap;
+
   const PatientBottomNav({super.key, this.currentIndex = 1, this.onTap});
 
   static const _items = [
@@ -283,6 +296,7 @@ class PatientBottomNav extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(item.icon, size: 24, color: color),
+
                         const SizedBox(height: 4),
                         Text(
                           item.label,
@@ -290,7 +304,9 @@ class PatientBottomNav extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 11,
-                            fontWeight: active ? FontWeight.w800 : FontWeight.w500,
+                            fontWeight: active
+                                ? FontWeight.w800
+                                : FontWeight.w500,
                             color: color,
                           ),
                         ),

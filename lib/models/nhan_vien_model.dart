@@ -85,8 +85,8 @@ class DotCapTaiKhoan {
     required this.soLuong,
     required this.danhSachTaiKhoan,
     DateTime? thoiGian,
-  })  : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-        thoiGian = thoiGian ?? DateTime.now();
+  }) : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+       thoiGian = thoiGian ?? DateTime.now();
 }
 
 class NhanVienModel {
@@ -201,23 +201,20 @@ class NhanVienModel {
 
   factory NhanVienModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? {};
-    final benhVienId =
-        (data['benh_vien_id'] ?? data['benhVienId'] ?? '').toString();
-    final maNv = (data['ma_nhan_vien'] ??
-            data['maNv'] ??
-            data['ma_tai_khoan'] ??
-            doc.id)
+    final benhVienId = (data['benh_vien_id'] ?? data['benhVienId'] ?? '')
         .toString();
+    final maNv =
+        (data['ma_nhan_vien'] ?? data['maNv'] ?? data['ma_tai_khoan'] ?? doc.id)
+            .toString();
     final vaiTro = (data['vai_tro'] ?? data['vaiTro'] ?? 'Lễ tân').toString();
-    final hoTen =
-        (data['ho_ten'] ?? data['hoTen'] ?? 'Nhân viên $maNv').toString();
+    final hoTen = (data['ho_ten'] ?? data['hoTen'] ?? 'Nhân viên $maNv')
+        .toString();
     final khoa = (data['khoa'] ?? '').toString();
-    final sdt =
-        (data['so_dien_thoai'] ?? data['soDienThoai'] ?? '').toString();
-    final email =
-        (data['email'] ?? '${maNv.toLowerCase()}@benhvien.vn').toString();
-    final matKhau =
-        (data['mat_khau'] ?? data['matKhau'] ?? '123456').toString();
+    final sdt = (data['so_dien_thoai'] ?? data['soDienThoai'] ?? '').toString();
+    final email = (data['email'] ?? '${maNv.toLowerCase()}@benhvien.vn')
+        .toString();
+    final matKhau = (data['mat_khau'] ?? data['matKhau'] ?? '123456')
+        .toString();
     final trangThai = (data['trang_thai'] ?? '').toString();
 
     final bool daKichHoat;

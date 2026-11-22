@@ -14,7 +14,8 @@ class NhanVienService {
     final trimmed = benhVienId.trim();
     if (trimmed.startsWith('BV')) return trimmed;
 
-    if (AppSession.benhVienId.isNotEmpty && AppSession.benhVienId.startsWith('BV')) {
+    if (AppSession.benhVienId.isNotEmpty &&
+        AppSession.benhVienId.startsWith('BV')) {
       return AppSession.benhVienId;
     }
 
@@ -203,7 +204,6 @@ class NhanVienService {
       } catch (_) {}
     }
 
-    // 2. Nếu chưa có hoặc dùng ID khác, thử quét collectionGroup 'danh_sach'
     if (names.isEmpty) {
       try {
         final groupSnap = await _db.collectionGroup('danh_sach').get();
@@ -219,7 +219,6 @@ class NhanVienService {
       } catch (_) {}
     }
 
-    // 3. Quét collection 'Khoa' cấp cao nhất nếu có tài liệu lưu trực tiếp
     if (names.isEmpty) {
       try {
         final snapTop = await _db.collection('Khoa').get();
@@ -387,11 +386,7 @@ class NhanVienService {
     } catch (_) {}
   }
 
-  /// Cấp mới danh sách tài khoản nhân viên theo chuẩn cấu trúc Firebase:
-  /// - Document cha: `NhanVien/{benhVienId}` gồm `ma_benh_vien` và `ten_benh_vien`
-  /// - Subcollection: `danh_sach`
-  /// - ID tài liệu trong `danh_sach` chính là mã nhân viên (ví dụ `CSKH_01`, `LT_TM_01`...)
-  /// - Không dùng ID ngẫu nhiên tự sinh hash. Mỗi lần tạo thêm sẽ tự động cộng thêm 1 (_01, _02, _03...)
+  /// Cấp mới danh sách tài khoản nhân viên theo chuẩn cấu trúc Firebase
   Future<DotCapTaiKhoan> taoVaLuuNhanVien({
     String? benhVienId,
     required String tenKhoa,
@@ -411,9 +406,7 @@ class NhanVienService {
     final bvid = await _chuanHoaBenhVienId(rawId);
     final tenBenhVien = await layTenBenhVien(bvid);
 
-    // 1. Đảm bảo Document cha NhanVien/{bvid} tồn tại đúng chuẩn Firebase:
-    // ma_benh_vien: "BV001"
-    // ten_benh_vien: "Bệnh viện Quân y 17"
+    // 1. Đảm bảo Document cha NhanVien/{bvid} tồn tại đúng chuẩn Firebase
     if (bvid.isNotEmpty) {
       await _db.collection('NhanVien').doc(bvid).set({
         'ma_benh_vien': bvid,
@@ -421,9 +414,9 @@ class NhanVienService {
       }, SetOptions(merge: true));
     }
 
-    // 2. Xác định tiền tố (prefix) tài khoản nhân viên theo chuẩn:
-    // Định dạng: idBV_vaitro_khoa_maso (Ví dụ: BV504_LT_CC_01)
-    final String cleanBv = bvid.trim().isNotEmpty ? bvid.trim().toUpperCase() : 'BV';
+    // 2. Xác định tiền tố (prefix) tài khoản nhân viên theo chuẩn
+    final String cleanBv =
+        bvid.trim().isNotEmpty ? bvid.trim().toUpperCase() : 'BV';
     final String cleanRole = rolePrefix.trim().toUpperCase();
     final String cleanDept = deptCode.trim().toUpperCase();
 
@@ -440,8 +433,7 @@ class NhanVienService {
       prefix = '${cleanBv}_${cleanRole}_';
     }
 
-    // 3. Quét các mã tài khoản đã có trong subcollection danh_sach để tìm số thứ tự lớn nhất
-    // Tự động cộng thêm 1 cho mỗi tài khoản mới: _01, _02, _03...
+    // 3. Quét các mã tài khoản đã có để tìm số thứ tự lớn nhất
     int maxNum = 0;
     final Set<String> existingCodes = {};
 
@@ -458,7 +450,6 @@ class NhanVienService {
         final match = regex.firstMatch(doc.id);
         if (match != null) {
           final n = int.tryParse(match.group(1) ?? '') ?? 0;
-          // Chỉ xét các số thứ tự tuần tự <= 9999 (bỏ qua mã random cũ 6 chữ số nếu có)
           if (n > 0 && n < 10000 && n > maxNum) {
             maxNum = n;
           }
@@ -504,7 +495,7 @@ class NhanVienService {
 
       existingCodes.add(maTk);
 
-      // Lưu document trực tiếp tại NhanVien/{bvid}/danh_sach/{maTk} (ID chính là maTk)
+      // Lưu document trực tiếp tại NhanVien/{bvid}/danh_sach/{maTk}
       final docRef = _db
           .collection('NhanVien')
           .doc(bvid)
@@ -547,7 +538,6 @@ class NhanVienService {
       batch.set(docRef, staffData);
     }
 
-    // Ghi đồng loạt lên Firebase Firestore
     await batch.commit();
 
     return DotCapTaiKhoan(
@@ -670,7 +660,7 @@ class NhanVienService {
     } catch (_) {}
   }
 
-  /// Xóa tài khoản nhân viên (xóa cả trên NhanVien/{bvid}/danh_sach và collection NhanVien root nếu có)
+  /// Xóa tài khoản nhân viên
   Future<void> xoaNhanVien(String nhanVienId, [String? benhVienId]) async {
     final rawId = (benhVienId != null && benhVienId.trim().isNotEmpty)
         ? benhVienId.trim()

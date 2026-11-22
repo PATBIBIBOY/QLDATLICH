@@ -1,8 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+// =========================================================================
+// 1. CÁC MODEL VÀ HELPER FUNCTIONS
+// =========================================================================
+
 class KhungGio {
-  final String batDau; // "07:30"
-  final String ketThuc; // "11:30"
+  final String batDau;
+  final String ketThuc;
+
   const KhungGio(this.batDau, this.ketThuc);
 
   Map<String, dynamic> toMap() => {'batDau': batDau, 'ketThuc': ketThuc};
@@ -34,10 +39,73 @@ class KhoaVuaTao {
   });
 }
 
-/// 2..7 = Thứ 2..Thứ 7, 8 = Chủ nhật
+enum TrangThaiPhong {
+  tamDung(12),
+  dangKham(13),
+  dongCua(14);
+
+  final int ma;
+  const TrangThaiPhong(this.ma);
+
+  static TrangThaiPhong tuMa(dynamic v) {
+    final int? maSo = v is int ? v : int.tryParse(v?.toString() ?? '');
+    switch (maSo) {
+      case 12:
+        return TrangThaiPhong.tamDung;
+      case 14:
+        return TrangThaiPhong.dongCua;
+      default:
+        return TrangThaiPhong.dangKham;
+    }
+  }
+}
+
+class PhongKhamTrangThai {
+  final TrangThaiPhong trangThai;
+  final DateTime? tamDungTu;
+  final int tongPhutTamDung;
+  final String? ngayTamDung;
+
+  const PhongKhamTrangThai({
+    required this.trangThai,
+    this.tamDungTu,
+    this.tongPhutTamDung = 0,
+    this.ngayTamDung,
+  });
+
+  static const PhongKhamTrangThai macDinh = PhongKhamTrangThai(
+    trangThai: TrangThaiPhong.dangKham,
+  );
+
+  factory PhongKhamTrangThai.tuMap(Map<String, dynamic> d) {
+    final ts = d['tam_dung_tu'] ?? d['tamDungTu'];
+    final tong = d['tong_phut_tam_dung'] ?? d['tongPhutTamDung'];
+
+    return PhongKhamTrangThai(
+      trangThai: TrangThaiPhong.tuMa(d['trang_thai_id'] ?? d['trangThai']),
+      tamDungTu: ts is Timestamp ? ts.toDate() : null,
+      tongPhutTamDung: tong is num ? tong.toInt() : int.tryParse('$tong') ?? 0,
+      ngayTamDung: (d['ngay_tam_dung'] ?? d['ngayTamDung'])?.toString(),
+    );
+  }
+
+  int phutDangTamDung(DateTime now) {
+    if (trangThai != TrangThaiPhong.tamDung || tamDungTu == null) return 0;
+    final phut = now.difference(tamDungTu!).inMinutes;
+    return phut < 0 ? 0 : phut;
+  }
+
+  int phutTamDung(DateTime now) {
+    final daTichLuy = ngayTamDung == _ngayId(now) ? tongPhutTamDung : 0;
+    return daTichLuy + phutDangTamDung(now);
+  }
+}
+
+String _ngayId(DateTime d) =>
+    '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
 String nhanNgay(int d) => d == 8 ? 'CN' : 'Thứ $d';
 
-/// [2,3,4,5,6,7] -> "Thứ 2 đến Thứ 7"; không liên tục -> "Thứ 2, Thứ 4, CN"
 String taoLichLamViec(List<int> ngay) {
   final s = [...ngay]..sort();
   if (s.isEmpty) return '';
@@ -47,18 +115,18 @@ String taoLichLamViec(List<int> ngay) {
   return s.map(nhanNgay).join(', ');
 }
 
-/// "Phòng 405 - Tầng 4 ..." -> "405"; không tìm thấy -> ""
 String tachSoPhong(String tenPhong) {
   final m = RegExp(r'[Pp]hòng\s*([0-9]+[A-Za-z]?)').firstMatch(tenPhong);
   return m?.group(1) ?? '';
 }
 
+// =========================================================================
+// 2. CLASS KHOA SERVICE
+// =========================================================================
+
 class KhoaService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // =========================================================================
-  // BẢNG TIỀN TỐ KHOA (PREFIX) CHUẨN TRÊN HỆ THỐNG FIREBASE
-  // =========================================================================
   static const Map<String, String> khoaPrefixMap = {
     'Khoa Nội tổng quát': 'NTQ',
     'Khoa Ngoại tổng quát': 'NGT',
@@ -92,12 +160,10 @@ class KhoaService {
     'Khoa Kiểm soát nhiễm khuẩn': 'KSNK',
   };
 
-  /// Lấy prefix cho phòng khám dựa trên tên khoa / tên chuyên khoa
   static String layPrefixKhoa(String tenKhoa, [String? tenChuyenKhoa]) {
     final tKhoa = tenKhoa.trim();
     if (khoaPrefixMap.containsKey(tKhoa)) return khoaPrefixMap[tKhoa]!;
-    if (tenChuyenKhoa != null &&
-        khoaPrefixMap.containsKey(tenChuyenKhoa.trim())) {
+    if (tenChuyenKhoa != null && khoaPrefixMap.containsKey(tenChuyenKhoa.trim())) {
       return khoaPrefixMap[tenChuyenKhoa.trim()]!;
     }
 
@@ -107,17 +173,13 @@ class KhoaService {
     for (final entry in khoaPrefixMap.entries) {
       final keyShort = entry.key.replaceAll('Khoa ', '').toLowerCase();
       if (tKhoa.toLowerCase().contains(keyShort) ||
-          (tenChuyenKhoa != null &&
-              entry.key.toLowerCase().contains(tenChuyenKhoa.toLowerCase()))) {
+          (tenChuyenKhoa != null && entry.key.toLowerCase().contains(tenChuyenKhoa.toLowerCase()))) {
         return entry.value;
       }
     }
 
     final cleanName = tKhoa.replaceAll(RegExp(r'^[Kk]hoa\s+'), '').trim();
-    final words = cleanName
-        .split(RegExp(r'\s+'))
-        .where((w) => w.isNotEmpty)
-        .toList();
+    final words = cleanName.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
     if (words.isNotEmpty) {
       final prefix = words.map((w) => w[0].toUpperCase()).join();
       if (prefix.isNotEmpty) return prefix;
@@ -126,9 +188,7 @@ class KhoaService {
     return 'PK';
   }
 
-  /// Chuẩn hóa ID bệnh viện: ưu tiên mã dạng `BV001`
-  Future<String> chuanHoaBenhVienId(String benhVienId) =>
-      _chuanHoaBenhVienId(benhVienId);
+  Future<String> chuanHoaBenhVienId(String benhVienId) => _chuanHoaBenhVienId(benhVienId);
 
   Future<String> _chuanHoaBenhVienId(String benhVienId) async {
     final trimmed = benhVienId.trim();
@@ -137,20 +197,13 @@ class KhoaService {
     try {
       final doc = await _db.collection('BenhVien').doc(trimmed).get();
       if (doc.exists) {
-        final ma = (doc.data()?['ma_benh_vien'] ?? doc.data()?['maBenhVien'])
-            ?.toString();
+        final ma = (doc.data()?['ma_benh_vien'] ?? doc.data()?['maBenhVien'])?.toString();
         if (ma != null && ma.isNotEmpty) return ma;
       }
 
-      final query = await _db
-          .collection('BenhVien')
-          .where('auth_uid', isEqualTo: trimmed)
-          .limit(1)
-          .get();
+      final query = await _db.collection('BenhVien').where('auth_uid', isEqualTo: trimmed).limit(1).get();
       if (query.docs.isNotEmpty) {
-        final ma =
-            (query.docs.first.data()['ma_benh_vien'] ?? query.docs.first.id)
-                .toString();
+        final ma = (query.docs.first.data()['ma_benh_vien'] ?? query.docs.first.id).toString();
         if (ma.isNotEmpty) return ma;
       }
     } catch (_) {}
@@ -158,13 +211,8 @@ class KhoaService {
     return trimmed;
   }
 
-  /// Sinh ID Khoa theo chuẩn Firebase: K001, K002, K003... (không dùng ID tự sinh hash)
   Future<String> taoKhoaIdTiepTheo(String benhVienId) async {
-    final snap = await _db
-        .collection('Khoa')
-        .doc(benhVienId)
-        .collection('danh_sach')
-        .get();
+    final snap = await _db.collection('Khoa').doc(benhVienId).collection('danh_sach').get();
 
     int maxNum = 0;
     final regex = RegExp(r'^K(\d+)$', caseSensitive: false);
@@ -173,9 +221,7 @@ class KhoaService {
       final match = regex.firstMatch(doc.id);
       if (match != null) {
         final numVal = int.tryParse(match.group(1) ?? '') ?? 0;
-        if (numVal > maxNum) {
-          maxNum = numVal;
-        }
+        if (numVal > maxNum) maxNum = numVal;
       }
     }
 
@@ -183,7 +229,6 @@ class KhoaService {
     return 'K${nextNum.toString().padLeft(3, '0')}';
   }
 
-  /// Tạo 1 document `Khoa/{benhVienId}/danh_sach/{K00x}` + N document `PhongKham` theo cấu trúc Firebase
   Future<KhoaVuaTao> themKhoa({
     required String benhVienId,
     required String tenKhoa,
@@ -197,42 +242,23 @@ class KhoaService {
   }) async {
     final bvId = await _chuanHoaBenhVienId(benhVienId);
     if (bvId.isEmpty) {
-      throw Exception(
-        'Chưa có benhVienId. Hãy truyền ID document trong collection BenhVien vào ThemKhoaScreen.',
-      );
+      throw Exception('Chưa có benhVienId hợp lệ.');
     }
 
-    // 1. Tạo khoaId theo cấu trúc K001, K002...
     final khoaId = await taoKhoaIdTiepTheo(bvId);
-    final khoaRef = _db
-        .collection('Khoa')
-        .doc(bvId)
-        .collection('danh_sach')
-        .doc(khoaId);
-
+    final khoaRef = _db.collection('Khoa').doc(bvId).collection('danh_sach').doc(khoaId);
     final lich = taoLichLamViec(ngayLamViec);
 
-    // Chuẩn hóa giờ "HH:mm:ss"
     final ds = [...khungGio]..sort((a, b) => a.batDau.compareTo(b.batDau));
     final gioMoRaw = ds.first.batDau;
-    final gioDongRaw = ds
-        .map((e) => e.ketThuc)
-        .reduce((a, b) => a.compareTo(b) >= 0 ? a : b);
+    final gioDongRaw = ds.map((e) => e.ketThuc).reduce((a, b) => a.compareTo(b) >= 0 ? a : b);
 
-    final gioMoCua = gioMoRaw.split(':').length == 2
-        ? '$gioMoRaw:00'
-        : gioMoRaw;
-    final gioDongCua = gioDongRaw.split(':').length == 2
-        ? '$gioDongRaw:00'
-        : gioDongRaw;
+    final gioMoCua = gioMoRaw.split(':').length == 2 ? '$gioMoRaw:00' : gioMoRaw;
+    final gioDongCua = gioDongRaw.split(':').length == 2 ? '$gioDongRaw:00' : gioDongRaw;
 
-    final thoiGianKham = (ds.first.soPhut ~/ gioiHanBenhNhan)
-        .clamp(1, 1000)
-        .toInt();
-
+    final thoiGianKham = (ds.first.soPhut ~/ gioiHanBenhNhan).clamp(1, 1000).toInt();
     final prefix = layPrefixKhoa(tenKhoa, tenChuyenKhoa);
 
-    // Chuẩn hóa danh sách tên phòng khám (NGT001, NGT002...)
     final List<String> danhSachTenPhong = [];
     for (int i = 0; i < phongKham.length; i++) {
       var ten = phongKham[i].trim();
@@ -244,7 +270,7 @@ class KhoaService {
 
     final batch = _db.batch();
 
-    // 1) Lưu document Khoa với định dạng tương thích cả Firebase và ứng dụng
+    // 1. Lưu document Khoa
     batch.set(khoaRef, {
       'id': khoaId,
       'khoa_id': khoaId,
@@ -270,7 +296,7 @@ class KhoaService {
       'ngay_cap_nhat': FieldValue.serverTimestamp(),
     });
 
-    // Đồng bộ vào tài khoản BenhVien
+    // 2. Đồng bộ vào tài khoản BenhVien
     try {
       final bvRef = _db.collection('BenhVien').doc(bvId);
       final bvData = <String, dynamic>{
@@ -282,43 +308,42 @@ class KhoaService {
       batch.set(bvRef, bvData, SetOptions(merge: true));
     } catch (_) {}
 
-    // 2) Lưu các phòng khám theo định dạng Firebase (như hình đính kèm)
+    // 3. Lưu các phòng khám
     for (int i = 0; i < danhSachTenPhong.length; i++) {
       final tenPhong = danhSachTenPhong[i];
-      // DocId định dạng: BV001_K001_NGT001
       final pkDocId = '${bvId}_${khoaId}_$tenPhong';
 
-      // 2a. Lưu vào collection gốc `PhongKham` theo hình Firebase
+      // 3a. Root collection PhongKham
       final rootPkRef = _db.collection('PhongKham').doc(pkDocId);
       batch.set(rootPkRef, {
-        'gioDongCua': gioDongCua,
-        'gioMoCua': gioMoCua,
-        'hospitalId': bvId,
-        'khoaId': khoaId,
-        'ngayTao': FieldValue.serverTimestamp(),
-        'nhanVienId': null,
-        'prefixKhoa': prefix,
-        'soBenhNhanToiDa': gioiHanBenhNhan,
-        'tenKhoaGoc': tenKhoa,
-        'tenPhong': tenPhong,
-        'thoiGianKham': thoiGianKham,
-        // Các trường bổ trợ để truy vấn tương thích:
         'id': pkDocId,
+        'hospitalId': bvId,
         'hospital_id': bvId,
+        'khoaId': khoaId,
         'khoa_id': khoaId,
+        'tenPhong': tenPhong,
         'ten_phong': tenPhong,
+        'tenKhoaGoc': tenKhoa,
         'ten_khoa_goc': tenKhoa,
+        'prefixKhoa': prefix,
         'prefix_khoa': prefix,
+        'gioMoCua': gioMoCua,
         'gio_mo_cua': gioMoCua,
+        'gioDongCua': gioDongCua,
         'gio_dong_cua': gioDongCua,
+        'thoiGianKham': thoiGianKham,
         'thoi_gian_kham': thoiGianKham,
+        'soBenhNhanToiDa': gioiHanBenhNhan,
         'so_benh_nhan_toi_da': gioiHanBenhNhan,
+        'nhanVienId': null,
         'nhan_vien_id': null,
         'trang_thai': 'dang_kham',
         'trang_thai_id': 13,
+        'ngayTao': FieldValue.serverTimestamp(),
+        'ngay_tao': FieldValue.serverTimestamp(),
       });
 
-      // 2b. Lưu vào subcollection Khoa/.../phongKham để màn ChiTietKhoaScreen hiển thị
+      // 3b. Subcollection dưới Khoa
       final subPkRef = khoaRef.collection('phongKham').doc(tenPhong);
       batch.set(subPkRef, {
         'id': pkDocId,
@@ -334,7 +359,7 @@ class KhoaService {
         'nhanVienId': null,
       });
 
-      // 2c. Lưu vào subcollection PhongKham/{hospitalId}/danh_sach/{khoaId}/danh_sach/{pkDocId}
+      // 3c. Subcollection cây thư mục PhongKham
       final treePkRef = _db
           .collection('PhongKham')
           .doc(bvId)
@@ -370,7 +395,6 @@ class KhoaService {
     );
   }
 
-  /// Cập nhật thông tin khoa khám và đồng bộ danh sách phòng khám
   Future<void> capNhatKhoa({
     required String benhVienId,
     required String khoaId,
@@ -384,30 +408,17 @@ class KhoaService {
     required List<String> phongKham,
   }) async {
     final bvId = await _chuanHoaBenhVienId(benhVienId);
-    final khoaRef = _db
-        .collection('Khoa')
-        .doc(bvId)
-        .collection('danh_sach')
-        .doc(khoaId);
+    final khoaRef = _db.collection('Khoa').doc(bvId).collection('danh_sach').doc(khoaId);
     final lich = taoLichLamViec(ngayLamViec);
 
     final ds = [...khungGio]..sort((a, b) => a.batDau.compareTo(b.batDau));
     final gioMoRaw = ds.first.batDau;
-    final gioDongRaw = ds
-        .map((e) => e.ketThuc)
-        .reduce((a, b) => a.compareTo(b) >= 0 ? a : b);
+    final gioDongRaw = ds.map((e) => e.ketThuc).reduce((a, b) => a.compareTo(b) >= 0 ? a : b);
 
-    final gioMoCua = gioMoRaw.split(':').length == 2
-        ? '$gioMoRaw:00'
-        : gioMoRaw;
-    final gioDongCua = gioDongRaw.split(':').length == 2
-        ? '$gioDongRaw:00'
-        : gioDongRaw;
+    final gioMoCua = gioMoRaw.split(':').length == 2 ? '$gioMoRaw:00' : gioMoRaw;
+    final gioDongCua = gioDongRaw.split(':').length == 2 ? '$gioDongRaw:00' : gioDongRaw;
 
-    final thoiGianKham = (ds.first.soPhut ~/ gioiHanBenhNhan)
-        .clamp(1, 1000)
-        .toInt();
-
+    final thoiGianKham = (ds.first.soPhut ~/ gioiHanBenhNhan).clamp(1, 1000).toInt();
     final prefix = layPrefixKhoa(tenKhoa, tenChuyenKhoa);
 
     final List<String> danhSachTenPhong = [];
@@ -425,10 +436,10 @@ class KhoaService {
     batch.update(khoaRef, {
       'tenKhoa': tenKhoa,
       'ten_khoa': tenKhoa,
-      'chuyenKhoaId': ?chuyenKhoaId,
-      'chuyen_khoa_id': ?chuyenKhoaId,
-      'tenChuyenKhoa': ?tenChuyenKhoa,
-      'ten_chuyen_khoa': ?tenChuyenKhoa,
+      'chuyenKhoaId': chuyenKhoaId,
+      'chuyen_khoa_id': chuyenKhoaId,
+      'tenChuyenKhoa': tenChuyenKhoa,
+      'ten_chuyen_khoa': tenChuyenKhoa,
       'soPhong': danhSachTenPhong.length,
       'so_phong': danhSachTenPhong.length,
       'soCaMoiNgay': soCaMoiNgay,
@@ -441,19 +452,17 @@ class KhoaService {
       'ngay_cap_nhat': FieldValue.serverTimestamp(),
     });
 
-    // 2. Lấy phòng khám cũ để xử lý
+    // 2. Xóa các phòng khám không còn trong danh sách mới
     final oldRoomsSnap = await khoaRef.collection('phongKham').get();
     for (final d in oldRoomsSnap.docs) {
       final oldName = (d.data()['tenPhong'] ?? d.id).toString();
       if (!danhSachTenPhong.contains(oldName)) {
         batch.delete(d.reference);
-        batch.delete(
-          _db.collection('PhongKham').doc('${bvId}_${khoaId}_$oldName'),
-        );
+        batch.delete(_db.collection('PhongKham').doc('${bvId}_${khoaId}_$oldName'));
       }
     }
 
-    // 3. Thêm hoặc cập nhật phòng khám
+    // 3. Thêm hoặc cập nhật phòng khám mới
     for (final ten in danhSachTenPhong) {
       final pkDocId = '${bvId}_${khoaId}_$ten';
       final subRef = khoaRef.collection('phongKham').doc(ten);
@@ -483,27 +492,21 @@ class KhoaService {
     await batch.commit();
   }
 
-  /// Xóa khoa khám và toàn bộ các phòng khám thuộc khoa đó
   Future<void> xoaKhoa({
     required String benhVienId,
     required String khoaId,
   }) async {
     final bvId = await _chuanHoaBenhVienId(benhVienId);
-    final khoaRef = _db
-        .collection('Khoa')
-        .doc(bvId)
-        .collection('danh_sach')
-        .doc(khoaId);
-
+    final khoaRef = _db.collection('Khoa').doc(bvId).collection('danh_sach').doc(khoaId);
     final batch = _db.batch();
 
-    // 1. Xóa tất cả phòng khám con trong subcollection của khoa
+    // 1. Xóa subcollection dưới Khoa
     final phongs = await khoaRef.collection('phongKham').get();
     for (final d in phongs.docs) {
       batch.delete(d.reference);
     }
 
-    // 2. Xóa tất cả document phòng khám trong root collection `PhongKham`
+    // 2. Xóa root collection PhongKham
     try {
       final rootRooms = await _db
           .collection('PhongKham')
@@ -515,7 +518,7 @@ class KhoaService {
       }
     } catch (_) {}
 
-    // 3. Xóa trong subcollection PhongKham/{bvId}/danh_sach/{khoaId}/danh_sach
+    // 3. Xóa subcollection cây thư mục
     try {
       final treeRooms = await _db
           .collection('PhongKham')
@@ -531,27 +534,16 @@ class KhoaService {
 
     // 4. Xóa document khoa
     batch.delete(khoaRef);
-
     await batch.commit();
   }
 
-  /// Lấy danh sách khoa cho màn Trang chủ
   Stream<QuerySnapshot<Map<String, dynamic>>> dsKhoa(String benhVienId) {
-    return _db
-        .collection('Khoa')
-        .doc(benhVienId)
-        .collection('danh_sach')
-        .snapshots();
+    return _db.collection('Khoa').doc(benhVienId).collection('danh_sach').snapshots();
   }
 
-  /// Lấy các phòng của một khoa
-  Future<List<Map<String, dynamic>>> dsPhong(
-    String benhVienId,
-    String khoaId,
-  ) async {
+  Future<List<Map<String, dynamic>>> dsPhong(String benhVienId, String khoaId) async {
     final bvId = await _chuanHoaBenhVienId(benhVienId);
 
-    // 1. Lấy từ subcollection phongKham của Khoa
     final snap = await _db
         .collection('Khoa')
         .doc(bvId)
@@ -563,7 +555,6 @@ class KhoaService {
       return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
     }
 
-    // 2. Lấy từ root collection PhongKham
     try {
       final rootSnap = await _db
           .collection('PhongKham')
@@ -576,5 +567,59 @@ class KhoaService {
     } catch (_) {}
 
     return [];
+  }
+
+  Stream<PhongKhamTrangThai> theoDoiTrangThaiPhong({
+    required String benhVienId,
+    required String khoaId,
+    required String phongKhamId,
+  }) {
+    return _db.collection('PhongKham').doc(phongKhamId).snapshots().map((snap) {
+      final data = snap.data();
+      if (!snap.exists || data == null) return PhongKhamTrangThai.macDinh;
+      return PhongKhamTrangThai.tuMap(data);
+    });
+  }
+
+  Future<void> capNhatTrangThaiPhong({
+    required String benhVienId,
+    required String khoaId,
+    required String phongKhamId,
+    required TrangThaiPhong trangThaiMoi,
+  }) async {
+    final ref = _db.collection('PhongKham').doc(phongKhamId);
+
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists) throw Exception('Không tìm thấy phòng khám.');
+      final data = snap.data()!;
+      final hienTai = PhongKhamTrangThai.tuMap(data);
+      final now = DateTime.now();
+      final homNay = _ngayId(now);
+
+      var tong = hienTai.ngayTamDung == homNay ? hienTai.tongPhutTamDung : 0;
+
+      final dangTamDung = hienTai.trangThai == TrangThaiPhong.tamDung;
+      if (dangTamDung && trangThaiMoi != TrangThaiPhong.tamDung) {
+        tong += hienTai.phutDangTamDung(now);
+      }
+
+      final Object? tamDungTu;
+      if (trangThaiMoi != TrangThaiPhong.tamDung) {
+        tamDungTu = null;
+      } else if (dangTamDung && (data['tam_dung_tu'] ?? data['tamDungTu']) != null) {
+        tamDungTu = data['tam_dung_tu'] ?? data['tamDungTu'];
+      } else {
+        tamDungTu = FieldValue.serverTimestamp();
+      }
+
+      tx.update(ref, {
+        'trang_thai_id': trangThaiMoi.ma,
+        'tam_dung_tu': tamDungTu,
+        'tong_phut_tam_dung': tong,
+        'ngay_tam_dung': homNay,
+        'thoi_gian_cap_nhat': FieldValue.serverTimestamp(),
+      });
+    });
   }
 }
