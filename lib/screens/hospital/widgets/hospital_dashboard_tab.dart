@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../config/app_routes.dart';
 import '../../../config/app_session.dart';
@@ -32,12 +31,35 @@ class HospitalDashboardTab extends StatelessWidget {
               const Expanded(child: TongSoKhoaCard()),
               const SizedBox(width: 12),
               Expanded(
-                child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                  stream: BenhVienService.thongKeHomNay(hospitalUid),
+                child: StreamBuilder<Map<String, int>>(
+                  stream: BenhVienService.thongKeLichHenHomNay(hospitalUid),
                   builder: (context, snap) {
-                    final d = snap.data?.data();
-                    final tong = ((d?['tongBenhNhan'] ?? 0) as num).toInt();
-                    final dang = ((d?['dangKham'] ?? 0) as num).toInt();
+                    final data = snap.data ?? const {
+                      'tongHomNay': 0,
+                      'dangKham': 0,
+                      'daKham': 0,
+                      'choKham': 0,
+                      'tongTatCa': 0,
+                    };
+                    final tong = data['tongHomNay'] ?? 0;
+                    final dang = data['dangKham'] ?? 0;
+                    final cho = data['choKham'] ?? 0;
+                    final da = data['daKham'] ?? 0;
+                    final tongTatCa = data['tongTatCa'] ?? 0;
+
+                    String subText;
+                    if (dang > 0) {
+                      subText = 'Đang khám: $dang lượt';
+                    } else if (cho > 0) {
+                      subText = 'Chờ khám: $cho lượt';
+                    } else if (da > 0) {
+                      subText = 'Đã khám: $da lượt';
+                    } else if (tongTatCa > 0) {
+                      subText = 'Tổng: ${_soCoDauPhay(tongTatCa)} lượt đặt';
+                    } else {
+                      subText = 'Chưa có lượt khám';
+                    }
+
                     return Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
@@ -70,12 +92,14 @@ class HospitalDashboardTab extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Đang khám: $dang lượt',
+                            subText,
                             style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
