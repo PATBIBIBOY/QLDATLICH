@@ -317,10 +317,6 @@ class AuthProvider extends ChangeNotifier {
         notifyListeners();
         onCodeSent();
       },
-      onAutoVerified: (credential) async {
-        _isLoading = false;
-        notifyListeners();
-      },
       onError: (message) {
         _isLoading = false;
         notifyListeners();

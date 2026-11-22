@@ -44,6 +44,7 @@ class AuthService {
     required String phone,
     int? resendToken,
     required void Function(String verificationId, int? resendToken) onCodeSent,
+    
     required void Function(String message) onError,
   }) async {
     try {

@@ -524,19 +524,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                   const SizedBox(height: 16),
 
-                  _label('Địa chỉ bệnh viện', required: true),
-                  TextFormField(
-                    controller: _hospitalAddressCtrl,
-                    decoration: _decoration(
-                      Icons.location_on_outlined,
-                      'Số nhà, đường, phường/xã, tỉnh/thành phố',
-                    ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Vui lòng nhập địa chỉ bệnh viện'
-                        : null,
-                  ),
-                  const SizedBox(height: 16),
-
                   _label('Mật khẩu', required: true),
                   TextFormField(
                     controller: _hospitalPassCtrl,
