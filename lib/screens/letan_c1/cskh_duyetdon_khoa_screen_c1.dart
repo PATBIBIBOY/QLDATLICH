@@ -354,6 +354,7 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
         ngayChon: _ngayChon,
         onSelectDate: _chonNgay,
         onSelectPhong: _onSelectPhong,
+        onOpenLichSu: _moLichSuDon,
       );
     }
 
@@ -385,63 +386,30 @@ class _CskhDuyetdonKhoaScreenC1State extends State<CskhDuyetdonKhoaScreenC1> {
                   letterSpacing: 0.4,
                 ),
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  InkWell(
-                    onTap: _moLichSuDon,
+              InkWell(
+                onTap: _chonNgay,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
                     borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: isDark ? 0.6 : 0.4)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(Icons.history_rounded, size: 12, color: Color(0xFFD97706)),
-                          SizedBox(width: 4),
-                          Text(
-                            'Lịch sử đơn',
-                            style: TextStyle(
-                              color: Color(0xFFB45309),
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
-                  const SizedBox(width: 6),
-                  InkWell(
-                    onTap: _chonNgay,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
-                        borderRadius: BorderRadius.circular(8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_today_rounded, size: 12, color: Color(0xFF0284C7)),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${_ngayChon.day}/${_ngayChon.month}',
+                        style: const TextStyle(
+                          color: Color(0xFF0284C7),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.calendar_today_rounded, size: 12, color: Color(0xFF0284C7)),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${_ngayChon.day}/${_ngayChon.month}',
-                            style: const TextStyle(
-                              color: Color(0xFF0284C7),
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ],
           ),
