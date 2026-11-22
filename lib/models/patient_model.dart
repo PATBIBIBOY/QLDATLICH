@@ -105,7 +105,7 @@ class PatientModel {
       role: role ?? this.role,
       daXacThucEmail: daXacThucEmail ?? this.daXacThucEmail,
       cccd: cccd ?? this.cccd,
-      soBhyt: soBhyt ?? this.soBhyt,  
+      soBhyt: soBhyt ?? this.soBhyt,
     );
   }
 

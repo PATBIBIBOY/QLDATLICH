@@ -45,6 +45,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         .toList();
   }
 
+  /// _open: mở màn hình, hộp thoại hoặc menu.
   void _open(ConversationModel c) {
     Navigator.push(
       context,
@@ -68,6 +69,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   onChanged: (_) {},
                   onClear: () {},
                 ),
+
                 const Expanded(
                   child: _MessageState(
                     icon: Icons.lock_outline_rounded,
@@ -97,9 +99,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   );
                 } else if (!snap.hasData) {
                   body = const Center(
-                    child: CircularProgressIndicator(
-                      color: ChatColors.primary,
-                    ),
+                    child: CircularProgressIndicator(color: ChatColors.primary),
                   );
                 } else if (list.isEmpty) {
                   final searching = _query.trim().isNotEmpty;
@@ -150,8 +150,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 }
-
-// ───────────────────────── Đầu trang ─────────────────────────
 
 class _Header extends StatelessWidget {
   final bool showBack;
@@ -219,6 +217,7 @@ class _Header extends StatelessWidget {
                               ),
                             ),
                           ),
+
                           const SizedBox(width: 14),
                         ],
                         Expanded(
@@ -233,6 +232,7 @@ class _Header extends StatelessWidget {
                                   color: Colors.white,
                                 ),
                               ),
+
                               const SizedBox(height: 2),
                               Text(
                                 unread > 0
@@ -264,6 +264,7 @@ class _Header extends StatelessWidget {
                         ),
                       ],
                     ),
+
                     const SizedBox(height: 18),
                     Container(
                       height: 52,
@@ -330,11 +331,10 @@ class _Header extends StatelessWidget {
   );
 }
 
-// ───────────────────────── Thẻ cuộc trò chuyện ─────────────────────────
-
 class _ConversationCard extends StatelessWidget {
   final ConversationModel conversation;
   final VoidCallback onTap;
+
   const _ConversationCard({required this.conversation, required this.onTap});
 
   @override
@@ -380,6 +380,7 @@ class _ConversationCard extends StatelessWidget {
                   color: c.accent,
                   showDot: c.isOpen && c.hasSupport,
                 ),
+
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -391,6 +392,7 @@ class _ConversationCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: chatFont(15.5, weight: FontWeight.w800),
                       ),
+
                       const SizedBox(height: 4),
                       Text(
                         preview,
@@ -402,6 +404,7 @@ class _ConversationCard extends StatelessWidget {
                           color: hasUnread ? ChatColors.ink : ChatColors.muted,
                         ),
                       ),
+
                       const SizedBox(height: 5),
                       Row(
                         children: [
@@ -412,6 +415,7 @@ class _ConversationCard extends StatelessWidget {
                             size: 12.5,
                             color: ChatColors.muted.withValues(alpha: 0.8),
                           ),
+
                           const SizedBox(width: 4),
                           Flexible(
                             child: Text(
@@ -428,6 +432,7 @@ class _ConversationCard extends StatelessWidget {
                     ],
                   ),
                 ),
+
                 const SizedBox(width: 10),
                 if (hasUnread)
                   Container(
@@ -474,8 +479,6 @@ class _ConversationCard extends StatelessWidget {
   }
 }
 
-// ───────────────────────── Trạng thái trống / lỗi ─────────────────────────
-
 class _MessageState extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -492,6 +495,7 @@ class _MessageState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = isError ? ChatColors.danger : ChatColors.primary;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -517,12 +521,14 @@ class _MessageState extends StatelessWidget {
                 ),
               ),
             ),
+
             const SizedBox(height: 18),
             Text(
               title,
               textAlign: TextAlign.center,
               style: chatFont(17, weight: FontWeight.w800),
             ),
+
             const SizedBox(height: 6),
             Text(
               text,
@@ -540,6 +546,7 @@ class _MessageState extends StatelessWidget {
 class _FadeIn extends StatelessWidget {
   final int index;
   final Widget child;
+
   const _FadeIn({required this.index, required this.child});
 
   @override

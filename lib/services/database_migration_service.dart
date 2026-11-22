@@ -5,13 +5,14 @@ class DatabaseMigrationService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   /// 🚀 HÀM CHẠY 1 LẦN DUY NHẤT:
-  /// Đọc toàn bộ collection 'DanhGia', tính toán lại số liệu 
+  /// Đọc toàn bộ collection 'DanhGia', tính toán lại số liệu
   /// và ghi vào document của 'Khoa' và 'BenhVien'.
   Future<void> backfillReviewStats() async {
-    debugPrint('🚀 [MIGRATION] Bắt đầu cập nhật thống kê đánh giá từ dữ liệu cũ...');
-    
+    debugPrint(
+      '🚀 [MIGRATION] Bắt đầu cập nhật thống kê đánh giá từ dữ liệu cũ...',
+    );
+
     try {
-      // 1. Lấy tất cả đánh giá (Giả sử dữ liệu mẫu < 10.000 bản ghi)
       final snapshot = await _db.collection('DanhGia').get();
       debugPrint('📦 [MIGRATION] Tìm thấy ${snapshot.docs.length} đánh giá.');
 
@@ -20,7 +21,6 @@ class DatabaseMigrationService {
         return;
       }
 
-      // 2. Gom nhóm dữ liệu theo Khoa và Bệnh viện
       Map<String, Map<String, dynamic>> khoaStats = {};
       Map<String, Map<String, dynamic>> bvStats = {};
 
@@ -35,10 +35,17 @@ class DatabaseMigrationService {
         // Gom nhóm cho Khoa
         final khoaKey = '$bvId|$khoaId';
         if (!khoaStats.containsKey(khoaKey)) {
-          khoaStats[khoaKey] = {'bvId': bvId, 'khoaId': khoaId, 'count': 0, 'sum': 0};
+          khoaStats[khoaKey] = {
+            'bvId': bvId,
+            'khoaId': khoaId,
+            'count': 0,
+            'sum': 0,
+          };
         }
-        khoaStats[khoaKey]!['count'] = (khoaStats[khoaKey]!['count'] as int) + 1;
-        khoaStats[khoaKey]!['sum'] = (khoaStats[khoaKey]!['sum'] as int) + rating;
+        khoaStats[khoaKey]!['count'] =
+            (khoaStats[khoaKey]!['count'] as int) + 1;
+        khoaStats[khoaKey]!['sum'] =
+            (khoaStats[khoaKey]!['sum'] as int) + rating;
 
         // Gom nhóm cho Bệnh viện
         if (!bvStats.containsKey(bvId)) {
@@ -48,12 +55,13 @@ class DatabaseMigrationService {
         bvStats[bvId]!['sum'] = (bvStats[bvId]!['sum'] as int) + rating;
       }
 
-      debugPrint('📊 [MIGRATION] Đã gom nhóm xong. Bắt đầu ghi vào Firestore...');
+      debugPrint(
+        '📊 [MIGRATION] Đã gom nhóm xong. Bắt đầu ghi vào Firestore...',
+      );
 
       int updatedKhoaCount = 0;
       int updatedBvCount = 0;
 
-      // 3. Cập nhật vào document của từng KHOA
       for (var entry in khoaStats.entries) {
         final data = entry.value;
         final bvId = data['bvId'] as String;
@@ -62,18 +70,21 @@ class DatabaseMigrationService {
         final sum = data['sum'] as int;
         final avg = count > 0 ? sum / count : 0.0;
 
-        final docRef = _db.collection('Khoa').doc(bvId).collection('danh_sach').doc(khoaId);
-        
+        final docRef = _db
+            .collection('Khoa')
+            .doc(bvId)
+            .collection('danh_sach')
+            .doc(khoaId);
+
         // Dùng set(merge: true) để tránh lỗi nếu document Khoa chưa tồn tại
         await docRef.set({
           'tong_danh_gia': count,
           'diem_trung_binh': double.parse(avg.toStringAsFixed(1)),
         }, SetOptions(merge: true));
-        
+
         updatedKhoaCount++;
       }
 
-      // 4. Cập nhật vào document của từng BỆNH VIỆN
       for (var entry in bvStats.entries) {
         final bvId = entry.key;
         final count = entry.value['count'] as int;
@@ -81,19 +92,18 @@ class DatabaseMigrationService {
         final avg = count > 0 ? sum / count : 0.0;
 
         final docRef = _db.collection('BenhVien').doc(bvId);
-        
+
         await docRef.set({
           'tong_danh_gia': count,
           'diem_trung_binh': double.parse(avg.toStringAsFixed(1)),
         }, SetOptions(merge: true));
-        
+
         updatedBvCount++;
       }
 
       debugPrint('✅ [MIGRATION] HOÀN TẤT!');
       debugPrint('   - Đã cập nhật $updatedKhoaCount document Khoa.');
       debugPrint('   - Đã cập nhật $updatedBvCount document Bệnh viện.');
-
     } catch (e) {
       debugPrint('❌ [MIGRATION] Lỗi trong quá trình cập nhật: $e');
     }

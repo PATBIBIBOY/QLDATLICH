@@ -8,7 +8,6 @@ class FCMService {
 
   /// Khởi tạo và xin quyền nhận thông báo
   Future<void> init() async {
-    // 1. Xin quyền trên iOS (Android tự động xin)
     NotificationSettings settings = await _messaging.requestPermission(
       alert: true,
       badge: true,
@@ -19,10 +18,9 @@ class FCMService {
       print('✅ Người dùng đã cấp quyền nhận thông báo');
     }
 
-    // 2. Lấy Token hiện tại và lưu lên Firestore
+    /// _saveTokenToFirestore: lưu dữ liệu.
     await _saveTokenToFirestore();
 
-    // 3. Lắng nghe sự kiện Token thay đổi (ví dụ: user xóa app và cài lại)
     _messaging.onTokenRefresh.listen((newToken) {
       print('🔄 FCM Token đã thay đổi: $newToken');
       _saveTokenToFirestore(token: newToken);

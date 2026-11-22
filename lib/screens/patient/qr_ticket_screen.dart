@@ -21,13 +21,11 @@ class _C {
   static const qrInk = Color(0xFF0B2545);
 }
 
-// ───────────────────────── Màn hình ─────────────────────────
 class QrTicketScreen extends StatefulWidget {
   final LichHenModel? booking;
   final String? patientName;
   final ValueChanged<int>? onNavTap;
 
-  // ✅ LOẠI BỎ CÁC DỮ LIỆU GIẢ (DUMMY DATA)
   const QrTicketScreen({
     super.key,
     required this.booking, // Bắt buộc phải có hoặc xử lý null
@@ -43,7 +41,6 @@ class _QrTicketScreenState extends State<QrTicketScreen> {
   final GlobalKey _ticketKey = GlobalKey();
   bool _saving = false;
 
-  // ✅ CHỈ LẤY DỮ LIỆU THỰC TẾ, KHÔNG CÓ FALLBACK GIẢ
   TicketData? _resolveData(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments;
     final booking = widget.booking ?? (args is LichHenModel ? args : null);
@@ -73,6 +70,7 @@ class _QrTicketScreenState extends State<QrTicketScreen> {
     );
   }
 
+  /// _saveTicket: lưu dữ liệu.
   Future<void> _saveTicket() async {
     if (_saving) return;
     setState(() => _saving = true);
@@ -110,7 +108,6 @@ class _QrTicketScreenState extends State<QrTicketScreen> {
   Widget build(BuildContext context) {
     final data = _resolveData(context);
 
-    // ✅ XỬ LÝ KHI KHÔNG CÓ DỮ LIỆU THAY VÌ HIỆN VÉ GIẢ
     if (data == null) {
       return Scaffold(
         backgroundColor: _C.bg,
@@ -123,7 +120,9 @@ class _QrTicketScreenState extends State<QrTicketScreen> {
                 size: 64,
                 color: _C.textGrey,
               ),
+
               const SizedBox(height: 16),
+
               const Text(
                 'Không tìm thấy thông tin vé',
                 style: TextStyle(
@@ -132,11 +131,14 @@ class _QrTicketScreenState extends State<QrTicketScreen> {
                   color: _C.textDark,
                 ),
               ),
+
               const SizedBox(height: 8),
+
               const Text(
                 'Vui lòng chọn lịch hẹn hợp lệ',
                 style: TextStyle(fontSize: 14, color: _C.textGrey),
               ),
+
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: () => Navigator.maybePop(context),
@@ -196,8 +198,6 @@ class _QrTicketScreenState extends State<QrTicketScreen> {
   }
 }
 
-// ───────────────────────── Nền và thanh tiêu đề ─────────────────────────
-
 class _HeaderBackground extends StatelessWidget {
   const _HeaderBackground();
 
@@ -244,6 +244,7 @@ class _HeaderBackground extends StatelessWidget {
 class _Bubble extends StatelessWidget {
   final double size;
   final double opacity;
+
   const _Bubble({required this.size, required this.opacity});
 
   @override
@@ -285,7 +286,9 @@ class _TopBar extends StatelessWidget {
               ),
             ),
           ),
+
           const SizedBox(width: 14),
+
           const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -311,8 +314,6 @@ class _TopBar extends StatelessWidget {
     );
   }
 }
-
-// ───────────────────────── Vé ─────────────────────────
 
 class _Ticket extends StatelessWidget {
   final TicketData data;
@@ -342,11 +343,12 @@ class _Ticket extends StatelessWidget {
             child: Column(
               children: [
                 _QueueNumber(number: data.queueNumber),
+
                 const SizedBox(height: 20),
-                _QrFrame(
-                  data: data.qrData,
-                ), // ✅ Dữ liệu QR ở đây giờ là JSON chuẩn
+                _QrFrame(data: data.qrData),
+
                 const SizedBox(height: 14),
+
                 const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -372,6 +374,7 @@ class _Ticket extends StatelessWidget {
               ],
             ),
           ),
+
           const _TearLine(),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 6, 20, 20),
@@ -442,6 +445,7 @@ class _TicketHeader extends StatelessWidget {
                 color: Colors.white70,
               ),
             ),
+
             const SizedBox(height: 6),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -450,7 +454,7 @@ class _TicketHeader extends StatelessWidget {
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
-                      data.bookingCode, // ✅ Lấy mã thật từ LichHenModel
+                      data.bookingCode,
                       style: const TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w900,
@@ -460,6 +464,7 @@ class _TicketHeader extends StatelessWidget {
                     ),
                   ),
                 ),
+
                 const SizedBox(width: 6),
                 InkWell(
                   borderRadius: BorderRadius.circular(20),
@@ -475,6 +480,7 @@ class _TicketHeader extends StatelessWidget {
                 ),
               ],
             ),
+
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -492,6 +498,7 @@ class _TicketHeader extends StatelessWidget {
                     size: 16,
                     color: Colors.white,
                   ),
+
                   const SizedBox(width: 6),
                   Text(
                     data.statusLabel,
@@ -513,6 +520,7 @@ class _TicketHeader extends StatelessWidget {
 
 class _QueueNumber extends StatelessWidget {
   final String number;
+
   const _QueueNumber({required this.number});
 
   @override
@@ -528,6 +536,7 @@ class _QueueNumber extends StatelessWidget {
             color: _C.textGrey,
           ),
         ),
+
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 34, vertical: 6),
@@ -537,7 +546,7 @@ class _QueueNumber extends StatelessWidget {
             border: Border.all(color: _C.primary.withOpacity(0.15)),
           ),
           child: Text(
-            number, // ✅ Lấy số thứ tự thật
+            number,
             style: const TextStyle(
               fontSize: 44,
               height: 1.15,
@@ -553,6 +562,7 @@ class _QueueNumber extends StatelessWidget {
 
 class _QrFrame extends StatelessWidget {
   final String data;
+
   const _QrFrame({required this.data});
 
   @override
@@ -576,7 +586,7 @@ class _QrFrame extends StatelessWidget {
         alignment: Alignment.center,
         children: [
           QrImageView(
-            data: data, // ✅ Dữ liệu JSON từ TicketData
+            data: data,
             version: QrVersions.auto,
             size: 190,
             padding: EdgeInsets.zero,
@@ -616,6 +626,7 @@ class _QrFrame extends StatelessWidget {
 
 class _CornerPainter extends CustomPainter {
   final Color color;
+
   const _CornerPainter({required this.color});
 
   @override
@@ -682,6 +693,7 @@ class _TearLine extends StatelessWidget {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final count = (constraints.maxWidth / 10).floor();
+
                   return Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -694,7 +706,9 @@ class _TearLine extends StatelessWidget {
               ),
             ),
           ),
+
           const Positioned(left: -13, top: 0, child: _Notch()),
+
           const Positioned(right: -13, top: 0, child: _Notch()),
         ],
       ),
@@ -746,6 +760,7 @@ class _InfoLine extends StatelessWidget {
             ),
             child: Icon(icon, size: 19, color: _C.primary),
           ),
+
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -755,6 +770,7 @@ class _InfoLine extends StatelessWidget {
                   label,
                   style: const TextStyle(fontSize: 12, color: _C.textGrey),
                 ),
+
                 const SizedBox(height: 2),
                 Text(
                   value,

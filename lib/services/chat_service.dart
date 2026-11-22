@@ -3,32 +3,27 @@ import 'package:flutter/foundation.dart';
 import '../models/conversation_model.dart';
 import '../models/message_model.dart';
 
-
 class ChatService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   static const String _colConv = 'Conversations';
   static const String _colMsg = 'Messages';
 
-  /// Vai trò nhân viên được xem là support (khớp với màn hình đăng nhập).
   static const List<String> _supportRoles = [
     'customerSupport',
     'cskh',
     'cham_soc_khach_hang',
   ];
 
-  /// Mỗi cặp (bệnh viện, bệnh nhân) chỉ có đúng 1 cuộc trò chuyện.
-  /// ID cố định nên kiểm tra "đã có chưa" chỉ cần đọc 1 document.
+  /// conversationIdOf: tạo id cố định cho cặp (bệnh viện, bệnh nhân), mỗi cặp chỉ có một cuộc trò chuyện.
   static String conversationIdOf(String benhVienId, String benhNhanId) =>
       'CONV_${benhVienId}_$benhNhanId';
 
+  /// _convRef: tham chiếu document cuộc trò chuyện theo id.
   DocumentReference<Map<String, dynamic>> _convRef(String id) =>
       _db.collection(_colConv).doc(id);
 
-  // ───────────────────────── Đọc / lắng nghe ─────────────────────────
-
-  /// Danh sách cuộc trò chuyện của bệnh nhân, mới nhất lên đầu.
-  /// Sắp xếp phía app để không cần tạo composite index.
+  /// streamPatientConversations: lắng nghe danh sách cuộc trò chuyện của bệnh nhân, mới nhất lên đầu (sắp xếp phía app để khỏi cần composite index).
   Stream<List<ConversationModel>> streamPatientConversations(
     String benhNhanId,
   ) {
@@ -45,7 +40,7 @@ class ChatService {
         });
   }
 
-  /// Theo dõi 1 cuộc trò chuyện (trạng thái open/closed, support phụ trách).
+  /// streamConversation: theo dõi một cuộc trò chuyện (trạng thái open/closed, support phụ trách).
   Stream<ConversationModel?> streamConversation(String conversationId) {
     return _convRef(conversationId).snapshots().map((d) {
       final data = d.data();
@@ -53,7 +48,7 @@ class ChatService {
     });
   }
 
-  /// Tin nhắn của cuộc trò chuyện, cũ -> mới.
+  /// streamMessages: lắng nghe tin nhắn của cuộc trò chuyện, cũ đến mới.
   Stream<List<MessageModel>> streamMessages(String conversationId) {
     return _convRef(conversationId)
         .collection(_colMsg)
@@ -66,8 +61,7 @@ class ChatService {
         );
   }
 
-  // ───────────────────────── Mở / tạo cuộc trò chuyện ─────────────────────────
-
+  /// getOrCreateConversation: lấy cuộc trò chuyện của cặp bệnh viện - bệnh nhân, chưa có thì tạo mới kèm tin nhắn chào và gán support ít việc nhất.
   Future<ConversationModel> getOrCreateConversation({
     required String benhNhanId,
     required String tenBenhNhan,
@@ -115,7 +109,7 @@ class ChatService {
       'type': 'system',
       'imageUrl': '',
       'createdAt': FieldValue.serverTimestamp(),
-      'isRead': true, // tin hệ thống không tính là chưa đọc
+      'isRead': true,
     });
     if (support != null) {
       batch.update(support.ref, {'activeChats': FieldValue.increment(1)});
@@ -126,7 +120,7 @@ class ChatService {
     return ConversationModel.fromMap(created.data() ?? {}, id: id);
   }
 
-
+  /// _pickLeastBusySupport: chọn nhân viên support đang hoạt động có ít cuộc trò chuyện nhất của bệnh viện (null nếu không có).
   Future<({String uid, DocumentReference<Map<String, dynamic>> ref})?>
   _pickLeastBusySupport(String benhVienId) async {
     try {
@@ -156,14 +150,13 @@ class ChatService {
     }
   }
 
-  // ───────────────────────── Gửi tin / đánh dấu đã đọc ─────────────────────────
-
+  /// sendMessage: gửi tin nhắn (senderRole: patient | support, type: text | image) và cập nhật tin cuối, số tin chưa đọc của bên nhận.
   Future<void> sendMessage({
     required String conversationId,
     required String senderId,
-    required String senderRole, // patient | support
+    required String senderRole,
     String content = '',
-    String type = 'text', // text | image
+    String type = 'text',
     String imageUrl = '',
   }) async {
     final convRef = _convRef(conversationId);
@@ -195,7 +188,7 @@ class ChatService {
     await batch.commit();
   }
 
-
+  /// markAsRead: đánh dấu đã đọc các tin của bên còn lại (tối đa 400 tin) và đặt lại số tin chưa đọc của người đọc.
   Future<void> markAsRead(
     String conversationId, {
     required String readerRole,

@@ -109,9 +109,7 @@ class MedicalBottomNavBar extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: _activeBg,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: _primary.withOpacity(0.14),
-                          ),
+                          border: Border.all(color: _primary.withOpacity(0.14)),
                         ),
                         child: Align(
                           alignment: Alignment.topCenter,
@@ -183,11 +181,7 @@ class MedicalBottomNavBar extends StatelessWidget {
               children: [
                 icon,
                 if (badge > 0)
-                  Positioned(
-                    right: -8,
-                    top: -5,
-                    child: _Badge(count: badge),
-                  ),
+                  Positioned(right: -8, top: -5, child: _Badge(count: badge)),
               ],
             ),
             if (showLabels) ...[

@@ -110,9 +110,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   /// _showMessage: hiển thị thông báo SnackBar.
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   /// _register: đăng ký theo vai trò.
@@ -290,6 +290,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const CircularProgressIndicator(color: _primary),
+
               const SizedBox(height: 16),
               Text(
                 'Đang tải thông tin...',
@@ -335,7 +336,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           size: 44,
                         ),
                       ),
+
                       const SizedBox(height: 10),
+
                       const Text(
                         'MEDICONNECT',
                         style: TextStyle(
@@ -351,6 +354,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ],
                   ),
                 ),
+
                 const SizedBox(height: 20),
 
                 Container(
@@ -362,6 +366,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: Row(
                     children: List.generate(_roles.length, (i) {
                       final active = i == _roleIndex;
+
                       return Expanded(
                         child: GestureDetector(
                           onTap: () => _onRoleChanged(i),
@@ -387,6 +392,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     }),
                   ),
                 ),
+
                 const SizedBox(height: 16),
 
                 if (maVaiTro == 'benh_nhan') ...[
@@ -401,6 +407,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ? 'Vui lòng nhập họ và tên'
                         : null,
                   ),
+
                   const SizedBox(height: 16),
 
                   _label('Email hoặc số điện thoại', required: true),
@@ -408,7 +415,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _patientIdCtrl,
                     keyboardType: TextInputType.emailAddress,
                     decoration: _decoration(
-                      isPatientPhone ? Icons.phone_outlined : Icons.mail_outline,
+                      isPatientPhone
+                          ? Icons.phone_outlined
+                          : Icons.mail_outline,
                       'an.nguyen@gmail.com / 0912 345 678',
                     ),
                     validator: (v) {
@@ -417,8 +426,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         return 'Vui lòng nhập email hoặc số điện thoại';
                       }
                       if (value.contains('@')) {
+                        /// validateEmail: kiểm tra tính hợp lệ của dữ liệu.
                         return validateEmail(value);
                       }
+
+                      /// validatePhone: kiểm tra tính hợp lệ của dữ liệu.
                       return validatePhone(value);
                     },
                   ),
@@ -430,6 +442,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         style: TextStyle(fontSize: 13, color: _grey),
                       ),
                     ),
+
                   const SizedBox(height: 16),
 
                   if (!isPatientPhone) ...[
@@ -450,6 +463,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       validator: validatePassword,
                     ),
+
                     const SizedBox(height: 16),
 
                     _label('Nhập lại mật khẩu', required: true),
@@ -493,6 +507,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ? 'Vui lòng nhập tên bệnh viện'
                         : null,
                   ),
+
                   const SizedBox(height: 16),
 
                   _label('Email đại diện bệnh viện', required: true),
@@ -505,6 +520,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     validator: (v) => validateEmail(v),
                   ),
+
                   const SizedBox(height: 16),
 
                   _label('Địa chỉ bệnh viện', required: true),
@@ -518,6 +534,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ? 'Vui lòng nhập địa chỉ bệnh viện'
                         : null,
                   ),
+
                   const SizedBox(height: 16),
 
                   _label('Mật khẩu', required: true),
@@ -537,6 +554,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     validator: validatePassword,
                   ),
+
                   const SizedBox(height: 16),
 
                   _label('Nhập lại mật khẩu', required: true),
@@ -567,6 +585,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     },
                   ),
                 ],
+
                 const SizedBox(height: 12),
 
                 Row(
@@ -603,6 +622,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 8),
 
                 SizedBox(
@@ -639,12 +659,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
+
                               const SizedBox(width: 8),
+
                               const Icon(Icons.arrow_forward, size: 22),
                             ],
                           ),
                   ),
                 ),
+
                 const SizedBox(height: 12),
 
                 Center(

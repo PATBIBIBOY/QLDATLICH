@@ -25,7 +25,6 @@ class HospitalFilterScreen extends StatefulWidget {
 
 class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
   // ═══════════════════════════════════════════════════════════════
-  // 1. HẰNG SỐ & TRẠNG THÁI
   // ═══════════════════════════════════════════════════════════════
   static const _primary = Color(0xFF0B63CE);
   static const _primaryDark = Color(0xFF084A9E);
@@ -54,7 +53,6 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
   final List<String> _selectedSpecialties = []; // id chuyên khoa, vd: 'CK01'
 
   // ═══════════════════════════════════════════════════════════════
-  // 2. VÒNG ĐỜI
   // ═══════════════════════════════════════════════════════════════
 
   /// initState(): lấy vị trí và khởi tạo dữ liệu bệnh viện.
@@ -83,7 +81,6 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 3. XỬ LÝ LỌC & TÌM KIẾM
   // ═══════════════════════════════════════════════════════════════
 
   /// _getCoSoId(): id loại cơ sở đang chọn (Cong_lap / Tu_nhan).
@@ -152,7 +149,6 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 4. GIAO DIỆN CHÍNH
   // ═══════════════════════════════════════════════════════════════
 
   /// build(): khung màn hình: phần đầu (chào, tìm kiếm) + bộ lọc + danh sách.
@@ -171,6 +167,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                 SliverToBoxAdapter(child: _buildFilterSection(provider)),
                 SliverToBoxAdapter(child: _buildListTitle(provider)),
                 _buildHospitalList(provider),
+
                 const SliverToBoxAdapter(child: SizedBox(height: 40)),
               ],
             ),
@@ -244,6 +241,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
     if (provider.hospitals.isEmpty) {
       return SliverToBoxAdapter(child: _buildEmptyState());
     }
+
     return SliverList(
       delegate: SliverChildBuilderDelegate(
         (context, index) => _buildHospitalItem(provider, index),
@@ -298,7 +296,6 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 5. PHẦN ĐẦU: LỜI CHÀO & TÌM KIẾM
   // ═══════════════════════════════════════════════════════════════
 
   /// _buildHeroHeader(): nền gradient xanh bo cong chứa lời chào + ô tìm kiếm.
@@ -348,7 +345,9 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildHeader(),
+
                   const SizedBox(height: 22),
+
                   const Text(
                     'Tìm bệnh viện\nphù hợp với bạn',
                     style: TextStyle(
@@ -359,6 +358,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                       letterSpacing: -0.4,
                     ),
                   ),
+
                   const SizedBox(height: 18),
                   _buildSearchRow(provider),
                 ],
@@ -415,6 +415,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
             ),
           ),
         ),
+
         const SizedBox(width: 12),
 
         // Lời chào + tên
@@ -430,6 +431,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                   fontWeight: FontWeight.w500,
                 ),
               ),
+
               const SizedBox(height: 2),
               Text(
                 userName.isEmpty ? 'Bạn' : userName,
@@ -444,6 +446,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
             ],
           ),
         ),
+
         const SizedBox(width: 12),
 
         // Nút thông báo + chấm đỏ
@@ -519,6 +522,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
     return Row(
       children: [
         Expanded(child: _buildSearchBar()),
+
         const SizedBox(width: 10),
         GestureDetector(
           onTap: () => setState(() => _isFilterExpanded = !_isFilterExpanded),
@@ -677,7 +681,6 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 6. BỘ LỌC
   // ═══════════════════════════════════════════════════════════════
 
   /// _buildFilterSection(): bảng bộ lọc, trượt mở / thu gọn.
@@ -707,17 +710,25 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildFilterHeader(),
+
                     const Divider(height: 1, color: _border),
+
                     const SizedBox(height: 18),
                     _buildSpecialtyFilter(provider),
+
                     const SizedBox(height: 22),
                     _buildDistanceFilter(provider),
+
                     const SizedBox(height: 14),
                     _buildRatingFilter(provider),
+
                     const SizedBox(height: 12),
+
                     const Divider(height: 1, color: _border),
+
                     const SizedBox(height: 18),
                     _buildBhytFilter(provider),
+
                     const SizedBox(height: 20),
                     _buildCoSoFilter(provider),
                   ],
@@ -807,6 +818,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
             child: Row(
               children: [
                 const Icon(Icons.info_outline, size: 16, color: _primary),
+
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -833,6 +845,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionTitle(Icons.medical_services_outlined, 'Chuyên khoa'),
+
         const SizedBox(height: 10),
         InkWell(
           borderRadius: BorderRadius.circular(14),
@@ -851,6 +864,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                   size: 20,
                   color: hasSelection ? _primary : _textGrey,
                 ),
+
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -864,6 +878,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+
                 const Icon(Icons.keyboard_arrow_down_rounded, color: _textGrey),
               ],
             ),
@@ -920,6 +935,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionTitle(Icons.verified_user_outlined, 'Bảo hiểm y tế'),
+
         const SizedBox(height: 10),
         Wrap(
           spacing: 8,
@@ -955,6 +971,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionTitle(Icons.apartment_rounded, 'Loại hình cơ sở'),
+
         const SizedBox(height: 10),
         Wrap(
           spacing: 8,
@@ -989,6 +1006,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
           ),
           child: Icon(icon, size: 16, color: _primary),
         ),
+
         const SizedBox(width: 10),
         Expanded(
           child: Text(
@@ -1048,6 +1066,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
     ValueChanged<String> onChanged,
   ) {
     final selected = value == groupValue;
+
     return InkWell(
       borderRadius: BorderRadius.circular(24),
       onTap: () => onChanged(value),
@@ -1064,6 +1083,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
           children: [
             if (selected) ...[
               const Icon(Icons.check_rounded, size: 16, color: Colors.white),
+
               const SizedBox(width: 6),
             ],
             Text(
@@ -1081,7 +1101,6 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 7. CHỌN CHUYÊN KHOA (BOTTOM SHEET)
   // ═══════════════════════════════════════════════════════════════
 
   /// _getSelectedSpecialtyNames(): chuỗi tên các chuyên khoa đã chọn.
@@ -1185,6 +1204,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
               size: 24,
             ),
           ),
+
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -1198,6 +1218,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                     color: _textDark,
                   ),
                 ),
+
                 const SizedBox(height: 2),
                 Text(
                   hasSelection
@@ -1277,6 +1298,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
         child: Column(
           children: [
             Icon(Icons.search_off, size: 44, color: Colors.grey.shade400),
+
             const SizedBox(height: 8),
             Text(
               'Không tìm thấy chuyên khoa',
@@ -1350,6 +1372,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                 size: 22,
               ),
             ),
+
             const SizedBox(width: 14),
             Expanded(
               child: Text(
@@ -1414,6 +1437,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(Icons.filter_alt_rounded, size: 20),
+
                   const SizedBox(width: 8),
                   Text(
                     _selectedSpecialties.isEmpty
@@ -1434,7 +1458,6 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 8. THẺ BỆNH VIỆN
   // ═══════════════════════════════════════════════════════════════
 
   /// _buildHospitalCard(): thẻ bệnh viện; bấm vào mở màn hình đặt lịch.
@@ -1490,14 +1513,19 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                   bgColor: bgColor,
                   textColor: textColor,
                 ),
+
                 const SizedBox(height: 14),
                 _buildCardAddress(address),
+
                 const SizedBox(height: 14),
+
                 const Divider(height: 1, color: _border),
+
                 const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(child: _buildDistanceBadge(distance)),
+
                     const SizedBox(width: 10),
                     _buildBookButton(),
                   ],
@@ -1546,6 +1574,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
             ),
           ),
         ),
+
         const SizedBox(width: 14),
 
         // Tên + loại hình + đánh giá
@@ -1564,6 +1593,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
+
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -1589,6 +1619,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                           size: 13,
                           color: textColor,
                         ),
+
                         const SizedBox(width: 4),
                         Text(
                           type,
@@ -1611,6 +1642,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                             ? const Color(0xFFF59E0B)
                             : Colors.grey.shade400,
                       ),
+
                       const SizedBox(width: 3),
                       Text(
                         hasRating
@@ -1637,6 +1669,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
             ],
           ),
         ),
+
         const SizedBox(width: 8),
 
         // Nút chat
@@ -1673,6 +1706,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
           padding: EdgeInsets.only(top: 1),
           child: Icon(Icons.location_on_outlined, color: _textGrey, size: 17),
         ),
+
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -1697,6 +1731,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
           size: 15,
           color: hasDistance ? _primary : _textGrey,
         ),
+
         const SizedBox(width: 6),
         Flexible(
           child: Text(
@@ -1743,7 +1778,6 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 9. TRẠNG THÁI RỖNG & LỖI
   // ═══════════════════════════════════════════════════════════════
 
   /// _buildEmptyState(): thông báo không có bệnh viện phù hợp.
@@ -1766,7 +1800,9 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                 color: _primary,
               ),
             ),
+
             const SizedBox(height: 20),
+
             const Text(
               'Không tìm thấy bệnh viện nào',
               style: TextStyle(
@@ -1775,12 +1811,15 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                 color: _textDark,
               ),
             ),
+
             const SizedBox(height: 8),
+
             const Text(
               'Hãy thử bỏ bớt bộ lọc hoặc đổi từ khóa tìm kiếm.',
               style: TextStyle(fontSize: 14, height: 1.4, color: _textGrey),
               textAlign: TextAlign.center,
             ),
+
             const SizedBox(height: 18),
             OutlinedButton.icon(
               onPressed: _resetFilters,
@@ -1824,7 +1863,9 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                 color: Colors.red.shade400,
               ),
             ),
+
             const SizedBox(height: 20),
+
             const Text(
               'Không tải được dữ liệu',
               style: TextStyle(
@@ -1833,6 +1874,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
                 color: _textDark,
               ),
             ),
+
             const SizedBox(height: 8),
             Text(
               message,
@@ -1843,6 +1885,7 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
               ),
               textAlign: TextAlign.center,
             ),
+
             const SizedBox(height: 18),
             ElevatedButton.icon(
               onPressed: () => _applyFilters(),
@@ -1868,7 +1911,6 @@ class _HospitalFilterScreenState extends State<HospitalFilterScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 10. TIỆN ÍCH
   // ═══════════════════════════════════════════════════════════════
 
   /// _getInitials(): chữ viết tắt từ tên bệnh viện (2 chữ cái đầu của 2 từ đầu).
@@ -1951,12 +1993,14 @@ class _SkeletonCardState extends State<_SkeletonCard>
             Row(
               children: [
                 _bar(56, 56, radius: 16),
+
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _bar(double.infinity, 14),
+
                       const SizedBox(height: 10),
                       _bar(120, 12),
                     ],
@@ -1964,10 +2008,13 @@ class _SkeletonCardState extends State<_SkeletonCard>
                 ),
               ],
             ),
+
             const SizedBox(height: 16),
             _bar(double.infinity, 12),
+
             const SizedBox(height: 8),
             _bar(180, 12),
+
             const SizedBox(height: 18),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

@@ -1,5 +1,3 @@
-// ───────────────────────── Kiểm tra email ─────────────────────────
-
 // Định dạng email: không cho dấu chấm liền nhau / đầu / cuối, tên miền không bắt đầu
 // hay kết thúc bằng dấu gạch ngang, đuôi tên miền từ 2 chữ cái trở lên.
 final RegExp _emailRegex = RegExp(
@@ -79,6 +77,7 @@ String? suggestEmailDomain(String email) {
   return best == null ? null : '${parts[0]}@$best';
 }
 
+/// validatePassword: kiểm tra tính hợp lệ của dữ liệu.
 String? validatePassword(String? value) {
   if (value == null || value.trim().isEmpty) {
     return 'Vui lòng nhập mật khẩu';
@@ -90,10 +89,11 @@ String? validatePassword(String? value) {
     return 'Mật khẩu phải có ít nhất 6 ký tự';
   }
 
-  return null; // ✅ Dòng này bắt buộc phải có để báo hợp lệ
+  return null;
 }
 
 // Kiểm tra email: không rỗng, đúng định dạng, tên miền không gõ nhầm.
+/// validateEmail: kiểm tra tính hợp lệ của dữ liệu.
 String? validateEmail(String? value) {
   final email = (value ?? '').trim();
 
@@ -109,9 +109,8 @@ String? validateEmail(String? value) {
   return null;
 }
 
-// ───────────────────────── Kiểm tra số điện thoại ─────────────────────────
-
 // Kiểm tra số điện thoại: bỏ khoảng trắng / dấu chấm / gạch ngang, rồi cần 9-11 chữ số.
+/// validatePhone: kiểm tra tính hợp lệ của dữ liệu.
 String? validatePhone(String? value) {
   final phone = (value ?? '').replaceAll(RegExp(r'[\s.\-]'), '');
 

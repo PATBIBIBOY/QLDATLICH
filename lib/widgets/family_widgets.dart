@@ -38,6 +38,7 @@ class ProfileAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = profileColor(profile);
     final hasPhoto = profile.anhDaiDien.isNotEmpty;
+
     return Container(
       width: size,
       height: size,
@@ -105,6 +106,7 @@ class ProfileChipsRow extends StatelessWidget {
           Row(
             children: [
               const Icon(Icons.groups_rounded, size: 20, color: _kPrimary),
+
               const SizedBox(width: 8),
               Text(
                 title,
@@ -114,6 +116,7 @@ class ProfileChipsRow extends StatelessWidget {
                   color: _kText,
                 ),
               ),
+
               const Spacer(),
               GestureDetector(
                 onTap: () =>
@@ -129,6 +132,7 @@ class ProfileChipsRow extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(height: 12),
           SizedBox(
             height: 104,
@@ -139,6 +143,7 @@ class ProfileChipsRow extends StatelessWidget {
               itemBuilder: (_, i) {
                 final p = profiles[i];
                 final sel = p.id == selectedId;
+
                 return GestureDetector(
                   onTap: () => onSelected(p.id),
                   child: SizedBox(
@@ -165,6 +170,7 @@ class ProfileChipsRow extends StatelessWidget {
                               ),
                           ],
                         ),
+
                         const SizedBox(height: 6),
                         Text(
                           p.shortName,
@@ -209,6 +215,7 @@ Future<void> showProfileSwitcherSheet(BuildContext context) {
     builder: (ctx) => Consumer<FamilyProfileProvider>(
       builder: (ctx, fp, _) {
         final maxH = MediaQuery.of(ctx).size.height * 0.88;
+
         return ConstrainedBox(
           constraints: BoxConstraints(maxHeight: maxH),
           child: Column(
@@ -227,6 +234,7 @@ Future<void> showProfileSwitcherSheet(BuildContext context) {
                   ),
                 ),
               ),
+
               const SizedBox(height: 16),
 
               // Tiêu đề
@@ -252,10 +260,15 @@ Future<void> showProfileSwitcherSheet(BuildContext context) {
                           ),
                         ],
                       ),
-                      child: const Icon(Icons.swap_horiz_rounded,
-                          color: Colors.white, size: 25),
+                      child: const Icon(
+                        Icons.swap_horiz_rounded,
+                        color: Colors.white,
+                        size: 25,
+                      ),
                     ),
+
                     const SizedBox(width: 14),
+
                     const Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -272,7 +285,10 @@ Future<void> showProfileSwitcherSheet(BuildContext context) {
                           Text(
                             'Lịch khám, số thứ tự và mã QR sẽ theo hồ sơ bạn chọn',
                             style: TextStyle(
-                                fontSize: 12.5, height: 1.35, color: _kGrey),
+                              fontSize: 12.5,
+                              height: 1.35,
+                              color: _kGrey,
+                            ),
                           ),
                         ],
                       ),
@@ -287,13 +303,17 @@ Future<void> showProfileSwitcherSheet(BuildContext context) {
                           color: Color(0xFFF1F5F9),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.close_rounded,
-                            size: 18, color: _kGrey),
+                        child: const Icon(
+                          Icons.close_rounded,
+                          size: 18,
+                          color: _kGrey,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
+
               const SizedBox(height: 16),
 
               // Danh sách hồ sơ
@@ -305,6 +325,7 @@ Future<void> showProfileSwitcherSheet(BuildContext context) {
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (_, i) {
                     final p = fp.profiles[i];
+
                     return _SwitcherTile(
                       profile: p,
                       selected: p.id == fp.currentId,
@@ -316,6 +337,7 @@ Future<void> showProfileSwitcherSheet(BuildContext context) {
                   },
                 ),
               ),
+
               const SizedBox(height: 14),
 
               // Hành động
@@ -340,24 +362,33 @@ Future<void> showProfileSwitcherSheet(BuildContext context) {
                             onPressed: () {
                               Navigator.pop(ctx);
                               Navigator.pushNamed(
-                                  context, AppRoutes.addEditFamilyProfile);
+                                context,
+                                AppRoutes.addEditFamilyProfile,
+                              );
                             },
-                            icon: const Icon(Icons.person_add_alt_1_rounded,
-                                size: 19),
-                            label: const Text('Thêm người thân',
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w800)),
+                            icon: const Icon(
+                              Icons.person_add_alt_1_rounded,
+                              size: 19,
+                            ),
+                            label: const Text(
+                              'Thêm người thân',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: _kPrimary,
                               foregroundColor: Colors.white,
                               elevation: 0,
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14)),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
                             ),
                           ),
                         ),
                       ),
+
                       const SizedBox(width: 10),
                       SizedBox(
                         height: 48,
@@ -365,19 +396,28 @@ Future<void> showProfileSwitcherSheet(BuildContext context) {
                           onPressed: () {
                             Navigator.pop(ctx);
                             Navigator.pushNamed(
-                                context, AppRoutes.familyProfiles);
+                              context,
+                              AppRoutes.familyProfiles,
+                            );
                           },
                           style: OutlinedButton.styleFrom(
                             foregroundColor: _kPrimary,
-                            side: const BorderSide(color: _kPrimary, width: 1.3),
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 16),
+                            side: const BorderSide(
+                              color: _kPrimary,
+                              width: 1.3,
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14)),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                           ),
-                          child: const Text('Quản lý',
-                              style: TextStyle(
-                                  fontSize: 14, fontWeight: FontWeight.w800)),
+                          child: const Text(
+                            'Quản lý',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -430,6 +470,7 @@ class _SwitcherTile extends StatelessWidget {
           child: Row(
             children: [
               ProfileAvatar(profile: p, size: 48, selected: selected),
+
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -451,17 +492,24 @@ class _SwitcherTile extends StatelessWidget {
                         ),
                         if (p.isDefault) ...[
                           const SizedBox(width: 6),
-                          const Icon(Icons.star_rounded,
-                              size: 16, color: Color(0xFFF59E0B)),
+
+                          const Icon(
+                            Icons.star_rounded,
+                            size: 16,
+                            color: Color(0xFFF59E0B),
+                          ),
                         ],
                       ],
                     ),
+
                     const SizedBox(height: 4),
                     Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: color.withOpacity(0.12),
                             borderRadius: BorderRadius.circular(8),
@@ -480,6 +528,7 @@ class _SwitcherTile extends StatelessWidget {
                   ],
                 ),
               ),
+
               const SizedBox(width: 8),
               AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
@@ -494,8 +543,11 @@ class _SwitcherTile extends StatelessWidget {
                   ),
                 ),
                 child: selected
-                    ? const Icon(Icons.check_rounded,
-                        size: 16, color: Colors.white)
+                    ? const Icon(
+                        Icons.check_rounded,
+                        size: 16,
+                        color: Colors.white,
+                      )
                     : null,
               ),
             ],

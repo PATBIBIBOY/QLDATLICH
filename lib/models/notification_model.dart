@@ -92,7 +92,9 @@ class NotificationModel {
         v.contains('confirm')) {
       return NotificationType.appointmentConfirmed;
     }
-    if (v == 'benh_vien_huy_lich' || v.contains('huy') || v.contains('cancel')) {
+    if (v == 'benh_vien_huy_lich' ||
+        v.contains('huy') ||
+        v.contains('cancel')) {
       return NotificationType.appointmentCancelled;
     }
     if (v == 'benh_vien_nhan_nho' ||

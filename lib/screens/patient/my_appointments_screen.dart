@@ -69,6 +69,7 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
     }
   }
 
+  /// _openHistory: mở màn hình, hộp thoại hoặc menu.
   void _openHistory() {
     if (widget.onOpenHistory != null) {
       widget.onOpenHistory!();
@@ -77,12 +78,14 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
     }
   }
 
+  /// _load: tải dữ liệu và cập nhật giao diện/state.
   Future<void> _load() async {
     final id = _patientId;
     if (id == null || id.isEmpty) return;
     await context.read<LichHenProvider>().loadMyBookings(id);
   }
 
+  /// _formatDate: định dạng dữ liệu hiển thị.
   static String _formatDate(DateTime? d) {
     if (d == null) return '—';
     return '${d.day.toString().padLeft(2, '0')}/'
@@ -115,6 +118,7 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
     );
   }
 
+  /// _openDetail: mở màn hình, hộp thoại hoặc menu.
   Future<void> _openDetail(MyAppointmentItem item) async {
     if (widget.onOpenDetail != null) {
       widget.onOpenDetail!(item);
@@ -125,6 +129,7 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
         arguments: item,
       );
       if (result == true && mounted) {
+        /// _load: tải dữ liệu và cập nhật giao diện/state.
         await _load();
       }
     }
@@ -286,8 +291,6 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
   }
 }
 
-// ───────────────────────── MÀU RIÊNG CỦA MÀN HÌNH ─────────────────────────
-
 const Color _kPrimary = Color(0xFF0B63CE);
 const Color _kPrimaryDark = Color(0xFF084A9E);
 const Color _kPrimarySoft = Color(0xFFE8F1FC);
@@ -298,12 +301,11 @@ const Color _kBorder = Color(0xFFE3EAF2);
 const Color _kText = Color(0xFF0B1F3A);
 const Color _kGrey = Color(0xFF5B6B80);
 
-// ───────────────────────── HIỆU ỨNG XUẤT HIỆN ─────────────────────────
-
 /// Mờ dần + trượt nhẹ từ dưới lên; các thẻ phía sau xuất hiện trễ hơn một chút.
 class _FadeSlideIn extends StatelessWidget {
   final int index;
   final Widget child;
+
   const _FadeSlideIn({required this.index, required this.child});
 
   @override
@@ -324,8 +326,6 @@ class _FadeSlideIn extends StatelessWidget {
     );
   }
 }
-
-// ───────────────────────── PHẦN ĐẦU: TIÊU ĐỀ + THỐNG KÊ ─────────────────────────
 
 class _Header extends StatelessWidget {
   final int upcoming;
@@ -390,7 +390,9 @@ class _Header extends StatelessWidget {
                           size: 24,
                         ),
                       ),
+
                       const SizedBox(width: 14),
+
                       const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -426,18 +428,21 @@ class _Header extends StatelessWidget {
                           label: 'Sắp tới',
                           icon: Icons.event_available_rounded,
                         ),
+
                         const SizedBox(width: 10),
                         _StatTile(
                           value: '$pending',
                           label: 'Chờ xác nhận',
                           icon: Icons.hourglass_top_rounded,
                         ),
+
                         const SizedBox(width: 10),
                         _StatTile(
                           value: '${confirmed < 0 ? 0 : confirmed}',
                           label: 'Đã xác nhận',
                           icon: Icons.verified_rounded,
                         ),
+
                         const SizedBox(width: 10),
                         _StatTile(
                           value: '$history',
@@ -461,6 +466,7 @@ class _StatTile extends StatelessWidget {
   final String value;
   final String label;
   final IconData icon;
+
   const _StatTile({
     required this.value,
     required this.label,
@@ -488,6 +494,7 @@ class _StatTile extends StatelessWidget {
                 color: Colors.white,
               ),
             ),
+
             const SizedBox(height: 4),
             Text(
               label,
@@ -509,6 +516,7 @@ class _StatTile extends StatelessWidget {
 class _SectionTitle extends StatelessWidget {
   final String title;
   final String? badge;
+
   const _SectionTitle({required this.title, this.badge});
 
   @override
@@ -547,11 +555,10 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-// ───────────────────────── THẺ LỊCH KHÁM ─────────────────────────
-
 class _AppointmentCard extends StatelessWidget {
   final MyAppointmentItem item;
   final VoidCallback? onTap;
+
   const _AppointmentCard({required this.item, this.onTap});
 
   /// Tách "dd/MM/yyyy" thành [ngày, tháng]; không đúng định dạng thì trả về null.
@@ -620,6 +627,7 @@ class _AppointmentCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _DateBadge(date: date, accent: accent, soft: soft),
+
                         const SizedBox(width: 14),
                         Expanded(
                           child: Column(
@@ -636,6 +644,7 @@ class _AppointmentCard extends StatelessWidget {
                                   color: _kText,
                                 ),
                               ),
+
                               const SizedBox(height: 8),
                               StatusChip(item.status),
                             ],
@@ -643,6 +652,7 @@ class _AppointmentCard extends StatelessWidget {
                         ),
                       ],
                     ),
+
                     const SizedBox(height: 14),
 
                     // Khối thông tin chi tiết
@@ -671,6 +681,7 @@ class _AppointmentCard extends StatelessWidget {
                               color: accent,
                             ),
                           ],
+
                           const SizedBox(height: 10),
                           _InfoRow(
                             icon: Icons.calendar_today_rounded,
@@ -681,6 +692,7 @@ class _AppointmentCard extends StatelessWidget {
                         ],
                       ),
                     ),
+
                     const SizedBox(height: 12),
 
                     // Chân thẻ: mã lịch + xem chi tiết
@@ -705,6 +717,7 @@ class _AppointmentCard extends StatelessWidget {
                             ),
                           ),
                         ),
+
                         const Spacer(),
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -753,6 +766,7 @@ class _DateBadge extends StatelessWidget {
   final List<String>? date; // [ngày, tháng]
   final Color accent;
   final Color soft;
+
   const _DateBadge({
     required this.date,
     required this.accent,
@@ -812,6 +826,7 @@ class _InfoRow extends StatelessWidget {
   final String label;
   final String text;
   final Color color;
+
   const _InfoRow({
     required this.icon,
     required this.label,
@@ -832,8 +847,10 @@ class _InfoRow extends StatelessWidget {
           ),
           child: Icon(icon, size: 15, color: color),
         ),
+
         const SizedBox(width: 10),
         Text(label, style: const TextStyle(fontSize: 12.5, color: _kGrey)),
+
         const SizedBox(width: 10),
         Expanded(
           child: Text(
@@ -853,11 +870,10 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-// ───────────────────────── THẺ LỊCH SỬ ─────────────────────────
-
 class _HistoryCard extends StatelessWidget {
   final int count;
   final VoidCallback? onTap;
+
   const _HistoryCard({required this.count, this.onTap});
 
   @override
@@ -889,6 +905,7 @@ class _HistoryCard extends StatelessWidget {
                   color: _kPrimary,
                 ),
               ),
+
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -902,6 +919,7 @@ class _HistoryCard extends StatelessWidget {
                         color: _kText,
                       ),
                     ),
+
                     const SizedBox(height: 3),
                     Text(
                       count > 0
@@ -912,6 +930,7 @@ class _HistoryCard extends StatelessWidget {
                   ],
                 ),
               ),
+
               const Icon(
                 Icons.chevron_right_rounded,
                 size: 26,
@@ -925,10 +944,9 @@ class _HistoryCard extends StatelessWidget {
   }
 }
 
-// ───────────────────────── TRẠNG THÁI TRỐNG / LỖI / ĐANG TẢI ─────────────────────────
-
 class _EmptyState extends StatelessWidget {
   final VoidCallback onBookNow;
+
   const _EmptyState({required this.onBookNow});
 
   @override
@@ -960,7 +978,9 @@ class _EmptyState extends StatelessWidget {
               ),
             ),
           ),
+
           const SizedBox(height: 20),
+
           const Text(
             'Bạn chưa có lịch khám nào',
             style: TextStyle(
@@ -969,12 +989,15 @@ class _EmptyState extends StatelessWidget {
               color: _kText,
             ),
           ),
+
           const SizedBox(height: 6),
+
           const Text(
             'Chọn bệnh viện và khung giờ phù hợp,\nviệc đặt lịch chỉ mất vài phút.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13.5, height: 1.45, color: _kGrey),
           ),
+
           const SizedBox(height: 18),
           ElevatedButton.icon(
             onPressed: onBookNow,
@@ -1030,6 +1053,7 @@ class _MessageState extends StatelessWidget {
             ),
             child: Icon(icon, size: 42, color: color),
           ),
+
           const SizedBox(height: 18),
           Text(
             title,
@@ -1039,6 +1063,7 @@ class _MessageState extends StatelessWidget {
               color: _kText,
             ),
           ),
+
           const SizedBox(height: 6),
           Text(
             text,
@@ -1071,12 +1096,11 @@ class _MessageState extends StatelessWidget {
   }
 }
 
-// ───────────────────────── KHUNG XƯƠNG KHI ĐANG TẢI ─────────────────────────
-
 class _SkeletonBox extends StatelessWidget {
   final double? width;
   final double height;
   final double radius;
+
   const _SkeletonBox({this.width, required this.height, this.radius = 8});
 
   @override
@@ -1100,7 +1124,8 @@ class _SkeletonCard extends StatefulWidget {
   State<_SkeletonCard> createState() => _SkeletonCardState();
 }
 
-class _SkeletonCardState extends State<_SkeletonCard> with SingleTickerProviderStateMixin {
+class _SkeletonCardState extends State<_SkeletonCard>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class KhungGio {
   final String batDau;
   final String ketThuc;
+
   const KhungGio(this.batDau, this.ketThuc);
 
   Map<String, dynamic> toMap() => {'batDau': batDau, 'ketThuc': ketThuc};
@@ -44,6 +45,7 @@ enum TrangThaiPhong {
   dongCua(14);
 
   final int ma;
+
   const TrangThaiPhong(this.ma);
 
   /// tuMa: đổi giá trị đọc từ Firestore (số hoặc chuỗi) thành trạng thái phòng, không khớp thì xem là đang khám.
@@ -82,6 +84,7 @@ class PhongKhamTrangThai {
   factory PhongKhamTrangThai.tuMap(Map<String, dynamic> d) {
     final ts = d['tam_dung_tu'];
     final tong = d['tong_phut_tam_dung'];
+
     return PhongKhamTrangThai(
       trangThai: TrangThaiPhong.tuMa(d['trang_thai_id']),
       tamDungTu: ts is Timestamp ? ts.toDate() : null,
@@ -159,7 +162,6 @@ class KhoaService {
       );
     }
 
-    // Bước 1: tạo tham chiếu khoa với ID tự sinh và tính lịch làm việc.
     final khoaRef = _db
         .collection('Khoa')
         .doc(benhVienId)
@@ -167,7 +169,6 @@ class KhoaService {
         .doc();
     final lich = taoLichLamViec(ngayLamViec);
 
-    // Bước 2: sắp xếp khung giờ, lấy giờ mở sớm nhất, giờ đóng muộn nhất và thời gian khám mỗi bệnh nhân.
     final ds = [...khungGio]..sort((a, b) => a.batDau.compareTo(b.batDau));
     final gioMoCua = ds.first.batDau;
     final gioDongCua = ds
@@ -179,7 +180,6 @@ class KhoaService {
 
     final batch = _db.batch();
 
-    // Bước 3: ghi document khoa.
     batch.set(khoaRef, {
       'tenKhoa': tenKhoa,
       'moTa': '',
@@ -194,7 +194,6 @@ class KhoaService {
       'ngayTao': FieldValue.serverTimestamp(),
     });
 
-    // Bước 4: ghi từng phòng khám với trạng thái mặc định là đang khám (13).
     for (final ten in phongKham) {
       final phongRef = khoaRef.collection('phongKham').doc();
       batch.set(phongRef, {
@@ -213,7 +212,6 @@ class KhoaService {
       });
     }
 
-    // Bước 5: ghi batch và trả về thông tin khoa vừa tạo.
     await batch.commit();
 
     return KhoaVuaTao(
@@ -226,7 +224,7 @@ class KhoaService {
     );
   }
 
-  /// capNhatKhoa: cập nhật thông tin khoa và đồng bộ danh sách phòng khám (giữ trạng thái của phòng cũ).
+  /// capNhatKhoa: cập nhật thông tin khoa và đồng bộ danh sách phòng khám (xóa phòng không còn, giữ trạng thái và nhân viên của phòng cũ).
   Future<void> capNhatKhoa({
     required String benhVienId,
     required String khoaId,
@@ -237,7 +235,6 @@ class KhoaService {
     required List<int> ngayLamViec,
     required List<String> phongKham,
   }) async {
-    // Bước 1: tính lịch làm việc, giờ mở đóng cửa và thời gian khám mỗi bệnh nhân.
     final khoaRef = _khoaRef(benhVienId, khoaId);
     final lich = taoLichLamViec(ngayLamViec);
 
@@ -252,7 +249,6 @@ class KhoaService {
 
     final batch = _db.batch();
 
-    // Bước 2: cập nhật document khoa.
     batch.update(khoaRef, {
       'tenKhoa': tenKhoa,
       'soPhong': phongKham.length,
@@ -265,7 +261,6 @@ class KhoaService {
       'ngayCapNhat': FieldValue.serverTimestamp(),
     });
 
-    // Bước 3: đọc các phòng cũ và xóa những phòng không còn trong danh sách mới.
     final oldRoomsSnap = await khoaRef.collection('phongKham').get();
     final Map<String, DocumentSnapshot<Map<String, dynamic>>> oldRooms = {
       for (final d in oldRoomsSnap.docs)
@@ -279,7 +274,6 @@ class KhoaService {
       }
     }
 
-    // Bước 4: thêm phòng mới hoặc cập nhật phòng cũ, giữ nguyên trạng thái và nhân viên phụ trách.
     for (final ten in phongKham) {
       final docRef = oldRooms.containsKey(ten)
           ? oldRooms[ten]!.reference
@@ -301,7 +295,6 @@ class KhoaService {
       }, SetOptions(merge: true));
     }
 
-    // Bước 5: ghi batch.
     await batch.commit();
   }
 
@@ -310,7 +303,6 @@ class KhoaService {
     required String benhVienId,
     required String khoaId,
   }) async {
-    // Bước 1: lấy các phòng khám con và đưa vào batch xóa.
     final khoaRef = _khoaRef(benhVienId, khoaId);
     final phongs = await khoaRef.collection('phongKham').get();
     final batch = _db.batch();
@@ -318,12 +310,11 @@ class KhoaService {
       batch.delete(d.reference);
     }
 
-    // Bước 2: xóa document khoa rồi ghi batch.
     batch.delete(khoaRef);
     await batch.commit();
   }
 
-  /// dsKhoa: lắng nghe danh sách khoa của bệnh viện cho màn Trang chủ.
+  /// dsKhoa: lắng nghe danh sách khoa của bệnh viện (mới tạo trước) cho màn Trang chủ.
   Stream<QuerySnapshot<Map<String, dynamic>>> dsKhoa(String benhVienId) {
     return _db
         .collection('Khoa')
@@ -345,7 +336,7 @@ class KhoaService {
     return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
   }
 
-  /// theoDoiTrangThaiPhong: lắng nghe trực tiếp trạng thái phòng khám từ collection PhongKham.
+  /// theoDoiTrangThaiPhong: lắng nghe trực tiếp trạng thái phòng khám từ collection PhongKham (không có document thì dùng trạng thái mặc định).
   Stream<PhongKhamTrangThai> theoDoiTrangThaiPhong({
     required String benhVienId,
     required String khoaId,
@@ -370,7 +361,6 @@ class KhoaService {
     final ref = _db.collection(_colPhongKham).doc(phongKhamId);
 
     await _db.runTransaction((tx) async {
-      // Bước 1: đọc trạng thái hiện tại của phòng.
       final snap = await tx.get(ref);
       if (!snap.exists) throw Exception('Không tìm thấy phòng khám.');
       final data = snap.data()!;
@@ -378,16 +368,13 @@ class KhoaService {
       final now = DateTime.now();
       final homNay = _ngayId(now);
 
-      // Bước 2: lấy số phút đã tích lũy của hôm nay (sang ngày mới thì tính lại từ 0).
       var tong = hienTai.ngayTamDung == homNay ? hienTai.tongPhutTamDung : 0;
 
-      // Bước 3: nếu phòng đang tạm dừng và chuyển sang trạng thái khác thì cộng đợt tạm dừng vừa kết thúc.
       final dangTamDung = hienTai.trangThai == TrangThaiPhong.tamDung;
       if (dangTamDung && trangThaiMoi != TrangThaiPhong.tamDung) {
         tong += hienTai.phutDangTamDung(now);
       }
 
-      // Bước 4: xác định thời điểm bắt đầu tạm dừng (giữ nguyên nếu đang tạm dừng, đặt mới nếu vừa chuyển sang tạm dừng).
       final Object? tamDungTu;
       if (trangThaiMoi != TrangThaiPhong.tamDung) {
         tamDungTu = null;
@@ -397,7 +384,6 @@ class KhoaService {
         tamDungTu = FieldValue.serverTimestamp();
       }
 
-      // Bước 5: ghi trạng thái mới cùng thông tin tạm dừng.
       tx.update(ref, {
         'trang_thai_id': trangThaiMoi.ma,
         'tam_dung_tu': tamDungTu,

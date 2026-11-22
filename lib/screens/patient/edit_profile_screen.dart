@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
 import '../../providers/auth_provider.dart';
 import '../../utils/app_snackbar.dart';
 
+/// EditProfileScreen: form cập nhật thông tin cá nhân của bệnh nhân
+/// (họ tên, giới tính, ngày sinh, CCCD, BHYT, số điện thoại, email, địa chỉ).
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
 
@@ -12,8 +15,19 @@ class EditProfileScreen extends StatefulWidget {
 }
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
-  final _formKey = GlobalKey<FormState>();
+  // Bảng màu.
+  static const Color _primary = Color(0xFF2563EB);
+  static const Color _primaryLight = Color(0xFFDBEAFE);
+  static const Color _success = Color(0xFF10B981);
+  static const Color _danger = Color(0xFFEF4444);
+  static const Color _bg = Color(0xFFF4F7FB);
+  static const Color _textDark = Color(0xFF0F172A);
+  static const Color _textGrey = Color(0xFF64748B);
+  static const Color _hint = Color(0xFF94A3B8);
+  static const Color _border = Color(0xFFE2E8F0);
+  static const Color _fieldFill = Color(0xFFF8FAFC);
 
+  final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _birthdayController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -25,49 +39,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String _selectedGender = 'Nam';
   bool _isLoading = false;
 
-  // Bảng màu
-  static const Color _primary = Color(0xFF2563EB);
-  static const Color _primaryLight = Color(0xFFDBEAFE);
-  static const Color _success = Color(0xFF10B981);
-  static const Color _danger = Color(0xFFEF4444);
-  static const Color _bg = Color(0xFFF4F7FB);
-  static const Color _textDark = Color(0xFF0F172A);
-  static const Color _textGrey = Color(0xFF64748B);
-  static const Color _hint = Color(0xFF94A3B8);
-  static const Color _border = Color(0xFFE2E8F0);
-
   @override
   void initState() {
     super.initState();
     _loadUserData();
-  }
-
-  String _str(dynamic v) => (v ?? '').toString().trim();
-
-  // CCCD / BHYT là 2 field mới của model (cccd, soBhyt). Chưa có thì trả về rỗng.
-  String _readField(dynamic user, String Function(dynamic) getter) {
-    try {
-      return _str(getter(user));
-    } catch (_) {
-      return '';
-    }
-  }
-
-  void _loadUserData() {
-    final user = context.read<AuthProvider>().user;
-    if (user == null) return;
-
-    _nameController.text = _str(user.hoTen);
-    final gender = _str(user.gioiTinh);
-    _selectedGender = gender == 'Nữ' ? 'Nữ' : 'Nam';
-    _birthdayController.text = user.ngaySinh != null
-        ? _formatDate(user.ngaySinh!)
-        : '';
-    _phoneController.text = _str(user.soDienThoai);
-    _cccdController.text = _readField(user, (u) => u.cccd);
-    _bhytController.text = _readField(user, (u) => u.soBhyt);
-    _addressController.text = _str(user.diaChi);
-    _emailController.text = _str(user.email);
   }
 
   @override
@@ -82,10 +57,41 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
+  // ───────────── Dữ liệu & logic ─────────────
+
+  String _str(dynamic v) => (v ?? '').toString().trim();
+
+  /// _readField: đọc một field của user qua [getter]; trả rỗng nếu model chưa có field đó
+  /// (cccd và soBhyt là hai field thêm sau).
+  String _readField(dynamic user, String Function(dynamic) getter) {
+    try {
+      return _str(getter(user));
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// _loadUserData: điền sẵn form bằng thông tin người dùng hiện tại.
+  void _loadUserData() {
+    final user = context.read<AuthProvider>().user;
+    if (user == null) return;
+
+    _nameController.text = _str(user.hoTen);
+    _selectedGender = _str(user.gioiTinh) == 'Nữ' ? 'Nữ' : 'Nam';
+    _birthdayController.text =
+        user.ngaySinh != null ? _formatDate(user.ngaySinh!) : '';
+    _phoneController.text = _str(user.soDienThoai);
+    _cccdController.text = _readField(user, (u) => u.cccd);
+    _bhytController.text = _readField(user, (u) => u.soBhyt);
+    _addressController.text = _str(user.diaChi);
+    _emailController.text = _str(user.email);
+  }
+
+  /// _formatDate: DateTime -> "dd/MM/yyyy".
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
-  // "dd/MM/yyyy" -> DateTime (null nếu sai định dạng).
+  /// _parseDate: "dd/MM/yyyy" -> DateTime (null nếu sai định dạng).
   DateTime? _parseDate(String text) {
     final parts = text.split('/');
     if (parts.length != 3) return null;
@@ -96,13 +102,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return DateTime(y, m, d);
   }
 
+  /// _selectDate: mở hộp chọn ngày sinh và ghi vào ô ngày sinh.
   Future<void> _selectDate() async {
     FocusScope.of(context).unfocus();
-    final initialDate = _parseDate(_birthdayController.text) ?? DateTime(2000);
-
     final picked = await showDatePicker(
       context: context,
-      initialDate: initialDate,
+      initialDate: _parseDate(_birthdayController.text) ?? DateTime(2000),
       firstDate: DateTime(1920),
       lastDate: DateTime.now(),
       helpText: 'Chọn ngày sinh',
@@ -124,6 +129,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
+  /// _saveProfile: kiểm tra form rồi lưu thông tin; thành công thì đóng màn hình.
   Future<void> _saveProfile() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) {
@@ -135,11 +141,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
 
     setState(() => _isLoading = true);
-
     try {
-      final auth = context.read<AuthProvider>();
-
-      await auth.updateUserProfile(
+      await context.read<AuthProvider>().updateUserProfile(
         hoTen: _nameController.text.trim(),
         gioiTinh: _selectedGender,
         ngaySinh: _parseDate(_birthdayController.text),
@@ -169,7 +172,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  // ───────────────────────── Giao diện ─────────────────────────
+  // ───────────── Giao diện chính ─────────────
 
   @override
   Widget build(BuildContext context) {
@@ -185,198 +188,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             children: [
               _buildIntroBanner(),
               const SizedBox(height: 18),
-
-              // ── Thông tin cơ bản ──
-              _section(
-                title: 'Thông tin cơ bản',
-                icon: Icons.person_rounded,
-                color: _primary,
-                children: [
-                  _label('Họ và tên'),
-                  TextFormField(
-                    controller: _nameController,
-                    textCapitalization: TextCapitalization.words,
-                    textInputAction: TextInputAction.next,
-                    decoration: _decoration(
-                      hint: 'Nguyễn Văn An',
-                      icon: Icons.person_outline_rounded,
-                    ),
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) {
-                        return 'Vui lòng nhập họ tên';
-                      }
-                      if (v.trim().length < 2) return 'Họ tên quá ngắn';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 18),
-                  _label('Giới tính'),
-                  Row(
-                    children: [
-                      Expanded(child: _genderButton('Nam', Icons.male_rounded)),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _genderButton('Nữ', Icons.female_rounded),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  _label('Ngày sinh'),
-                  GestureDetector(
-                    onTap: _selectDate,
-                    child: AbsorbPointer(
-                      child: TextFormField(
-                        controller: _birthdayController,
-                        decoration: _decoration(
-                          hint: 'DD/MM/YYYY',
-                          icon: Icons.cake_outlined,
-                          suffix: const Icon(
-                            Icons.expand_more_rounded,
-                            color: _primary,
-                          ),
-                        ),
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? 'Vui lòng chọn ngày sinh'
-                            : null,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              _buildBasicSection(),
               const SizedBox(height: 16),
-
-              // ── Giấy tờ & bảo hiểm ──
-              _section(
-                title: 'Giấy tờ & bảo hiểm',
-                icon: Icons.verified_user_rounded,
-                color: const Color(0xFFF59E0B),
-                children: [
-                  _label('CCCD / CMND', optional: true),
-                  TextFormField(
-                    controller: _cccdController,
-                    keyboardType: TextInputType.number,
-                    textInputAction: TextInputAction.next,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(12),
-                    ],
-                    decoration: _decoration(
-                      hint: '12 chữ số (hoặc 9 số với CMND)',
-                      icon: Icons.credit_card_rounded,
-                      accent: const Color(0xFFF59E0B),
-                    ),
-                    validator: (v) {
-                      final t = (v ?? '').trim();
-                      if (t.isEmpty) return null;
-                      if (t.length != 9 && t.length != 12) {
-                        return 'CCCD gồm 12 số, CMND gồm 9 số';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 18),
-                  _label('Số thẻ BHYT', optional: true),
-                  TextFormField(
-                    controller: _bhytController,
-                    textCapitalization: TextCapitalization.characters,
-                    textInputAction: TextInputAction.next,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
-                      LengthLimitingTextInputFormatter(15),
-                      _UpperCaseFormatter(),
-                    ],
-                    decoration: _decoration(
-                      hint: 'VD: DN4797915012345',
-                      icon: Icons.health_and_safety_rounded,
-                      accent: const Color(0xFFEF4444),
-                    ),
-                    validator: (v) {
-                      final t = (v ?? '').trim();
-                      if (t.isEmpty) return null;
-                      if (t.length != 15) {
-                        return 'Số thẻ BHYT gồm 15 ký tự';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  _note(
-                    Icons.lock_outline_rounded,
-                    'Thông tin giấy tờ chỉ dùng để xác minh khi khám và thanh toán BHYT.',
-                  ),
-                ],
-              ),
+              _buildDocumentSection(),
               const SizedBox(height: 16),
-
-              // ── Liên hệ ──
-              _section(
-                title: 'Thông tin liên hệ',
-                icon: Icons.contact_phone_rounded,
-                color: const Color(0xFF8B5CF6),
-                children: [
-                  _label('Số điện thoại'),
-                  TextFormField(
-                    controller: _phoneController,
-                    keyboardType: TextInputType.phone,
-                    textInputAction: TextInputAction.next,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(10),
-                    ],
-                    decoration: _decoration(
-                      hint: '0912345678',
-                      icon: Icons.phone_outlined,
-                      accent: const Color(0xFF8B5CF6),
-                    ),
-                    validator: (v) {
-                      final t = (v ?? '').trim();
-                      if (t.isEmpty) return 'Vui lòng nhập số điện thoại';
-                      if (!RegExp(r'^0\d{9}$').hasMatch(t)) {
-                        return 'Số điện thoại gồm 10 số, bắt đầu bằng 0';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 18),
-                  _label('Email'),
-                  TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    decoration: _decoration(
-                      hint: 'email@example.com',
-                      icon: Icons.email_outlined,
-                      accent: const Color(0xFF0EA5E9),
-                    ),
-                    validator: (v) {
-                      final t = (v ?? '').trim();
-                      if (t.isEmpty) return 'Vui lòng nhập email';
-                      if (!RegExp(r'^[\w\-.]+@([\w\-]+\.)+[\w\-]{2,}$')
-                          .hasMatch(t)) {
-                        return 'Email không hợp lệ';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 18),
-                  _label('Địa chỉ'),
-                  TextFormField(
-                    controller: _addressController,
-                    maxLines: 3,
-                    minLines: 2,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: _decoration(
-                      hint: 'Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố',
-                      icon: Icons.location_on_outlined,
-                      accent: const Color(0xFFEC4899),
-                      topAlignIcon: true,
-                    ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Vui lòng nhập địa chỉ'
-                        : null,
-                  ),
-                ],
-              ),
+              _buildContactSection(),
             ],
           ),
         ),
@@ -385,6 +201,192 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  /// _buildBasicSection: họ tên, giới tính, ngày sinh.
+  Widget _buildBasicSection() {
+    return _section(
+      title: 'Thông tin cơ bản',
+      icon: Icons.person_rounded,
+      color: _primary,
+      children: [
+        _label('Họ và tên'),
+        TextFormField(
+          controller: _nameController,
+          textCapitalization: TextCapitalization.words,
+          textInputAction: TextInputAction.next,
+          decoration: _decoration(
+            hint: 'Nguyễn Văn An',
+            icon: Icons.person_outline_rounded,
+          ),
+          validator: (v) {
+            if (v == null || v.trim().isEmpty) return 'Vui lòng nhập họ tên';
+            if (v.trim().length < 2) return 'Họ tên quá ngắn';
+            return null;
+          },
+        ),
+        const SizedBox(height: 18),
+        _label('Giới tính'),
+        Row(
+          children: [
+            Expanded(child: _genderButton('Nam', Icons.male_rounded)),
+            const SizedBox(width: 12),
+            Expanded(child: _genderButton('Nữ', Icons.female_rounded)),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _label('Ngày sinh'),
+        GestureDetector(
+          onTap: _selectDate,
+          child: AbsorbPointer(
+            child: TextFormField(
+              controller: _birthdayController,
+              decoration: _decoration(
+                hint: 'DD/MM/YYYY',
+                icon: Icons.cake_outlined,
+                suffix: const Icon(Icons.expand_more_rounded, color: _primary),
+              ),
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Vui lòng chọn ngày sinh'
+                  : null,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// _buildDocumentSection: CCCD/CMND và số thẻ BHYT (không bắt buộc, chỉ kiểm tra khi có nhập).
+  Widget _buildDocumentSection() {
+    return _section(
+      title: 'Giấy tờ & bảo hiểm',
+      icon: Icons.verified_user_rounded,
+      color: const Color(0xFFF59E0B),
+      children: [
+        _label('CCCD / CMND', optional: true),
+        TextFormField(
+          controller: _cccdController,
+          keyboardType: TextInputType.number,
+          textInputAction: TextInputAction.next,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(12),
+          ],
+          decoration: _decoration(
+            hint: '12 chữ số (hoặc 9 số với CMND)',
+            icon: Icons.credit_card_rounded,
+            accent: const Color(0xFFF59E0B),
+          ),
+          validator: (v) {
+            final t = (v ?? '').trim();
+            if (t.isEmpty) return null;
+            if (t.length != 9 && t.length != 12) {
+              return 'CCCD gồm 12 số, CMND gồm 9 số';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 18),
+        _label('Số thẻ BHYT', optional: true),
+        TextFormField(
+          controller: _bhytController,
+          textCapitalization: TextCapitalization.characters,
+          textInputAction: TextInputAction.next,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+            LengthLimitingTextInputFormatter(15),
+            _UpperCaseFormatter(),
+          ],
+          decoration: _decoration(
+            hint: 'VD: DN4797915012345',
+            icon: Icons.health_and_safety_rounded,
+            accent: _danger,
+          ),
+          validator: (v) {
+            final t = (v ?? '').trim();
+            if (t.isEmpty) return null;
+            return t.length == 15 ? null : 'Số thẻ BHYT gồm 15 ký tự';
+          },
+        ),
+        const SizedBox(height: 10),
+        _note(
+          Icons.lock_outline_rounded,
+          'Thông tin giấy tờ chỉ dùng để xác minh khi khám và thanh toán BHYT.',
+        ),
+      ],
+    );
+  }
+
+  /// _buildContactSection: số điện thoại, email, địa chỉ (đều bắt buộc).
+  Widget _buildContactSection() {
+    return _section(
+      title: 'Thông tin liên hệ',
+      icon: Icons.contact_phone_rounded,
+      color: const Color(0xFF8B5CF6),
+      children: [
+        _label('Số điện thoại'),
+        TextFormField(
+          controller: _phoneController,
+          keyboardType: TextInputType.phone,
+          textInputAction: TextInputAction.next,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(10),
+          ],
+          decoration: _decoration(
+            hint: '0912345678',
+            icon: Icons.phone_outlined,
+            accent: const Color(0xFF8B5CF6),
+          ),
+          validator: (v) {
+            final t = (v ?? '').trim();
+            if (t.isEmpty) return 'Vui lòng nhập số điện thoại';
+            return RegExp(r'^0\d{9}$').hasMatch(t)
+                ? null
+                : 'Số điện thoại gồm 10 số, bắt đầu bằng 0';
+          },
+        ),
+        const SizedBox(height: 18),
+        _label('Email'),
+        TextFormField(
+          controller: _emailController,
+          keyboardType: TextInputType.emailAddress,
+          textInputAction: TextInputAction.next,
+          decoration: _decoration(
+            hint: 'email@example.com',
+            icon: Icons.email_outlined,
+            accent: const Color(0xFF0EA5E9),
+          ),
+          validator: (v) {
+            final t = (v ?? '').trim();
+            if (t.isEmpty) return 'Vui lòng nhập email';
+            return RegExp(r'^[\w\-.]+@([\w\-]+\.)+[\w\-]{2,}$').hasMatch(t)
+                ? null
+                : 'Email không hợp lệ';
+          },
+        ),
+        const SizedBox(height: 18),
+        _label('Địa chỉ'),
+        TextFormField(
+          controller: _addressController,
+          maxLines: 3,
+          minLines: 2,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: _decoration(
+            hint: 'Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố',
+            icon: Icons.location_on_outlined,
+            accent: const Color(0xFFEC4899),
+            topAlignIcon: true,
+          ),
+          validator: (v) => (v == null || v.trim().isEmpty)
+              ? 'Vui lòng nhập địa chỉ'
+              : null,
+        ),
+      ],
+    );
+  }
+
+  // ───────────── Thành phần giao diện ─────────────
+
+  /// _buildAppBar: thanh tiêu đề trắng có nút quay lại.
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: Colors.white,
@@ -429,7 +431,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  // Dòng giới thiệu ở đầu form.
+  /// _buildIntroBanner: khung giới thiệu ở đầu form.
   Widget _buildIntroBanner() {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -480,7 +482,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  // Thẻ nhóm: tiêu đề có icon + các ô nhập.
+  /// _section: thẻ nhóm gồm tiêu đề có icon và các ô nhập.
   Widget _section({
     required String title,
     required IconData icon,
@@ -535,7 +537,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  // Nhãn phía trên ô nhập.
+  /// _label: nhãn phía trên ô nhập; dấu * đỏ nếu bắt buộc, chip "Không bắt buộc" nếu [optional].
   Widget _label(String text, {bool optional = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -580,6 +582,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  /// _note: dòng ghi chú nhỏ có icon.
   Widget _note(IconData icon, String text) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -596,15 +599,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  /// _genderButton: nút chọn giới tính, có dấu tick khi đang chọn.
   Widget _genderButton(String gender, IconData icon) {
     final selected = _selectedGender == gender;
+
     return GestureDetector(
       onTap: () => setState(() => _selectedGender = gender),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: selected ? _primaryLight : const Color(0xFFF8FAFC),
+          color: selected ? _primaryLight : _fieldFill,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: selected ? _primary : _border,
@@ -634,6 +639,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  /// _decoration: kiểu ô nhập chung (icon nằm trong hộp màu [accent]).
+  /// [topAlignIcon] đặt icon sát đầu ô (dùng cho ô nhiều dòng).
   InputDecoration _decoration({
     required String hint,
     required IconData icon,
@@ -672,7 +679,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ? Padding(padding: const EdgeInsets.only(right: 8), child: suffix)
           : null,
       filled: true,
-      fillColor: const Color(0xFFF8FAFC),
+      fillColor: _fieldFill,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
       border: border(_border, 1.3),
       enabledBorder: border(_border, 1.3),
@@ -683,7 +690,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  // Thanh lưu cố định ở đáy (thay cho thanh điều hướng giả trước đây).
+  /// _buildSaveBar: thanh cố định ở đáy gồm nút Hủy và nút Lưu thay đổi.
   Widget _buildSaveBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
@@ -765,7 +772,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 }
 
-// Tự động viết hoa chữ cái (dùng cho số thẻ BHYT).
+/// _UpperCaseFormatter: tự động viết hoa chữ cái khi nhập (dùng cho số thẻ BHYT).
 class _UpperCaseFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(

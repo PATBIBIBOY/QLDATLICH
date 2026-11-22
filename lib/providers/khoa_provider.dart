@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../services/khoa_service.dart';
 
-/// KhoaProvider: quản lý trạng thái phòng khám (tạm dừng, đang khám, đóng cửa) lấy trực tiếp từ Firestore.
 class KhoaProvider extends ChangeNotifier {
   final KhoaService _service = KhoaService();
 
@@ -18,23 +17,15 @@ class KhoaProvider extends ChangeNotifier {
   bool get phongLoaded => _phongLoaded;
   String? get phongError => _phongError;
 
-  @override
-  void dispose() {
-    _phongSubscription?.cancel();
-    super.dispose();
-  }
-
-  /// startListeningPhong: bắt đầu lắng nghe trạng thái của một phòng khám (cùng phòng thì không đăng ký lại).
+  /// startListeningPhong: lắng nghe trạng thái thời gian thực của một phòng khám (cùng phòng thì không đăng ký lại).
   void startListeningPhong({
     required String benhVienId,
     required String khoaId,
     required String phongKhamId,
   }) {
-    // Bước 1: bỏ qua nếu đang lắng nghe đúng phòng này.
     final key = '$benhVienId|$khoaId|$phongKhamId';
     if (_phongKey == key && _phongSubscription != null) return;
 
-    // Bước 2: hủy đăng ký cũ và đặt lại trạng thái.
     _phongSubscription?.cancel();
     _phongKey = key;
     _phongTrangThai = PhongKhamTrangThai.macDinh;
@@ -42,7 +33,6 @@ class KhoaProvider extends ChangeNotifier {
     _phongError = null;
     notifyListeners();
 
-    // Bước 3: đăng ký stream mới, mỗi lần Firestore thay đổi thì cập nhật và báo giao diện.
     _phongSubscription = _service
         .theoDoiTrangThaiPhong(
           benhVienId: benhVienId,
@@ -75,7 +65,7 @@ class KhoaProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// capNhatTrangThaiPhong: đổi trạng thái phòng khám (dùng ở phía nhân viên).
+  /// capNhatTrangThaiPhong: đổi trạng thái phòng khám (phía nhân viên).
   Future<void> capNhatTrangThaiPhong({
     required String benhVienId,
     required String khoaId,
@@ -88,5 +78,11 @@ class KhoaProvider extends ChangeNotifier {
       phongKhamId: phongKhamId,
       trangThaiMoi: trangThaiMoi,
     );
+  }
+
+  @override
+  void dispose() {
+    _phongSubscription?.cancel();
+    super.dispose();
   }
 }

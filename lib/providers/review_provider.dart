@@ -11,12 +11,10 @@ class ReviewProvider extends ChangeNotifier {
   String? _loadedKey;
   int _requestToken = 0;
 
-  // Thống kê nhanh KHOA
   int _deptTotalStatsCount = 0;
   double _deptTotalStatsAvg = 0.0;
   bool _isDeptStatsLoading = false;
 
-  // ✅ Thống kê nhanh BỆNH VIỆN (MỚI)
   int _hospTotalStatsCount = 0;
   double _hospTotalStatsAvg = 0.0;
   bool _isHospStatsLoading = false;
@@ -24,26 +22,24 @@ class ReviewProvider extends ChangeNotifier {
   List<ReviewModel> get reviews => _reviews;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  int get totalCount => _reviews.length;
 
-  // Getters cho KHOA
   int get deptTotalStatsCount => _deptTotalStatsCount;
   double get deptTotalStatsAvg => _deptTotalStatsAvg;
   bool get isDeptStatsLoading => _isDeptStatsLoading;
 
-  // ✅ Getters cho BỆNH VIỆN
   int get hospTotalStatsCount => _hospTotalStatsCount;
   double get hospTotalStatsAvg => _hospTotalStatsAvg;
   bool get isHospStatsLoading => _isHospStatsLoading;
 
-  // ───────────────────────── Thống kê từ danh sách đã tải (UI dùng) ─────────────────────────
-  int get totalCount => _reviews.length;
-
+  /// averageRating: điểm đánh giá trung bình của danh sách đánh giá đang tải.
   double get averageRating {
     if (_reviews.isEmpty) return 0;
     final sum = _reviews.fold<double>(0, (s, r) => s + r.diemDanhGia);
     return sum / _reviews.length;
   }
 
+  /// countByStar: đếm số đánh giá theo từng mức sao (1–5).
   Map<int, int> get countByStar {
     final result = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0};
     for (final r in _reviews) {
@@ -53,11 +49,11 @@ class ReviewProvider extends ChangeNotifier {
     return result;
   }
 
+  /// reviewsByStar: lọc các đánh giá theo một mức sao.
   List<ReviewModel> reviewsByStar(int star) =>
       _reviews.where((r) => r.diemDanhGia == star).toList();
 
-  // ───────────────────────── Tải dữ liệu ─────────────────────────
-
+  /// fetchReviews: tải đánh giá của một khoa; bỏ qua nếu đã tải đúng khoa đó (trừ khi force).
   Future<void> fetchReviews({
     required String hospitalId,
     required String khoaId,
@@ -70,7 +66,7 @@ class ReviewProvider extends ChangeNotifier {
     _loadedKey = key;
     _isLoading = true;
     _error = null;
-    _reviews = []; 
+    _reviews = [];
     notifyListeners();
 
     try {
@@ -78,12 +74,12 @@ class ReviewProvider extends ChangeNotifier {
         hospitalId: hospitalId,
         khoaId: khoaId,
       );
-      if (token != _requestToken) return; 
+      if (token != _requestToken) return;
       _reviews = result;
     } catch (e) {
       if (token != _requestToken) return;
       _error = e is ReviewException ? e.message : 'Không thể tải đánh giá.';
-      _loadedKey = null; 
+      _loadedKey = null;
     } finally {
       if (token == _requestToken) {
         _isLoading = false;
@@ -92,11 +88,11 @@ class ReviewProvider extends ChangeNotifier {
     }
   }
 
-  // ✅ HÀM MỚI: Lấy nhanh thống kê tổng quan của BỆNH VIỆN
-  Future<void> fetchHospitalStats({ required String hospitalId }) async {
+  /// fetchHospitalStats: tải thống kê đánh giá (tổng số, điểm trung bình) của bệnh viện.
+  Future<void> fetchHospitalStats({required String hospitalId}) async {
     _isHospStatsLoading = true;
     notifyListeners();
-    
+
     try {
       final stats = await _service.getHospitalStats(hospitalId: hospitalId);
       _hospTotalStatsCount = stats['tong_danh_gia'] ?? 0;
@@ -109,14 +105,14 @@ class ReviewProvider extends ChangeNotifier {
     }
   }
 
-  // ✅ HÀM CŨ: Lấy nhanh thống kê tổng quan của KHOA
+  /// fetchDepartmentStats: tải thống kê đánh giá (tổng số, điểm trung bình) của khoa.
   Future<void> fetchDepartmentStats({
     required String hospitalId,
     required String khoaId,
   }) async {
     _isDeptStatsLoading = true;
     notifyListeners();
-    
+
     try {
       final stats = await _service.getDepartmentStats(
         hospitalId: hospitalId,
@@ -132,8 +128,9 @@ class ReviewProvider extends ChangeNotifier {
     }
   }
 
+  /// clearReviews: xóa danh sách đánh giá và hủy các yêu cầu đang chờ.
   void clearReviews() {
-    _requestToken++; 
+    _requestToken++;
     _reviews = [];
     _error = null;
     _isLoading = false;

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 class OtpScreen extends StatefulWidget {
   final String phone;
+
   final Future<void> Function(String code) onVerify;
   final VoidCallback onResend;
 
@@ -100,11 +101,13 @@ class _OtpScreenState extends State<OtpScreen> {
                   color: Color(0xFF0F172A),
                 ),
               ),
+
               const SizedBox(height: 8),
               Text(
                 'Chúng tôi đã gửi mã OTP gồm 6 số đến ${widget.phone}. Vui lòng nhập mã để tiếp tục.',
                 style: const TextStyle(fontSize: 15, color: _grey),
               ),
+
               const SizedBox(height: 32),
               TextField(
                 controller: _otpCtrl,
@@ -135,6 +138,7 @@ class _OtpScreenState extends State<OtpScreen> {
                   ),
                 ),
               ),
+
               const SizedBox(height: 16),
               Center(
                 child: TextButton(
@@ -150,6 +154,7 @@ class _OtpScreenState extends State<OtpScreen> {
                   ),
                 ),
               ),
+
               const Spacer(),
               SizedBox(
                 width: double.infinity,
@@ -182,6 +187,7 @@ class _OtpScreenState extends State<OtpScreen> {
                         ),
                 ),
               ),
+
               const SizedBox(height: 24),
             ],
           ),

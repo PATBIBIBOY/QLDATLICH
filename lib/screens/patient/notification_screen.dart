@@ -300,6 +300,7 @@ class _NotificationScreenState extends State<NotificationScreen>
                     color: _C.textDark,
                   ),
                 ),
+
                 const SizedBox(height: 3),
                 Text(
                   unreadCount > 0
@@ -346,6 +347,7 @@ class _NotificationScreenState extends State<NotificationScreen>
             ),
         ],
       ),
+
       const SizedBox(height: 4),
     ];
 
@@ -422,6 +424,7 @@ class _NotificationScreenState extends State<NotificationScreen>
 class _Header extends StatelessWidget {
   final double height;
   final int unreadCount;
+
   const _Header({required this.height, required this.unreadCount});
 
   @override
@@ -469,7 +472,9 @@ class _Header extends StatelessWidget {
                               color: Colors.white70,
                             ),
                           ),
+
                           const SizedBox(height: 2),
+
                           const Text(
                             'Thông báo',
                             style: TextStyle(
@@ -480,6 +485,7 @@ class _Header extends StatelessWidget {
                               color: Colors.white,
                             ),
                           ),
+
                           const SizedBox(height: 6),
                           Text(
                             unreadCount > 0
@@ -509,6 +515,7 @@ class _Header extends StatelessWidget {
 class _Bubble extends StatelessWidget {
   final double size;
   final double opacity;
+
   const _Bubble({required this.size, required this.opacity});
   @override
   Widget build(BuildContext context) {
@@ -580,6 +587,7 @@ class _TabInfo {
   final String label;
   final int count;
   final bool alert;
+
   const _TabInfo(this.label, this.count, this.alert);
 }
 
@@ -587,16 +595,19 @@ class _TabInfo {
 class _SegmentedTabs extends StatelessWidget {
   final TabController controller;
   final List<_TabInfo> tabs;
+
   const _SegmentedTabs({required this.controller, required this.tabs});
 
   @override
   Widget build(BuildContext context) {
     final n = tabs.length;
+
     return AnimatedBuilder(
       animation: controller.animation!,
       builder: (context, _) {
         final value = controller.animation!.value;
         final active = value.round();
+
         return Container(
           padding: const EdgeInsets.all(5),
           decoration: BoxDecoration(
@@ -638,6 +649,7 @@ class _SegmentedTabs extends StatelessWidget {
                 children: List.generate(n, (i) {
                   final tab = tabs[i];
                   final isActive = i == active;
+
                   return Expanded(
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
@@ -714,6 +726,7 @@ class _SectionLabel extends StatelessWidget {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
+
           const SizedBox(width: 8),
           Text(
             text,
@@ -734,6 +747,7 @@ class _SectionLabel extends StatelessWidget {
 class _FadeIn extends StatelessWidget {
   final int index;
   final Widget child;
+
   const _FadeIn({required this.index, required this.child});
   @override
   Widget build(BuildContext context) {
@@ -762,6 +776,7 @@ class _EmptyState extends StatelessWidget {
   final String subtitle;
   final String? actionText;
   final VoidCallback? onAction;
+
   const _EmptyState({
     required this.icon,
     required this.color,
@@ -806,6 +821,7 @@ class _EmptyState extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(height: 18),
           Text(
             title,
@@ -816,6 +832,7 @@ class _EmptyState extends StatelessWidget {
               color: _C.textDark,
             ),
           ),
+
           const SizedBox(height: 6),
           Text(
             subtitle,
@@ -844,6 +861,7 @@ class _EmptyState extends StatelessWidget {
 class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String text;
+
   const _InfoChip({required this.icon, required this.text});
 
   @override
@@ -858,6 +876,7 @@ class _InfoChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 13, color: _C.textGrey),
+
           const SizedBox(width: 5),
           Flexible(
             child: Text(
@@ -989,6 +1008,8 @@ class _NotificationCard extends StatelessWidget {
 
     // Bước 3: mở hộp thoại đánh giá rồi đánh dấu đã đọc.
     if (!context.mounted) return;
+
+    /// showDialog: hiển thị thông báo hoặc giao diện.
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -1084,6 +1105,7 @@ class _NotificationCard extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 _buildHeader(color),
+
                                 const SizedBox(height: 14),
                                 Text(
                                   notification.title,
@@ -1096,6 +1118,7 @@ class _NotificationCard extends StatelessWidget {
                                     color: _C.textDark,
                                   ),
                                 ),
+
                                 const SizedBox(height: 6),
                                 Text(
                                   notification.message,
@@ -1174,6 +1197,7 @@ class _NotificationCard extends StatelessWidget {
           ),
           child: Icon(_icon, size: 25, color: unread ? Colors.white : color),
         ),
+
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -1200,6 +1224,7 @@ class _NotificationCard extends StatelessWidget {
                       ),
                     ),
                   ),
+
                   const Spacer(),
                   if (unread)
                     Container(
@@ -1230,6 +1255,7 @@ class _NotificationCard extends StatelessWidget {
                     ),
                 ],
               ),
+
               const SizedBox(height: 6),
               Row(
                 children: [
@@ -1238,6 +1264,7 @@ class _NotificationCard extends StatelessWidget {
                     size: 13,
                     color: _C.textGrey,
                   ),
+
                   const SizedBox(width: 4),
                   Expanded(
                     child: _TimeAgoText(
@@ -1551,7 +1578,9 @@ class _ReviewDialogState extends State<_ReviewDialog> {
                   ],
                 ),
               ),
+
               const SizedBox(height: 18),
+
               const Text(
                 'Gửi đánh giá thành công!',
                 textAlign: TextAlign.center,
@@ -1561,6 +1590,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
                   color: _C.textDark,
                 ),
               ),
+
               const SizedBox(height: 8),
               Text(
                 'Cảm ơn bạn đã chia sẻ trải nghiệm tại\n$hospital.\nÝ kiến của bạn giúp nâng cao chất lượng chăm sóc sức khỏe.',
@@ -1571,6 +1601,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
                   color: _C.textGrey,
                 ),
               ),
+
               const SizedBox(height: 22),
               SizedBox(
                 width: double.infinity,
@@ -1624,14 +1655,19 @@ class _ReviewDialogState extends State<_ReviewDialog> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildVisitCard(),
+
                       const SizedBox(height: 22),
                       _buildRatingSection(),
+
                       const SizedBox(height: 22),
                       _buildTagsSection(),
+
                       const SizedBox(height: 22),
                       _buildCommentSection(),
+
                       const SizedBox(height: 18),
                       _buildAnonymousTile(),
+
                       const SizedBox(height: 10),
                     ],
                   ),
@@ -1688,7 +1724,9 @@ class _ReviewDialogState extends State<_ReviewDialog> {
                   color: Colors.white,
                 ),
               ),
+
               const SizedBox(width: 14),
+
               const Expanded(
                 child: Padding(
                   padding: EdgeInsets.only(top: 2),
@@ -1748,6 +1786,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
       child: Column(
         children: [
           _visitRow(Icons.local_hospital_rounded, 'BỆNH VIỆN', _hospitalName),
+
           const SizedBox(height: 12),
           _visitRow(
             Icons.medical_services_rounded,
@@ -1796,6 +1835,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
           ),
           child: Icon(icon, size: 17, color: _C.primary),
         ),
+
         const SizedBox(width: 10),
         Expanded(
           child: Column(
@@ -1810,6 +1850,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
                   color: _C.textGrey,
                 ),
               ),
+
               const SizedBox(height: 2),
               Text(
                 value,
@@ -1844,11 +1885,13 @@ class _ReviewDialogState extends State<_ReviewDialog> {
             ),
           ),
         ),
+
         const SizedBox(height: 14),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(5, (i) {
             final filled = i < _rating;
+
             return GestureDetector(
               onTap: () => _setRating(i + 1),
               child: AnimatedScale(
@@ -1869,6 +1912,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
             );
           }),
         ),
+
         const SizedBox(height: 10),
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 200),
@@ -1906,12 +1950,14 @@ class _ReviewDialogState extends State<_ReviewDialog> {
             color: _C.textDark,
           ),
         ),
+
         const SizedBox(height: 10),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: _tags.map((tag) {
             final selected = _selectedTags.contains(tag);
+
             return GestureDetector(
               onTap: _isSubmitting
                   ? null
@@ -1944,6 +1990,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
                         size: 15,
                         color: Colors.white,
                       ),
+
                       const SizedBox(width: 5),
                     ],
                     Text(
@@ -1977,6 +2024,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
             color: _C.textDark,
           ),
         ),
+
         const SizedBox(height: 10),
         TextField(
           controller: _commentController,
@@ -2061,6 +2109,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
             size: 22,
             color: _isAnonymous ? _C.primary : _C.textGrey,
           ),
+
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -2074,6 +2123,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
                     color: _C.textDark,
                   ),
                 ),
+
                 const SizedBox(height: 2),
                 Text(
                   _isAnonymous
@@ -2126,6 +2176,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
               ),
             ),
           ),
+
           const SizedBox(width: 12),
           Expanded(
             flex: 3,
@@ -2191,6 +2242,7 @@ class _StatTile extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 11, color: color.withOpacity(0.8)),
+
               const SizedBox(width: 4),
               Text(
                 label,
@@ -2203,6 +2255,7 @@ class _StatTile extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(height: 3),
           Text(
             value,
@@ -2304,6 +2357,7 @@ class _HistoryCard extends StatelessWidget {
                                     color: _C.primary,
                                   ),
                                 ),
+
                                 const SizedBox(height: 1),
                                 Text(
                                   date == null ? '--' : '${date.day}',
@@ -2327,6 +2381,7 @@ class _HistoryCard extends StatelessWidget {
                               ],
                             ),
                           ),
+
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -2343,6 +2398,7 @@ class _HistoryCard extends StatelessWidget {
                                     color: _C.textDark,
                                   ),
                                 ),
+
                                 const SizedBox(height: 7),
                                 Container(
                                   padding: const EdgeInsets.symmetric(
@@ -2363,6 +2419,7 @@ class _HistoryCard extends StatelessWidget {
                                         size: 14,
                                         color: accent,
                                       ),
+
                                       const SizedBox(width: 5),
                                       Text(
                                         _completed ? 'Hoàn thành' : 'Vắng mặt',
@@ -2380,6 +2437,7 @@ class _HistoryCard extends StatelessWidget {
                           ),
                         ],
                       ),
+
                       const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
@@ -2397,8 +2455,11 @@ class _HistoryCard extends StatelessWidget {
                             ),
                         ],
                       ),
+
                       const SizedBox(height: 12),
+
                       const Divider(height: 1, color: _C.border),
+
                       const SizedBox(height: 6),
                       Row(
                         children: [
@@ -2421,6 +2482,7 @@ class _HistoryCard extends StatelessWidget {
                               ),
                             ),
                           ),
+
                           const Spacer(),
                           TextButton.icon(
                             onPressed: onRebook,
@@ -2459,6 +2521,7 @@ class _HistoryCard extends StatelessWidget {
 class _HistoryInfo extends StatelessWidget {
   final IconData icon;
   final String text;
+
   const _HistoryInfo({required this.icon, required this.text});
 
   @override
@@ -2473,6 +2536,7 @@ class _HistoryInfo extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: _C.primary),
+
           const SizedBox(width: 6),
           Flexible(
             child: Text(
@@ -2543,6 +2607,7 @@ class _HistorySummary extends StatelessWidget {
                   size: 25,
                 ),
               ),
+
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -2552,6 +2617,7 @@ class _HistorySummary extends StatelessWidget {
                       'Lịch sử khám bệnh',
                       style: TextStyle(fontSize: 12.5, color: Colors.white70),
                     ),
+
                     const SizedBox(height: 2),
                     Text(
                       '$total lượt khám',
@@ -2567,6 +2633,7 @@ class _HistorySummary extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(height: 16),
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
@@ -2577,6 +2644,7 @@ class _HistorySummary extends StatelessWidget {
               valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           ),
+
           const SizedBox(height: 14),
           Row(
             children: [
@@ -2622,6 +2690,7 @@ class _SummaryStat extends StatelessWidget {
       child: Row(
         children: [
           Icon(icon, size: 20, color: Colors.white),
+
           const SizedBox(width: 8),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2651,6 +2720,7 @@ class _SummaryStat extends StatelessWidget {
 class _MonthLabel extends StatelessWidget {
   final String text;
   final int count;
+
   const _MonthLabel({required this.text, required this.count});
 
   @override
@@ -2660,6 +2730,7 @@ class _MonthLabel extends StatelessWidget {
       child: Row(
         children: [
           const Icon(Icons.calendar_month_rounded, size: 18, color: _C.primary),
+
           const SizedBox(width: 8),
           Text(
             text,
@@ -2669,6 +2740,7 @@ class _MonthLabel extends StatelessWidget {
               color: _C.textDark,
             ),
           ),
+
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -2685,6 +2757,7 @@ class _MonthLabel extends StatelessWidget {
               ),
             ),
           ),
+
           const SizedBox(width: 10),
           Expanded(child: Divider(height: 1, color: _C.border)),
         ],
@@ -2747,6 +2820,7 @@ class _TimeAgoTextState extends State<_TimeAgoText> {
   Widget build(BuildContext context) {
     final ago = _formatTimeAgo(widget.time);
     final text = widget.suffix == null ? ago : '$ago · ${widget.suffix}';
+
     return Text(
       text,
       maxLines: 1,

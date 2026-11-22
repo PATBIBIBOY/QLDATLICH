@@ -7,7 +7,6 @@ import 'package:share_plus/share_plus.dart';
 import '../../utils/app_snackbar.dart';
 import 'book_appointment_widget.dart' show AppTheme, InfoPill;
 
-
 class AppointmentTicketWidget extends StatelessWidget {
   final String hospitalName;
   final String patientName;
@@ -53,6 +52,7 @@ class AppointmentTicketWidget extends StatelessWidget {
               color: Colors.white,
             ),
           ),
+
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -66,6 +66,7 @@ class AppointmentTicketWidget extends StatelessWidget {
                     color: Colors.white.withOpacity(0.85),
                   ),
                 ),
+
                 const SizedBox(height: 2),
                 Text(
                   hospitalName,
@@ -95,6 +96,7 @@ class AppointmentTicketWidget extends StatelessWidget {
           label,
           style: const TextStyle(fontSize: 11.5, color: AppTheme.textGrey),
         ),
+
         const SizedBox(height: 3),
         Text(
           value,
@@ -122,6 +124,7 @@ class AppointmentTicketWidget extends StatelessWidget {
             'Người khám',
             style: TextStyle(fontSize: 11.5, color: AppTheme.textGrey),
           ),
+
           const SizedBox(height: 3),
           Text(
             patientName,
@@ -134,13 +137,16 @@ class AppointmentTicketWidget extends StatelessWidget {
               color: AppTheme.textDark,
             ),
           ),
+
           const SizedBox(height: 14),
           _buildField('Chuyên khoa', departmentName),
+
           const SizedBox(height: 12),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(child: _buildField('Ngày khám', dateLabel)),
+
               const SizedBox(width: 12),
               Expanded(child: _buildField('Khung giờ', timeLabel)),
             ],
@@ -203,6 +209,7 @@ class AppointmentTicketWidget extends StatelessWidget {
                   backgroundColor: Colors.white,
                 ),
               ),
+
               const SizedBox(height: 6),
               Text(
                 '#$appointmentId',
@@ -214,6 +221,7 @@ class AppointmentTicketWidget extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -223,6 +231,7 @@ class AppointmentTicketWidget extends StatelessWidget {
                   'Số thứ tự',
                   style: TextStyle(fontSize: 11.5, color: AppTheme.textGrey),
                 ),
+
                 const SizedBox(height: 2),
                 Text(
                   hasQueue ? '$queueNumber' : 'Chờ cấp',
@@ -233,7 +242,9 @@ class AppointmentTicketWidget extends StatelessWidget {
                     color: AppTheme.primaryBlue,
                   ),
                 ),
+
                 const SizedBox(height: 10),
+
                 const InfoPill(
                   icon: Icons.verified_rounded,
                   text: 'Đã duyệt',
@@ -256,7 +267,11 @@ class AppointmentTicketWidget extends StatelessWidget {
       child: const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.qr_code_scanner_rounded, size: 18, color: AppTheme.textGrey),
+          Icon(
+            Icons.qr_code_scanner_rounded,
+            size: 18,
+            color: AppTheme.textGrey,
+          ),
           SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -313,6 +328,7 @@ class _DashedLine extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final count = (constraints.maxWidth / 9).floor();
+
         return Align(
           alignment: Alignment.center,
           child: Row(
@@ -404,25 +420,26 @@ class _AppointmentTicketSheetState extends State<AppointmentTicketSheet> {
     return data?.buffer.asUint8List();
   }
 
-    /// _shareTicket: Chụp vé, tạo link web theo dõi và mở hộp thoại chia sẻ hệ thống.
+  /// _shareTicket: Chụp vé, tạo link web theo dõi và mở hộp thoại chia sẻ hệ thống.
   Future<void> _shareTicket() async {
     if (_isSharing) return;
     setState(() => _isSharing = true);
     final box = context.findRenderObject() as RenderBox?;
-    
+
     try {
-      // 1. Chụp ảnh vé
       final bytes = await _captureTicket();
       if (bytes == null) throw Exception('Không chụp được vé khám');
 
       // Làm sạch ID để dùng làm tên file
-      final safeId = widget.appointmentId.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '');
-      
-      // 2. TẠO LINK THEO DÕI CÔNG KHAI (Thay đúng domain web bạn vừa deploy)
-      final trackingLink = 'https://datlichkham-37558.web.app/?id=${widget.appointmentId}';
+      final safeId = widget.appointmentId.replaceAll(
+        RegExp(r'[^A-Za-z0-9_-]'),
+        '',
+      );
 
-      // 3. SOẠN THẢO TIN NHẮN CHIA SẺ (Có định dạng in đậm cho Zalo/Messenger)
-      final shareMessage = 
+      final trackingLink =
+          'https://datlichkham-37558.web.app/?id=${widget.appointmentId}';
+
+      final shareMessage =
           '🎫 *VÉ KHÁM ĐIỆN TỬ*\n'
           '👤 Người khám: ${widget.patientName}\n'
           '🏥 Bệnh viện: ${widget.hospitalName}\n'
@@ -431,7 +448,6 @@ class _AppointmentTicketSheetState extends State<AppointmentTicketSheet> {
           '$trackingLink\n\n'
           '💡 *Lưu ý:* Khi đến bệnh viện, vui lòng đưa *hình ảnh mã QR* trong tin nhắn này cho nhân viên tiếp đón để được quét và vào khám.';
 
-      // 4. THỰC HIỆN CHIA SẺ (Cả ảnh và text)
       await SharePlus.instance.share(
         ShareParams(
           files: [XFile.fromData(bytes, mimeType: 'image/png')],
@@ -475,6 +491,7 @@ class _AppointmentTicketSheetState extends State<AppointmentTicketSheet> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
+
           const Padding(
             padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
             child: Column(
@@ -549,6 +566,7 @@ class _AppointmentTicketSheetState extends State<AppointmentTicketSheet> {
                     ),
                   ),
                 ),
+
                 const SizedBox(width: 12),
                 Expanded(
                   flex: 3,

@@ -15,6 +15,7 @@ import 'providers/review_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/khoa_provider.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/auth/splash_screen.dart';
 import 'seeder/hospital_seeder.dart';
 import 'seeder/specialty_seeder.dart';
 import 'seeder/phong_kham_seeder.dart';
@@ -59,7 +60,7 @@ class QLDatLichApp extends StatelessWidget {
         title: 'QLDATLICH',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
-        home: const LoginScreen(),
+        home: const SplashScreen(),
         routes: AppRoutes.routes,
       ),
     );

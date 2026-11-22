@@ -6,12 +6,15 @@ import '../models/family_profile_model.dart';
 /// LichHenService: truy cập Firestore cho đặt lịch, hủy lịch, xóa lịch và theo dõi hàng chờ.
 class LichHenService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
   static const String _colLichHen = 'LichHen';
   static const String _colPhongKham = 'PhongKham';
 
   static const String trangThaiDaHuy = '3';
-
   static const Set<String> _trangThaiKhongTheHuy = {'4', '5', '6'};
+  static const List<Object> _trangThaiChiemCho = [2, '2'];
+
+  static const Duration _vnOffset = Duration(hours: 7);
 
   static const List<Map<String, String>> _caMacDinh = [
     {
@@ -30,10 +33,6 @@ class LichHenService {
 
   final Map<String, int> _tongSoCache = {};
 
-  static const List<Object> _trangThaiChiemCho = [2, '2'];
-
-  static const Duration _vnOffset = Duration(hours: 7);
-
   /// _toInt: đọc số nguyên từ Firestore (chấp nhận số hoặc chuỗi).
   static int? _toInt(dynamic v) =>
       v is num ? v.toInt() : int.tryParse(v?.toString() ?? '');
@@ -41,6 +40,30 @@ class LichHenService {
   /// ngayId: định dạng ngày thành chuỗi "yyyy-MM-dd".
   static String ngayId(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// _tenPhong: đọc tên phòng khám từ dữ liệu Firestore theo nhiều tên field có thể có.
+  static String? _tenPhong(Map<String, dynamic>? d) {
+    if (d == null) return null;
+    for (final k in ['tenPhongKham', 'ten_phong_kham', 'tenPhong', 'ten']) {
+      final v = d[k]?.toString();
+      if (v != null && v.isNotEmpty) return v;
+    }
+    return null;
+  }
+
+  /// _khoangNgayVN: trả về khoảng [00:00, 24:00) của một ngày theo giờ Việt Nam, đổi sang UTC.
+  ({Timestamp start, Timestamp end}) _khoangNgayVN(DateTime ngay) {
+    final startUtc = DateTime.utc(
+      ngay.year,
+      ngay.month,
+      ngay.day,
+    ).subtract(_vnOffset);
+    final endUtc = startUtc.add(const Duration(days: 1));
+    return (
+      start: Timestamp.fromDate(startUtc),
+      end: Timestamp.fromDate(endUtc),
+    );
+  }
 
   /// _layTongSoTuPhongKham: lấy số bệnh nhân tối đa của phòng khám (có cache).
   Future<int?> _layTongSoTuPhongKham({
@@ -87,20 +110,6 @@ class LichHenService {
       debugPrint('Lỗi khi đọc PhongKham/$phongKhamId: $e');
       return null;
     }
-  }
-
-  /// _khoangNgayVN: trả về khoảng [00:00, 24:00) của một ngày theo giờ Việt Nam, đổi sang UTC.
-  ({Timestamp start, Timestamp end}) _khoangNgayVN(DateTime ngay) {
-    final startUtc = DateTime.utc(
-      ngay.year,
-      ngay.month,
-      ngay.day,
-    ).subtract(_vnOffset);
-    final endUtc = startUtc.add(const Duration(days: 1));
-    return (
-      start: Timestamp.fromDate(startUtc),
-      end: Timestamp.fromDate(endUtc),
-    );
   }
 
   /// demLichDaDat: đếm số lịch hẹn đã chiếm chỗ của một ca trong một ngày.
@@ -153,7 +162,7 @@ class LichHenService {
     return conLai < 0 ? 0 : conLai;
   }
 
-  /// getCaSlotsTheoPhong: lấy tình trạng các ca (tổng chỗ, đã đặt) của một phòng khám trong một ngày.
+  /// getCaSlotsTheoPhong: lấy tình trạng các ca (tổng chỗ, đã đặt) của một phòng khám trong một ngày, sắp xếp theo giờ bắt đầu.
   Future<List<CaSlotModel>> getCaSlotsTheoPhong({
     required DateTime ngay,
     required String benhVienId,
@@ -278,7 +287,7 @@ class LichHenService {
     }
   }
 
-  /// saveBooking: lưu lịch hẹn mới vào collection LichHen.
+  /// saveBooking: lưu lịch hẹn mới vào collection LichHen (tự sinh mã nếu chưa truyền lichHenId).
   Future<void> saveBooking({
     required String trangThaiId,
     required DateTime ngayDat,
@@ -327,16 +336,6 @@ class LichHenService {
     });
   }
 
-  /// _tenPhong: đọc tên phòng khám từ dữ liệu Firestore theo nhiều tên field có thể có.
-  static String? _tenPhong(Map<String, dynamic>? d) {
-    if (d == null) return null;
-    for (final k in ['tenPhongKham', 'ten_phong_kham', 'tenPhong', 'ten']) {
-      final v = d[k]?.toString();
-      if (v != null && v.isNotEmpty) return v;
-    }
-    return null;
-  }
-
   /// getLichHenCuaBenhNhan: lấy tất cả lịch hẹn của bệnh nhân, bổ sung tên ca, giờ ca, tên khoa, tên phòng và sắp xếp mới nhất trước.
   Future<List<LichHenModel>> getLichHenCuaBenhNhan(String benhNhanId) async {
     try {
@@ -358,6 +357,7 @@ class LichHenService {
       final caEntries = await Future.wait(
         caIds.map((id) async {
           final doc = await _firestore.collection('Ca').doc(id).get();
+
           return MapEntry(id, doc.data());
         }),
       );
@@ -370,6 +370,7 @@ class LichHenService {
       final phongEntries = await Future.wait(
         phongIds.map((id) async {
           final doc = await _firestore.collection(_colPhongKham).doc(id).get();
+
           return MapEntry(id, doc.data());
         }),
       );
@@ -393,6 +394,7 @@ class LichHenService {
               .collection('danh_sach')
               .doc(parts[1])
               .get();
+
           return MapEntry(key, doc.data());
         }),
       );
@@ -435,7 +437,7 @@ class LichHenService {
     }
   }
 
-  /// getBookingDetail: lấy dữ liệu chi tiết của một lịch hẹn theo mã.
+  /// getBookingDetail: lấy dữ liệu chi tiết của một lịch hẹn theo mã (null nếu không có).
   Future<Map<String, dynamic>?> getBookingDetail({
     required String trangThaiId,
     required String ngayId,
@@ -457,7 +459,7 @@ class LichHenService {
     }
   }
 
-  /// getDanhSachLichHen: lấy danh sách lịch hẹn của một phòng khám trong một ngày (caId null là tất cả các ca).
+  /// getDanhSachLichHen: lấy danh sách lịch hẹn của một phòng khám trong một ngày (caId null là tất cả các ca), sắp xếp theo ca rồi số thứ tự.
   Future<List<LichHenModel>> getDanhSachLichHen({
     required DateTime ngay,
     required String benhVienId,
@@ -573,6 +575,7 @@ class LichHenService {
       if (e.code == 'permission-denied') {
         throw Exception('Không có quyền xóa lịch hẹn này.');
       }
+
       throw Exception('Không thể xóa lịch hẹn. Vui lòng thử lại.');
     }
   }

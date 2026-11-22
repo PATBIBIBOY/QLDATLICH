@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../widgets/appointment_card.dart';
+
 import '../../models/appointment_item.dart';
 import '../../utils/app_snackbar.dart';
+import '../../widgets/appointment_card.dart';
 
+/// BookingRequestSentScreen: màn "Đã gửi yêu cầu đặt lịch" (chờ bệnh viện duyệt).
+/// Dữ liệu lấy theo thứ tự: tham số constructor, rồi route arguments
+/// (Map hoặc MyAppointmentItem), cuối cùng là dấu '—'.
 class BookingRequestSentScreen extends StatelessWidget {
   final String? requestCode;
   final String? hospitalName;
@@ -24,8 +28,11 @@ class BookingRequestSentScreen extends StatelessWidget {
     this.onGoHome,
   });
 
-  /// Đọc 1 giá trị từ arguments của route: Map thì lấy theo [mapKey],
-  /// còn lại (MyAppointmentItem...) thì đọc bằng [fromObject]. Không có -> null.
+  static const _gold = Color(0xFF8A5B00);
+  static const _empty = '—';
+
+  /// _arg: đọc một giá trị từ route arguments. Map thì lấy theo [mapKey],
+  /// kiểu khác (vd MyAppointmentItem) thì đọc bằng [fromObject]. Không có thì trả null.
   static String? _arg(
     Object? args,
     String mapKey,
@@ -48,24 +55,19 @@ class BookingRequestSentScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const gold = Color(0xFF8A5B00);
-    const empty = '—';
-
     final args = ModalRoute.of(context)?.settings.arguments;
     final code =
-        requestCode ?? _arg(args, 'requestCode', (a) => a.id) ?? empty;
-    final hospital =
-        hospitalName ??
+        requestCode ?? _arg(args, 'requestCode', (a) => a.id) ?? _empty;
+    final hospital = hospitalName ??
         _arg(args, 'hospitalName', (a) => a.hospitalName) ??
-        empty;
-    final department =
-        departmentName ??
+        _empty;
+    final department = departmentName ??
         _arg(args, 'departmentName', (a) => a.departmentName) ??
-        empty;
+        _empty;
     final date =
-        dateLabel ?? _arg(args, 'dateLabel', (a) => a.dateLabel) ?? empty;
+        dateLabel ?? _arg(args, 'dateLabel', (a) => a.dateLabel) ?? _empty;
     final shift =
-        shiftLabel ?? _arg(args, 'shiftLabel', (a) => a.timeLabel) ?? empty;
+        shiftLabel ?? _arg(args, 'shiftLabel', (a) => a.timeLabel) ?? _empty;
 
     return Scaffold(
       backgroundColor: ApptColors.bg,
@@ -74,70 +76,14 @@ class BookingRequestSentScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
           child: Column(
             children: [
-              // ── Biểu tượng đồng hồ cát (hiện ra có hiệu ứng nảy nhẹ) ──
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0.6, end: 1.0),
-                duration: const Duration(milliseconds: 800),
-                curve: Curves.easeOutBack,
-                builder: (context, scale, child) =>
-                    Transform.scale(scale: scale, child: child),
-                child: SizedBox(
-                  width: 136,
-                  height: 136,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
-                        width: 136,
-                        height: 136,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF59E0B).withOpacity(0.10),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      Container(
-                        width: 108,
-                        height: 108,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF59E0B).withOpacity(0.16),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      Container(
-                        width: 82,
-                        height: 82,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [Color(0xFFFFC857), Color(0xFFF59E0B)],
-                          ),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFF59E0B).withOpacity(0.40),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.hourglass_top_rounded,
-                          size: 40,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              const _HourglassBadge(),
               const SizedBox(height: 14),
               const Text(
                 'Đã gửi yêu cầu đặt lịch',
                 style: TextStyle(
                   fontSize: 23,
                   fontWeight: FontWeight.w900,
-                  color: gold,
+                  color: _gold,
                 ),
               ),
               const SizedBox(height: 6),
@@ -151,184 +97,28 @@ class BookingRequestSentScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 22),
-
-              // ── Các bước xử lý ──
-              ApptCard(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 16,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    _StepItem(
-                      icon: Icons.check_rounded,
-                      label: 'Đã gửi\nyêu cầu',
-                      state: _StepState.done,
-                    ),
-                    _StepLine(active: true),
-                    _StepItem(
-                      icon: Icons.hourglass_top_rounded,
-                      label: 'Bệnh viện\nxét duyệt',
-                      state: _StepState.current,
-                    ),
-                    _StepLine(active: false),
-                    _StepItem(
-                      icon: Icons.confirmation_number_rounded,
-                      label: 'Nhận số thứ\ntự & giờ khám',
-                      state: _StepState.todo,
-                    ),
-                  ],
-                ),
+              _buildProgressCard(),
+              const SizedBox(height: 16),
+              _buildRequestCard(
+                context,
+                code: code,
+                hospital: hospital,
+                department: department,
+                date: date,
+                shift: shift,
               ),
               const SizedBox(height: 16),
-
-              // ── Thẻ thông tin yêu cầu (kiểu phiếu) ──
-              ApptCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            'MÃ YÊU CẦU',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.6,
-                              color: ApptColors.textGrey,
-                            ),
-                          ),
-                        ),
-                        const StatusChip(AppointmentStatus.pending),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Expanded(
-                          // Mã dài thì tự thu nhỏ cho vừa khung
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              code,
-                              style: const TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.w900,
-                                color: ApptColors.primary,
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (code != empty)
-                          IconButton(
-                            tooltip: 'Sao chép mã',
-                            visualDensity: VisualDensity.compact,
-                            icon: const Icon(
-                              Icons.copy_rounded,
-                              size: 20,
-                              color: ApptColors.textGrey,
-                            ),
-                            onPressed: () {
-                              Clipboard.setData(ClipboardData(text: code));
-                              context.showAppSnackBar(
-                                title: 'Sao chép thành công',
-                                message: 'Đã sao chép mã yêu cầu',
-                                type: SnackBarType.success,
-                                duration: const Duration(seconds: 2),
-                              );
-                            },
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    const _DashedDivider(),
-                    const SizedBox(height: 8),
-                    _InfoLine(
-                      icon: Icons.local_hospital_rounded,
-                      label: 'Bệnh viện',
-                      value: hospital,
-                    ),
-                    _InfoLine(
-                      icon: Icons.medical_services_outlined,
-                      label: 'Chuyên khoa',
-                      value: department,
-                    ),
-                    _InfoLine(
-                      icon: Icons.calendar_today_rounded,
-                      label: 'Ngày khám',
-                      value: date,
-                    ),
-                    _InfoLine(
-                      icon: Icons.schedule_rounded,
-                      label: 'Ca',
-                      value: shift,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // ── Thông báo ──
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE3F2FD),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFBBDEFB)),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.notifications_active_rounded,
-                        size: 18,
-                        color: ApptColors.primary,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(top: 2),
-                        child: Text(
-                          'Bạn sẽ nhận thông báo ngay khi bệnh viện xác nhận, '
-                          'kèm số thứ tự và giờ khám chính thức.',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            height: 1.45,
-                            color: ApptColors.primary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _buildNotifyHint(),
               const SizedBox(height: 24),
-
-              // ── Nút hành động ──
-              ApptButton(
-                text: 'Xem trạng thái đặt lịch',
-                onPressed: onViewStatus,
-              ),
+              ApptButton(text: 'Xem trạng thái đặt lịch', onPressed: onViewStatus),
               const SizedBox(height: 12),
               ApptButton(
                 text: 'Về trang chủ',
                 background: Colors.white,
                 foreground: ApptColors.textDark,
                 borderColor: ApptColors.border,
-                // Mặc định quay về màn hình đầu tiên của ứng dụng
-                onPressed:
-                    onGoHome ??
+                // Mặc định quay về màn hình đầu tiên của ứng dụng.
+                onPressed: onGoHome ??
                     () => Navigator.of(context).popUntil((r) => r.isFirst),
               ),
             ],
@@ -337,13 +127,236 @@ class BookingRequestSentScreen extends StatelessWidget {
       ),
     );
   }
+
+  /// _buildProgressCard: thanh tiến trình 3 bước (đã gửi, chờ duyệt, nhận số).
+  Widget _buildProgressCard() {
+    return ApptCard(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _StepItem(
+            icon: Icons.check_rounded,
+            label: 'Đã gửi\nyêu cầu',
+            state: _StepState.done,
+          ),
+          _StepLine(active: true),
+          _StepItem(
+            icon: Icons.hourglass_top_rounded,
+            label: 'Bệnh viện\nxét duyệt',
+            state: _StepState.current,
+          ),
+          _StepLine(active: false),
+          _StepItem(
+            icon: Icons.confirmation_number_rounded,
+            label: 'Nhận số thứ\ntự & giờ khám',
+            state: _StepState.todo,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// _buildRequestCard: thẻ mã yêu cầu (có nút sao chép) và thông tin lịch khám.
+  Widget _buildRequestCard(
+    BuildContext context, {
+    required String code,
+    required String hospital,
+    required String department,
+    required String date,
+    required String shift,
+  }) {
+    return ApptCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'MÃ YÊU CẦU',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                    color: ApptColors.textGrey,
+                  ),
+                ),
+              ),
+              StatusChip(AppointmentStatus.pending),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                // Mã dài thì tự thu nhỏ cho vừa khung.
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    code,
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                      color: ApptColors.primary,
+                    ),
+                  ),
+                ),
+              ),
+              if (code != _empty)
+                IconButton(
+                  tooltip: 'Sao chép mã',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(
+                    Icons.copy_rounded,
+                    size: 20,
+                    color: ApptColors.textGrey,
+                  ),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: code));
+                    context.showAppSnackBar(
+                      title: 'Sao chép thành công',
+                      message: 'Đã sao chép mã yêu cầu',
+                      type: SnackBarType.success,
+                      duration: const Duration(seconds: 2),
+                    );
+                  },
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const _DashedDivider(),
+          const SizedBox(height: 8),
+          _InfoLine(
+            icon: Icons.local_hospital_rounded,
+            label: 'Bệnh viện',
+            value: hospital,
+          ),
+          _InfoLine(
+            icon: Icons.medical_services_outlined,
+            label: 'Chuyên khoa',
+            value: department,
+          ),
+          _InfoLine(
+            icon: Icons.calendar_today_rounded,
+            label: 'Ngày khám',
+            value: date,
+          ),
+          _InfoLine(icon: Icons.schedule_rounded, label: 'Ca', value: shift),
+        ],
+      ),
+    );
+  }
+
+  /// _buildNotifyHint: khung nhắc người dùng sẽ nhận thông báo khi được duyệt.
+  Widget _buildNotifyHint() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE3F2FD),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFBBDEFB)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.notifications_active_rounded,
+              size: 18,
+              color: ApptColors.primary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(top: 2),
+              child: Text(
+                'Bạn sẽ nhận thông báo ngay khi bệnh viện xác nhận, '
+                'kèm số thứ tự và giờ khám chính thức.',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  height: 1.45,
+                  color: ApptColors.primary,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-// ───────────────────────── Các widget phụ ─────────────────────────
+/// _HourglassBadge: biểu tượng đồng hồ cát nhiều lớp, phóng to dần khi xuất hiện.
+class _HourglassBadge extends StatelessWidget {
+  const _HourglassBadge();
+
+  static const _amber = Color(0xFFF59E0B);
+
+  Widget _circle(double size, Color color) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.6, end: 1.0),
+      duration: const Duration(milliseconds: 800),
+      curve: Curves.easeOutBack,
+      builder: (context, scale, child) =>
+          Transform.scale(scale: scale, child: child),
+      child: SizedBox(
+        width: 136,
+        height: 136,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            _circle(136, _amber.withOpacity(0.10)),
+            _circle(108, _amber.withOpacity(0.16)),
+            Container(
+              width: 82,
+              height: 82,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFFFC857), _amber],
+                ),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: _amber.withOpacity(0.40),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.hourglass_top_rounded,
+                size: 40,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 enum _StepState { done, current, todo }
 
-/// Một bước trong quy trình: vòng tròn icon + nhãn.
+/// _StepItem: một bước trong quy trình (vòng tròn icon + nhãn), màu theo trạng thái bước.
 class _StepItem extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -357,27 +370,23 @@ class _StepItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    late final Color circle;
-    late final Color iconColor;
-    late final Color textColor;
-
-    switch (state) {
-      case _StepState.done:
-        circle = const Color(0xFF22C55E);
-        iconColor = Colors.white;
-        textColor = ApptColors.textDark;
-        break;
-      case _StepState.current:
-        circle = const Color(0xFFF59E0B);
-        iconColor = Colors.white;
-        textColor = ApptColors.textDark;
-        break;
-      case _StepState.todo:
-        circle = const Color(0xFFE2E8F0);
-        iconColor = ApptColors.textGrey;
-        textColor = ApptColors.textGrey;
-        break;
-    }
+    final (circle, iconColor, textColor) = switch (state) {
+      _StepState.done => (
+        const Color(0xFF22C55E),
+        Colors.white,
+        ApptColors.textDark,
+      ),
+      _StepState.current => (
+        const Color(0xFFF59E0B),
+        Colors.white,
+        ApptColors.textDark,
+      ),
+      _StepState.todo => (
+        const Color(0xFFE2E8F0),
+        ApptColors.textGrey,
+        ApptColors.textGrey,
+      ),
+    };
 
     return Expanded(
       flex: 3,
@@ -389,7 +398,7 @@ class _StepItem extends StatelessWidget {
             decoration: BoxDecoration(
               color: circle,
               shape: BoxShape.circle,
-              // Vòng sáng quanh bước hiện tại
+              // Vòng sáng quanh bước hiện tại.
               boxShadow: state == _StepState.current
                   ? [
                       BoxShadow(
@@ -409,9 +418,8 @@ class _StepItem extends StatelessWidget {
             style: TextStyle(
               fontSize: 11.5,
               height: 1.3,
-              fontWeight: state == _StepState.current
-                  ? FontWeight.w800
-                  : FontWeight.w600,
+              fontWeight:
+                  state == _StepState.current ? FontWeight.w800 : FontWeight.w600,
               color: textColor,
             ),
           ),
@@ -421,15 +429,15 @@ class _StepItem extends StatelessWidget {
   }
 }
 
-/// Đường nối giữa hai bước.
+/// _StepLine: đường nối giữa hai bước (xanh nếu bước trước đã xong).
 class _StepLine extends StatelessWidget {
   final bool active;
+
   const _StepLine({required this.active});
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      flex: 1,
       child: Padding(
         padding: const EdgeInsets.only(top: 16),
         child: Container(
@@ -444,7 +452,7 @@ class _StepLine extends StatelessWidget {
   }
 }
 
-/// Một dòng thông tin có icon: nhãn nhỏ phía trên, giá trị đậm phía dưới.
+/// _InfoLine: một dòng thông tin có icon, nhãn nhỏ phía trên và giá trị đậm phía dưới.
 class _InfoLine extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -461,7 +469,6 @@ class _InfoLine extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             width: 38,
@@ -503,7 +510,7 @@ class _InfoLine extends StatelessWidget {
   }
 }
 
-/// Đường kẻ nét đứt (kiểu phiếu).
+/// _DashedDivider: đường kẻ nét đứt kiểu phiếu.
 class _DashedDivider extends StatelessWidget {
   const _DashedDivider();
 

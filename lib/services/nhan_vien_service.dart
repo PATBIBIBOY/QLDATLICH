@@ -48,7 +48,6 @@ class NhanVienService {
 
     final Set<String> names = {};
 
-    // 1. Đọc từ đường dẫn chuẩn của bệnh viện: Khoa/{benhVienId}/danh_sach
     try {
       final snap = await _db
           .collection('Khoa')
@@ -63,7 +62,6 @@ class NhanVienService {
       }
     } catch (_) {}
 
-    // 2. Nếu chưa có hoặc dùng ID khác, thử quét collectionGroup 'danh_sach'
     if (names.isEmpty) {
       try {
         final groupSnap = await _db.collectionGroup('danh_sach').get();
@@ -79,7 +77,6 @@ class NhanVienService {
       } catch (_) {}
     }
 
-    // 3. Quét collection 'Khoa' cấp cao nhất nếu có tài liệu lưu trực tiếp
     if (names.isEmpty) {
       try {
         final snapTop = await _db.collection('Khoa').get();
@@ -98,7 +95,9 @@ class NhanVienService {
   }
 
   /// Lấy danh sách tài khoản vừa tạo đang ở trạng thái đợi kích hoạt (chỉ của bệnh viện này)
-  Future<List<TaiKhoanItem>> layDanhSachTaiKhoanChuaKichHoat([String? benhVienId]) async {
+  Future<List<TaiKhoanItem>> layDanhSachTaiKhoanChuaKichHoat([
+    String? benhVienId,
+  ]) async {
     final bvid = (benhVienId != null && benhVienId.trim().isNotEmpty)
         ? benhVienId.trim()
         : (FirebaseAuth.instance.currentUser?.uid ?? AppSession.benhVienId);
@@ -122,19 +121,19 @@ class NhanVienService {
         continue;
       }
 
-      final maTk = (data['ma_nhan_vien'] ??
-              data['ma_tai_khoan'] ??
-              d.id)
+      final maTk = (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? d.id)
           .toString();
       final matKhau = (data['mat_khau'] ?? '123456').toString();
 
-      list.add(TaiKhoanItem(
-        id: d.id,
-        benhVienId: (data['benh_vien_id'] ?? bvid).toString(),
-        maTk: maTk,
-        matKhau: matKhau,
-        trangThai: 'Đợi kích hoạt',
-      ));
+      list.add(
+        TaiKhoanItem(
+          id: d.id,
+          benhVienId: (data['benh_vien_id'] ?? bvid).toString(),
+          maTk: maTk,
+          matKhau: matKhau,
+          trangThai: 'Đợi kích hoạt',
+        ),
+      );
     }
     return list;
   }
@@ -184,29 +183,32 @@ class NhanVienService {
     final batch = _db.batch();
 
     // Mật khẩu duy nhất cho tất cả tài khoản
-    final String commonPassword =
-        matKhau.trim().isNotEmpty ? matKhau.trim() : '123456';
+    final String commonPassword = matKhau.trim().isNotEmpty
+        ? matKhau.trim()
+        : '123456';
 
     for (int i = 0; i < soLuong; i++) {
       String maTk;
       // Sinh mã ngẫu nhiên và kiểm tra tránh trùng lặp tuyệt đối
       do {
-        final randomNum = 100000 + random.nextInt(900000); // 6 số ngẫu nhiên: 100000..999999
+        final randomNum =
+            100000 + random.nextInt(900000); // 6 số ngẫu nhiên: 100000..999999
         maTk = '$prefix$randomNum';
       } while (existingCodes.contains(maTk));
 
       existingCodes.add(maTk);
 
-      // ✅ TỰ SINH ID TỪ FIREBASE THAY VÌ LẤY maTk LÀM ID
       final docRef = _nhanVienCol.doc();
 
-      danhSach.add(TaiKhoanItem(
-        id: docRef.id,
-        benhVienId: bvid,
-        maTk: maTk,
-        matKhau: commonPassword,
-        trangThai: 'Đợi kích hoạt',
-      ));
+      danhSach.add(
+        TaiKhoanItem(
+          id: docRef.id,
+          benhVienId: bvid,
+          maTk: maTk,
+          matKhau: commonPassword,
+          trangThai: 'Đợi kích hoạt',
+        ),
+      );
 
       final staffData = {
         'id': docRef.id,
@@ -255,7 +257,6 @@ class NhanVienService {
         ? benhVienId.trim()
         : (FirebaseAuth.instance.currentUser?.uid ?? AppSession.benhVienId);
 
-    // 1. Tìm theo docId trực tiếp
     final docRef = _nhanVienCol.doc(nhanVienId);
     final docSnap = await docRef.get();
     if (docSnap.exists) {
@@ -271,16 +272,12 @@ class NhanVienService {
               .doc(hId)
               .collection('NhanVien')
               .doc(nhanVienId)
-              .update({
-            'da_kich_hoat': true,
-            'trang_thai': 'dang_hoat_dong',
-          });
+              .update({'da_kich_hoat': true, 'trang_thai': 'dang_hoat_dong'});
         } catch (_) {}
       }
       return;
     }
 
-    // 2. Tìm theo ma_nhan_vien
     final q1 = await _nhanVienCol
         .where('ma_nhan_vien', isEqualTo: nhanVienId)
         .get();
@@ -297,15 +294,11 @@ class NhanVienService {
               .doc(hId)
               .collection('NhanVien')
               .doc(d.id)
-              .update({
-            'da_kich_hoat': true,
-            'trang_thai': 'dang_hoat_dong',
-          });
+              .update({'da_kich_hoat': true, 'trang_thai': 'dang_hoat_dong'});
         } catch (_) {}
       }
     }
 
-    // 3. Tìm theo ma_tai_khoan
     final q2 = await _nhanVienCol
         .where('ma_tai_khoan', isEqualTo: nhanVienId)
         .get();
@@ -322,10 +315,7 @@ class NhanVienService {
               .doc(hId)
               .collection('NhanVien')
               .doc(d.id)
-              .update({
-            'da_kich_hoat': true,
-            'trang_thai': 'dang_hoat_dong',
-          });
+              .update({'da_kich_hoat': true, 'trang_thai': 'dang_hoat_dong'});
         } catch (_) {}
       }
     }
@@ -342,14 +332,10 @@ class NhanVienService {
         ? benhVienId.trim()
         : (FirebaseAuth.instance.currentUser?.uid ?? AppSession.benhVienId);
 
-    // 1. Tìm theo docId trực tiếp
     final docRef = _nhanVienCol.doc(nhanVienId);
     final docSnap = await docRef.get();
     if (docSnap.exists) {
-      await docRef.update({
-        'trang_thai': statusStr,
-        'da_kich_hoat': true,
-      });
+      await docRef.update({'trang_thai': statusStr, 'da_kich_hoat': true});
       final hId = docSnap.data()?['benh_vien_id']?.toString() ?? bvid;
       if (hId.isNotEmpty) {
         try {
@@ -358,24 +344,17 @@ class NhanVienService {
               .doc(hId)
               .collection('NhanVien')
               .doc(nhanVienId)
-              .update({
-            'trang_thai': statusStr,
-            'da_kich_hoat': true,
-          });
+              .update({'trang_thai': statusStr, 'da_kich_hoat': true});
         } catch (_) {}
       }
       return;
     }
 
-    // 2. Tìm theo ma_nhan_vien
     final q1 = await _nhanVienCol
         .where('ma_nhan_vien', isEqualTo: nhanVienId)
         .get();
     for (final d in q1.docs) {
-      await d.reference.update({
-        'trang_thai': statusStr,
-        'da_kich_hoat': true,
-      });
+      await d.reference.update({'trang_thai': statusStr, 'da_kich_hoat': true});
       final hId = d.data()['benh_vien_id']?.toString() ?? bvid;
       if (hId.isNotEmpty) {
         try {
@@ -384,23 +363,16 @@ class NhanVienService {
               .doc(hId)
               .collection('NhanVien')
               .doc(d.id)
-              .update({
-            'trang_thai': statusStr,
-            'da_kich_hoat': true,
-          });
+              .update({'trang_thai': statusStr, 'da_kich_hoat': true});
         } catch (_) {}
       }
     }
 
-    // 3. Tìm theo ma_tai_khoan
     final q2 = await _nhanVienCol
         .where('ma_tai_khoan', isEqualTo: nhanVienId)
         .get();
     for (final d in q2.docs) {
-      await d.reference.update({
-        'trang_thai': statusStr,
-        'da_kich_hoat': true,
-      });
+      await d.reference.update({'trang_thai': statusStr, 'da_kich_hoat': true});
       final hId = d.data()['benh_vien_id']?.toString() ?? bvid;
       if (hId.isNotEmpty) {
         try {
@@ -409,10 +381,7 @@ class NhanVienService {
               .doc(hId)
               .collection('NhanVien')
               .doc(d.id)
-              .update({
-            'trang_thai': statusStr,
-            'da_kich_hoat': true,
-          });
+              .update({'trang_thai': statusStr, 'da_kich_hoat': true});
         } catch (_) {}
       }
     }
@@ -424,7 +393,6 @@ class NhanVienService {
         ? benhVienId.trim()
         : (FirebaseAuth.instance.currentUser?.uid ?? AppSession.benhVienId);
 
-    // 1. Thử xóa theo docId trực tiếp
     final docRef = _nhanVienCol.doc(nhanVienId);
     final docSnap = await docRef.get();
     if (docSnap.exists) {
@@ -443,7 +411,6 @@ class NhanVienService {
       return;
     }
 
-    // 2. Tìm và xóa theo ma_nhan_vien
     final q1 = await _nhanVienCol
         .where('ma_nhan_vien', isEqualTo: nhanVienId)
         .get();
@@ -462,7 +429,6 @@ class NhanVienService {
       }
     }
 
-    // 3. Tìm và xóa theo ma_tai_khoan
     final q2 = await _nhanVienCol
         .where('ma_tai_khoan', isEqualTo: nhanVienId)
         .get();

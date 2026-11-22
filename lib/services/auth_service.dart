@@ -23,9 +23,26 @@ class AuthService {
     return cleaned;
   }
 
-  /// sendOtp: gửi mã OTP qua SMS tới số điện thoại.
-  /// Gọi onCodeSent khi gửi thành công (kèm verificationId để xác thực), onError khi thất bại.
-  /// Không tự đăng nhập khi Android tự đọc SMS; người dùng luôn nhập mã thủ công.
+  /// _errorMessage: đổi mã lỗi FirebaseAuth sang thông báo tiếng Việt.
+  String _errorMessage(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-phone-number':
+        return 'Số điện thoại không hợp lệ';
+      case 'too-many-requests':
+        return 'Bạn thao tác quá nhiều lần, vui lòng thử lại sau';
+      case 'invalid-verification-code':
+        return 'Mã OTP không đúng';
+      case 'session-expired':
+        return 'Mã OTP đã hết hạn, vui lòng gửi lại';
+      case 'quota-exceeded':
+        return 'Hệ thống đã hết lượt gửi SMS, vui lòng thử lại sau';
+      default:
+        return e.message ?? 'Có lỗi xảy ra, vui lòng thử lại';
+    }
+  }
+
+  /// sendOtp: gửi mã OTP qua SMS; gọi onCodeSent khi thành công, onError khi thất bại.
+  /// Không tự đăng nhập khi Android tự đọc SMS, người dùng luôn nhập mã thủ công.
   Future<void> sendOtp({
     required String phone,
     int? resendToken,
@@ -47,7 +64,7 @@ class AuthService {
     }
   }
 
-  /// verifyOtp: đối chiếu mã OTP người dùng nhập với verificationId và đăng nhập Firebase bằng số điện thoại.
+  /// verifyOtp: đối chiếu mã OTP với verificationId và đăng nhập Firebase bằng số điện thoại.
   Future<UserCredential> verifyOtp({
     required String verificationId,
     required String smsCode,
@@ -63,18 +80,36 @@ class AuthService {
     }
   }
 
-  /// getAdminFromFirestore: lấy hồ sơ admin theo uid từ collection 'admins' (null nếu không có).
-  Future<Map<String, dynamic>?> getAdminFromFirestore(String uid) async {
-    try {
-      final doc = await _firestore.collection('admins').doc(uid).get();
-      if (doc.exists) {
-        return doc.data();
-      }
-      return null;
-    } catch (e) {
-      print('Lỗi khi lấy thông tin admin: $e');
-      return null;
-    }
+  /// signInWithEmailAndPassword: đăng nhập Firebase bằng email và mật khẩu.
+  Future<UserCredential> signInWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) async {
+    return await _auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+  }
+
+  /// registerWithEmailAndPassword: tạo tài khoản Firebase bằng email và mật khẩu.
+  Future<UserCredential> registerWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) async {
+    return await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+  }
+
+  /// resetPassword: gửi email đặt lại mật khẩu.
+  Future<void> resetPassword(String email) async {
+    await _auth.sendPasswordResetEmail(email: email);
+  }
+
+  /// signOut: đăng xuất khỏi Firebase Auth.
+  Future<void> signOut() async {
+    await _auth.signOut();
   }
 
   /// loginAdmin: đăng nhập email/mật khẩu rồi kiểm tra uid có trong 'admins'; không phải admin thì đăng xuất.
@@ -101,6 +136,20 @@ class AuthService {
       rethrow;
     } catch (e) {
       throw Exception('Đăng nhập thất bại: $e');
+    }
+  }
+
+  /// getAdminFromFirestore: lấy hồ sơ admin theo uid từ collection 'admins' (null nếu không có).
+  Future<Map<String, dynamic>?> getAdminFromFirestore(String uid) async {
+    try {
+      final doc = await _firestore.collection('admins').doc(uid).get();
+      if (doc.exists) {
+        return doc.data();
+      }
+      return null;
+    } catch (e) {
+      print('Lỗi khi lấy thông tin admin: $e');
+      return null;
     }
   }
 
@@ -133,76 +182,37 @@ class AuthService {
     }
   }
 
-  /// _errorMessage: đổi mã lỗi FirebaseAuth sang thông báo tiếng Việt.
-  String _errorMessage(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'invalid-phone-number':
-        return 'Số điện thoại không hợp lệ';
-      case 'too-many-requests':
-        return 'Bạn thao tác quá nhiều lần, vui lòng thử lại sau';
-      case 'invalid-verification-code':
-        return 'Mã OTP không đúng';
-      case 'session-expired':
-        return 'Mã OTP đã hết hạn, vui lòng gửi lại';
-      case 'quota-exceeded':
-        return 'Hệ thống đã hết lượt gửi SMS, vui lòng thử lại sau';
-      default:
-        return e.message ?? 'Có lỗi xảy ra, vui lòng thử lại';
+  /// getPatientFromFirestore: lấy hồ sơ bệnh nhân theo uid (null nếu không có).
+  Future<PatientModel?> getPatientFromFirestore(String uid) async {
+    try {
+      final doc = await _firestore
+          .collection(AppConstants.patientsCollection)
+          .doc(uid)
+          .get();
+      if (doc.exists) {
+        return PatientModel.fromMap(doc.data()!);
+      }
+      return null;
+    } catch (e) {
+      print('Lỗi khi lấy thông tin user từ Firestore: $e');
+      return null;
     }
   }
 
-  /// signInWithEmailAndPassword: đăng nhập Firebase bằng email và mật khẩu.
-  Future<UserCredential> signInWithEmailAndPassword({
-    required String email,
-    required String password,
-  }) async {
-    return await _auth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-  }
-
-  /// registerWithEmailAndPassword: tạo tài khoản Firebase bằng email và mật khẩu.
-  Future<UserCredential> registerWithEmailAndPassword({
-    required String email,
-    required String password,
-  }) async {
-    return await _auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-  }
-
-  /// _generatePatientId: sinh mã bệnh nhân kế tiếp (BN001, BN002...) dựa trên hồ sơ tạo gần nhất.
-  Future<String> _generatePatientId() async {
+  /// getHospitalFromFirestore: lấy hồ sơ bệnh viện theo uid (null nếu không có).
+  Future<HospitalModel?> getHospitalFromFirestore(String uid) async {
     try {
-      final snapshot = await _firestore
-          .collection(AppConstants.patientsCollection)
-          .where('uid', isNotEqualTo: null)
-          .orderBy('ngay_tao', descending: true)
-          .limit(1)
+      final doc = await _firestore
+          .collection(AppConstants.hospitalsCollection)
+          .doc(uid)
           .get();
-
-      int nextNumber = 1;
-
-      if (snapshot.docs.isNotEmpty) {
-        final String? lastUid = snapshot.docs.first.data()['uid'];
-
-        if (lastUid != null && lastUid.isNotEmpty) {
-          final numberPart = lastUid.replaceAll(RegExp(r'[^0-9]'), '');
-          if (numberPart.isNotEmpty) {
-            nextNumber = int.parse(numberPart) + 1;
-          }
-        }
+      if (doc.exists) {
+        return HospitalModel.fromMap(doc.data()!, doc.id);
       }
-
-      final newId = 'BN${nextNumber.toString().padLeft(3, '0')}';
-      print('✅ [DEBUG] Mã bệnh nhân tiếp theo sẽ là: $newId');
-
-      return newId;
+      return null;
     } catch (e) {
-      print('❌ [DEBUG] Lỗi khi query mã bệnh nhân: $e');
-      rethrow;
+      print('Lỗi khi lấy thông tin bệnh viện từ Firestore: $e');
+      return null;
     }
   }
 
@@ -245,56 +255,37 @@ class AuthService {
     }
   }
 
-  /// deleteUnverifiedPatient: xóa hồ sơ bệnh nhân chưa xác thực email cùng tài khoản Auth hiện tại.
-  Future<void> deleteUnverifiedPatient(String uid) async {
-    await _deleteUnverifiedAccount(uid, AppConstants.patientsCollection);
-  }
-
-  /// deleteUnverifiedHospital: xóa hồ sơ bệnh viện chưa xác thực email cùng tài khoản Auth hiện tại.
-  Future<void> deleteUnverifiedHospital(String uid) async {
-    await _deleteUnverifiedAccount(uid, AppConstants.hospitalsCollection);
-  }
-
-  /// _deleteUnverifiedAccount: xóa document trong collection chỉ định và xóa tài khoản Auth đang đăng nhập.
-  Future<void> _deleteUnverifiedAccount(String uid, String collection) async {
+  /// _generatePatientId: sinh mã bệnh nhân kế tiếp (BN001, BN002...) dựa trên hồ sơ tạo gần nhất.
+  Future<String> _generatePatientId() async {
     try {
-      await _firestore.collection(collection).doc(uid).delete();
-      print('✅ Đã xóa document Firestore: $uid');
+      final snapshot = await _firestore
+          .collection(AppConstants.patientsCollection)
+          .where('uid', isNotEqualTo: null)
+          .orderBy('ngay_tao', descending: true)
+          .limit(1)
+          .get();
 
-      await _auth.currentUser?.delete();
-      print('✅ Đã xóa tài khoản Auth: $uid');
+      int nextNumber = 1;
+
+      if (snapshot.docs.isNotEmpty) {
+        final String? lastUid = snapshot.docs.first.data()['uid'];
+
+        if (lastUid != null && lastUid.isNotEmpty) {
+          final numberPart = lastUid.replaceAll(RegExp(r'[^0-9]'), '');
+          if (numberPart.isNotEmpty) {
+            nextNumber = int.parse(numberPart) + 1;
+          }
+        }
+      }
+
+      final newId = 'BN${nextNumber.toString().padLeft(3, '0')}';
+      print('✅ [DEBUG] Mã bệnh nhân tiếp theo sẽ là: $newId');
+
+      return newId;
     } catch (e) {
-      print('❌ Lỗi khi xóa user: $e');
+      print('❌ [DEBUG] Lỗi khi query mã bệnh nhân: $e');
       rethrow;
     }
-  }
-
-  /// updateUserVerificationStatus: cập nhật cờ đã xác thực email cho hồ sơ bệnh nhân hoặc bệnh viện.
-  Future<void> updateUserVerificationStatus(String uid, bool isVerified) async {
-    final patientRef = _firestore
-        .collection(AppConstants.patientsCollection)
-        .doc(uid);
-    final patient = await patientRef.get();
-    if (patient.exists) {
-      await patientRef.update({
-        'da_xac_thuc_email': isVerified,
-        'trang_thai_id': isVerified
-            ? TrangThaiId.hoatDong
-            : TrangThaiId.khongHoatDong,
-      });
-      return;
-    }
-
-    final hospitalRef = _firestore
-        .collection(AppConstants.hospitalsCollection)
-        .doc(uid);
-    final hospital = await hospitalRef.get();
-    if (hospital.exists) {
-      await hospitalRef.update({'da_xac_thuc_email': isVerified});
-      return;
-    }
-
-    throw StateError('Không tìm thấy hồ sơ bệnh nhân hoặc bệnh viện: $uid');
   }
 
   /// saveUserToFirestore: lưu hồ sơ bệnh nhân (merge) và sinh mã BNxxx nếu role là bệnh nhân và chưa có uid.
@@ -341,40 +332,6 @@ class AuthService {
     }, SetOptions(merge: true));
   }
 
-  /// getPatientFromFirestore: lấy hồ sơ bệnh nhân theo uid (null nếu không có).
-  Future<PatientModel?> getPatientFromFirestore(String uid) async {
-    try {
-      final doc = await _firestore
-          .collection(AppConstants.patientsCollection)
-          .doc(uid)
-          .get();
-      if (doc.exists) {
-        return PatientModel.fromMap(doc.data()!);
-      }
-      return null;
-    } catch (e) {
-      print('Lỗi khi lấy thông tin user từ Firestore: $e');
-      return null;
-    }
-  }
-
-  /// getHospitalFromFirestore: lấy hồ sơ bệnh viện theo uid (null nếu không có).
-  Future<HospitalModel?> getHospitalFromFirestore(String uid) async {
-    try {
-      final doc = await _firestore
-          .collection(AppConstants.hospitalsCollection)
-          .doc(uid)
-          .get();
-      if (doc.exists) {
-        return HospitalModel.fromMap(doc.data()!, doc.id);
-      }
-      return null;
-    } catch (e) {
-      print('Lỗi khi lấy thông tin bệnh viện từ Firestore: $e');
-      return null;
-    }
-  }
-
   /// updateUserProfile: cập nhật các trường hồ sơ bệnh nhân khác null lên Firestore.
   Future<void> updateUserProfile({
     required String uid,
@@ -392,7 +349,9 @@ class AuthService {
 
       if (hoTen != null) updateData['ho_ten'] = hoTen;
       if (gioiTinh != null) updateData['gioi_tinh'] = gioiTinh;
-      if (ngaySinh != null) updateData['ngay_sinh'] = ngaySinh.toIso8601String();
+      if (ngaySinh != null) {
+        updateData['ngay_sinh'] = ngaySinh.toIso8601String();
+      }
       if (diaChi != null) updateData['dia_chi'] = diaChi;
       if (email != null) updateData['email'] = email;
       if (soDienThoai != null) updateData['so_dien_thoai'] = soDienThoai;
@@ -413,13 +372,55 @@ class AuthService {
     }
   }
 
-  /// signOut: đăng xuất khỏi Firebase Auth.
-  Future<void> signOut() async {
-    await _auth.signOut();
+  /// updateUserVerificationStatus: cập nhật cờ đã xác thực email cho hồ sơ bệnh nhân hoặc bệnh viện.
+  Future<void> updateUserVerificationStatus(String uid, bool isVerified) async {
+    final patientRef = _firestore
+        .collection(AppConstants.patientsCollection)
+        .doc(uid);
+    final patient = await patientRef.get();
+    if (patient.exists) {
+      await patientRef.update({
+        'da_xac_thuc_email': isVerified,
+        'trang_thai_id': isVerified
+            ? TrangThaiId.hoatDong
+            : TrangThaiId.khongHoatDong,
+      });
+      return;
+    }
+
+    final hospitalRef = _firestore
+        .collection(AppConstants.hospitalsCollection)
+        .doc(uid);
+    final hospital = await hospitalRef.get();
+    if (hospital.exists) {
+      await hospitalRef.update({'da_xac_thuc_email': isVerified});
+      return;
+    }
+
+    throw StateError('Không tìm thấy hồ sơ bệnh nhân hoặc bệnh viện: $uid');
   }
 
-  /// resetPassword: gửi email đặt lại mật khẩu.
-  Future<void> resetPassword(String email) async {
-    await _auth.sendPasswordResetEmail(email: email);
+  /// deleteUnverifiedPatient: xóa hồ sơ bệnh nhân chưa xác thực email cùng tài khoản Auth hiện tại.
+  Future<void> deleteUnverifiedPatient(String uid) async {
+    await _deleteUnverifiedAccount(uid, AppConstants.patientsCollection);
+  }
+
+  /// deleteUnverifiedHospital: xóa hồ sơ bệnh viện chưa xác thực email cùng tài khoản Auth hiện tại.
+  Future<void> deleteUnverifiedHospital(String uid) async {
+    await _deleteUnverifiedAccount(uid, AppConstants.hospitalsCollection);
+  }
+
+  /// _deleteUnverifiedAccount: xóa document trong collection chỉ định và xóa tài khoản Auth đang đăng nhập.
+  Future<void> _deleteUnverifiedAccount(String uid, String collection) async {
+    try {
+      await _firestore.collection(collection).doc(uid).delete();
+      print('✅ Đã xóa document Firestore: $uid');
+
+      await _auth.currentUser?.delete();
+      print('✅ Đã xóa tài khoản Auth: $uid');
+    } catch (e) {
+      print('❌ Lỗi khi xóa user: $e');
+      rethrow;
+    }
   }
 }

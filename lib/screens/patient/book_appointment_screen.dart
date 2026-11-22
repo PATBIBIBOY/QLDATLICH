@@ -1,9 +1,11 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../config/app_routes.dart';
 import '../../models/appointment_item.dart';
+import '../../models/family_profile_model.dart';
 import '../../models/lichhen_model.dart';
 import '../../models/phong_kham_model.dart';
 import '../../providers/auth_provider.dart';
@@ -17,6 +19,9 @@ import '../../widgets/family_widgets.dart';
 import '../../widgets/patient_widget/book_appointment_widget.dart';
 import 'booking_confirm_sheet.dart';
 
+/// BookAppointmentScreen: màn đặt lịch khám tại một bệnh viện (nhận dữ liệu bệnh viện
+/// qua route arguments). Người dùng chọn người khám, một hoặc nhiều chuyên khoa,
+/// rồi với mỗi chuyên khoa chọn phòng, ngày và ca; sau đó xác nhận để gửi yêu cầu.
 class BookAppointmentScreen extends StatefulWidget {
   const BookAppointmentScreen({super.key});
 
@@ -25,26 +30,41 @@ class BookAppointmentScreen extends StatefulWidget {
 }
 
 class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
-  bool _isSpecialtyExpanded = true;
+  final _hospitalService = HospitalService();
+  final _lichHenService = LichHenService();
+
+  // Bệnh viện và danh sách chuyên khoa.
   Map<String, dynamic>? _hospitalData;
+  String _hospitalId = '';
   List<Map<String, dynamic>> _departments = [];
   bool _isLoadingDepartments = true;
   String? _departmentLoadError;
-  final Set<String> _selectedDepartmentIds = {};
+  bool _isSpecialtyExpanded = true;
 
+  // Lựa chọn của người dùng (khóa là id chuyên khoa).
+  final Set<String> _selectedDepartmentIds = {};
   String? _activeDepartmentId;
   final Map<String, String> _selectedRoomByDept = {};
   final Map<String, DateTime> _selectedDayByDept = {};
   final Map<String, String> _selectedSlotByDept = {};
+  String? _bookingProfileId;
 
-  final HospitalService _hospitalService = HospitalService();
-  final LichHenService _lichHenService = LichHenService();
-  String _hospitalId = '';
+  // Danh sách phòng khám theo chuyên khoa.
   final Map<String, List<PhongKhamModel>> _roomsByDept = {};
   final Set<String> _loadingRoomDepts = {};
   final Map<String, String> _roomErrorByDept = {};
 
-  String? _bookingProfileId;
+  /// Chuyên khoa đã chọn đủ phòng, ngày và ca chưa.
+  bool _hasScheduleFor(String id) =>
+      _selectedRoomByDept.containsKey(id) &&
+      _selectedDayByDept.containsKey(id) &&
+      _selectedSlotByDept.containsKey(id);
+
+  bool get _isScheduleComplete =>
+      _selectedDepartmentIds.isNotEmpty &&
+      _selectedDepartmentIds.every(_hasScheduleFor);
+
+  // ───────────── Vòng đời ─────────────
 
   @override
   void initState() {
@@ -61,21 +81,24 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_hospitalData == null) {
-      final args = ModalRoute.of(context)?.settings.arguments;
-      if (args is Map<String, dynamic>) {
-        _hospitalData = args;
-        _hospitalId = (args['id'] ?? args['ma_benh_vien'] ?? '').toString();
-        _fetchDepartments(_hospitalId);
-      } else {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) Navigator.of(context).maybePop();
-        });
-      }
+    if (_hospitalData != null) return;
+
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map<String, dynamic>) {
+      _hospitalData = args;
+      _hospitalId = (args['id'] ?? args['ma_benh_vien'] ?? '').toString();
+      _fetchDepartments(_hospitalId);
+    } else {
+      // Thiếu dữ liệu bệnh viện thì thoát màn hình.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.of(context).maybePop();
+      });
     }
   }
 
-  /// _fetchDepartments: tải danh sách chuyên khoa của bệnh viện.
+  // ───────────── Tải dữ liệu ─────────────
+
+  /// _fetchDepartments: tải danh sách chuyên khoa của bệnh viện từ Firestore.
   Future<void> _fetchDepartments(String hospitalId) async {
     if (hospitalId.isEmpty) {
       setState(() {
@@ -108,45 +131,13 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
   }
 
-  /// _toggleDepartment: chọn hoặc bỏ chọn một chuyên khoa.
-  void _toggleDepartment(String departmentId) {
-    setState(() {
-      if (_selectedDepartmentIds.contains(departmentId)) {
-        _selectedDepartmentIds.remove(departmentId);
-        _selectedRoomByDept.remove(departmentId);
-        _selectedDayByDept.remove(departmentId);
-        _selectedSlotByDept.remove(departmentId);
-        _activeDepartmentId = _selectedDepartmentIds.isEmpty
-            ? null
-            : _selectedDepartmentIds.last;
-      } else {
-        _selectedDepartmentIds.add(departmentId);
-        _activeDepartmentId = departmentId;
-      }
-    });
-    if (_selectedDepartmentIds.contains(departmentId)) {
-      _fetchRooms(departmentId);
-    }
-  }
-
-  /// _hasScheduleFor: kiểm tra chuyên khoa đã chọn đủ phòng, ngày, giờ chưa.
-  bool _hasScheduleFor(String id) =>
-      _selectedRoomByDept.containsKey(id) &&
-      _selectedDayByDept.containsKey(id) &&
-      _selectedSlotByDept.containsKey(id);
-
-  bool get _isScheduleComplete =>
-      _selectedDepartmentIds.isNotEmpty &&
-      _selectedDepartmentIds.every(_hasScheduleFor);
-
-  /// _fetchRooms: tải danh sách phòng khám của một chuyên khoa.
+  /// _fetchRooms: tải danh sách phòng khám của một chuyên khoa
+  /// (bỏ qua nếu đã có hoặc đang tải, trừ khi [force]).
   Future<void> _fetchRooms(String departmentId, {bool force = false}) async {
-    if (_hospitalId.isEmpty ||
-        (!force &&
-            (_roomsByDept.containsKey(departmentId) ||
-                _loadingRoomDepts.contains(departmentId)))) {
-      return;
-    }
+    final alreadyHandled = _roomsByDept.containsKey(departmentId) ||
+        _loadingRoomDepts.contains(departmentId);
+    if (_hospitalId.isEmpty || (!force && alreadyHandled)) return;
+
     setState(() {
       _loadingRoomDepts.add(departmentId);
       _roomErrorByDept.remove(departmentId);
@@ -171,7 +162,28 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
   }
 
-  /// _selectRoom: chọn phòng khám và xóa ngày, giờ đã chọn trước đó.
+  // ───────────── Xử lý lựa chọn ─────────────
+
+  /// _toggleDepartment: chọn hoặc bỏ chọn một chuyên khoa; chọn mới thì tải phòng khám.
+  void _toggleDepartment(String departmentId) {
+    setState(() {
+      if (_selectedDepartmentIds.remove(departmentId)) {
+        _selectedRoomByDept.remove(departmentId);
+        _selectedDayByDept.remove(departmentId);
+        _selectedSlotByDept.remove(departmentId);
+        _activeDepartmentId =
+            _selectedDepartmentIds.isEmpty ? null : _selectedDepartmentIds.last;
+      } else {
+        _selectedDepartmentIds.add(departmentId);
+        _activeDepartmentId = departmentId;
+      }
+    });
+    if (_selectedDepartmentIds.contains(departmentId)) {
+      _fetchRooms(departmentId);
+    }
+  }
+
+  /// _selectRoom: chọn phòng khám; đổi phòng thì xóa ngày và ca đã chọn trước đó.
   void _selectRoom(String departmentId, String roomId) {
     setState(() {
       if (_selectedRoomByDept[departmentId] != roomId) {
@@ -182,7 +194,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     });
   }
 
-  /// _selectDay: chọn ngày khám và nạp lại số chỗ còn trống của các ca.
+  /// _selectDay: chọn ngày khám rồi nạp lại số chỗ còn trống của các ca.
   void _selectDay(String departmentId, String roomId, DateTime date) {
     setState(() {
       final current = _selectedDayByDept[departmentId];
@@ -191,21 +203,22 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         _selectedSlotByDept.remove(departmentId);
       }
     });
+    _reloadSlots(departmentId, roomId, date);
+  }
+
+  /// _reloadSlots: nạp lại các ca khám (và số chỗ còn trống) của phòng trong một ngày.
+  void _reloadSlots(String departmentId, String roomId, DateTime date) {
     context.read<LichHenProvider>().loadSlots(
       ngay: date,
       benhVienId: _hospitalId,
       khoaId: departmentId,
       phongKhamId: roomId,
-      soBenhNhanToiDa: BookingHelper.roomMax(
-        departmentId,
-        roomId,
-        _roomsByDept,
-      ),
+      soBenhNhanToiDa: BookingHelper.roomMax(departmentId, roomId, _roomsByDept),
       force: true,
     );
   }
 
-  /// _openMonthCalendar: mở lịch tháng để chọn ngày khám.
+  /// _openMonthCalendar: mở lịch tháng (trong 3 tháng tới) để chọn ngày khám.
   Future<void> _openMonthCalendar(String departmentId, String roomId) async {
     final today = BookingHelper.today();
     var initial = _selectedDayByDept[departmentId] ?? today;
@@ -234,118 +247,114 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     _selectDay(departmentId, roomId, picked);
   }
 
-  /// _continueBooking: kiểm tra dữ liệu, xác nhận rồi lưu các lịch hẹn đã chọn.
-  Future<void> _continueBooking() async {
-    if (_selectedDepartmentIds.isEmpty) {
-      context.showAppSnackBar(
-        title: 'Chưa chọn chuyên khoa',
-        message: 'Vui lòng chọn chuyên khoa khám',
-        type: SnackBarType.warning,
-      );
-      return;
-    }
+  // ───────────── Đặt lịch ─────────────
 
-    final family = context.read<FamilyProfileProvider>();
-    final profile = family.byId(_bookingProfileId ?? family.currentId);
-    if (profile == null) {
-      context.showAppSnackBar(
-        title: 'Chưa chọn người khám',
-        message: 'Vui lòng chọn khám cho ai',
-        type: SnackBarType.warning,
-      );
-      return;
-    }
+  /// _warn: hiện snackbar cảnh báo.
+  void _warn(String title, String message) => context.showAppSnackBar(
+    title: title,
+    message: message,
+    type: SnackBarType.warning,
+  );
 
-    if (!_isScheduleComplete) {
-      context.showAppSnackBar(
-        title: 'Chưa hoàn tất thông tin lịch khám',
-        message:
-            'Vui lòng chọn phòng khám, ngày và khung giờ cho tất cả chuyên khoa đã chọn',
-        type: SnackBarType.warning,
-      );
-      return;
-    }
-
-    final lichHenProvider = context.read<LichHenProvider>();
-    final String benhNhanId =
-        firebase_auth.FirebaseAuth.instance.currentUser?.uid ?? '';
-    const String trangThaiId = '1';
-    final tenNguoiDat = context.read<AuthProvider>().user?.hoTen;
-    final String tenBenhVien =
-        _hospitalData?['ten_benh_vien']?.toString() ??
-        'Bệnh viện không xác định';
-
+  /// _hasConflict: kiểm tra từng chuyên khoa đã chọn có trùng lịch cũ của người khám không.
+  /// Có trùng thì báo lỗi và trả true.
+  Future<bool> _hasConflict({
+    required FamilyProfileModel profile,
+    required String benhNhanId,
+  }) async {
     for (final departmentId in _selectedDepartmentIds) {
       final date = _selectedDayByDept[departmentId]!;
-
-      final hasConflict = await _lichHenService.checkExistingBooking(
+      final conflict = await _lichHenService.checkExistingBooking(
         benhNhanId: benhNhanId,
         benhVienId: _hospitalId,
         khoaId: departmentId,
         ngayDat: date,
         profileId: profile.id,
       );
+      if (!mounted) return true;
+      if (!conflict) continue;
 
-      if (!mounted) return;
+      final tenKhoa = BookingHelper.departmentName(departmentId, _departments);
+      final who = profile.isSelf ? 'Bạn' : profile.hoTen;
+      context.showAppSnackBar(
+        title: 'Lịch khám bị trùng',
+        message:
+            '$who đã có lịch khám tại khoa $tenKhoa vào ngày ${BookingHelper.formatDayMonth(date)}. Vui lòng chọn ngày khác hoặc hủy lịch cũ.',
+        type: SnackBarType.error,
+      );
+      return true;
+    }
+    return false;
+  }
 
-      if (hasConflict) {
-        final tenKhoa = BookingHelper.departmentName(
-          departmentId,
-          _departments,
-        );
-        context.showAppSnackBar(
-          title: 'Lịch khám bị trùng',
-          message:
-              '${profile.isSelf ? 'Bạn' : profile.hoTen} đã có lịch khám tại khoa $tenKhoa vào ngày ${BookingHelper.formatDayMonth(date)}. Vui lòng chọn ngày khác hoặc hủy lịch cũ.',
-          type: SnackBarType.error,
-        );
-        return;
-      }
+  /// _continueBooking: kiểm tra dữ liệu, hiện bảng xác nhận rồi lưu các lịch hẹn đã chọn.
+  Future<void> _continueBooking() async {
+    // 1. Kiểm tra đầu vào.
+    if (_selectedDepartmentIds.isEmpty) {
+      _warn('Chưa chọn chuyên khoa', 'Vui lòng chọn chuyên khoa khám');
+      return;
     }
 
-    final List<Map<String, String>> bookingDetails = [];
-    final List<Future<void> Function()> saveTasks = [];
-    final List<String> departmentNames = [];
-    final List<String> dateLabels = [];
-    final List<String> shiftLabels = [];
-    final List<String> lichHenIds = [];
+    final family = context.read<FamilyProfileProvider>();
+    final profile = family.byId(_bookingProfileId ?? family.currentId);
+    if (profile == null) {
+      _warn('Chưa chọn người khám', 'Vui lòng chọn khám cho ai');
+      return;
+    }
+    if (!_isScheduleComplete) {
+      _warn(
+        'Chưa hoàn tất thông tin lịch khám',
+        'Vui lòng chọn phòng khám, ngày và khung giờ cho tất cả chuyên khoa đã chọn',
+      );
+      return;
+    }
+
+    final lichHenProvider = context.read<LichHenProvider>();
+    final benhNhanId =
+        firebase_auth.FirebaseAuth.instance.currentUser?.uid ?? '';
+    final tenNguoiDat = context.read<AuthProvider>().user?.hoTen;
+    final tenBenhVien =
+        _hospitalData?['ten_benh_vien']?.toString() ?? 'Bệnh viện không xác định';
+
+    // 2. Không cho đặt trùng lịch.
+    if (await _hasConflict(profile: profile, benhNhanId: benhNhanId)) return;
+
+    // 3. Với mỗi chuyên khoa: kiểm tra ca còn chỗ, sinh mã lịch, chuẩn bị tác vụ lưu.
+    final bookingDetails = <Map<String, String>>[];
+    final saveTasks = <Future<void> Function()>[];
+    final departmentNames = <String>[];
+    final dateLabels = <String>[];
+    final shiftLabels = <String>[];
+    final lichHenIds = <String>[];
 
     for (final departmentId in _selectedDepartmentIds) {
       final roomId = _selectedRoomByDept[departmentId]!;
       final date = _selectedDayByDept[departmentId]!;
       final caId = _selectedSlotByDept[departmentId]!;
+
       final slotKey = BookingHelper.slotKeyFor(
         departmentId: departmentId,
         roomId: roomId,
         date: date,
         hospitalId: _hospitalId,
       );
-
-      CaSlotModel? selectedSlot;
-      for (final slot in lichHenProvider.slotsOf(slotKey)) {
-        if (slot.caId == caId) {
-          selectedSlot = slot;
-          break;
-        }
-      }
-
+      final selectedSlot = lichHenProvider
+          .slotsOf(slotKey)
+          .where((slot) => slot.caId == caId)
+          .firstOrNull;
       if (selectedSlot == null) {
-        context.showAppSnackBar(
-          title: 'Không tìm thấy khung giờ',
-          message: 'Không tìm thấy khung giờ đã chọn. Vui lòng chọn lại.',
-          type: SnackBarType.warning,
+        _warn(
+          'Không tìm thấy khung giờ',
+          'Không tìm thấy khung giờ đã chọn. Vui lòng chọn lại.',
         );
         return;
       }
 
-      final String tenKhoa = BookingHelper.departmentName(
-        departmentId,
-        _departments,
-      );
-      String tenPhongKham = 'Phòng khám';
-      final rooms = _roomsByDept[departmentId] ?? [];
-      final selectedRoom = rooms.where((r) => r.id == roomId).firstOrNull;
-
+      final tenKhoa = BookingHelper.departmentName(departmentId, _departments);
+      final selectedRoom = (_roomsByDept[departmentId] ?? [])
+          .where((r) => r.id == roomId)
+          .firstOrNull;
+      var tenPhongKham = 'Phòng khám';
       if (selectedRoom != null) {
         tenPhongKham = selectedRoom.tenPhong.isNotEmpty
             ? selectedRoom.tenPhong
@@ -372,11 +381,9 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               soBenhNhanToiDa: selectedSlot.tongSo,
               force: true,
             );
-            context.showAppSnackBar(
-              title: 'Ca khám đã hết chỗ',
-              message:
-                  '${selectedSlot.tenCa} ngày ${BookingHelper.formatDayMonth(date)} tại khoa $tenKhoa đã đủ số lượng. Vui lòng chọn ca hoặc ngày khác.',
-              type: SnackBarType.warning,
+            _warn(
+              'Ca khám đã hết chỗ',
+              '${selectedSlot.tenCa} ngày ${BookingHelper.formatDayMonth(date)} tại khoa $tenKhoa đã đủ số lượng. Vui lòng chọn ca hoặc ngày khác.',
             );
             return;
           }
@@ -401,7 +408,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
 
       saveTasks.add(
         () => _lichHenService.saveBooking(
-          trangThaiId: trangThaiId,
+          trangThaiId: '1', // 1 = chờ duyệt
           ngayDat: date,
           caId: caId,
           benhVienId: _hospitalId,
@@ -420,89 +427,78 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       );
     }
 
-    final hospitalName = tenBenhVien;
-    final address =
-        _hospitalData!['dia_chi']?.toString() ?? 'Địa chỉ chưa cập nhật';
+    // 4. Hiện bảng xác nhận.
     final bhyt = (_hospitalData!['bhyt'] ?? _hospitalData!['bhyt_id'] ?? '')
         .toString()
         .toLowerCase();
-    final bhytNote = (bhyt == 'co_bhyt' || bhyt == 'có bhyt')
-        ? 'Có hỗ trợ khám BHYT'
-        : 'Không hỗ trợ khám BHYT';
     final dateLabel = dateLabels.toSet().join(', ');
 
     final confirmed = await showBookingConfirmSheet(
       context,
-      hospitalName: hospitalName,
+      hospitalName: tenBenhVien,
       bookingDetails: bookingDetails,
       dateLabel: dateLabel,
-      address: address,
-      bhytNote: bhytNote,
+      address: _hospitalData!['dia_chi']?.toString() ?? 'Địa chỉ chưa cập nhật',
+      bhytNote: (bhyt == 'co_bhyt' || bhyt == 'có bhyt')
+          ? 'Có hỗ trợ khám BHYT'
+          : 'Không hỗ trợ khám BHYT',
       patientName: profile.isSelf
           ? profile.hoTen
           : '${profile.quanHe} - ${profile.hoTen}',
     );
+    if (confirmed != true || !mounted) return;
 
-    if (confirmed == true && mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Center(child: CircularProgressIndicator()),
-      );
-      try {
-        await Future.wait(saveTasks.map((saveTask) => saveTask()));
-        lichHenProvider.clearCache();
-
-        for (final departmentId in _selectedDepartmentIds) {
-          final roomId = _selectedRoomByDept[departmentId]!;
-          lichHenProvider.loadSlots(
-            ngay: _selectedDayByDept[departmentId]!,
-            benhVienId: _hospitalId,
-            khoaId: departmentId,
-            phongKhamId: roomId,
-            soBenhNhanToiDa: BookingHelper.roomMax(
-              departmentId,
-              roomId,
-              _roomsByDept,
-            ),
-            force: true,
-          );
-        }
-
-        if (!mounted) return;
-        Navigator.pop(context);
-
-        final departmentLabel = departmentNames.join(', ');
-        final shiftLabel = shiftLabels.join('; ');
-        family.select(profile.id);
-        final appointment = MyAppointmentItem(
-          id: lichHenIds.length == 1
-              ? '#${lichHenIds.first}'
-              : '#${lichHenIds.first} (+${lichHenIds.length - 1})',
-          hospitalName: hospitalName,
-          subtitle: '$departmentLabel · $dateLabel · $shiftLabel',
-          status: AppointmentStatus.pending,
-          departmentName: departmentLabel,
-          dateLabel: dateLabel,
-          timeLabel: shiftLabel,
-        );
-
-        Navigator.pushNamed(
-          context,
-          AppRoutes.bookingRequestSent,
-          arguments: appointment,
-        );
-      } catch (e) {
-        if (!mounted) return;
-        Navigator.pop(context);
-        context.showAppSnackBar(
-          title: 'Đặt lịch thất bại',
-          message: 'Lỗi khi đặt lịch: $e',
-          type: SnackBarType.error,
+    // 5. Lưu tất cả lịch hẹn rồi chuyển sang màn "Đã gửi yêu cầu".
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      await Future.wait(saveTasks.map((save) => save()));
+      lichHenProvider.clearCache();
+      for (final departmentId in _selectedDepartmentIds) {
+        _reloadSlots(
+          departmentId,
+          _selectedRoomByDept[departmentId]!,
+          _selectedDayByDept[departmentId]!,
         );
       }
+
+      if (!mounted) return;
+      Navigator.pop(context); // đóng vòng xoay
+      family.select(profile.id);
+
+      final first = lichHenIds.first;
+      final appointment = MyAppointmentItem(
+        id: lichHenIds.length == 1
+            ? '#$first'
+            : '#$first (+${lichHenIds.length - 1})',
+        hospitalName: tenBenhVien,
+        subtitle:
+            '${departmentNames.join(', ')} · $dateLabel · ${shiftLabels.join('; ')}',
+        status: AppointmentStatus.pending,
+        departmentName: departmentNames.join(', '),
+        dateLabel: dateLabel,
+        timeLabel: shiftLabels.join('; '),
+      );
+      Navigator.pushNamed(
+        context,
+        AppRoutes.bookingRequestSent,
+        arguments: appointment,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // đóng vòng xoay
+      context.showAppSnackBar(
+        title: 'Đặt lịch thất bại',
+        message: 'Lỗi khi đặt lịch: $e',
+        type: SnackBarType.error,
+      );
     }
   }
+
+  // ───────────── Giao diện ─────────────
 
   @override
   Widget build(BuildContext context) {
@@ -514,6 +510,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       );
     }
 
+    final selectedIds = _selectedDepartmentIds.toList();
     final selectedNames = _departments
         .where(
           (d) =>
@@ -521,19 +518,17 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         )
         .map((d) => d['ten_khoa']?.toString() ?? 'Chuyên khoa')
         .toList();
-    final selectedIds = _selectedDepartmentIds.toList();
-    final String? activeId = selectedIds.contains(_activeDepartmentId)
+
+    // Chuyên khoa đang được cấu hình lịch (mặc định là chuyên khoa chọn đầu tiên).
+    final activeId = selectedIds.contains(_activeDepartmentId)
         ? _activeDepartmentId
         : (selectedIds.isEmpty ? null : selectedIds.first);
-
-    final selectedRoomId = activeId != null
-        ? _selectedRoomByDept[activeId]
-        : null;
-    final DateTime? selectedDay = activeId != null
-        ? _selectedDayByDept[activeId]
-        : null;
+    final selectedRoomId =
+        activeId != null ? _selectedRoomByDept[activeId] : null;
+    final selectedDay = activeId != null ? _selectedDayByDept[activeId] : null;
     final doneCount = selectedIds.where(_hasScheduleFor).length;
 
+    // Dải ngày hiển thị; ngày chọn từ lịch tháng nằm ngoài dải thì được thêm vào.
     final today = BookingHelper.today();
     final days = selectedRoomId == null
         ? <Map<String, dynamic>>[]
@@ -546,8 +541,9 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       days.add(BookingHelper.dayEntry(selectedDay, today));
     }
 
+    // Các ca khám của ngày đang chọn và ca đang được chọn.
     final lichHen = context.watch<LichHenProvider>();
-    final List<CaSlotModel> slots =
+    final slots =
         (activeId != null && selectedRoomId != null && selectedDay != null)
         ? lichHen.slotsOf(
             BookingHelper.slotKeyFor(
@@ -558,16 +554,11 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
             ),
           )
         : <CaSlotModel>[];
-
-    CaSlotModel? selectedSlot;
-    if (activeId != null) {
-      for (final sl in slots) {
-        if (sl.caId == _selectedSlotByDept[activeId]) {
-          selectedSlot = sl;
-          break;
-        }
-      }
-    }
+    final selectedSlot = activeId == null
+        ? null
+        : slots
+              .where((s) => s.caId == _selectedSlotByDept[activeId])
+              .firstOrNull;
 
     final labelDate = selectedDay ?? today;
     final monthLabel =
@@ -597,8 +588,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                     builder: (_, fp, __) => ProfileChipsRow(
                       profiles: fp.profiles,
                       selectedId: _bookingProfileId ?? fp.currentId,
-                      onSelected: (id) =>
-                          setState(() => _bookingProfileId = id),
+                      onSelected: (id) => setState(() => _bookingProfileId = id),
                     ),
                   ),
                   const SizedBox(height: 28),
@@ -674,7 +664,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   }
 }
 
-/// _BookingHeader: đầu trang có tên bệnh viện và tiến độ chọn lịch của các chuyên khoa.
+/// _BookingHeader: đầu trang gồm nút quay lại, tên bệnh viện và thanh tiến độ
+/// "đã hoàn tất x/y chuyên khoa".
 class _BookingHeader extends StatelessWidget {
   final String hospitalName;
   final int total;
@@ -692,6 +683,12 @@ class _BookingHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final progress = total == 0 ? 0.0 : done / total;
     final allDone = total > 0 && done == total;
+    final progressIcon = total == 0
+        ? Icons.touch_app_rounded
+        : (allDone ? Icons.check_circle_rounded : Icons.event_available_rounded);
+    final progressText = total == 0
+        ? 'Chọn người khám, chuyên khoa, phòng và giờ khám'
+        : 'Đã hoàn tất $done/$total chuyên khoa';
 
     return Container(
       width: double.infinity,
@@ -767,21 +764,11 @@ class _BookingHeader extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(
-                          total == 0
-                              ? Icons.touch_app_rounded
-                              : (allDone
-                                    ? Icons.check_circle_rounded
-                                    : Icons.event_available_rounded),
-                          size: 16,
-                          color: Colors.white,
-                        ),
+                        Icon(progressIcon, size: 16, color: Colors.white),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            total == 0
-                                ? 'Chọn người khám, chuyên khoa, phòng và giờ khám'
-                                : 'Đã hoàn tất $done/$total chuyên khoa',
+                            progressText,
                             style: const TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w700,

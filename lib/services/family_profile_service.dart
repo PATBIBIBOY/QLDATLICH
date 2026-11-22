@@ -6,13 +6,13 @@ import '../models/patient_model.dart';
 class FamilyProfileService {
   final FirebaseFirestore _fs = FirebaseFirestore.instance;
 
+  /// _col: tham chiếu collection hồ sơ người thân của một tài khoản.
   CollectionReference<Map<String, dynamic>> _col(String uid) => _fs
       .collection(AppConstants.patientsCollection)
       .doc(uid)
       .collection('profiles');
 
-  /// Đảm bảo luôn có hồ sơ chính chủ, và đồng bộ dữ liệu từ PatientModel
-  /// (để khi người dùng sửa "Hồ sơ cá nhân" thì hồ sơ chính chủ không bị cũ).
+  /// ensureSelf: đảm bảo luôn có hồ sơ chính chủ và đồng bộ dữ liệu từ PatientModel để hồ sơ không bị cũ khi người dùng sửa thông tin cá nhân.
   Future<void> ensureSelf(String uid, PatientModel p) async {
     final ref = _col(uid).doc(FamilyProfileModel.selfId);
     final snap = await ref.get();
@@ -42,13 +42,14 @@ class FamilyProfileService {
     }
   }
 
+  /// fetch: lấy danh sách hồ sơ của tài khoản, hồ sơ chính chủ đứng đầu, còn lại theo thời gian tạo.
   Future<List<FamilyProfileModel>> fetch(String uid) async {
     final snap = await _col(uid).get();
     final list = snap.docs
         .map((d) => FamilyProfileModel.fromMap(d.data(), d.id))
         .toList();
     list.sort((a, b) {
-      if (a.isSelf != b.isSelf) return a.isSelf ? -1 : 1; // chính chủ lên đầu
+      if (a.isSelf != b.isSelf) return a.isSelf ? -1 : 1;
       final ta = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       final tb = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       return ta.compareTo(tb);
@@ -56,8 +57,9 @@ class FamilyProfileService {
     return list;
   }
 
+  /// add: thêm hồ sơ người thân mới (id tự sinh, không phải mặc định) và trả về id.
   Future<String> add(String uid, FamilyProfileModel p) async {
-    final ref = _col(uid).doc(); // id tự sinh
+    final ref = _col(uid).doc();
     await ref.set({
       ...p.toMap(),
       'is_default': false,
@@ -66,19 +68,21 @@ class FamilyProfileService {
     return ref.id;
   }
 
+  /// update: cập nhật hồ sơ, không đổi cờ mặc định.
   Future<void> update(String uid, FamilyProfileModel p) async {
-    final data = p.toMap()..remove('is_default'); // không đổi cờ mặc định ở đây
+    final data = p.toMap()..remove('is_default');
     await _col(uid).doc(p.id).update(data);
   }
 
+  /// delete: xóa hồ sơ người thân (không cho xóa hồ sơ chính chủ); lịch hẹn cũ giữ nguyên vì đã lưu sẵn ten_nguoi_kham.
   Future<void> delete(String uid, String profileId) async {
     if (profileId == FamilyProfileModel.selfId) {
       throw Exception('Không thể xóa hồ sơ chính chủ.');
     }
-    // Không xóa lịch hẹn cũ: LichHen đã lưu sẵn ten_nguoi_kham (denormalize).
     await _col(uid).doc(profileId).delete();
   }
 
+  /// setDefault: đặt một hồ sơ làm mặc định và bỏ cờ mặc định của các hồ sơ còn lại.
   Future<void> setDefault(String uid, String profileId) async {
     final all = await _col(uid).get();
     final batch = _fs.batch();

@@ -3,18 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_routes.dart';
-import '../../models/family_profile_model.dart'; // [MỚI]
+import '../../models/family_profile_model.dart';
 import '../../models/lichhen_model.dart';
 import '../../models/notification_model.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/family_profile_provider.dart'; // [MỚI]
+import '../../providers/family_profile_provider.dart';
 import '../../providers/lich_hen_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../../models/appointment_item.dart';
 import '../../utils/app_snackbar.dart';
-import '../../widgets/family_widgets.dart'; // [MỚI]
+import '../../widgets/family_widgets.dart';
 
-// ───────────────────────── THEME & COLORS ─────────────────────────
 class AppTheme {
   static const Color primary = Color(0xFF2563EB);
   static const Color primaryDark = Color(0xFF1E40AF);
@@ -29,7 +28,6 @@ class AppTheme {
   static const Color warning = Color(0xFFF59E0B);
 }
 
-// ───────────────────────── HOME SCREEN ─────────────────────────
 class HomeScreen extends StatefulWidget {
   final ValueChanged<int>? onSelectTab;
 
@@ -45,13 +43,14 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _loadProfiles(); // [MỚI] (đã gồm _loadUser)
+        _loadProfiles();
         _loadBookings();
         _loadNotifications();
       }
     });
   }
 
+  /// _loadUser: tải dữ liệu và cập nhật giao diện/state.
   Future<void> _loadUser() async {
     final auth = context.read<AuthProvider>();
     if (auth.user == null && FirebaseAuth.instance.currentUser != null) {
@@ -59,8 +58,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // [MỚI] Nạp user trước, rồi nạp danh sách hồ sơ (cần PatientModel để đồng bộ hồ sơ chính chủ)
+  /// _loadProfiles: tải dữ liệu và cập nhật giao diện/state.
   Future<void> _loadProfiles() async {
+    /// _loadUser: tải dữ liệu và cập nhật giao diện/state.
     await _loadUser();
     if (!mounted) return;
     await context.read<FamilyProfileProvider>().load(
@@ -68,6 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// _loadBookings: tải dữ liệu và cập nhật giao diện/state.
   Future<void> _loadBookings() async {
     final id = FirebaseAuth.instance.currentUser?.uid;
     if (id != null) {
@@ -76,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // Bắt đầu lắng nghe thông báo từ Firestore
+  /// _loadNotifications: tải dữ liệu và cập nhật giao diện/state.
   Future<void> _loadNotifications() async {
     final id = FirebaseAuth.instance.currentUser?.uid;
     if (id != null) {
@@ -83,12 +85,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// _findUpcoming: tìm dữ liệu phù hợp.
   LichHenModel? _findUpcoming(List<LichHenModel> bookings) {
     final today = DateTime.now();
     final startOfDay = DateTime(today.year, today.month, today.day);
     const showStatuses = {'1', '2'};
 
-    // 1. Lọc ra các lịch hẹn trong tương lai (từ hôm nay trở đi) và có trạng thái hợp lệ
     final upcoming = bookings.where((b) {
       final d = b.ngayDat;
       return showStatuses.contains(b.trangThaiId.toString()) &&
@@ -98,7 +100,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (upcoming.isEmpty) return null;
 
-    // 2. Sắp xếp: ưu tiên lịch ĐÃ XÁC NHẬN (2) trước, sau đó mới tới ngày, giờ
     upcoming.sort((a, b) {
       // Ưu tiên 1: trạng thái đã xác nhận ('2') đứng trước chờ duyệt ('1')
       final aConfirmed = a.trangThaiId.toString() == '2' ? 0 : 1;
@@ -115,11 +116,10 @@ class _HomeScreenState extends State<HomeScreen> {
       return timeA.compareTo(timeB);
     });
 
-    // 3. Trả về phần tử đầu tiên (chính là lịch gần nhất)
     return upcoming.first;
   }
 
-  // ✅ HÀM HỖ TRỢ: Chuyển đổi chuỗi giờ "07:30" thành tổng số phút để so sánh chính xác
+  /// _parseTimeToMinutes: phân tích dữ liệu đầu vào.
   int _parseTimeToMinutes(String? timeStr) {
     if (timeStr == null || timeStr.isEmpty)
       return 9999; // Nếu không có giờ, đẩy xuống cuối
@@ -132,6 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return 9999; // Nếu định dạng giờ lạ, đẩy xuống cuối
   }
 
+  /// _convertToAppointmentItem: chuyển đổi dữ liệu sang dạng khác.
   MyAppointmentItem _convertToAppointmentItem(LichHenModel model) {
     final dateStr = model.ngayDat != null
         ? '${model.ngayDat!.day.toString().padLeft(2, '0')}/'
@@ -154,9 +155,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Điều hướng ──
+  /// _openBooking: mở màn hình, hộp thoại hoặc menu.
   void _openBooking() => Navigator.pushNamed(context, AppRoutes.hospitalFilter);
 
+  /// _openAppointmentDetail: mở màn hình, hộp thoại hoặc menu.
   void _openAppointmentDetail(MyAppointmentItem appointment) {
     Navigator.pushNamed(
       context,
@@ -165,8 +167,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// _openQr: mở màn hình, hộp thoại hoặc menu.
   void _openQr() {
-    // [SỬA] Chỉ lấy lịch của hồ sơ đang chọn
     final activeBookings = context.read<LichHenProvider>().activeBookingsOf(
       context.read<FamilyProfileProvider>().currentId,
     );
@@ -187,6 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// _openMyAppointments: mở màn hình, hộp thoại hoặc menu.
   void _openMyAppointments() {
     if (widget.onSelectTab != null) {
       widget.onSelectTab!(1);
@@ -195,6 +198,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// _openNotifications: mở màn hình, hộp thoại hoặc menu.
   void _openNotifications() {
     if (widget.onSelectTab != null) {
       widget.onSelectTab!(3);
@@ -203,6 +207,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// _openProfile: mở màn hình, hộp thoại hoặc menu.
   void _openProfile() {
     if (widget.onSelectTab != null) {
       widget.onSelectTab!(4);
@@ -211,11 +216,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// _openAppointmentTracking: mở màn hình, hộp thoại hoặc menu.
   void _openAppointmentTracking() {
     Navigator.pushNamed(context, AppRoutes.appointmentTracking);
   }
 
-  // [MỚI]
+  /// _openFamilyProfiles: mở màn hình, hộp thoại hoặc menu.
   void _openFamilyProfiles() {
     Navigator.pushNamed(context, AppRoutes.familyProfiles);
   }
@@ -238,11 +244,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ? hoTen
         : (FirebaseAuth.instance.currentUser?.displayName ?? 'Bệnh nhân');
 
-    // [MỚI] Hồ sơ đang xem
     final family = context.watch<FamilyProfileProvider>();
     final currentProfile = family.current;
 
-    // [SỬA] Lọc lịch sắp tới theo hồ sơ đang chọn
     final upcomingLichHen = _findUpcoming(
       context.watch<LichHenProvider>().activeBookingsOf(currentProfile?.id),
     );
@@ -266,7 +270,9 @@ class _HomeScreenState extends State<HomeScreen> {
           await context.read<FamilyProfileProvider>().load(
             auth.user,
             force: true,
-          ); // [MỚI]
+          );
+
+          /// _loadBookings: tải dữ liệu và cập nhật giao diện/state.
           await _loadBookings();
           await notificationProvider.refresh();
         },
@@ -275,7 +281,6 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Khu vực đầu trang: nền gradient + lời chào + tìm kiếm + lịch sắp tới ──
               Stack(
                 children: [
                   Positioned(
@@ -295,7 +300,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           unreadCount: unreadCount,
                           onBellTap: _openNotifications,
                           onAvatarTap: _openProfile,
-                          // [MỚI]
                           profileLabel: currentProfile == null
                               ? null
                               : (currentProfile.isSelf
@@ -303,8 +307,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                     : '${currentProfile.quanHe} - ${currentProfile.hoTen}'),
                           onSwitchTap: () => showProfileSwitcherSheet(context),
                         ),
+
                         const SizedBox(height: 18),
                         _SearchBar(onTap: _openBooking),
+
                         const SizedBox(height: 22),
                         upcomingLichHen == null
                             ? _EmptyUpcomingCard(onBook: _openBooking)
@@ -327,89 +333,95 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── Dịch vụ nhanh (lưới 3 cột x 2 hàng) ──
                     const _SectionTitle(title: 'Dịch vụ nhanh'),
+
                     const SizedBox(height: 14),
                     IntrinsicHeight(
                       child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(
-                          child: _ServiceItem(
-                            icon: Icons.add_circle_rounded,
-                            label: 'Đặt lịch\nkhám',
-                            color: AppTheme.primary,
-                            onTap: _openBooking,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: _ServiceItem(
+                              icon: Icons.add_circle_rounded,
+                              label: 'Đặt lịch\nkhám',
+                              color: AppTheme.primary,
+                              onTap: _openBooking,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _ServiceItem(
-                            icon: Icons.event_note_rounded,
-                            label: 'Lịch khám\ncủa tôi',
-                            color: const Color(0xFF8B5CF6),
-                            onTap: _openMyAppointments,
+
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _ServiceItem(
+                              icon: Icons.event_note_rounded,
+                              label: 'Lịch khám\ncủa tôi',
+                              color: const Color(0xFF8B5CF6),
+                              onTap: _openMyAppointments,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _ServiceItem(
-                            icon: Icons.monitor_heart_rounded,
-                            label: 'Theo dõi\ntrực tiếp',
-                            color: const Color(0xFF0EA5E9),
-                            onTap: _openAppointmentTracking,
+
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _ServiceItem(
+                              icon: Icons.monitor_heart_rounded,
+                              label: 'Theo dõi\ntrực tiếp',
+                              color: const Color(0xFF0EA5E9),
+                              onTap: _openAppointmentTracking,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
                       ),
                     ),
+
                     const SizedBox(height: 12),
                     IntrinsicHeight(
                       child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(
-                          child: _ServiceItem(
-                            icon: Icons.qr_code_2_rounded,
-                            label: 'Mã QR\ncủa tôi',
-                            color: AppTheme.success,
-                            onTap: _openQr,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: _ServiceItem(
+                              icon: Icons.qr_code_2_rounded,
+                              label: 'Mã QR\ncủa tôi',
+                              color: AppTheme.success,
+                              onTap: _openQr,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _ServiceItem(
-                            icon: Icons.groups_rounded,
-                            label: 'Quản lý\nngười thân',
-                            color: const Color(0xFFEC4899),
-                            onTap: _openFamilyProfiles,
+
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _ServiceItem(
+                              icon: Icons.groups_rounded,
+                              label: 'Quản lý\nngười thân',
+                              color: const Color(0xFFEC4899),
+                              onTap: _openFamilyProfiles,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _ServiceItem(
-                            icon: Icons.assignment_ind_rounded,
-                            label: 'Hồ sơ\ncá nhân',
-                            color: const Color(0xFFF59E0B),
-                            onTap: _openProfile,
+
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _ServiceItem(
+                              icon: Icons.assignment_ind_rounded,
+                              label: 'Hồ sơ\ncá nhân',
+                              color: const Color(0xFFF59E0B),
+                              onTap: _openProfile,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
                       ),
                     ),
+
                     const SizedBox(height: 28),
 
-                    // ── Mẹo sức khỏe ──
                     const _HealthTipCard(),
+
                     const SizedBox(height: 28),
 
-                    // ── Thông báo gần đây ──
                     _SectionTitle(
                       title: 'Thông báo gần đây',
                       actionText: 'Xem tất cả',
                       onAction: _openNotifications,
                       badge: unreadCount,
                     ),
+
                     const SizedBox(height: 14),
 
                     if (notificationProvider.isLoading && recentNotices.isEmpty)
@@ -443,8 +455,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
-
-// ───────────────────────── ĐẦU TRANG ─────────────────────────
 
 // Nền gradient xanh + họa tiết chữ thập y tế phía sau lời chào.
 class _HeroBackground extends StatelessWidget {
@@ -497,8 +507,8 @@ class _HomeHeader extends StatelessWidget {
   final int unreadCount;
   final VoidCallback onBellTap;
   final VoidCallback onAvatarTap;
-  final String? profileLabel; // [MỚI]
-  final VoidCallback onSwitchTap; // [MỚI]
+  final String? profileLabel;
+  final VoidCallback onSwitchTap;
 
   const _HomeHeader({
     required this.userName,
@@ -554,6 +564,7 @@ class _HomeHeader extends StatelessWidget {
             ),
           ),
         ),
+
         const SizedBox(width: 14),
         Expanded(
           child: Column(
@@ -567,6 +578,7 @@ class _HomeHeader extends StatelessWidget {
                   color: Colors.white70,
                 ),
               ),
+
               const SizedBox(height: 3),
               Text(
                 userName,
@@ -579,7 +591,6 @@ class _HomeHeader extends StatelessWidget {
                   letterSpacing: -0.3,
                 ),
               ),
-              // [MỚI] Nút đổi hồ sơ đang xem
               if (profileLabel != null) ...[
                 const SizedBox(height: 6),
                 GestureDetector(
@@ -602,6 +613,7 @@ class _HomeHeader extends StatelessWidget {
                           size: 14,
                           color: Colors.white,
                         ),
+
                         const SizedBox(width: 5),
                         Flexible(
                           child: Text(
@@ -615,6 +627,7 @@ class _HomeHeader extends StatelessWidget {
                             ),
                           ),
                         ),
+
                         const Icon(
                           Icons.keyboard_arrow_down_rounded,
                           size: 16,
@@ -628,6 +641,7 @@ class _HomeHeader extends StatelessWidget {
             ],
           ),
         ),
+
         const SizedBox(width: 10),
         _BellButton(count: unreadCount, onTap: onBellTap),
       ],
@@ -638,6 +652,7 @@ class _HomeHeader extends StatelessWidget {
 class _BellButton extends StatelessWidget {
   final int count;
   final VoidCallback onTap;
+
   const _BellButton({required this.count, required this.onTap});
 
   @override
@@ -699,6 +714,7 @@ class _BellButton extends StatelessWidget {
 // Thanh tìm kiếm giả: bấm vào mở màn hình tìm bệnh viện.
 class _SearchBar extends StatelessWidget {
   final VoidCallback onTap;
+
   const _SearchBar({required this.onTap});
 
   @override
@@ -730,7 +746,9 @@ class _SearchBar extends StatelessWidget {
                 color: AppTheme.primary,
                 size: 24,
               ),
+
               const SizedBox(width: 10),
+
               const Expanded(
                 child: Text(
                   'Tìm bệnh viện, chuyên khoa...',
@@ -762,8 +780,6 @@ class _SearchBar extends StatelessWidget {
   }
 }
 
-// ───────────────────────── LỊCH KHÁM SẮP TỚI ─────────────────────────
-
 class _UpcomingCard extends StatelessWidget {
   final LichHenModel appointment;
   final VoidCallback onTap;
@@ -790,7 +806,6 @@ class _UpcomingCard extends StatelessWidget {
         : (a.gioDuKien.isNotEmpty ? a.gioDuKien : 'Đang cập nhật');
     final queueText = a.soThuTu > 0 ? '#${a.soThuTu}' : 'Chờ cấp';
 
-    // [MỚI] Lịch đặt hộ: hiện tên người đi khám
     final isForRelative =
         a.profileKey != FamilyProfileModel.selfId &&
         (a.tenNguoiKham ?? '').isNotEmpty;
@@ -836,6 +851,7 @@ class _UpcomingCard extends StatelessWidget {
                             text: 'Lịch khám sắp tới',
                             small: true,
                           ),
+
                           const Spacer(),
                           if (date != null)
                             Container(
@@ -858,6 +874,7 @@ class _UpcomingCard extends StatelessWidget {
                             ),
                         ],
                       ),
+
                       const SizedBox(height: 18),
 
                       // Khoa + bệnh viện
@@ -877,6 +894,7 @@ class _UpcomingCard extends StatelessWidget {
                               color: Colors.white,
                             ),
                           ),
+
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -902,6 +920,7 @@ class _UpcomingCard extends StatelessWidget {
                                         size: 14,
                                         color: Colors.white.withOpacity(0.85),
                                       ),
+
                                       const SizedBox(width: 5),
                                       Expanded(
                                         child: Text(
@@ -919,7 +938,6 @@ class _UpcomingCard extends StatelessWidget {
                                     ],
                                   ),
                                 ],
-                                // [MỚI]
                                 if (isForRelative) ...[
                                   const SizedBox(height: 4),
                                   Row(
@@ -929,6 +947,7 @@ class _UpcomingCard extends StatelessWidget {
                                         size: 14,
                                         color: Colors.white.withOpacity(0.85),
                                       ),
+
                                       const SizedBox(width: 5),
                                       Expanded(
                                         child: Text(
@@ -953,6 +972,7 @@ class _UpcomingCard extends StatelessWidget {
                           ),
                         ],
                       ),
+
                       const SizedBox(height: 18),
 
                       // Bảng thông tin: Ngày | Giờ | STT
@@ -994,6 +1014,7 @@ class _UpcomingCard extends StatelessWidget {
                           ),
                         ),
                       ),
+
                       const SizedBox(height: 14),
 
                       // Trạng thái + xem chi tiết
@@ -1020,6 +1041,7 @@ class _UpcomingCard extends StatelessWidget {
                                   size: 15,
                                   color: status.foreground,
                                 ),
+
                                 const SizedBox(width: 6),
                                 Text(
                                   status.label,
@@ -1032,7 +1054,9 @@ class _UpcomingCard extends StatelessWidget {
                               ],
                             ),
                           ),
+
                           const Spacer(),
+
                           const Text(
                             'Xem chi tiết',
                             style: TextStyle(
@@ -1041,7 +1065,9 @@ class _UpcomingCard extends StatelessWidget {
                               color: Colors.white,
                             ),
                           ),
+
                           const SizedBox(width: 2),
+
                           const Icon(
                             Icons.arrow_forward_rounded,
                             size: 18,
@@ -1089,6 +1115,7 @@ class _InfoCell extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 11, color: Colors.white.withOpacity(0.75)),
+
               const SizedBox(width: 4),
               Text(
                 label,
@@ -1101,6 +1128,7 @@ class _InfoCell extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(height: 5),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -1125,6 +1153,7 @@ class _InfoCell extends StatelessWidget {
 
 class _EmptyUpcomingCard extends StatelessWidget {
   final VoidCallback onBook;
+
   const _EmptyUpcomingCard({required this.onBook});
 
   @override
@@ -1172,7 +1201,9 @@ class _EmptyUpcomingCard extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(height: 16),
+
           const Text(
             'Chưa có lịch khám sắp tới',
             style: TextStyle(
@@ -1181,7 +1212,9 @@ class _EmptyUpcomingCard extends StatelessWidget {
               color: AppTheme.textDark,
             ),
           ),
+
           const SizedBox(height: 6),
+
           const Text(
             'Đặt lịch khám ngay để được chăm sóc sức khỏe\nvà nhận số thứ tự sớm nhất.',
             textAlign: TextAlign.center,
@@ -1191,6 +1224,7 @@ class _EmptyUpcomingCard extends StatelessWidget {
               color: AppTheme.textGrey,
             ),
           ),
+
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -1218,8 +1252,6 @@ class _EmptyUpcomingCard extends StatelessWidget {
   }
 }
 
-// ───────────────────────── DỊCH VỤ NHANH ─────────────────────────
-
 class _SectionTitle extends StatelessWidget {
   final String title;
   final String? actionText;
@@ -1245,6 +1277,7 @@ class _SectionTitle extends StatelessWidget {
             borderRadius: BorderRadius.circular(2),
           ),
         ),
+
         const SizedBox(width: 10),
         Text(
           title,
@@ -1272,6 +1305,7 @@ class _SectionTitle extends StatelessWidget {
             ),
           ),
         ],
+
         const Spacer(),
         if (actionText != null)
           GestureDetector(
@@ -1286,6 +1320,7 @@ class _SectionTitle extends StatelessWidget {
                     color: AppTheme.primary,
                   ),
                 ),
+
                 const Icon(
                   Icons.chevron_right_rounded,
                   size: 20,
@@ -1350,6 +1385,7 @@ class _ServiceItem extends StatelessWidget {
                 ),
                 child: Icon(icon, size: 25, color: color),
               ),
+
               const SizedBox(height: 10),
               Text(
                 label,
@@ -1369,8 +1405,6 @@ class _ServiceItem extends StatelessWidget {
     );
   }
 }
-
-// ───────────────────────── MẸO SỨC KHỎE ─────────────────────────
 
 class _HealthTipCard extends StatelessWidget {
   const _HealthTipCard();
@@ -1427,6 +1461,7 @@ class _HealthTipCard extends StatelessWidget {
               size: 25,
             ),
           ),
+
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -1441,6 +1476,7 @@ class _HealthTipCard extends StatelessWidget {
                     color: Color(0xFF047857),
                   ),
                 ),
+
                 const SizedBox(height: 5),
                 Text(
                   tip,
@@ -1459,8 +1495,6 @@ class _HealthTipCard extends StatelessWidget {
     );
   }
 }
-
-// ───────────────────────── THÔNG BÁO ─────────────────────────
 
 class _EmptyNotices extends StatelessWidget {
   const _EmptyNotices();
@@ -1490,7 +1524,9 @@ class _EmptyNotices extends StatelessWidget {
               color: AppTheme.primary,
             ),
           ),
+
           const SizedBox(height: 12),
+
           const Text(
             'Chưa có thông báo nào',
             style: TextStyle(
@@ -1499,7 +1535,9 @@ class _EmptyNotices extends StatelessWidget {
               color: AppTheme.textDark,
             ),
           ),
+
           const SizedBox(height: 4),
+
           const Text(
             'Thông báo từ bệnh viện sẽ hiển thị ở đây.',
             style: TextStyle(fontSize: 12.5, color: AppTheme.textGrey),
@@ -1614,6 +1652,7 @@ class _HomeNoticeTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 12, color: AppTheme.textGrey),
+
           const SizedBox(width: 4),
           Flexible(
             child: Text(
@@ -1699,6 +1738,7 @@ class _HomeNoticeTile extends StatelessWidget {
                               color: unread ? Colors.white : color,
                             ),
                           ),
+
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -1719,6 +1759,7 @@ class _HomeNoticeTile extends StatelessWidget {
                                         ),
                                       ),
                                     ),
+
                                     const SizedBox(width: 8),
                                     if (unread)
                                       Container(
@@ -1740,6 +1781,7 @@ class _HomeNoticeTile extends StatelessWidget {
                                     ),
                                   ],
                                 ),
+
                                 const SizedBox(height: 4),
                                 Text(
                                   notification.title,
@@ -1754,6 +1796,7 @@ class _HomeNoticeTile extends StatelessWidget {
                                     color: AppTheme.textDark,
                                   ),
                                 ),
+
                                 const SizedBox(height: 4),
                                 Text(
                                   notification.message,
@@ -1806,8 +1849,6 @@ class _HomeNoticeTile extends StatelessWidget {
   }
 }
 
-// ───────────────────────── HELPER WIDGETS & FUNCTIONS ─────────────────────────
-
 class _GlassChip extends StatelessWidget {
   final IconData icon;
   final String text;
@@ -1832,6 +1873,7 @@ class _GlassChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: small ? 15 : 16, color: Colors.white),
+
           const SizedBox(width: 6),
           Text(
             text,
@@ -1850,6 +1892,7 @@ class _GlassChip extends StatelessWidget {
 class _Bubble extends StatelessWidget {
   final double size;
   final double opacity;
+
   const _Bubble(this.size, this.opacity);
 
   @override
@@ -1865,6 +1908,7 @@ class _Bubble extends StatelessWidget {
   }
 }
 
+/// _formatDateShort: định dạng dữ liệu hiển thị.
 String _formatDateShort(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
 
