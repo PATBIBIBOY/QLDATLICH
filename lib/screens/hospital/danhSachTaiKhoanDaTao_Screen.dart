@@ -51,10 +51,10 @@ class _DanhSachTaiKhoanDaTaoScreenState
     extends State<DanhSachTaiKhoanDaTaoScreen> {
   final NhanVienService _nhanVienService = NhanVienService();
 
-  // Tab 0: Đợi kích hoạt, Tab 1: Đã kích hoạt
+  // Tab đang xem trên màn hình chính: 0 = Đợi kích hoạt, 1 = Đã kích hoạt
   int _selectedTabIndex = 0;
 
-  // Bộ lọc vai trò: 'Tất cả' hoặc vai trò cụ thể (Bác sĩ, Lễ tân, CSKH...)
+  // Bộ lọc vai trò (dùng Spinner / Dropdown): 'Tất cả' hoặc vai trò cụ thể
   String _selectedRoleFilter = 'Tất cả';
 
   // Danh sách toàn bộ tài khoản
@@ -154,7 +154,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
     return _allAccounts.where((tk) => tk.daKichHoat).toList();
   }
 
-  // Tập hợp danh sách các vai trò có trong danh sách hiện tại để hiển thị bộ lọc
+  // Tập hợp danh sách các vai trò để hiển thị trong Spinner
   List<String> _layDanhSachVaiTro(List<TaiKhoanItem> sourceList) {
     final setRoles = <String>{};
     for (final item in sourceList) {
@@ -162,7 +162,6 @@ class _DanhSachTaiKhoanDaTaoScreenState
         setRoles.add(item.vaiTro.trim());
       }
     }
-    // Các vai trò phổ biến nếu danh sách chưa có đầy đủ
     const defaultRoles = ['Bác sĩ', 'Điều dưỡng', 'Dược sĩ', 'Lễ tân', 'CSKH'];
     for (final r in defaultRoles) {
       if (!setRoles.contains(r)) {
@@ -174,14 +173,14 @@ class _DanhSachTaiKhoanDaTaoScreenState
   }
 
   // Lọc theo vai trò và SẮP XẾP TỪ MỚI ĐẾN CŨ
-  List<TaiKhoanItem> _locVaSapXep(List<TaiKhoanItem> sourceList) {
+  List<TaiKhoanItem> _locVaSapXep(List<TaiKhoanItem> sourceList, String roleFilter) {
     var filtered = sourceList;
 
     // 1. Lọc theo vai trò
-    if (_selectedRoleFilter != 'Tất cả') {
+    if (roleFilter != 'Tất cả') {
       filtered = filtered.where((item) {
         final r = item.vaiTro.toLowerCase();
-        final filter = _selectedRoleFilter.toLowerCase();
+        final filter = roleFilter.toLowerCase();
         if (r == filter) return true;
         if (filter == 'bác sĩ' && (r.contains('bác sĩ') || item.role == 'doctor')) return true;
         if (filter == 'điều dưỡng' && (r.contains('điều dưỡng') || item.role == 'nurse')) return true;
@@ -195,7 +194,6 @@ class _DanhSachTaiKhoanDaTaoScreenState
     // 2. Sắp xếp thứ tự TỪ MỚI ĐẾN CŨ
     final result = List<TaiKhoanItem>.from(filtered);
     result.sort((a, b) {
-      // Ưu tiên ngày tạo mới nhất lên đầu
       if (a.ngayTao != null && b.ngayTao != null) {
         final cmp = b.ngayTao!.compareTo(a.ngayTao!);
         if (cmp != 0) return cmp;
@@ -205,7 +203,6 @@ class _DanhSachTaiKhoanDaTaoScreenState
         return 1;
       }
 
-      // Nếu không có ngày tạo, sắp xếp theo số đuôi trong mã tài khoản giảm dần
       final numA = _extractTrailingNumber(a.maTk);
       final numB = _extractTrailingNumber(b.maTk);
       if (numA != null && numB != null) {
@@ -341,7 +338,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
   }
 
   /// Xuất file PDF danh sách tài khoản thực sự
-  Future<void> _xuatFilePdf(List<TaiKhoanItem> listToExport) async {
+  Future<void> _xuatFilePdf(List<TaiKhoanItem> listToExport, {String? tieuDeTuyChinh, String? vaiTroTuyChinh}) async {
     if (listToExport.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -353,9 +350,12 @@ class _DanhSachTaiKhoanDaTaoScreenState
       return;
     }
 
-    final tabTitle = _selectedTabIndex == 0
-        ? 'Danh Sách Tài Khoản Đợi Kích Hoạt'
-        : 'Danh Sách Tài Khoản Đã Kích Hoạt';
+    final tabTitle = tieuDeTuyChinh ??
+        (_selectedTabIndex == 0
+            ? 'Danh Sách Tài Khoản Đợi Kích Hoạt'
+            : 'Danh Sách Tài Khoản Đã Kích Hoạt');
+
+    final roleFilter = vaiTroTuyChinh ?? _selectedRoleFilter;
 
     try {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -380,7 +380,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
       await XuatPdfService.xuatVaInPdf(
         tenBenhVien: _tenBenhVien,
         tieuDeTrang: tabTitle,
-        vaiTroDangLoc: _selectedRoleFilter,
+        vaiTroDangLoc: roleFilter,
         danhSach: listToExport,
       );
     } catch (e) {
@@ -395,6 +395,457 @@ class _DanhSachTaiKhoanDaTaoScreenState
         );
       }
     }
+  }
+
+  /// Mở hộp thoại "Lịch Sử Tài Khoản Đã Tạo" khi bấm nút Lịch Sử ở góc trên bên phải
+  void _moLichSuTaiKhoan() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            final doiList = _danhSachDoiKichHoat;
+            final daList = _danhSachDaKichHoat;
+
+            final activeSourceList =
+                _selectedTabIndex == 0 ? doiList : daList;
+            final roles = _layDanhSachVaiTro(activeSourceList);
+
+            if (!roles.contains(_selectedRoleFilter)) {
+              _selectedRoleFilter = 'Tất cả';
+            }
+
+            final filteredHistoryList =
+                _locVaSapXep(activeSourceList, _selectedRoleFilter);
+
+            return Container(
+              height: MediaQuery.of(ctx).size.height * 0.88,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  // Thanh kéo đầu modal
+                  Center(
+                    child: Container(
+                      width: 42,
+                      height: 4,
+                      margin: const EdgeInsets.only(top: 12, bottom: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+
+                  // Header của Modal Lịch Sử
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+                    color: Colors.white,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFE0F2FE),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.history_rounded,
+                                color: Color(0xFF0284C7),
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            const Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Lịch Sử Tài Khoản Đã Tạo',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Xem tài khoản đợi kích hoạt & đã kích hoạt',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // 2 Phần trong Lịch Sử: [1. Đợi kích hoạt] & [2. Đã kích hoạt]
+                  Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          // Phần 1: Đợi kích hoạt
+                          Expanded(
+                            child: InkWell(
+                              onTap: () {
+                                setModalState(() {
+                                  _selectedTabIndex = 0;
+                                  _selectedRoleFilter = 'Tất cả';
+                                });
+                                setState(() {
+                                  _selectedTabIndex = 0;
+                                  _selectedRoleFilter = 'Tất cả';
+                                });
+                              },
+                              borderRadius: BorderRadius.circular(9),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                padding: const EdgeInsets.symmetric(vertical: 9),
+                                decoration: BoxDecoration(
+                                  color: _selectedTabIndex == 0 ? Colors.white : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(9),
+                                  boxShadow: _selectedTabIndex == 0
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.05),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 1),
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.hourglass_top_rounded,
+                                      size: 15,
+                                      color: _selectedTabIndex == 0
+                                          ? const Color(0xFFD97706)
+                                          : const Color(0xFF64748B),
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      'Đợi kích hoạt (${doiList.length})',
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: _selectedTabIndex == 0
+                                            ? FontWeight.w700
+                                            : FontWeight.w600,
+                                        color: _selectedTabIndex == 0
+                                            ? const Color(0xFF0F172A)
+                                            : const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // Phần 2: Đã kích hoạt
+                          Expanded(
+                            child: InkWell(
+                              onTap: () {
+                                setModalState(() {
+                                  _selectedTabIndex = 1;
+                                  _selectedRoleFilter = 'Tất cả';
+                                });
+                                setState(() {
+                                  _selectedTabIndex = 1;
+                                  _selectedRoleFilter = 'Tất cả';
+                                });
+                              },
+                              borderRadius: BorderRadius.circular(9),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                padding: const EdgeInsets.symmetric(vertical: 9),
+                                decoration: BoxDecoration(
+                                  color: _selectedTabIndex == 1 ? Colors.white : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(9),
+                                  boxShadow: _selectedTabIndex == 1
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.05),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 1),
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle_rounded,
+                                      size: 15,
+                                      color: _selectedTabIndex == 1
+                                          ? const Color(0xFF16A34A)
+                                          : const Color(0xFF64748B),
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      'Đã kích hoạt (${daList.length})',
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: _selectedTabIndex == 1
+                                            ? FontWeight.w700
+                                            : FontWeight.w600,
+                                        color: _selectedTabIndex == 1
+                                            ? const Color(0xFF0F172A)
+                                            : const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // SPINNER (Dropdown) chọn vai trò: "xắp sếp theo vai trò nào thì xem vai trò đó và thứ tự từ mới đến cũ"
+                  Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: _buildRoleSpinner(
+                      currentRole: _selectedRoleFilter,
+                      availableRoles: roles,
+                      onChanged: (newRole) {
+                        setModalState(() {
+                          _selectedRoleFilter = newRole;
+                        });
+                        setState(() {
+                          _selectedRoleFilter = newRole;
+                        });
+                      },
+                    ),
+                  ),
+
+                  const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+                  // Danh sách tài khoản trong lịch sử (từ mới đến cũ)
+                  Expanded(
+                    child: filteredHistoryList.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _selectedTabIndex == 0
+                                        ? Icons.hourglass_empty_rounded
+                                        : Icons.info_outline_rounded,
+                                    size: 46,
+                                    color: const Color(0xFF94A3B8),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    _selectedTabIndex == 0
+                                        ? 'Không có tài khoản đợi kích hoạt phù hợp'
+                                        : 'Không có tài khoản đã kích hoạt phù hợp',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF334155),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Bộ lọc vai trò: $_selectedRoleFilter',
+                                    style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.all(16),
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: filteredHistoryList.length,
+                            separatorBuilder: (_, _) => const SizedBox(height: 10),
+                            itemBuilder: (lCtx, index) {
+                              return _buildAccountCard(
+                                context,
+                                index + 1,
+                                filteredHistoryList[index],
+                              );
+                            },
+                          ),
+                  ),
+
+                  // Nút xuất PDF trực tiếp từ Modal Lịch Sử
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              _xuatFilePdf(
+                                filteredHistoryList,
+                                tieuDeTuyChinh: _selectedTabIndex == 0
+                                    ? 'Danh Sách Lịch Sử Tài Khoản Đợi Kích Hoạt'
+                                    : 'Danh Sách Lịch Sử Tài Khoản Đã Kích Hoạt',
+                                vaiTroTuyChinh: _selectedRoleFilter,
+                              );
+                            },
+                            icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
+                            label: Text(
+                              'Xuất File PDF (${filteredHistoryList.length})',
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0284C7),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF475569),
+                            side: const BorderSide(color: Color(0xFFCBD5E1)),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: const Text('Đóng', style: TextStyle(fontWeight: FontWeight.w600)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Spinner (Dropdown) chọn vai trò: "dùng spiner để chọn chứ không kéo xuống như vậy"
+  Widget _buildRoleSpinner({
+    required String currentRole,
+    required List<String> availableRoles,
+    required ValueChanged<String> onChanged,
+  }) {
+    final validCurrentRole =
+        availableRoles.contains(currentRole) ? currentRole : availableRoles.first;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFCBD5E1)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.badge_outlined, size: 18, color: Color(0xFF0284C7)),
+          const SizedBox(width: 8),
+          const Text(
+            'Xem vai trò:',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF475569),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: validCurrentRole,
+                isExpanded: true,
+                icon: const Icon(
+                  Icons.arrow_drop_down_rounded,
+                  color: Color(0xFF0284C7),
+                  size: 24,
+                ),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A),
+                ),
+                items: availableRoles.map((role) {
+                  return DropdownMenuItem<String>(
+                    value: role,
+                    child: Text(
+                      role == 'Tất cả' ? 'Tất cả vai trò' : role,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF0F172A),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                }).toList(),
+                onChanged: (newVal) {
+                  if (newVal != null) {
+                    onChanged(newVal);
+                  }
+                },
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE0F2FE),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Text(
+              'Mới nhất',
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0284C7),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -418,14 +869,11 @@ class _DanhSachTaiKhoanDaTaoScreenState
       );
     }
 
-    // Chọn danh sách nguồn theo Tab
+    // Danh sách tài khoản đang hiển thị trên màn hình chính
     final currentSourceList =
         _selectedTabIndex == 0 ? _danhSachDoiKichHoat : _danhSachDaKichHoat;
 
-    // Lọc theo vai trò và sắp xếp TỪ MỚI ĐẾN CŨ
-    final displayedList = _locVaSapXep(currentSourceList);
-
-    // Danh sách vai trò có sẵn trong tab hiện tại
+    final displayedList = _locVaSapXep(currentSourceList, _selectedRoleFilter);
     final availableRoles = _layDanhSachVaiTro(currentSourceList);
 
     return Scaffold(
@@ -436,16 +884,27 @@ class _DanhSachTaiKhoanDaTaoScreenState
             constraints: const BoxConstraints(maxWidth: 520),
             child: Column(
               children: [
-                // 1. Header AppBar
-                _buildHeader(context, displayedList),
+                // 1. Header AppBar với NÚT LỊCH SỬ ở góc trên bên phải
+                _buildHeader(context),
 
-                // 2. Thanh 2 Tab: [Đợi kích hoạt] & [Đã kích hoạt]
-                _buildTabSelector(),
+                // 2. SPINNER chọn vai trò trên màn hình chính
+                Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+                  child: _buildRoleSpinner(
+                    currentRole: _selectedRoleFilter,
+                    availableRoles: availableRoles,
+                    onChanged: (role) {
+                      setState(() {
+                        _selectedRoleFilter = role;
+                      });
+                    },
+                  ),
+                ),
 
-                // 3. Thanh lọc vai trò ("xắp sếp theo vai trò nào thì xem vai trò đó")
-                _buildRoleFilterBar(availableRoles),
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
 
-                // 4. Nội dung danh sách tài khoản
+                // 3. Nội dung danh sách tài khoản
                 Expanded(
                   child: displayedList.isEmpty
                       ? _buildEmptyState()
@@ -469,7 +928,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
 
                               const SizedBox(height: 12),
 
-                              // Tiêu đề & Nút Sao chép tất cả
+                              // Tiêu đề & Nút Sao chép tất cả (ĐÃ FIX TRIỆT ĐỂ LỖI TRÀN PIXEL)
                               _buildSubHeader(displayedList),
 
                               const SizedBox(height: 10),
@@ -484,7 +943,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
                         ),
                 ),
 
-                // 5. Nút Xuất File PDF & Quay lại trang Nhân sự
+                // 4. Nút Xuất File PDF & Quay lại trang Nhân sự
                 _buildBottomButtons(context, displayedList),
               ],
             ),
@@ -494,7 +953,8 @@ class _DanhSachTaiKhoanDaTaoScreenState
     );
   }
 
-  Widget _buildHeader(BuildContext context, List<TaiKhoanItem> displayedList) {
+  /// Header AppBar với NÚT LỊCH SỬ ở góc trên bên phải ("đổi cái nút xuất file trên góc file thành cái lich sử")
+  Widget _buildHeader(BuildContext context) {
     return Container(
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -533,11 +993,11 @@ class _DanhSachTaiKhoanDaTaoScreenState
               ),
             ),
           ),
-          // Nút xuất file PDF nhanh trên AppBar
+          // NÚT LỊCH SỬ Ở GÓC TRÊN BÊN PHẢI (thay cho nút PDF cũ)
           Tooltip(
-            message: 'Xuất file PDF danh sách tài khoản',
+            message: 'Mở lịch sử tài khoản đã tạo (Đợi kích hoạt & Đã kích hoạt)',
             child: InkWell(
-              onTap: () => _xuatFilePdf(displayedList),
+              onTap: _moLichSuTaiKhoan,
               borderRadius: BorderRadius.circular(10),
               child: Container(
                 width: 36,
@@ -548,7 +1008,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
                   border: Border.all(color: const Color(0xFFBAE6FD)),
                 ),
                 child: const Icon(
-                  Icons.picture_as_pdf_rounded,
+                  Icons.history_rounded,
                   size: 20,
                   color: Color(0xFF0284C7),
                 ),
@@ -560,269 +1020,65 @@ class _DanhSachTaiKhoanDaTaoScreenState
     );
   }
 
-  /// Bộ chuyển đổi 2 phần lịch sử: [1. Đợi kích hoạt] & [2. Đã kích hoạt]
-  Widget _buildTabSelector() {
-    final doiCount = _danhSachDoiKichHoat.length;
-    final daCount = _danhSachDaKichHoat.length;
-
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            // Tab 1: Đợi kích hoạt
-            Expanded(
-              child: InkWell(
-                onTap: () {
-                  if (_selectedTabIndex != 0) {
-                    setState(() {
-                      _selectedTabIndex = 0;
-                      _selectedRoleFilter = 'Tất cả';
-                    });
-                  }
-                },
-                borderRadius: BorderRadius.circular(9),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(vertical: 9),
-                  decoration: BoxDecoration(
-                    color: _selectedTabIndex == 0 ? Colors.white : Colors.transparent,
-                    borderRadius: BorderRadius.circular(9),
-                    boxShadow: _selectedTabIndex == 0
-                        ? [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.05),
-                              blurRadius: 4,
-                              offset: const Offset(0, 1),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.hourglass_top_rounded,
-                        size: 16,
-                        color: _selectedTabIndex == 0
-                            ? const Color(0xFFD97706)
-                            : const Color(0xFF64748B),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Đợi kích hoạt ($doiCount)',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: _selectedTabIndex == 0
-                              ? FontWeight.w700
-                              : FontWeight.w600,
-                          color: _selectedTabIndex == 0
-                              ? const Color(0xFF0F172A)
-                              : const Color(0xFF64748B),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            // Tab 2: Đã kích hoạt
-            Expanded(
-              child: InkWell(
-                onTap: () {
-                  if (_selectedTabIndex != 1) {
-                    setState(() {
-                      _selectedTabIndex = 1;
-                      _selectedRoleFilter = 'Tất cả';
-                    });
-                  }
-                },
-                borderRadius: BorderRadius.circular(9),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(vertical: 9),
-                  decoration: BoxDecoration(
-                    color: _selectedTabIndex == 1 ? Colors.white : Colors.transparent,
-                    borderRadius: BorderRadius.circular(9),
-                    boxShadow: _selectedTabIndex == 1
-                        ? [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.05),
-                              blurRadius: 4,
-                              offset: const Offset(0, 1),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.check_circle_rounded,
-                        size: 16,
-                        color: _selectedTabIndex == 1
-                            ? const Color(0xFF16A34A)
-                            : const Color(0xFF64748B),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Đã kích hoạt ($daCount)',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: _selectedTabIndex == 1
-                              ? FontWeight.w700
-                              : FontWeight.w600,
-                          color: _selectedTabIndex == 1
-                              ? const Color(0xFF0F172A)
-                              : const Color(0xFF64748B),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Thanh chọn vai trò: "xắp sếp theo vai trò nào thì xem vai trò đó"
-  Widget _buildRoleFilterBar(List<String> roles) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.filter_list_rounded, size: 15, color: Color(0xFF0284C7)),
-                  SizedBox(width: 4),
-                  Text(
-                    'Xem theo vai trò:',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                ],
-              ),
-              Text(
-                'Mới nhất trước',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.blueGrey.shade600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            child: Row(
-              children: roles.map((role) {
-                final isSelected = _selectedRoleFilter == role;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: ChoiceChip(
-                    label: Text(role),
-                    selected: isSelected,
-                    selectedColor: const Color(0xFF0284C7),
-                    backgroundColor: const Color(0xFFF1F5F9),
-                    labelStyle: TextStyle(
-                      fontSize: 12,
-                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                      color: isSelected ? Colors.white : const Color(0xFF334155),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    side: BorderSide(
-                      color: isSelected ? const Color(0xFF0284C7) : const Color(0xFFE2E8F0),
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() {
-                          _selectedRoleFilter = role;
-                        });
-                      }
-                    },
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
+  /// Tiêu đề & Nút Sao chép tất cả: ĐÃ FIX HOÀN TOÀN LỖI TRÀN PIXEL
   Widget _buildSubHeader(List<TaiKhoanItem> displayedList) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  _selectedTabIndex == 0
-                      ? 'Chi tiết tài khoản & Mật khẩu'
-                      : 'Tài khoản nhân sự đang hoạt động',
-                  style: const TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE0F2FE),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '${displayedList.length}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0284C7),
+        // Bọc toàn bộ tiêu đề và mật khẩu chung vào Expanded để không bao giờ bị tràn pixel
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      _selectedTabIndex == 0
+                          ? 'Chi tiết tài khoản & Mật khẩu'
+                          : 'Tài khoản đã kích hoạt',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Text(
-              _selectedTabIndex == 0
-                  ? 'Mật khẩu khởi tạo chung: ${StaffAccountStore.matKhauMacDinh}'
-                  : 'Sắp xếp thứ tự từ mới nhất đến cũ nhất',
-              style: const TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF64748B),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE0F2FE),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${displayedList.length}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0284C7),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 2),
+              Text(
+                'Mật khẩu khởi tạo: ${StaffAccountStore.matKhauMacDinh}',
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF64748B),
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
+        const SizedBox(width: 8),
+        // Nút Sao chép tất cả
         InkWell(
           onTap: () => _saoChepTatCa(context, displayedList),
           borderRadius: BorderRadius.circular(6),
@@ -831,13 +1087,13 @@ class _DanhSachTaiKhoanDaTaoScreenState
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.copy_all_rounded, size: 15, color: Color(0xFF0284C7)),
+                Icon(Icons.copy_all_rounded, size: 14, color: Color(0xFF0284C7)),
                 SizedBox(width: 3),
                 Text(
                   'Sao chép tất cả',
                   style: TextStyle(
                     color: Color(0xFF0284C7),
-                    fontSize: 12.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -976,7 +1232,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
                     ),
                   ),
                   const SizedBox(width: 6),
-                  // Nút xóa (chỉ hiển thị cho tài khoản chưa kích hoạt để tránh xóa nhầm tài khoản đang trực)
+                  // Nút xóa (chỉ hiển thị cho tài khoản chưa kích hoạt để tránh xóa nhầm)
                   if (!isActivated)
                     InkWell(
                       onTap: () => _xoaTaiKhoan(item),
@@ -1020,11 +1276,14 @@ class _DanhSachTaiKhoanDaTaoScreenState
                 ),
               ),
               const SizedBox(width: 6),
-              Text(
-                '• $khoaStr',
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  color: Color(0xFF64748B),
+              Flexible(
+                child: Text(
+                  '• $khoaStr',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: Color(0xFF64748B),
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               const Spacer(),
@@ -1109,27 +1368,22 @@ class _DanhSachTaiKhoanDaTaoScreenState
   }
 
   Widget _buildEmptyState() {
-    final isDoi = _selectedTabIndex == 0;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              isDoi ? Icons.check_circle_outline_rounded : Icons.info_outline_rounded,
+            const Icon(
+              Icons.check_circle_outline_rounded,
               size: 52,
-              color: isDoi ? const Color(0xFF16A34A) : const Color(0xFF64748B),
+              color: Color(0xFF16A34A),
             ),
             const SizedBox(height: 12),
             Text(
-              isDoi
-                  ? (_selectedRoleFilter == 'Tất cả'
-                      ? 'Không có tài khoản đợi kích hoạt'
-                      : 'Không có tài khoản $_selectedRoleFilter đợi kích hoạt')
-                  : (_selectedRoleFilter == 'Tất cả'
-                      ? 'Chưa có tài khoản nào được kích hoạt'
-                      : 'Chưa có tài khoản $_selectedRoleFilter nào kích hoạt'),
+              _selectedRoleFilter == 'Tất cả'
+                  ? 'Không có tài khoản nào'
+                  : 'Không có tài khoản vai trò $_selectedRoleFilter',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 15.5,
@@ -1138,12 +1392,10 @@ class _DanhSachTaiKhoanDaTaoScreenState
               ),
             ),
             const SizedBox(height: 6),
-            Text(
-              isDoi
-                  ? 'Tất cả tài khoản nhân sự đã được kích hoạt hoặc chưa có đợt cấp mới.'
-                  : 'Các tài khoản sẽ chuyển sang mục này khi nhân viên đăng nhập lần đầu.',
+            const Text(
+              'Bấm vào biểu tượng Lịch Sử ở góc trên bên phải để xem toàn bộ tài khoản Đợi kích hoạt & Đã kích hoạt.',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+              style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
             ),
             const SizedBox(height: 20),
             ElevatedButton.icon(
