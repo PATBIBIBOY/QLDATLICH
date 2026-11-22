@@ -9,7 +9,6 @@ import 'letan_baocaoloi_screen_c1.dart';
 import 'letan_lichhen_screen_c1.dart';
 import 'letan_profile_tab_c1.dart';
 import 'letan_quet_qr_camera_screen_c1.dart';
-import 'widgets/cskh_lich_su_ngay_bottom_sheet_c1.dart';
 import 'widgets/cskh_thong_bao_bottom_sheet_c1.dart';
 import 'widgets/letan_bottom_nav_c1.dart';
 import 'widgets/letan_patient_card_c1.dart';
@@ -191,20 +190,6 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
     }
   }
 
-  void _moLichSuDon() {
-    AppDesignSystemC1.hapticLight();
-    CskhLichSuNgayBottomSheetC1.show(
-      context: context,
-      tenKhoa: _tenKhoaHienTai,
-      onSelectDate: (ngayDuocChon) {
-        setState(() {
-          _ngayChon = ngayDuocChon;
-          _currentIndex = 2;
-        });
-      },
-    );
-  }
-
   void _moManHinhQuetQr() {
     setState(() => _currentIndex = 1);
   }
@@ -320,7 +305,6 @@ class _LeTanHomeScreenC1State extends State<LeTanHomeScreenC1> {
             tenKhoaHienTai: _tenKhoaHienTai,
             ngayChon: _ngayChon,
             onSelectDate: _chonNgayLichHen,
-            onOpenLichSu: _moLichSuDon,
           ),
           const SizedBox(height: 16),
           _buildDanhSachCho(),
