@@ -92,10 +92,19 @@ class _LoginScreenState extends State<LoginScreen> {
               .toString();
           final bvId = (nhanVienData['ma_benh_vien'] ??
                   nhanVienData['benh_vien_id'] ??
-                  'BV502')
-              .toString();
-          final tenBv = (nhanVienData['ten_benh_vien'] ?? 'Bệnh viện Quân y 17')
-              .toString();
+                  nhanVienData['benhVienId'] ??
+                  nhanVienData['hospital_id'] ??
+                  nhanVienData['hospitalId'] ??
+                  nhanVienData['id_benh_vien'] ??
+                  '')
+              .toString()
+              .trim();
+          final tenBv = (nhanVienData['ten_benh_vien'] ??
+                  nhanVienData['tenBenhVien'] ??
+                  nhanVienData['hospital_name'] ??
+                  'Bệnh viện')
+              .toString()
+              .trim();
 
           // Cập nhật thông tin profile nhân viên hiện tại
           DuLieuProfileMauC1.thongTinHienTai =

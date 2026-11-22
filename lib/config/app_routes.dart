@@ -16,7 +16,6 @@ import '../screens/patient/appointment_detail_screen.dart';
 import '../screens/patient/my_appointments_screen.dart';
 import '../screens/patient/medical_history_screen.dart';
 import '../screens/patient/hospital_filter_screen.dart';
-import '../screens/receptionist/receptionist_home_screen.dart';
 import '../screens/receptionist/check_in_screen.dart';
 import '../screens/receptionist/appointment_list_screen.dart';
 import '../screens/doctor_assistant/assistant_home_screen.dart';
@@ -25,15 +24,13 @@ import '../screens/doctor_assistant/update_record_screen.dart';
 import '../screens/customer_support/support_home_screen.dart';
 import '../screens/customer_support/chat_list_screen.dart';
 import '../screens/customer_support/ticket_screen.dart';
-import '../screens/hospital/hospital_dashboard.dart';
 import '../screens/hospital/homeHospital_Screem.dart';
 import '../screens/hospital/addKhoaHospital_Screen.dart';
 import '../screens/hospital/guiYeuCauHopTac_Screen.dart';
 import '../screens/hospital/guiDonThanhCong_Screen.dart';
 import '../screens/hospital/statistics_screen.dart';
 import '../screens/hospital/staff_management_screen.dart';
-import '../screens/hospital/statistics_screen.dart';
-import '../screens/admin/admin_dashboard.dart';
+import '../screens/letan_c1/letan_trangchu_screen_c1.dart';
 
 class AppRoutes {
   static const String login = '/login';
@@ -164,7 +161,7 @@ class AppRoutes {
 
         medicalHistory: (_) => const MedicalHistoryScreen(),
         hospitalFilter: (_) => const HospitalFilterScreen(),
-        receptionistHome: (_) => const ReceptionistHomeScreen(),
+        receptionistHome: (_) => const LeTanHomeScreenC1(),
         checkIn: (_) => const CheckInScreen(),
         appointmentList: (_) => const AppointmentListScreen(),
         assistantHome: (_) => const AssistantHomeScreen(),
@@ -208,7 +205,6 @@ class AppRoutes {
           : (FirebaseAuth.instance.currentUser?.uid ?? AppSession.benhVienId);
       return ThemKhoaScreen(benhVienId: bvid);
     },
-    staffManagement: (_) => const StaffManagementScreen(),
     nhanSuScreen: (_) => const HomeHospitalScreen(initialTabIndex: 2),
 
   };

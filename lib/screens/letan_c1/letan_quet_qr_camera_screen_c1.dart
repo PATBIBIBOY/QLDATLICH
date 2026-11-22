@@ -52,7 +52,7 @@ class _LetanQuetQrCameraScreenC1State extends State<LetanQuetQrCameraScreenC1> {
       AppDesignSystemC1.hapticError();
       AppDesignSystemC1.showCustomSnackBar(
         context,
-        message: '✕ Quét mã bị khóa: Ca trực chưa được Bệnh viện phân công (Mã TT != 16)!',
+        message: '✕ Quét mã bị khóa: Ca trực chưa được Bệnh viện phân công!',
         isSuccess: false,
         icon: Icons.lock_clock_rounded,
       );

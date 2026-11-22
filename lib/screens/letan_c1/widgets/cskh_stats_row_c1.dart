@@ -42,6 +42,7 @@ class CskhStatsRowC1 extends StatelessWidget {
           children: [
             Expanded(
               child: _buildItem(
+                context: context,
                 soLuong: '$dangCho',
                 nhanDe: 'Cần duyệt',
                 mauSo: const Color(0xFFD97706),
@@ -51,6 +52,7 @@ class CskhStatsRowC1 extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: _buildItem(
+                context: context,
                 soLuong: '$dangCho',
                 nhanDe: 'Được phép duyệt',
                 mauSo: const Color(0xFF0284C7),
@@ -60,6 +62,7 @@ class CskhStatsRowC1 extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: _buildItem(
+                context: context,
                 soLuong: '$daDuyet',
                 nhanDe: 'Đã cấp STT',
                 mauSo: const Color(0xFF10B981),
@@ -73,13 +76,14 @@ class CskhStatsRowC1 extends StatelessWidget {
   }
 
   Widget _buildItem({
+    required BuildContext context,
     required String soLuong,
     required String nhanDe,
     required Color mauSo,
     required bool isDark,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: EdgeInsets.symmetric(vertical: AppDesignSystemC1.scale(context, 11)),
       decoration: BoxDecoration(
         color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(14),
@@ -90,6 +94,7 @@ class CskhStatsRowC1 extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             FittedBox(
               fit: BoxFit.scaleDown,
@@ -97,7 +102,7 @@ class CskhStatsRowC1 extends StatelessWidget {
                 soLuong,
                 style: TextStyle(
                   color: mauSo,
-                  fontSize: 20,
+                  fontSize: AppDesignSystemC1.scale(context, 20),
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -110,7 +115,7 @@ class CskhStatsRowC1 extends StatelessWidget {
                 maxLines: 1,
                 style: TextStyle(
                   color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-                  fontSize: 11.5,
+                  fontSize: AppDesignSystemC1.scale(context, 11.5),
                   fontWeight: FontWeight.w500,
                 ),
               ),

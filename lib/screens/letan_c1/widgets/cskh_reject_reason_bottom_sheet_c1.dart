@@ -67,56 +67,70 @@ class CskhRejectReasonBottomSheetC1 {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'MÃ ĐẶT LỊCH: ${don['maBenhNhan'] ?? don['id']}',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 0.5,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'MÃ ĐẶT LỊCH: ${don['maBenhNhan'] ?? don['id']}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.5,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                (don['hoTen'] ?? 'Bệnh nhân').toString(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
+                                const SizedBox(height: 2),
+                                Text(
+                                  (don['hoTen'] ?? 'Bệnh nhân').toString(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                '${don['tenKhoa']} • ${don['gioKham']}',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 11.5,
+                                Text(
+                                  '${don['tenKhoa']} • ${don['gioKham']}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 11.5,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                          if (don['so_thu_tu'] != null && don['so_thu_tu'].toString().isNotEmpty)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Column(
-                                children: [
-                                  const Text(
-                                    'STT',
-                                    style: TextStyle(color: Colors.white70, fontSize: 9.5, fontWeight: FontWeight.w600),
-                                  ),
-                                  Text(
-                                    don['so_thu_tu'].toString(),
-                                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
-                                  ),
-                                ],
+                          if (don['so_thu_tu'] != null && don['so_thu_tu'].toString().isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text(
+                                      'STT',
+                                      style: TextStyle(color: Colors.white70, fontSize: 9.5, fontWeight: FontWeight.w600),
+                                    ),
+                                    Text(
+                                      don['so_thu_tu'].toString(),
+                                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
+                          ],
                         ],
                       ),
                     ),

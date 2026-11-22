@@ -12,6 +12,7 @@ class CskhTabDuyetPhongC1 extends StatelessWidget {
   final String? khoaIdHienTai;
   final DateTime ngayChon;
   final VoidCallback onSelectDate;
+  final VoidCallback? onOpenLichSu;
   final void Function(Map<String, dynamic> phong, String tenKhoa) onSelectPhong;
 
   const CskhTabDuyetPhongC1({
@@ -21,6 +22,7 @@ class CskhTabDuyetPhongC1 extends StatelessWidget {
     required this.ngayChon,
     required this.onSelectDate,
     required this.onSelectPhong,
+    this.onOpenLichSu,
   });
 
   @override
@@ -39,7 +41,7 @@ class CskhTabDuyetPhongC1 extends StatelessWidget {
           ),
           const SizedBox(height: 14),
 
-          // 2. Thanh chọn Ngày duyệt đơn
+          // 2. Thanh chọn Ngày duyệt đơn & Lịch sử
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -52,36 +54,71 @@ class CskhTabDuyetPhongC1 extends StatelessWidget {
                   letterSpacing: 0.4,
                 ),
               ),
-              InkWell(
-                onTap: onSelectDate,
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: const Color(0xFF0284C7).withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.calendar_today_rounded, size: 14, color: Color(0xFF0284C7)),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${ngayChon.day.toString().padLeft(2, '0')}/${ngayChon.month.toString().padLeft(2, '0')}/${ngayChon.year}',
-                        style: const TextStyle(
-                          color: Color(0xFF0284C7),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (onOpenLichSu != null) ...[
+                    InkWell(
+                      onTap: onOpenLichSu,
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: isDark ? 0.6 : 0.4)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.history_rounded, size: 14, color: Color(0xFFD97706)),
+                            SizedBox(width: 4),
+                            Text(
+                              'Lịch sử duyệt',
+                              style: TextStyle(
+                                color: Color(0xFFB45309),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.arrow_drop_down, size: 16, color: Color(0xFF0284C7)),
-                    ],
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  InkWell(
+                    onTap: onSelectDate,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF0284C7).withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.calendar_today_rounded, size: 14, color: Color(0xFF0284C7)),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${ngayChon.day.toString().padLeft(2, '0')}/${ngayChon.month.toString().padLeft(2, '0')}/${ngayChon.year}',
+                            style: const TextStyle(
+                              color: Color(0xFF0284C7),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.arrow_drop_down, size: 16, color: Color(0xFF0284C7)),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
           ),

@@ -77,7 +77,10 @@ class LetanPatientCardC1 extends StatelessWidget {
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: EdgeInsets.symmetric(
+          horizontal: AppDesignSystemC1.scale(context, 12),
+          vertical: AppDesignSystemC1.scale(context, 10),
+        ),
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(12),
@@ -86,8 +89,8 @@ class LetanPatientCardC1 extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: AppDesignSystemC1.scale(context, 40),
+              height: AppDesignSystemC1.scale(context, 40),
               decoration: BoxDecoration(
                 color: avatarBg,
                 borderRadius: BorderRadius.circular(10),
@@ -97,15 +100,16 @@ class LetanPatientCardC1 extends StatelessWidget {
                 initials,
                 style: TextStyle(
                   color: avatarText,
-                  fontSize: 14,
+                  fontSize: AppDesignSystemC1.scale(context, 14),
                   fontWeight: FontWeight.w700,
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: AppDesignSystemC1.scale(context, 10)),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     hoTen,
@@ -113,7 +117,7 @@ class LetanPatientCardC1 extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: textCol,
-                      fontSize: 15,
+                      fontSize: AppDesignSystemC1.scale(context, 15),
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -126,24 +130,28 @@ class LetanPatientCardC1 extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: subTextCol,
-                      fontSize: 12,
+                      fontSize: AppDesignSystemC1.scale(context, 12),
                     ),
                   ),
                 ],
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: badgeBg,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                trangThai,
-                style: TextStyle(
-                  color: badgeText,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+            const SizedBox(width: 6),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: badgeBg,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  trangThai,
+                  style: TextStyle(
+                    color: badgeText,
+                    fontSize: AppDesignSystemC1.scale(context, 11.5),
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
