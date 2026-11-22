@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
 
-import '../../mock/mock_c1/dulieu_mau_cskh_c1.dart';
 import '../../models/letan_c1/letan_design_system_c1.dart';
+import '../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
+import 'cskh_duyetdon_khoa_screen_c1.dart';
+import 'widgets/cskh_appointment_card_c1.dart';
+import 'widgets/cskh_banner_tien_do_c1.dart';
+import 'widgets/cskh_bulk_action_bar_c1.dart';
+import 'widgets/cskh_reject_reason_bottom_sheet_c1.dart';
+import 'widgets/letan_khoa_ca_truc_widget_c1.dart';
 
-/// MÀN HÌNH 2: DANH SÁCH ĐƠN KHÁM CẦN DUYỆT (KHOA HOẶC TỔNG THỂ TOÀN VIỆN)
+/// MÀN HÌNH DANH SÁCH ĐƠN KHÁM CẦN DUYỆT (KHOA HOẶC TỔNG THỂ TOÀN VIỆN)
 /// Kết nối thời gian thực với Firestore, hỗ trợ duyệt/từ chối lưu trực tiếp lên database.
 class CskhDanhsachDonKhoaScreenC1 extends StatefulWidget {
   final String tenKhoa;
   final String phongKham;
   final String caKham;
   final int tongDon;
+  final DateTime? ngayChonBanDau;
+  final String? tabBanDau;
 
   const CskhDanhsachDonKhoaScreenC1({
     super.key,
@@ -18,6 +26,8 @@ class CskhDanhsachDonKhoaScreenC1 extends StatefulWidget {
     this.phongKham = 'Phòng 201',
     this.caKham = 'Ca sáng',
     this.tongDon = 25,
+    this.ngayChonBanDau,
+    this.tabBanDau,
   });
 
   @override
@@ -25,7 +35,20 @@ class CskhDanhsachDonKhoaScreenC1 extends StatefulWidget {
 }
 
 class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC1> {
-  DateTime _ngayChon = DateTime.now();
+  late DateTime _ngayChon;
+  late String _phongHienTai;
+  String _tabBoLocHienTai = 'Tất cả'; // 'Tất cả', 'Chờ duyệt', 'Đã duyệt', 'Đã hủy'
+  final List<String> _danhSachTabs = ['Tất cả', 'Chờ duyệt', 'Đã duyệt', 'Đã hủy'];
+
+  @override
+  void initState() {
+    super.initState();
+    _phongHienTai = widget.phongKham;
+    _ngayChon = widget.ngayChonBanDau ?? DateTime.now();
+    if (widget.tabBanDau != null && _danhSachTabs.contains(widget.tabBanDau)) {
+      _tabBoLocHienTai = widget.tabBanDau!;
+    }
+  }
 
   Future<void> _chonNgayLichHen() async {
     AppDesignSystemC1.hapticLight();
@@ -39,409 +62,274 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
       confirmText: 'CHỌN',
     );
     if (picked != null && picked != _ngayChon) {
-      setState(() {
-        _ngayChon = picked;
-      });
+      setState(() => _ngayChon = picked);
     }
   }
 
-  // Duyệt đơn và lưu trực tiếp lên Firestore
+  // Duyệt 1 đơn khám với Optimistic UI update
   void _duyetDon(Map<String, dynamic> don) async {
     AppDesignSystemC1.hapticLight();
     final appointmentId = don['id'];
     final docPath = don['docPath'];
-    if (appointmentId != null) {
-      await FirebaseServiceC1.capNhatTrangThaiLichHen(
-        appointmentId: appointmentId,
-        docPath: docPath,
-        trangThaiMoi: 'da_duyet',
-      );
-    }
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('✓ Đã duyệt đơn của ${don['hoTen']} (STT ${don['stt']})'),
-          duration: const Duration(seconds: 1),
-          backgroundColor: const Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+
+    // Optimistic UI: Phản hồi ngay lập tức để người dùng không phải chờ đợi mạng
+    final sttTam = don['so_thu_tu'] ?? don['stt'] ?? '...';
+    AppDesignSystemC1.showCustomSnackBar(
+      context,
+      message: '✓ Đang xác nhận đơn của ${don['hoTen']} - Cấp STT: #$sttTam',
+      isSuccess: true,
+      icon: Icons.check_circle_rounded,
+    );
+
+    int? soThuTuMoi;
+    try {
+      if (appointmentId != null) {
+        soThuTuMoi = await FirebaseServiceC1.capNhatTrangThaiLichHen(
+          appointmentId: appointmentId,
+          docPath: docPath,
+          trangThaiMoi: 'da_duyet',
+          khoaId: widget.tenKhoa,
+          phongKhamId: don['phong_kham_id'] ?? _phongHienTai,
+          ngayChon: _ngayChon,
+        );
+      }
+      AppDesignSystemC1.hapticSuccess();
+      if (mounted && soThuTuMoi != null) {
+        AppDesignSystemC1.showCustomSnackBar(
+          context,
+          message: '✓ Đã duyệt thành công: ${don['hoTen']} - STT: #$soThuTuMoi',
+          isSuccess: true,
+          icon: Icons.verified_rounded,
+        );
+      }
+    } catch (e) {
+      AppDesignSystemC1.hapticError();
+      if (mounted) {
+        AppDesignSystemC1.showCustomSnackBar(
+          context,
+          message: '✕ Không thể duyệt đơn của ${don['hoTen']}: Vui lòng thử lại!',
+          isSuccess: false,
+          icon: Icons.error_outline_rounded,
+        );
+      }
     }
   }
 
-  // Mở Popup chọn lý do từ chối đơn khám (Figma 15.1) và lưu lên Firestore
+  // Mở Popup chọn lý do từ chối đơn khám
   void _moPopupTuChoiDon(Map<String, dynamic> don) {
-    AppDesignSystemC1.hapticLight();
-    final isDark = AppDesignSystemC1.laCheDoToi;
-    int lyDoDangChon = 0;
-    final lyDoKhacController = TextEditingController();
-    final cacLyDo = DuLieuCskhKhoaC1.danhSachLyDoTuChoi;
-
-    showModalBottomSheet(
+    CskhRejectReasonBottomSheetC1.show(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return Container(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-                top: 14,
-                left: 20,
-                right: 20,
-              ),
-              decoration: BoxDecoration(
-                color: isDark ? AppDesignSystemC1.darkBackground : Colors.white,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Thanh kéo xám
-                    Center(
-                      child: Container(
-                        width: 44,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Card tóm tắt bệnh nhân bị từ chối
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF0284C7), Color(0xFF0369A1)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'MÃ ĐẶT LỊCH: ${don['maBenhNhan'] ?? don['id']}',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                (don['hoTen'] ?? 'Bệnh nhân').toString(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              Text(
-                                '${don['tenKhoa']} • ${don['gioKham']}',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 11.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Column(
-                              children: [
-                                const Text(
-                                  'STT',
-                                  style: TextStyle(color: Colors.white70, fontSize: 9.5, fontWeight: FontWeight.w600),
-                                ),
-                                Text(
-                                  (don['stt'] ?? '1').toString(),
-                                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Tiêu đề
-                    Row(
-                      children: const [
-                        Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 22),
-                        SizedBox(width: 8),
-                        Text(
-                          'Lý do không duyệt đơn khám',
-                          style: TextStyle(
-                            fontSize: 16.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Vui lòng chọn lý do từ chối để hệ thống gửi thông báo và hướng dẫn bệnh nhân chọn khung giờ hoặc khoa khác:',
-                      style: TextStyle(
-                        color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-                        fontSize: 12.5,
-                        height: 1.35,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Danh sách lý do từ chối
-                    ...List.generate(cacLyDo.length, (index) {
-                      final isSelected = lyDoDangChon == index;
-                      final lyDoText = cacLyDo[index];
-
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: InkWell(
-                          onTap: () {
-                            setSheetState(() {
-                              lyDoDangChon = index;
-                            });
-                          },
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? (isDark ? const Color(0xFF450A0A).withValues(alpha: 0.6) : const Color(0xFFFEF2F2))
-                                  : (isDark ? AppDesignSystemC1.darkSurface : const Color(0xFFF8FAFC)),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isSelected
-                                    ? const Color(0xFFEF4444)
-                                    : (isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0)),
-                                width: isSelected ? 1.5 : 1.0,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 20,
-                                  height: 20,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: isSelected ? const Color(0xFFEF4444) : Colors.transparent,
-                                    border: Border.all(
-                                      color: isSelected ? const Color(0xFFEF4444) : const Color(0xFFCBD5E1),
-                                      width: 2,
-                                    ),
-                                  ),
-                                  child: isSelected
-                                      ? const Center(
-                                          child: Icon(Icons.circle, color: Colors.white, size: 8),
-                                        )
-                                      : null,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    lyDoText,
-                                    style: TextStyle(
-                                      color: isSelected
-                                          ? const Color(0xFFDC2626)
-                                          : (isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF1E293B)),
-                                      fontSize: 13,
-                                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-
-                    if (lyDoDangChon == 3) ...[
-                      TextField(
-                        controller: lyDoKhacController,
-                        maxLines: 2,
-                        decoration: InputDecoration(
-                          hintText: 'Nhập chi tiết lý do từ chối gửi cho bệnh nhân...',
-                          hintStyle: TextStyle(
-                            color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF94A3B8),
-                            fontSize: 12.5,
-                          ),
-                          filled: true,
-                          fillColor: isDark ? AppDesignSystemC1.darkSurface : const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(color: Color(0xFFEF4444)),
-                          ),
-                          contentPadding: const EdgeInsets.all(12),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-
-                    const SizedBox(height: 8),
-
-                    // Hai nút hành động: Hủy / Xác nhận từ chối
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SizedBox(
-                            height: 46,
-                            child: ElevatedButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: isDark ? AppDesignSystemC1.darkSurface : const Color(0xFFF1F5F9),
-                                foregroundColor: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF475569),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                elevation: 0,
-                              ),
-                              child: const Text('Hủy', style: TextStyle(fontWeight: FontWeight.w600)),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: SizedBox(
-                            height: 46,
-                            child: ElevatedButton(
-                              onPressed: () async {
-                                final lyDoChon = lyDoDangChon == 3 && lyDoKhacController.text.trim().isNotEmpty
-                                    ? lyDoKhacController.text.trim()
-                                    : cacLyDo[lyDoDangChon];
-
-                                final scaffoldMessenger = ScaffoldMessenger.of(context);
-                                final appointmentId = don['id'];
-                                final docPath = don['docPath'];
-                                Navigator.pop(ctx);
-                                if (appointmentId != null) {
-                                  await FirebaseServiceC1.capNhatTrangThaiLichHen(
-                                    appointmentId: appointmentId,
-                                    docPath: docPath,
-                                    trangThaiMoi: 'tu_choi',
-                                    lyDoTuChoi: lyDoChon,
-                                  );
-                                }
-
-                                if (mounted) {
-                                  scaffoldMessenger.showSnackBar(
-                                    SnackBar(
-                                      content: Text('✕ Đã từ chối đơn của ${don['hoTen']}: $lyDoChon'),
-                                      backgroundColor: const Color(0xFFEF4444),
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
-                                }
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFEF4444),
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                elevation: 0,
-                              ),
-                              child: const Text('Xác nhận từ chối', style: TextStyle(fontWeight: FontWeight.w700)),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+      don: don,
     );
   }
 
-  // Duyệt hết toàn bộ đơn đang chờ trên Firestore
+  // Duyệt hết toàn bộ đơn đang chờ trên Firestore với Optimistic UI
   void _duyetHetTatCa(List<Map<String, dynamic>> danhSach) async {
     AppDesignSystemC1.hapticLight();
-    for (var don in danhSach) {
-      final trangThai = (don['rawTrangThai'] ?? '').toString();
-      if (trangThai != 'da_duyet' && trangThai != 'da_kham') {
-        final id = don['id'];
-        final docPath = don['docPath'];
-        if (id != null) {
-          await FirebaseServiceC1.capNhatTrangThaiLichHen(
-            appointmentId: id,
-            docPath: docPath,
-            trangThaiMoi: 'da_duyet',
-          );
-        }
-      }
-    }
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✓ Đã phê duyệt tất cả các đơn khám!'),
-          backgroundColor: Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
-        ),
+    AppDesignSystemC1.showCustomSnackBar(
+      context,
+      message: '⏳ Đang duyệt ${danhSach.length} đơn khám...',
+      isSuccess: true,
+      icon: Icons.hourglass_top_rounded,
+    );
+    try {
+      await FirebaseServiceC1.duyetTatCaLichHen(
+        danhSachDon: danhSach,
+        khoaId: widget.tenKhoa,
+        phongKhamId: _phongHienTai,
+        ngayChon: _ngayChon,
       );
+      AppDesignSystemC1.hapticSuccess();
+      if (mounted) {
+        AppDesignSystemC1.showCustomSnackBar(
+          context,
+          message: '✓ Đã xác nhận tất cả các đơn khám theo thứ tự thời gian đặt!',
+          isSuccess: true,
+          icon: Icons.done_all_rounded,
+        );
+      }
+    } catch (_) {
+      AppDesignSystemC1.hapticError();
+      if (mounted) {
+        AppDesignSystemC1.showCustomSnackBar(
+          context,
+          message: '✕ Xảy ra lỗi khi duyệt hàng loạt đơn!',
+          isSuccess: false,
+          icon: Icons.error_outline_rounded,
+        );
+      }
     }
   }
 
-  // Từ chối toàn bộ các đơn đang chờ trên Firestore
+  // Từ chối toàn bộ các đơn đang chờ trên Firestore với Optimistic UI
   void _tuChoiHetTatCa(List<Map<String, dynamic>> danhSach) async {
     AppDesignSystemC1.hapticLight();
-    for (var don in danhSach) {
-      final trangThai = (don['rawTrangThai'] ?? '').toString();
-      if (trangThai != 'da_duyet' && trangThai != 'da_kham') {
-        final id = don['id'];
-        final docPath = don['docPath'];
-        if (id != null) {
-          await FirebaseServiceC1.capNhatTrangThaiLichHen(
-            appointmentId: id,
-            docPath: docPath,
-            trangThaiMoi: 'tu_choi',
-            lyDoTuChoi: 'Phòng khám đã đủ số lượng tiếp nhận tối đa',
-          );
+    AppDesignSystemC1.showCustomSnackBar(
+      context,
+      message: '⏳ Đang từ chối các đơn chờ duyệt...',
+      isSuccess: false,
+      icon: Icons.hourglass_top_rounded,
+    );
+    try {
+      for (var don in danhSach) {
+        final trangThai = (don['rawTrangThai'] ?? '').toString();
+        if (trangThai != 'da_duyet' && trangThai != 'da_kham') {
+          final id = don['id'];
+          final docPath = don['docPath'];
+          if (id != null) {
+            await FirebaseServiceC1.capNhatTrangThaiLichHen(
+              appointmentId: id,
+              docPath: docPath,
+              trangThaiMoi: 'tu_choi',
+              lyDoTuChoi: 'Phòng khám đã đủ số lượng tiếp nhận tối đa',
+            );
+          }
         }
       }
-    }
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✕ Đã cập nhật không duyệt hết các đơn chờ!'),
-          backgroundColor: Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppDesignSystemC1.hapticSuccess();
+      if (mounted) {
+        AppDesignSystemC1.showCustomSnackBar(
+          context,
+          message: '✕ Đã cập nhật không duyệt hết các đơn chờ!',
+          isSuccess: false,
+          icon: Icons.block_rounded,
+        );
+      }
+    } catch (_) {
+      AppDesignSystemC1.hapticError();
+      if (mounted) {
+        AppDesignSystemC1.showCustomSnackBar(
+          context,
+          message: '✕ Lỗi kết nối khi cập nhật đơn!',
+          isSuccess: false,
+          icon: Icons.error_outline_rounded,
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: AppDesignSystemC1.isDarkMode,
-      builder: (context, isDark, child) {
+    return StreamBuilder<PhanCongCaTrucModelC1>(
+      stream: FirebaseServiceC1.streamPhanCongCaTruc(ngayChon: _ngayChon),
+      builder: (context, phanCongSnap) {
+        final phanCong = phanCongSnap.data ?? PhanCongCaTrucModelC1.chuaPhanCong();
+
+        return ValueListenableBuilder<bool>(
+          valueListenable: AppDesignSystemC1.isDarkMode,
+          builder: (context, isDark, child) {
+            final bvid = DuLieuProfileMauC1.thongTinHienTai.benhVienId;
+            final khoaHienTaiProfile = DuLieuProfileMauC1.thongTinHienTai.khoa;
+
+            // KIỂM TRA PHÂN CÔNG CA TRỰC: Bắt buộc trang_thai_id == 16 mới được vào duyệt đơn
+            if (!phanCong.duocPhanCong) {
+              return Scaffold(
+                backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF8FAFC),
+                appBar: AppBar(
+                  title: const Text('Ca trực tạm khóa'),
+                  backgroundColor: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+                  foregroundColor: isDark ? Colors.white : Colors.black87,
+                  elevation: 0,
+                ),
+                body: LetanKhoaCaTrucWidgetC1(
+                  phanCong: phanCong,
+                  onChuyenProfile: () => Navigator.pop(context),
+                  tenChucNangBiKhoa: 'Duyệt đơn theo khoa',
+                ),
+              );
+            }
+
+            // KIỂM TRA PHÂN QUYỀN CHẶN DUYỆT CHÉO KHOA:
+        // Nhân viên thuộc khoa nào chỉ được phép xem & duyệt đúng khoa đó
+        final bool laKhoaHopLe = FirebaseServiceC1.laCheDoTong(khoaHienTaiProfile) ||
+            FirebaseServiceC1.laCungKhoa(widget.tenKhoa, khoaHienTaiProfile);
+
+        if (!laKhoaHopLe) {
+          return Scaffold(
+            backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF8FAFC),
+            appBar: AppBar(
+              title: const Text('Truy cập bị từ chối'),
+              backgroundColor: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
+              foregroundColor: isDark ? Colors.white : Colors.black87,
+              elevation: 0,
+            ),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.gpp_bad_rounded, size: 64, color: Color(0xFFEF4444)),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Không có quyền truy cập khoa này!',
+                      style: TextStyle(
+                        color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Tài khoản của bạn được phân công tại "$khoaHienTaiProfile". Bạn không được phép xem hoặc duyệt đơn của "${widget.tenKhoa}".',
+                      style: TextStyle(
+                        color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                        fontSize: 13.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.arrow_back),
+                      label: const Text('Quay lại'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppDesignSystemC1.primary,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
         return StreamBuilder<List<Map<String, dynamic>>>(
           stream: FirebaseServiceC1.streamDanhSachLichHen(
             tenKhoa: widget.tenKhoa,
+            phongKham: _phongHienTai,
             ngayChon: _ngayChon,
+            benhVienId: bvid,
+            choPhepChoDuyet: true,
           ),
           builder: (context, snapshot) {
             final danhSach = snapshot.data ?? [];
-            final soDonDaDuyet = danhSach.where((e) => e['rawTrangThai'] == 'da_duyet' || e['trangThai'] == 'Đã duyệt').length;
-            final soDonChoDuyet = danhSach.where((e) => e['rawTrangThai'] == 'dang_cho' || e['rawTrangThai'] == 'cho_duyet' || e['trangThai'] == 'Đang chờ').length;
+            final soDonChoDuyet = danhSach.where((e) {
+              final rawId = (e['trangThaiId'] ?? '').toString();
+              final rawStr = (e['rawTrangThai'] ?? '').toString().toLowerCase();
+              final tt = (e['trangThai'] ?? '').toString();
+              return rawId == '1' || rawStr.contains('cho_duyet') || rawStr.contains('pending') || tt == 'Chờ duyệt' || tt == 'Đang chờ';
+            }).length;
             final tong = danhSach.length;
+
+            // Lọc danh sách theo tab được chọn: Tất cả / Chờ duyệt / Đã duyệt / Đã hủy
+            final danhSachHienThi = danhSach.where((e) {
+              if (_tabBoLocHienTai == 'Tất cả') return true;
+              final rawId = (e['trangThaiId'] ?? '').toString();
+              final rawStr = (e['rawTrangThai'] ?? '').toString().toLowerCase();
+              final tt = (e['trangThai'] ?? '').toString();
+
+              final bool laChoDuyet = rawId == '1' || rawStr.contains('cho_duyet') || rawStr.contains('pending') || tt == 'Chờ duyệt' || tt == 'Đang chờ';
+              final bool laDaDuyet = rawId == '2' || rawId == '5' || rawStr.contains('duyet') || rawStr.contains('xac_nhan') || tt == 'Đã duyệt' || tt == 'Đã khám';
+              final bool laDaHuy = rawId == '4' || rawStr.contains('tu_choi') || rawStr.contains('huy') || rawStr.contains('cancel') || tt == 'Không duyệt';
+
+              if (_tabBoLocHienTai == 'Chờ duyệt') return laChoDuyet;
+              if (_tabBoLocHienTai == 'Đã duyệt') return laDaDuyet;
+              if (_tabBoLocHienTai == 'Đã hủy') return laDaHuy;
+              return true;
+            }).toList();
 
             return Scaffold(
               backgroundColor: isDark ? AppDesignSystemC1.darkBackground : const Color(0xFFF8FAFC),
@@ -449,12 +337,129 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
                 child: Column(
                   children: [
                     _buildHeader(isDark, tong),
-                    _buildBannerTienDo(isDark, soDonDaDuyet, soDonChoDuyet, tong),
+                    CskhBannerTienDoC1(
+                      ngayChon: _ngayChon,
+                      choDuyet: soDonChoDuyet,
+                      tong: tong,
+                      onSelectDate: _chonNgayLichHen,
+                    ),
+
+                    // Thanh nút chuyển tab chuyển qua lại: Tất cả | Chờ duyệt | Đã duyệt | Đã hủy
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+                          borderRadius: AppDesignSystemC1.borderRadMedium,
+                        ),
+                        child: Row(
+                          children: _danhSachTabs.map((tab) {
+                            final bool isSelected = _tabBoLocHienTai == tab;
+                            int count = 0;
+                            if (tab == 'Tất cả') {
+                              count = tong;
+                            } else if (tab == 'Chờ duyệt') {
+                              count = soDonChoDuyet;
+                            } else if (tab == 'Đã duyệt') {
+                              count = danhSach.where((e) {
+                                final rawId = (e['trangThaiId'] ?? '').toString();
+                                final rawStr = (e['rawTrangThai'] ?? '').toString().toLowerCase();
+                                final tt = (e['trangThai'] ?? '').toString();
+                                return rawId == '2' || rawId == '5' || rawStr.contains('duyet') || rawStr.contains('xac_nhan') || tt == 'Đã duyệt' || tt == 'Đã khám';
+                              }).length;
+                            } else if (tab == 'Đã hủy') {
+                              count = danhSach.where((e) {
+                                final rawId = (e['trangThaiId'] ?? '').toString();
+                                final rawStr = (e['rawTrangThai'] ?? '').toString().toLowerCase();
+                                final tt = (e['trangThai'] ?? '').toString();
+                                return rawId == '4' || rawStr.contains('tu_choi') || rawStr.contains('huy') || rawStr.contains('cancel') || tt == 'Không duyệt';
+                              }).length;
+                            }
+
+                            return Expanded(
+                              child: InkWell(
+                                onTap: () {
+                                  AppDesignSystemC1.hapticLight();
+                                  setState(() {
+                                    _tabBoLocHienTai = tab;
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(10),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(vertical: 7),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(10),
+                                    boxShadow: isSelected
+                                        ? [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+                                              blurRadius: 4,
+                                              offset: const Offset(0, 1),
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            tab,
+                                            style: TextStyle(
+                                              color: isSelected
+                                                  ? (isDark ? Colors.white : AppDesignSystemC1.primary)
+                                                  : (isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B)),
+                                              fontSize: 12.5,
+                                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                            decoration: BoxDecoration(
+                                              color: isSelected
+                                                  ? (isDark ? const Color(0xFF0284C7) : const Color(0xFFE0F2FE))
+                                                  : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              '$count',
+                                              style: TextStyle(
+                                                color: isSelected
+                                                    ? (isDark ? Colors.white : const Color(0xFF0284C7))
+                                                    : (isDark ? Colors.white70 : const Color(0xFF475569)),
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+
                     Expanded(
-                      child: danhSach.isEmpty
+                      child: danhSachHienThi.isEmpty
                           ? Center(
                               child: Text(
-                                'Chưa có đơn khám nào cần duyệt',
+                                'Không có đơn khám nào trong mục "$_tabBoLocHienTai"',
                                 style: TextStyle(
                                   color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
                                   fontSize: 14,
@@ -463,15 +468,24 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
                             )
                           : ListView.separated(
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              itemCount: danhSach.length,
+                              itemCount: danhSachHienThi.length,
                               separatorBuilder: (_, _) => const SizedBox(height: 10),
                               itemBuilder: (context, index) {
-                                final item = danhSach[index];
-                                return _buildCardDonKhamMap(item, isDark);
+                                final item = danhSachHienThi[index];
+                                return CskhAppointmentCardC1(
+                                  item: item,
+                                  onApprove: () => _duyetDon(item),
+                                  onReject: () => _moPopupTuChoiDon(item),
+                                );
                               },
                             ),
                     ),
-                    _buildBottomActionButtons(isDark, danhSach),
+                    if (soDonChoDuyet > 0)
+                      CskhBulkActionBarC1(
+                        totalCount: soDonChoDuyet,
+                        onRejectAll: () => _tuChoiHetTatCa(danhSach),
+                        onApproveAll: () => _duyetHetTatCa(danhSach),
+                      ),
                   ],
                 ),
               ),
@@ -480,6 +494,8 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
         );
       },
     );
+  }
+);
   }
 
   // Header màn hình duyệt đơn khoa
@@ -501,7 +517,16 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           InkWell(
-            onTap: () => Navigator.pop(context),
+            onTap: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CskhDuyetdonKhoaScreenC1()),
+                );
+              }
+            },
             borderRadius: BorderRadius.circular(12),
             child: Container(
               width: 38,
@@ -520,355 +545,66 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
               ),
             ),
           ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                widget.tenKhoa,
-                style: TextStyle(
-                  color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
-                  fontSize: 16.5,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '${widget.phongKham} • ${widget.caKham}',
-                style: TextStyle(
-                  color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ],
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF0284C7),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  '$hienThiTong Đơn',
-                  style: const TextStyle(
-                    color: Color(0xFF0284C7),
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Banner tiến độ duyệt đơn kèm chọn ngày khám
-  Widget _buildBannerTienDo(bool isDark, int daDuyet, int choDuyet, int tong) {
-    final String ngayHienThi = '${_ngayChon.day.toString().padLeft(2, '0')}/${_ngayChon.month.toString().padLeft(2, '0')}/${_ngayChon.year}';
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF082F49).withValues(alpha: 0.5) : const Color(0xFFF0F9FF),
-        border: Border(
-          bottom: BorderSide(
-            color: isDark ? const Color(0xFF075985) : const Color(0xFFBAE6FD),
-            width: 1,
-          ),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              InkWell(
-                onTap: _chonNgayLichHen,
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFBAE6FD),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.calendar_month_rounded, size: 14, color: Color(0xFF0284C7)),
-                      const SizedBox(width: 4),
-                      Text(
-                        ngayHienThi,
-                        style: TextStyle(
-                          color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0369A1),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(width: 2),
-                      Icon(
-                        Icons.arrow_drop_down,
-                        size: 16,
-                        color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF0369A1),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'Chờ: $choDuyet/$tong',
-                style: TextStyle(
-                  color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0369A1),
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          Text(
-            '✓ = Duyệt • ✕ = Từ chối',
-            style: TextStyle(
-              color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-              fontSize: 11.5,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Từng Card bệnh nhân trong danh sách đọc từ Firestore Map
-  Widget _buildCardDonKhamMap(Map<String, dynamic> item, bool isDark) {
-    Color cardBg;
-    Color borderCard;
-    Widget badgeTrangThai;
-
-    final rawTrangThai = (item['rawTrangThai'] ?? '').toString();
-    final bool laDaDuyet = rawTrangThai == 'da_duyet' || item['trangThai'] == 'Đã duyệt';
-    final bool laTuChoi = rawTrangThai == 'tu_choi' || item['trangThai'] == 'Không duyệt';
-
-    if (laDaDuyet) {
-      cardBg = isDark ? const Color(0xFF064E3B).withValues(alpha: 0.3) : const Color(0xFFECFDF5);
-      borderCard = const Color(0xFF10B981);
-      badgeTrangThai = Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: const Text(
-          '✓ Đã duyệt',
-          style: TextStyle(color: Color(0xFF065F46), fontSize: 11, fontWeight: FontWeight.w700),
-        ),
-      );
-    } else if (laTuChoi) {
-      cardBg = isDark ? const Color(0xFF7F1D1D).withValues(alpha: 0.3) : const Color(0xFFFEF2F2);
-      borderCard = const Color(0xFFEF4444);
-      badgeTrangThai = Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEE2E2),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: const Text(
-          '✕ Không duyệt',
-          style: TextStyle(color: Color(0xFF991B1B), fontSize: 11, fontWeight: FontWeight.w700),
-        ),
-      );
-    } else {
-      cardBg = isDark ? AppDesignSystemC1.darkSurface : Colors.white;
-      borderCard = isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFE2E8F0);
-      badgeTrangThai = Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Text(
-          'Chờ duyệt',
-          style: TextStyle(
-            color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderCard),
-      ),
-      child: Row(
-        children: [
-          Row(
-            children: [
-              InkWell(
-                onTap: () => _duyetDon(item),
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: laDaDuyet
-                        ? const Color(0xFF10B981)
-                        : (isDark ? const Color(0xFF064E3B).withValues(alpha: 0.5) : const Color(0xFFECFDF5)),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF10B981)),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '✓',
-                      style: TextStyle(
-                        color: laDaDuyet ? Colors.white : const Color(0xFF059669),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              InkWell(
-                onTap: () => _moPopupTuChoiDon(item),
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: laTuChoi
-                        ? const Color(0xFFEF4444)
-                        : (isDark ? const Color(0xFF7F1D1D).withValues(alpha: 0.5) : const Color(0xFFFEF2F2)),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFEF4444)),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '✕',
-                      style: TextStyle(
-                        color: laTuChoi ? Colors.white : const Color(0xFFDC2626),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'STT ${item['stt']}: ${item['hoTen']}',
-                  style: TextStyle(
-                    color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${item['gioKham']} • ${item['gioiTinh']}, ${item['namSinh']} • ${item['tenKhoa']}',
-                  style: TextStyle(
-                    color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
-                    fontSize: 11.5,
-                  ),
-                ),
-                if (item['lyDoTuChoi'] != null) ...[
-                  const SizedBox(height: 3),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
                   Text(
-                    'Lý do: ${item['lyDoTuChoi']}',
+                    widget.tenKhoa,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Color(0xFFEF4444), fontSize: 11, fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                      color: isDark ? AppDesignSystemC1.darkTextPrimary : const Color(0xFF0F172A),
+                      fontSize: 16.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$_phongHienTai • ${widget.caKham}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF64748B),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w400,
+                    ),
                   ),
                 ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 6),
-          badgeTrangThai,
-        ],
-      ),
-    );
-  }
-
-  // Thanh 2 nút điều khiển dưới đáy theo Figma: "Không duyệt hết" & "Duyệt hết"
-  Widget _buildBottomActionButtons(bool isDark, List<Map<String, dynamic>> danhSach) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: isDark ? AppDesignSystemC1.darkSurface : Colors.white,
-        border: Border(
-          top: BorderSide(
-            color: isDark ? AppDesignSystemC1.darkBorder : const Color(0xFFF1F5F9),
-            width: 1,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: SizedBox(
-              height: 46,
-              child: ElevatedButton.icon(
-                onPressed: () => _tuChoiHetTatCa(danhSach),
-                icon: const Icon(Icons.close_rounded, size: 18),
-                label: const Text(
-                  'Không duyệt hết',
-                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2),
-                  foregroundColor: const Color(0xFFDC2626),
-                  side: const BorderSide(color: Color(0xFFF87171)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 0,
-                ),
               ),
             ),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: SizedBox(
-              height: 46,
-              child: ElevatedButton.icon(
-                onPressed: () => _duyetHetTatCa(danhSach),
-                icon: const Icon(Icons.check_rounded, size: 18),
-                label: Text(
-                  'Duyệt hết (${danhSach.length})',
-                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF10B981),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 0,
-                ),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF0284C7),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    '$hienThiTong Đơn',
+                    style: const TextStyle(
+                      color: Color(0xFF0284C7),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
