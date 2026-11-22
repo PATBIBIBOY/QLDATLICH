@@ -295,7 +295,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const CircularProgressIndicator(color: _primary),
-
               const SizedBox(height: 16),
               Text(
                 'Đang tải thông tin...',
@@ -371,7 +370,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: Row(
                     children: List.generate(_roles.length, (i) {
                       final active = i == _roleIndex;
-
                       return Expanded(
                         child: GestureDetector(
                           onTap: () => _onRoleChanged(i),
@@ -412,7 +410,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ? 'Vui lòng nhập họ và tên'
                         : null,
                   ),
-
                   const SizedBox(height: 16),
 
                   _label('Email hoặc số điện thoại', required: true),
@@ -512,7 +509,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ? 'Vui lòng nhập tên bệnh viện'
                         : null,
                   ),
-
                   const SizedBox(height: 16),
 
                   _label('Email đại diện bệnh viện', required: true),
@@ -539,7 +535,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ? 'Vui lòng nhập địa chỉ bệnh viện'
                         : null,
                   ),
-
                   const SizedBox(height: 16),
 
                   _label('Mật khẩu', required: true),
@@ -672,7 +667,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                   ),
                 ),
-
                 const SizedBox(height: 12),
 
                 Center(

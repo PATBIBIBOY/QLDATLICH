@@ -26,6 +26,10 @@ class HospitalModel {
   final List<String>? chuyenKhoaIds; // Ví dụ: ['CK01', 'CK04'] -> Dùng để query filter
   final List<String>? tenCacKhoa;    // Ví dụ: ['Khoa Tim mạch', 'Khoa Hô hấp'] -> Dùng để hiển thị UI nhanh
 
+  final bool isBlocked;
+  final bool chanDangNhap;
+  final String? lyDoKhoa;
+
   HospitalModel({
     this.id,
     this.maBenhVien,
@@ -49,6 +53,9 @@ class HospitalModel {
     this.kinhDo,
     this.chuyenKhoaIds,
     this.tenCacKhoa,
+    this.isBlocked = false,
+    this.chanDangNhap = false,
+    this.lyDoKhoa,
   }) : ngayTao = ngayTao ?? DateTime.now();
 
   Map<String, dynamic> toMap() {
@@ -74,10 +81,13 @@ class HospitalModel {
       'email': email,
       'role': role,
       'da_xac_thuc_email': daXacThucEmail,
-      'vi_do': viDo,    
-      'kinh_do': kinhDo, 
+      'vi_do': viDo,
+      'kinh_do': kinhDo,
       'chuyen_khoa_ids': chuyenKhoaIds ?? <String>[],
       'ten_cac_khoa': tenCacKhoa ?? <String>[],
+      'is_blocked': isBlocked,
+      'chan_dang_nhap': chanDangNhap,
+      'ly_do_khoa': lyDoKhoa,
     };
   }
 
@@ -116,6 +126,16 @@ class HospitalModel {
     final maBv = rawMaBv ?? (parsedId != null ? 'BV${parsedId.toString().padLeft(3, '0')}' : null);
     final effectiveUid = maBv ?? (rawUid != null && rawUid.startsWith('BV') ? rawUid : (parsedId != null ? 'BV${parsedId.toString().padLeft(3, '0')}' : rawUid));
 
+    final statusId = map['trang_thai_hop_tac_id'] is int
+        ? map['trang_thai_hop_tac_id'] as int
+        : int.tryParse(map['trang_thai_hop_tac_id']?.toString() ?? '') ?? TrangThaiId.choDuyet;
+
+    final chan = map['chan_dang_nhap'] == true;
+    final blocked = map['is_blocked'] == true ||
+        chan ||
+        statusId != TrangThaiId.hopTac ||
+        map['trang_thai'] == 'huy_hop_tac';
+
     return HospitalModel(
       id: parsedId,
       maBenhVien: maBv ?? effectiveUid,
@@ -125,9 +145,7 @@ class HospitalModel {
       diaChi: map['dia_chi'] ?? map['diaChi'],
       moTa: map['mo_ta'] ?? map['moTa'],
       hinhAnh: map['hinh_anh'] ?? map['hinhAnh'],
-      trangThaiHopTacId: map['trang_thai_hop_tac_id'] is int
-          ? map['trang_thai_hop_tac_id']
-          : int.tryParse(map['trang_thai_hop_tac_id']?.toString() ?? '') ?? TrangThaiId.choDuyet,
+      trangThaiHopTacId: statusId,
       diemDanhGiaTb: (map['diem_danh_gia_tb'] as num?)?.toDouble() ?? 0.0,
       tongSoDanhGia: map['tong_so_danh_gia'] is int
           ? map['tong_so_danh_gia']
@@ -147,14 +165,19 @@ class HospitalModel {
       email: map['email'],
       role: map['role'] ?? 'benh_vien',
       daXacThucEmail: map['da_xac_thuc_email'] ?? false,
-      viDo: (map['vi_do'] as num?)?.toDouble(),    
-      kinhDo: (map['kinh_do'] as num?)?.toDouble(), 
+      viDo: (map['vi_do'] as num?)?.toDouble(),
+      kinhDo: (map['kinh_do'] as num?)?.toDouble(),
       chuyenKhoaIds: map['chuyen_khoa_ids'] != null
           ? List<String>.from(map['chuyen_khoa_ids'])
           : const [],
       tenCacKhoa: map['ten_cac_khoa'] != null
           ? List<String>.from(map['ten_cac_khoa'])
           : const [],
+      isBlocked: blocked,
+      chanDangNhap: chan,
+      lyDoKhoa: map['ly_do_khoa']?.toString() ??
+          map['ly_do_huy']?.toString() ??
+          map['ly_do_chan']?.toString(),
     );
   }
 
@@ -177,10 +200,13 @@ class HospitalModel {
     String? email,
     String? role,
     bool? daXacThucEmail,
-    double? viDo,    
-    double? kinhDo,  
+    double? viDo,
+    double? kinhDo,
     List<String>? chuyenKhoaIds,
     List<String>? tenCacKhoa,
+    bool? isBlocked,
+    bool? chanDangNhap,
+    String? lyDoKhoa,
   }) {
     return HospitalModel(
       id: id ?? this.id,
@@ -201,10 +227,13 @@ class HospitalModel {
       email: email ?? this.email,
       role: role ?? this.role,
       daXacThucEmail: daXacThucEmail ?? this.daXacThucEmail,
-      viDo: viDo ?? this.viDo,    
-      kinhDo: kinhDo ?? this.kinhDo, 
+      viDo: viDo ?? this.viDo,
+      kinhDo: kinhDo ?? this.kinhDo,
       chuyenKhoaIds: chuyenKhoaIds ?? this.chuyenKhoaIds,
       tenCacKhoa: tenCacKhoa ?? this.tenCacKhoa,
+      isBlocked: isBlocked ?? this.isBlocked,
+      chanDangNhap: chanDangNhap ?? this.chanDangNhap,
+      lyDoKhoa: lyDoKhoa ?? this.lyDoKhoa,
     );
   }
 

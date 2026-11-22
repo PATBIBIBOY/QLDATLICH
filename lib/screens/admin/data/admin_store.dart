@@ -149,9 +149,6 @@ class AdminStore extends ChangeNotifier {
   }
 
   /// TÍNH TOÁN LẠI TỔNG BV VÀ DANH SÁCH CHỜ DUYỆT
-  /// Quy tắc:
-  /// - Bệnh viện mới thêm trên Firebase mặc định CHỜ DUYỆT (trang_thai_hop_tac_id != 10 / chưa duyệt).
-  /// - Chỉ khi được duyệt (trang_thai_hop_tac_id == 10 / 2 / da_duyet == true) thì mới hiển thị qua "Tổng BV".
   void _recomputeData() {
     final List<Hospital> approvedList = [];
     final List<Hospital> cancelledList = [];
@@ -169,29 +166,22 @@ class AdminStore extends ChangeNotifier {
         final type = data['co_so']?.toString() ??
             data['loai_hinh']?.toString() ??
             'Công lập';
-        final rating =
-            (data['diem_danh_gia_tb'] as num?)?.toDouble() ?? 4.5;
-        final address = data['dia_chi']?.toString() ??
-            'Đang cập nhật địa chỉ';
+        final rating = (data['diem_danh_gia_tb'] as num?)?.toDouble() ?? 4.5;
+        final address = data['dia_chi']?.toString() ?? 'Đang cập nhật địa chỉ';
         final statusId = data['trang_thai_hop_tac_id'] as int?;
         final trangThaiStr = data['trang_thai']?.toString().toLowerCase();
         final trangThaiUpper = data['trangThai']?.toString().toUpperCase();
         final daDuyetBool = data['da_duyet'] == true;
 
-        // Kiểm tra hủy hợp tác:
-        // Khi hủy hợp tác, trang_thai_hop_tac_id chuyển về 1, nhưng có cờ huy_hop_tac hoặc is_unpartnered
         final bool isHuyHopTac = statusId == 9 ||
             trangThaiStr == 'huy_hop_tac' ||
             trangThaiUpper == 'HUY_HOP_TAC' ||
             data['is_unpartnered'] == true;
 
-        // Bị từ chối
         final bool isRejected = statusId == 4 ||
             trangThaiStr == 'tu_choi' ||
             trangThaiUpper == 'TU_CHOI';
 
-        // Trạng thái đã duyệt: 10 (đang hợp tác), 2 (đã xác nhận), 7 (hoạt động), hoặc cờ da_duyet / trangThai tương ứng
-        // CHÚ Ý: Bệnh viện có statusId == 1 hoặc isHuyHopTac == true hoặc isRejected == true thì KHÔNG tính là đã duyệt
         final bool isApproved = !isHuyHopTac &&
             !isRejected &&
             statusId != 1 &&
@@ -203,22 +193,20 @@ class AdminStore extends ChangeNotifier {
                 trangThaiUpper == 'DA_DUYET' ||
                 trangThaiUpper == 'HOAT_DONG');
 
-        // Kiểm tra chặn đăng nhập
         final bool chanDangNhap = data['chan_dang_nhap'] == true ||
             data['is_blocked'] == true ||
-            (statusId == 8 || statusId == 11) && (trangThaiStr == 'chan_dang_nhap' || trangThaiStr == 'khoa');
+            (statusId == 8 || statusId == 11) &&
+                (trangThaiStr == 'chan_dang_nhap' || trangThaiStr == 'khoa');
         final String? blockReason = data['ly_do_khoa']?.toString() ??
             data['ly_do_huy']?.toString() ??
             data['ly_do_chan']?.toString();
 
         if (isApproved && !isHuyHopTac && !isRejected) {
-          // BỆNH VIỆN ĐÃ DUYỆT (Bao gồm cả đang hoạt động hoặc đang bị tạm chặn đăng nhập để quản lý)
           final depts = (data['ten_cac_khoa'] as List?)
               ?.map((e) => e.toString())
               .toList();
-          final doctorCount = depts != null && depts.isNotEmpty
-              ? (depts.length * 8)
-              : 35;
+          final doctorCount =
+              depts != null && depts.isNotEmpty ? (depts.length * 8) : 35;
           final palette = _avatarPalette[idx % _avatarPalette.length];
           idx++;
 
@@ -242,7 +230,6 @@ class AdminStore extends ChangeNotifier {
           );
           approvedList.add(hospital);
 
-          // Cơ sở đánh giá thấp hoặc vi phạm / bị chặn
           if (rating < 3.8 || chanDangNhap) {
             viols.add({
               'name': name,
@@ -256,13 +243,11 @@ class AdminStore extends ChangeNotifier {
             });
           }
         } else if (isHuyHopTac) {
-          // BỆNH VIỆN ĐÃ HỦY HỢP TÁC (LƯU TRỮ)
           final depts = (data['ten_cac_khoa'] as List?)
               ?.map((e) => e.toString())
               .toList();
-          final doctorCount = depts != null && depts.isNotEmpty
-              ? (depts.length * 8)
-              : 35;
+          final doctorCount =
+              depts != null && depts.isNotEmpty ? (depts.length * 8) : 35;
           final palette = _avatarPalette[idx % _avatarPalette.length];
           idx++;
 
@@ -280,15 +265,13 @@ class AdminStore extends ChangeNotifier {
             totalReviews: (data['tong_so_danh_gia'] as num?)?.toInt() ?? 0,
             phone: data['so_dien_thoai']?.toString(),
             email: data['email']?.toString(),
-            status: 9, // Trạng thái = 9 khi đã hủy hợp tác
+            status: 9,
             isBlocked: true,
             isUnpartnered: true,
             blockReason: blockReason ?? 'Đã ngừng hợp tác',
           );
           cancelledList.add(hospital);
         } else if (!chanDangNhap && !isHuyHopTac && !isRejected && statusId != 9) {
-          // BỆNH VIỆN MỚI THÊM TRÊN FIREBASE / CHƯA DUYỆT
-          // -> Cho vào "CHỜ DUYỆT" trước, KHÔNG hiển thị ở Tổng BV!
           final timeStr = data['ngay_tao']?.toString() ??
               data['thoi_gian_gui_str']?.toString() ??
               'Mới thêm trên hệ thống';
@@ -313,11 +296,29 @@ class AdminStore extends ChangeNotifier {
             'location': address,
             'so_giay_phep': data['so_giay_phep']?.toString() ?? doc.id,
             'ma_so_thue': data['ma_so_thue']?.toString() ?? '',
+            'ma_co_so_byt': data['ma_co_so_byt']?.toString() ?? data['ma_byt']?.toString() ?? '',
+            'co_so': data['co_so']?.toString() ?? '',
+            'loai_hinh': data['loai_hinh']?.toString() ?? type,
+            'dia_chi_map': data['dia_chi_map']?.toString() ?? '',
+            'vi_do': data['vi_do']?.toString() ?? '',
+            'kinh_do': data['kinh_do']?.toString() ?? '',
             'email': data['email']?.toString() ?? '',
             'phone': data['so_dien_thoai']?.toString() ?? '',
             'mo_ta': data['mo_ta']?.toString() ?? '',
-            'bhyt': data['bhyt']?.toString() ?? (data['co_bhyt'] == true ? 'Có hỗ trợ BHYT' : ''),
+            'bhyt': data['bhyt']?.toString() ?? (data['co_bhyt'] == true ? 'Có BHYT (Tiếp nhận KCB BHYT)' : ''),
+            'co_bhyt': (data['co_bhyt'] == true).toString(),
             'nguoi_dai_dien': data['nguoi_dai_dien']?.toString() ?? '',
+            'cccd_mat_truoc_base64': data['cccd_mat_truoc_base64']?.toString() ?? data['cccd_truoc_base64']?.toString() ?? '',
+            'cccd_mat_truoc_url': data['cccd_mat_truoc_url']?.toString() ?? '',
+            'cccd_mat_truoc_ten': data['cccd_mat_truoc_ten']?.toString() ?? '',
+            'cccd_mat_sau_base64': data['cccd_mat_sau_base64']?.toString() ?? data['cccd_sau_base64']?.toString() ?? '',
+            'cccd_mat_sau_url': data['cccd_mat_sau_url']?.toString() ?? '',
+            'cccd_mat_sau_ten': data['cccd_mat_sau_ten']?.toString() ?? '',
+            'has_cccd': (data['has_cccd'] == true || (data['cccd_mat_truoc_base64'] != null && data['cccd_mat_truoc_base64'].toString().isNotEmpty)).toString(),
+            'file_giay_phep': data['file_giay_phep']?.toString() ?? '',
+            'file_giay_phep_url': data['file_giay_phep_url']?.toString() ?? fileDoc,
+            'dung_luong_file': data['dung_luong_file']?.toString() ?? '',
+            'loai_file': data['loai_file']?.toString() ?? '',
             'hinh_anh': data['hinh_anh']?.toString() ?? '',
             'fromCollection': 'BenhVien',
           };
@@ -356,23 +357,40 @@ class AdminStore extends ChangeNotifier {
               data['hinh_anh_giay_phep']?.toString() ??
               data['file_giay_phep']?.toString() ??
               '';
-          final location = data['dia_chi']?.toString() ??
-              'Chưa cập nhật địa chỉ';
+          final location = data['dia_chi']?.toString() ?? 'Chưa cập nhật địa chỉ';
+          final cccdTruoc = data['cccd_mat_truoc_base64']?.toString() ?? data['cccd_truoc_base64']?.toString() ?? '';
+          final cccdSau = data['cccd_mat_sau_base64']?.toString() ?? data['cccd_sau_base64']?.toString() ?? '';
+          final cccdTruocUrl = data['cccd_mat_truoc_url']?.toString() ?? '';
+          final cccdSauUrl = data['cccd_mat_sau_url']?.toString() ?? '';
 
           if (pendingMap.containsKey(doc.id)) {
             final existing = pendingMap[doc.id]!;
             if (docFile.isNotEmpty) {
               existing['docs'] = docFile;
               existing['file_url'] = docFile;
+              existing['file_giay_phep_url'] = docFile;
             }
             existing['time'] = 'Gửi: $timeStr';
             if (data['so_giay_phep'] != null) existing['so_giay_phep'] = data['so_giay_phep'].toString();
             if (data['ma_so_thue'] != null) existing['ma_so_thue'] = data['ma_so_thue'].toString();
+            if (data['ma_co_so_byt'] != null) existing['ma_co_so_byt'] = data['ma_co_so_byt'].toString();
+            if (data['co_so'] != null) existing['co_so'] = data['co_so'].toString();
+            if (data['loai_hinh'] != null) existing['loai_hinh'] = data['loai_hinh'].toString();
+            if (data['dia_chi_map'] != null) existing['dia_chi_map'] = data['dia_chi_map'].toString();
+            if (data['vi_do'] != null) existing['vi_do'] = data['vi_do'].toString();
+            if (data['kinh_do'] != null) existing['kinh_do'] = data['kinh_do'].toString();
             if (data['email'] != null && existing['email']!.isEmpty) existing['email'] = data['email'].toString();
             if (data['so_dien_thoai'] != null && existing['phone']!.isEmpty) existing['phone'] = data['so_dien_thoai'].toString();
             if (data['mo_ta'] != null && existing['mo_ta']!.isEmpty) existing['mo_ta'] = data['mo_ta'].toString();
             if (data['nguoi_dai_dien'] != null && existing['nguoi_dai_dien']!.isEmpty) existing['nguoi_dai_dien'] = data['nguoi_dai_dien'].toString();
-            if (data['co_bhyt'] != null && existing['bhyt']!.isEmpty) existing['bhyt'] = data['co_bhyt'] == true ? 'Có hỗ trợ BHYT' : 'Không hỗ trợ BHYT';
+            if (data['co_bhyt'] != null && existing['bhyt']!.isEmpty) existing['bhyt'] = data['co_bhyt'] == true ? 'Có BHYT (Tiếp nhận KCB BHYT)' : 'Không hỗ trợ BHYT';
+            if (cccdTruoc.isNotEmpty) existing['cccd_mat_truoc_base64'] = cccdTruoc;
+            if (cccdSau.isNotEmpty) existing['cccd_mat_sau_base64'] = cccdSau;
+            if (cccdTruocUrl.isNotEmpty) existing['cccd_mat_truoc_url'] = cccdTruocUrl;
+            if (cccdSauUrl.isNotEmpty) existing['cccd_mat_sau_url'] = cccdSauUrl;
+            if (data['dung_luong_file'] != null) existing['dung_luong_file'] = data['dung_luong_file'].toString();
+            if (data['loai_file'] != null) existing['loai_file'] = data['loai_file'].toString();
+            if (data['file_giay_phep'] != null) existing['file_giay_phep'] = data['file_giay_phep'].toString();
           } else {
             pendingMap[doc.id] = {
               'docId': doc.id,
@@ -387,11 +405,29 @@ class AdminStore extends ChangeNotifier {
               'location': location,
               'so_giay_phep': data['so_giay_phep']?.toString() ?? '',
               'ma_so_thue': data['ma_so_thue']?.toString() ?? '',
+              'ma_co_so_byt': data['ma_co_so_byt']?.toString() ?? data['ma_byt']?.toString() ?? '',
+              'co_so': data['co_so']?.toString() ?? '',
+              'loai_hinh': data['loai_hinh']?.toString() ?? type,
+              'dia_chi_map': data['dia_chi_map']?.toString() ?? '',
+              'vi_do': data['vi_do']?.toString() ?? '',
+              'kinh_do': data['kinh_do']?.toString() ?? '',
               'email': data['email']?.toString() ?? '',
               'phone': data['so_dien_thoai']?.toString() ?? '',
               'mo_ta': data['mo_ta']?.toString() ?? data['ghi_chu']?.toString() ?? '',
-              'bhyt': data['bhyt']?.toString() ?? (data['co_bhyt'] == true ? 'Có hỗ trợ BHYT' : ''),
+              'bhyt': data['bhyt']?.toString() ?? (data['co_bhyt'] == true ? 'Có BHYT (Tiếp nhận KCB BHYT)' : (data['co_bhyt'] == false ? 'Không hỗ trợ BHYT' : '')),
+              'co_bhyt': (data['co_bhyt'] == true).toString(),
               'nguoi_dai_dien': data['nguoi_dai_dien']?.toString() ?? '',
+              'cccd_mat_truoc_base64': cccdTruoc,
+              'cccd_mat_truoc_url': cccdTruocUrl,
+              'cccd_mat_truoc_ten': data['cccd_mat_truoc_ten']?.toString() ?? '',
+              'cccd_mat_sau_base64': cccdSau,
+              'cccd_mat_sau_url': cccdSauUrl,
+              'cccd_mat_sau_ten': data['cccd_mat_sau_ten']?.toString() ?? '',
+              'has_cccd': (data['has_cccd'] == true || cccdTruoc.isNotEmpty || cccdTruocUrl.isNotEmpty).toString(),
+              'file_giay_phep': data['file_giay_phep']?.toString() ?? '',
+              'file_giay_phep_url': docFile,
+              'dung_luong_file': data['dung_luong_file']?.toString() ?? '',
+              'loai_file': data['loai_file']?.toString() ?? '',
               'hinh_anh': data['hinh_anh']?.toString() ?? '',
               'fromCollection': 'YeuCauHopTac',
             };
@@ -438,8 +474,7 @@ class AdminStore extends ChangeNotifier {
       final kind = rawKind.contains('booking') || rawKind.contains('lich')
           ? 'booking'
           : 'qr';
-      final defaultBadge =
-          kind == 'qr' ? 'Lỗi QR Check-in' : 'Lỗi Đặt Lịch';
+      final defaultBadge = kind == 'qr' ? 'Lỗi QR Check-in' : 'Lỗi Đặt Lịch';
       final badge = data['badge']?.toString() ??
           data['danh_muc']?.toString() ??
           data['loai_loi']?.toString() ??
@@ -524,99 +559,99 @@ class AdminStore extends ChangeNotifier {
     for (final doc in snapshot.docs) {
       try {
         final data = doc.data();
-      final uid = data['uid']?.toString() ?? doc.id;
-      final maBenhNhan = data['ma_benh_nhan']?.toString() ?? 'BN${doc.id.length >= 4 ? doc.id.substring(0, 4) : doc.id}';
-      final hoTen = data['ho_ten']?.toString() ?? 'Bệnh nhân ${doc.id}';
-      final email = data['email']?.toString();
-      final phone = data['so_dien_thoai']?.toString();
-      final address = data['dia_chi']?.toString();
-      final gender = data['gioi_tinh']?.toString();
-      final verified = data['da_xac_thuc_email'] == true;
-      final rawStatus = data['trang_thai_id'];
-      int statusId = 7;
-      if (rawStatus is int) {
-        statusId = rawStatus;
-      } else if (rawStatus is String) {
-        statusId = int.tryParse(rawStatus) ?? 7;
-      }
-      final trangThaiStr = data['trang_thai']?.toString().toLowerCase();
-      final isBlocked = data['chan_dang_nhap'] == true ||
-          data['is_blocked'] == true ||
-          statusId == 8 || statusId == 11 ||
-          trangThaiStr == 'khoa' ||
-          trangThaiStr == 'chan_dang_nhap';
-      final blockReason = data['ly_do_khoa']?.toString() ?? data['ly_do_chan']?.toString();
+        final uid = data['uid']?.toString() ?? doc.id;
+        final maBenhNhan = data['ma_benh_nhan']?.toString() ?? 'BN${doc.id.length >= 4 ? doc.id.substring(0, 4) : doc.id}';
+        final hoTen = data['ho_ten']?.toString() ?? 'Bệnh nhân ${doc.id}';
+        final email = data['email']?.toString();
+        final phone = data['so_dien_thoai']?.toString();
+        final address = data['dia_chi']?.toString();
+        final gender = data['gioi_tinh']?.toString();
+        final verified = data['da_xac_thuc_email'] == true;
+        final rawStatus = data['trang_thai_id'];
+        int statusId = 7;
+        if (rawStatus is int) {
+          statusId = rawStatus;
+        } else if (rawStatus is String) {
+          statusId = int.tryParse(rawStatus) ?? 7;
+        }
+        final trangThaiStr = data['trang_thai']?.toString().toLowerCase();
+        final isBlocked = data['chan_dang_nhap'] == true ||
+            data['is_blocked'] == true ||
+            statusId == 8 || statusId == 11 ||
+            trangThaiStr == 'khoa' ||
+            trangThaiStr == 'chan_dang_nhap';
+        final blockReason = data['ly_do_khoa']?.toString() ?? data['ly_do_chan']?.toString();
 
-      DateTime? ngayTao;
-      if (data['ngay_tao'] is Timestamp) {
-        ngayTao = (data['ngay_tao'] as Timestamp).toDate();
-      } else if (data['ngay_tao'] != null) {
-        try {
-          ngayTao = DateTime.parse(data['ngay_tao'].toString());
-        } catch (_) {}
-      }
+        DateTime? ngayTao;
+        if (data['ngay_tao'] is Timestamp) {
+          ngayTao = (data['ngay_tao'] as Timestamp).toDate();
+        } else if (data['ngay_tao'] != null) {
+          try {
+            ngayTao = DateTime.parse(data['ngay_tao'].toString());
+          } catch (_) {}
+        }
 
-      DateTime? ngaySinh;
-      if (data['ngay_sinh'] is Timestamp) {
-        ngaySinh = (data['ngay_sinh'] as Timestamp).toDate();
-      } else if (data['ngay_sinh'] != null) {
-        try {
-          ngaySinh = DateTime.parse(data['ngay_sinh'].toString());
-        } catch (_) {}
-      }
+        DateTime? ngaySinh;
+        if (data['ngay_sinh'] is Timestamp) {
+          ngaySinh = (data['ngay_sinh'] as Timestamp).toDate();
+        } else if (data['ngay_sinh'] != null) {
+          try {
+            ngaySinh = DateTime.parse(data['ngay_sinh'].toString());
+          } catch (_) {}
+        }
 
-      DateTime? ngayKhoa;
-      if (data['ngay_khoa'] is Timestamp) {
-        ngayKhoa = (data['ngay_khoa'] as Timestamp).toDate();
-      } else if (data['ngay_khoa'] != null) {
-        try {
-          ngayKhoa = DateTime.parse(data['ngay_khoa'].toString());
-        } catch (_) {}
-      }
+        DateTime? ngayKhoa;
+        if (data['ngay_khoa'] is Timestamp) {
+          ngayKhoa = (data['ngay_khoa'] as Timestamp).toDate();
+        } else if (data['ngay_khoa'] != null) {
+          try {
+            ngayKhoa = DateTime.parse(data['ngay_khoa'].toString());
+          } catch (_) {}
+        }
 
-      DateTime? dangNhapCuoi;
-      final rawLogin = data['dang_nhap_cuoi'] ?? data['last_login'] ?? data['lan_hoat_dong_cuoi'] ?? data['last_active'];
-      if (rawLogin is Timestamp) {
-        dangNhapCuoi = rawLogin.toDate();
-      } else if (rawLogin != null) {
-        try {
-          dangNhapCuoi = DateTime.parse(rawLogin.toString());
-        } catch (_) {}
-      }
+        DateTime? dangNhapCuoi;
+        final rawLogin = data['dang_nhap_cuoi'] ?? data['last_login'] ?? data['lan_hoat_dong_cuoi'] ?? data['last_active'];
+        if (rawLogin is Timestamp) {
+          dangNhapCuoi = rawLogin.toDate();
+        } else if (rawLogin != null) {
+          try {
+            dangNhapCuoi = DateTime.parse(rawLogin.toString());
+          } catch (_) {}
+        }
 
-      DateTime? ngayOffline;
-      final rawOff = data['ngay_offline'] ?? data['offline_at'] ?? data['thoi_gian_offline'];
-      if (rawOff is Timestamp) {
-        ngayOffline = rawOff.toDate();
-      } else if (rawOff != null) {
-        try {
-          ngayOffline = DateTime.parse(rawOff.toString());
-        } catch (_) {}
-      }
+        DateTime? ngayOffline;
+        final rawOff = data['ngay_offline'] ?? data['offline_at'] ?? data['thoi_gian_offline'];
+        if (rawOff is Timestamp) {
+          ngayOffline = rawOff.toDate();
+        } else if (rawOff != null) {
+          try {
+            ngayOffline = DateTime.parse(rawOff.toString());
+          } catch (_) {}
+        }
 
-      final palette = _avatarPalette[idx % _avatarPalette.length];
-      idx++;
+        final palette = _avatarPalette[idx % _avatarPalette.length];
+        idx++;
 
-      list.add(AdminPatient(
-        uid: uid,
-        maBenhNhan: maBenhNhan,
-        hoTen: hoTen,
-        email: email,
-        soDienThoai: phone,
-        diaChi: address,
-        gioiTinh: gender,
-        ngaySinh: ngaySinh,
-        ngayTao: ngayTao,
-        daXacThucEmail: verified,
-        trangThaiId: statusId,
-        isBlocked: isBlocked,
-        blockReason: blockReason,
-        ngayKhoa: ngayKhoa,
-        ngayOffline: ngayOffline,
-        dangNhapCuoi: dangNhapCuoi,
-        avatarBg: palette[0],
-        avatarText: palette[1],
-      ));
+        list.add(AdminPatient(
+          uid: uid,
+          maBenhNhan: maBenhNhan,
+          hoTen: hoTen,
+          email: email,
+          soDienThoai: phone,
+          diaChi: address,
+          gioiTinh: gender,
+          ngaySinh: ngaySinh,
+          ngayTao: ngayTao,
+          daXacThucEmail: verified,
+          trangThaiId: statusId,
+          isBlocked: isBlocked,
+          blockReason: blockReason,
+          ngayKhoa: ngayKhoa,
+          ngayOffline: ngayOffline,
+          dangNhapCuoi: dangNhapCuoi,
+          avatarBg: palette[0],
+          avatarText: palette[1],
+        ));
       } catch (err) {
         debugPrint('Lỗi phân tích bệnh nhân ${doc.id}: $err');
       }
@@ -630,7 +665,6 @@ class AdminStore extends ChangeNotifier {
 
   void _initFirebaseSync() {
     try {
-      // 1. Lắng nghe danh sách bệnh viện từ Firestore collection 'BenhVien'
       _hospitalsSub = _firestore.collection('BenhVien').snapshots().listen(
         (snapshot) {
           _hospitalsSnap = snapshot;
@@ -643,7 +677,6 @@ class AdminStore extends ChangeNotifier {
         },
       );
 
-      // 2. Lắng nghe hồ sơ chờ duyệt từ 'YeuCauHopTac'
       _pendingSub = _firestore.collection('YeuCauHopTac').snapshots().listen(
         (snapshot) {
           _pendingSnap = snapshot;
@@ -656,7 +689,6 @@ class AdminStore extends ChangeNotifier {
         },
       );
 
-      // 3. Lắng nghe báo cáo lỗi từ 'BaoCaoLoi'
       _reportsSub = _firestore.collection('BaoCaoLoi').snapshots().listen(
         (snapshot) {
           _processReportsSnapshot(snapshot);
@@ -668,7 +700,6 @@ class AdminStore extends ChangeNotifier {
         },
       );
 
-      // 4. Lắng nghe danh sách bệnh nhân từ 'BenhNhan'
       _patientsSub = _firestore.collection('BenhNhan').snapshots().listen(
         (snapshot) {
           _processPatientsSnapshot(snapshot);
@@ -720,12 +751,11 @@ class AdminStore extends ChangeNotifier {
     violations.removeWhere((v) => v['match'] == h['name']);
     notifyListeners();
 
-    // Ghi lên Firestore
     try {
-      // 1. Cập nhật hoặc tạo mới trong BenhVien với trạng thái ĐÃ DUYỆT (10)
-      await _firestore.collection('BenhVien').doc(docId).set({
+      final Map<String, dynamic> bvData = {
         'ten_benh_vien': h['name'],
-        'co_so': h['type'],
+        'co_so': (h['co_so'] != null && h['co_so']!.isNotEmpty) ? h['co_so'] : (h['type'] ?? 'Tư nhân'),
+        'loai_hinh': (h['loai_hinh'] != null && h['loai_hinh']!.isNotEmpty) ? h['loai_hinh'] : (h['type'] ?? 'Bệnh viện Tư nhân'),
         'dia_chi': h['location'],
         'trang_thai_hop_tac_id': 10,
         'trang_thai': 'da_duyet',
@@ -737,19 +767,89 @@ class AdminStore extends ChangeNotifier {
         'ngay_hop_tac': FieldValue.serverTimestamp(),
         'da_xac_thuc_email': true,
         'role': 'benh_vien',
-      }, SetOptions(merge: true));
+      };
 
-      // 2. Cập nhật YeuCauHopTac nếu tồn tại
+      if (h['ma_co_so_byt'] != null && h['ma_co_so_byt']!.isNotEmpty) {
+        bvData['ma_co_so_byt'] = h['ma_co_so_byt'];
+      }
+      if (h['ma_so_thue'] != null && h['ma_so_thue']!.isNotEmpty) {
+        bvData['ma_so_thue'] = h['ma_so_thue'];
+      }
+      if (h['so_giay_phep'] != null && h['so_giay_phep']!.isNotEmpty) {
+        bvData['so_giay_phep'] = h['so_giay_phep'];
+      }
+      if (h['dia_chi_map'] != null && h['dia_chi_map']!.isNotEmpty) {
+        bvData['dia_chi_map'] = h['dia_chi_map'];
+      }
+      if (h['vi_do'] != null && h['vi_do']!.isNotEmpty) {
+        bvData['vi_do'] = double.tryParse(h['vi_do']!) ?? h['vi_do'];
+      }
+      if (h['kinh_do'] != null && h['kinh_do']!.isNotEmpty) {
+        bvData['kinh_do'] = double.tryParse(h['kinh_do']!) ?? h['kinh_do'];
+      }
+      if (h['bhyt'] != null && h['bhyt']!.isNotEmpty) {
+        bvData['bhyt'] = h['bhyt'];
+        bvData['co_bhyt'] = h['co_bhyt'] == 'true' || h['bhyt']!.toLowerCase().contains('có');
+      }
+      if (h['cccd_mat_truoc_base64'] != null && h['cccd_mat_truoc_base64']!.isNotEmpty) {
+        bvData['cccd_mat_truoc_base64'] = h['cccd_mat_truoc_base64'];
+      }
+      if (h['cccd_mat_truoc_url'] != null && h['cccd_mat_truoc_url']!.isNotEmpty) {
+        bvData['cccd_mat_truoc_url'] = h['cccd_mat_truoc_url'];
+      }
+      if (h['cccd_mat_truoc_ten'] != null && h['cccd_mat_truoc_ten']!.isNotEmpty) {
+        bvData['cccd_mat_truoc_ten'] = h['cccd_mat_truoc_ten'];
+      }
+      if (h['cccd_mat_sau_base64'] != null && h['cccd_mat_sau_base64']!.isNotEmpty) {
+        bvData['cccd_mat_sau_base64'] = h['cccd_mat_sau_base64'];
+      }
+      if (h['cccd_mat_sau_url'] != null && h['cccd_mat_sau_url']!.isNotEmpty) {
+        bvData['cccd_mat_sau_url'] = h['cccd_mat_sau_url'];
+      }
+      if (h['cccd_mat_sau_ten'] != null && h['cccd_mat_sau_ten']!.isNotEmpty) {
+        bvData['cccd_mat_sau_ten'] = h['cccd_mat_sau_ten'];
+      }
+      bvData['has_cccd'] = h['has_cccd'] == 'true' ||
+          (h['cccd_mat_truoc_base64'] != null && h['cccd_mat_truoc_base64']!.isNotEmpty) ||
+          (h['cccd_mat_truoc_url'] != null && h['cccd_mat_truoc_url']!.isNotEmpty);
+      if (h['file_giay_phep'] != null && h['file_giay_phep']!.isNotEmpty) {
+        bvData['file_giay_phep'] = h['file_giay_phep'];
+      }
+      if (h['file_giay_phep_url'] != null && h['file_giay_phep_url']!.isNotEmpty) {
+        bvData['file_giay_phep_url'] = h['file_giay_phep_url'];
+      }
+      if (h['dung_luong_file'] != null && h['dung_luong_file']!.isNotEmpty) {
+        bvData['dung_luong_file'] = h['dung_luong_file'];
+      }
+      if (h['loai_file'] != null && h['loai_file']!.isNotEmpty) {
+        bvData['loai_file'] = h['loai_file'];
+      }
+      if (h['email'] != null && h['email']!.isNotEmpty) {
+        bvData['email'] = h['email'];
+      }
+      if (h['phone'] != null && h['phone']!.isNotEmpty) {
+        bvData['so_dien_thoai'] = h['phone'];
+      }
+      if (h['nguoi_dai_dien'] != null && h['nguoi_dai_dien']!.isNotEmpty) {
+        bvData['nguoi_dai_dien'] = h['nguoi_dai_dien'];
+      }
+      if (h['mo_ta'] != null && h['mo_ta']!.isNotEmpty) {
+        bvData['mo_ta'] = h['mo_ta'];
+      }
+
+      await _firestore.collection('BenhVien').doc(docId).set(bvData, SetOptions(merge: true));
+
       try {
         final ycDoc = await _firestore.collection('YeuCauHopTac').doc(docId).get();
         if (ycDoc.exists) {
-          await _firestore.collection('YeuCauHopTac').doc(docId).set({
+          final Map<String, dynamic> ycData = {
             'trang_thai_hop_tac_id': 10,
             'trang_thai': 'da_duyet',
             'trangThai': 'DA_DUYET',
             'da_duyet': true,
             'ngay_duyet': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+          };
+          await _firestore.collection('YeuCauHopTac').doc(docId).set(ycData, SetOptions(merge: true));
         }
       } catch (_) {}
     } catch (e) {
@@ -768,7 +868,6 @@ class AdminStore extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Cập nhật BenhVien nếu có
       try {
         final bvDoc = await _firestore.collection('BenhVien').doc(docId).get();
         if (bvDoc.exists) {
@@ -783,7 +882,6 @@ class AdminStore extends ChangeNotifier {
         }
       } catch (_) {}
 
-      // 2. Cập nhật YeuCauHopTac nếu có
       try {
         final ycDoc = await _firestore.collection('YeuCauHopTac').doc(docId).get();
         if (ycDoc.exists) {
@@ -832,7 +930,7 @@ class AdminStore extends ChangeNotifier {
     h.isUnpartnered = true;
     h.isBlocked = true;
     h.blockReason = reason;
-    h.status = 1; // Chuyển trạng thái về 1 (Chờ duyệt / Hủy hợp tác)
+    h.status = 1;
     hospitals.remove(h);
     if (!cancelledHospitals.contains(h)) {
       cancelledHospitals.insert(0, h);
@@ -843,9 +941,6 @@ class AdminStore extends ChangeNotifier {
     try {
       final code = h.code;
       if (code != null && code.isNotEmpty) {
-        // Cập nhật trạng thái trên Firebase BenhVien:
-        // Chuyển trang_thai_hop_tac_id sang 9 (Hủy Hợp Tác)
-        // và gắn cờ chan_dang_nhap, da_duyet = false để không thể đăng nhập
         await _firestore.collection('BenhVien').doc(code).update({
           'trang_thai_hop_tac_id': 9,
           'da_duyet': false,
@@ -858,7 +953,6 @@ class AdminStore extends ChangeNotifier {
           'ngay_ngung_hop_tac': FieldValue.serverTimestamp(),
         });
 
-        // Cập nhật đồng bộ trên YeuCauHopTac nếu có
         try {
           final ycDoc = await _firestore.collection('YeuCauHopTac').doc(code).get();
           if (ycDoc.exists) {
@@ -873,35 +967,14 @@ class AdminStore extends ChangeNotifier {
           }
         } catch (_) {}
 
-        // Chặn quyền đăng nhập trong collection NhanVien của bệnh viện này
-        try {
-          final nvDoc = await _firestore.collection('NhanVien').doc(code).get();
-          if (nvDoc.exists) {
-            await _firestore.collection('NhanVien').doc(code).update({
-              'trangThaiHoatDong': false,
-              'chan_dang_nhap': true,
-              'trang_thai_hop_tac_id': 9,
-            });
-          }
+        await _syncHospitalAndStaffStatusInNhanVien(
+          code: code,
+          maBenhVien: h.code,
+          hospitalName: h.name,
+          isBlocked: true,
+          reason: reason,
+        );
 
-          final staffQueries = [
-            _firestore.collection('NhanVien').where('id_benh_vien', isEqualTo: code).get(),
-            _firestore.collection('NhanVien').where('benh_vien_id', isEqualTo: code).get(),
-            _firestore.collection('NhanVien').where('ma_benh_vien', isEqualTo: code).get(),
-          ];
-          final results = await Future.wait(staffQueries);
-          for (final snap in results) {
-            for (final doc in snap.docs) {
-              await doc.reference.update({
-                'trangThaiHoatDong': false,
-                'chan_dang_nhap': true,
-                'trang_thai_hop_tac_id': 9,
-              });
-            }
-          }
-        } catch (_) {}
-
-        // Vô hiệu hóa tài khoản gốc trên Firebase Auth và thu hồi phiên đăng nhập
         try {
           await FirebaseAdminAuthService.instance.disableAndRevokeUser(
             uid: code,
@@ -911,7 +984,6 @@ class AdminStore extends ChangeNotifier {
           debugPrint('Lỗi vô hiệu hóa Firebase Auth cho bệnh viện: $e');
         }
 
-        // Gửi thông báo hệ thống
         await _firestore.collection('ThongBaoHeThong').add({
           'tieu_de': 'Hủy hợp tác bệnh viện',
           'noi_dung': 'Quản trị viên đã hủy thỏa thuận hợp tác với bệnh viện: ${h.name} ($code). Lý do: $reason',
@@ -922,7 +994,6 @@ class AdminStore extends ChangeNotifier {
           'ngay_tao': FieldValue.serverTimestamp(),
         });
 
-        // Gửi email thông báo ngừng hợp tác tới email đăng ký của bệnh viện
         if (h.email != null && h.email!.isNotEmpty) {
           await EmailService.instance.sendPartnershipCancelledEmail(
             toEmail: h.email!,
@@ -941,7 +1012,7 @@ class AdminStore extends ChangeNotifier {
     h.isUnpartnered = false;
     h.isBlocked = false;
     h.blockReason = null;
-    h.status = 10; // Trở lại trạng thái 10 (Hợp tác)
+    h.status = 10;
     cancelledHospitals.remove(h);
     if (!hospitals.contains(h)) {
       hospitals.insert(0, h);
@@ -951,7 +1022,6 @@ class AdminStore extends ChangeNotifier {
     try {
       final code = h.code;
       if (code != null && code.isNotEmpty) {
-        // Cập nhật trạng thái trên Firebase BenhVien: Chuyển lại về 10 (Hợp tác)
         await _firestore.collection('BenhVien').doc(code).update({
           'trang_thai_hop_tac_id': 10,
           'da_duyet': true,
@@ -965,7 +1035,6 @@ class AdminStore extends ChangeNotifier {
           'ngay_khoi_phuc_hop_tac': FieldValue.serverTimestamp(),
         });
 
-        // Cập nhật lại YeuCauHopTac nếu có
         try {
           final ycDoc = await _firestore.collection('YeuCauHopTac').doc(code).get();
           if (ycDoc.exists) {
@@ -980,35 +1049,13 @@ class AdminStore extends ChangeNotifier {
           }
         } catch (_) {}
 
-        // Mở khóa quyền đăng nhập tài khoản nhân viên / quản lý trong collection NhanVien
-        try {
-          final nvDoc = await _firestore.collection('NhanVien').doc(code).get();
-          if (nvDoc.exists) {
-            await _firestore.collection('NhanVien').doc(code).update({
-              'trangThaiHoatDong': true,
-              'chan_dang_nhap': false,
-              'trang_thai_hop_tac_id': 10,
-            });
-          }
+        await _syncHospitalAndStaffStatusInNhanVien(
+          code: code,
+          maBenhVien: h.code,
+          hospitalName: h.name,
+          isBlocked: false,
+        );
 
-          final staffQueries = [
-            _firestore.collection('NhanVien').where('id_benh_vien', isEqualTo: code).get(),
-            _firestore.collection('NhanVien').where('benh_vien_id', isEqualTo: code).get(),
-            _firestore.collection('NhanVien').where('ma_benh_vien', isEqualTo: code).get(),
-          ];
-          final results = await Future.wait(staffQueries);
-          for (final snap in results) {
-            for (final doc in snap.docs) {
-              await doc.reference.update({
-                'trangThaiHoatDong': true,
-                'chan_dang_nhap': false,
-                'trang_thai_hop_tac_id': 10,
-              });
-            }
-          }
-        } catch (_) {}
-
-        // Mở khóa tài khoản gốc trên Firebase Auth
         try {
           await FirebaseAdminAuthService.instance.enableUser(
             uid: code,
@@ -1018,7 +1065,6 @@ class AdminStore extends ChangeNotifier {
           debugPrint('Lỗi mở khóa Firebase Auth cho bệnh viện: $e');
         }
 
-        // Gửi thông báo hệ thống
         await _firestore.collection('ThongBaoHeThong').add({
           'tieu_de': 'Khôi phục hợp tác bệnh viện',
           'noi_dung': 'Quản trị viên đã khôi phục hợp tác với bệnh viện: ${h.name} ($code)',
@@ -1029,7 +1075,6 @@ class AdminStore extends ChangeNotifier {
           'ngay_tao': FieldValue.serverTimestamp(),
         });
 
-        // Gửi email thông báo khôi phục hợp tác
         if (h.email != null && h.email!.isNotEmpty) {
           await EmailService.instance.sendPartnershipRestoredEmail(
             toEmail: h.email!,
@@ -1039,6 +1084,231 @@ class AdminStore extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Lỗi khôi phục hợp tác bệnh viện trên Firebase: $e');
+    }
+  }
+
+  /// ĐỒNG BỘ KHÓA HOẶC MỞ KHÓA TẤT CẢ TÀI KHOẢN NHÂN VIÊN TRONG 'NhanVien'
+  Future<void> _syncHospitalAndStaffStatusInNhanVien({
+    required String code,
+    String? maBenhVien,
+    String? hospitalName,
+    required bool isBlocked,
+    String? reason,
+  }) async {
+    final Set<String> targetDocIds = {};
+    if (code.isNotEmpty) targetDocIds.add(code);
+    if (maBenhVien != null && maBenhVien.isNotEmpty) targetDocIds.add(maBenhVien);
+
+    try {
+      for (final id in targetDocIds.toList()) {
+        try {
+          final nvDoc = await _firestore.collection('NhanVien').doc(id).get();
+          if (nvDoc.exists) {
+            targetDocIds.add(nvDoc.id);
+            final mbv = nvDoc.data()?['ma_benh_vien']?.toString();
+            if (mbv != null && mbv.isNotEmpty) targetDocIds.add(mbv);
+          }
+        } catch (_) {}
+      }
+
+      for (final key in targetDocIds.toList()) {
+        try {
+          final q1 = await _firestore.collection('NhanVien').where('ma_benh_vien', isEqualTo: key).get();
+          for (final d in q1.docs) targetDocIds.add(d.id);
+        } catch (_) {}
+        try {
+          final q2 = await _firestore.collection('NhanVien').where('benh_vien_id', isEqualTo: key).get();
+          for (final d in q2.docs) targetDocIds.add(d.id);
+        } catch (_) {}
+        try {
+          final q3 = await _firestore.collection('NhanVien').where('id_benh_vien', isEqualTo: key).get();
+          for (final d in q3.docs) targetDocIds.add(d.id);
+        } catch (_) {}
+      }
+
+      if (hospitalName != null && hospitalName.isNotEmpty) {
+        try {
+          final qName = await _firestore.collection('NhanVien').where('ten_benh_vien', isEqualTo: hospitalName).get();
+          for (final d in qName.docs) targetDocIds.add(d.id);
+        } catch (_) {}
+      }
+
+      for (final nvDocId in targetDocIds) {
+        try {
+          final nvDocRef = _firestore.collection('NhanVien').doc(nvDocId);
+
+          await nvDocRef.set({
+            'trangThaiHoatDong': !isBlocked,
+            'chan_dang_nhap': isBlocked,
+            'is_blocked': isBlocked,
+            'trang_thai_hop_tac_id': isBlocked ? 9 : 10,
+            if (isBlocked && reason != null) 'ly_do_huy': reason,
+            if (!isBlocked) 'ly_do_huy': FieldValue.delete(),
+          }, SetOptions(merge: true));
+
+          final danhSachSnap = await nvDocRef.collection('danh_sach').get();
+          for (final staffDoc in danhSachSnap.docs) {
+            final sData = staffDoc.data();
+            final sUid = sData['uid']?.toString() ?? sData['auth_uid']?.toString();
+            final sEmail = sData['email']?.toString();
+
+            await staffDoc.reference.update({
+              'chan_dang_nhap': isBlocked,
+              'trangThaiHoatDong': !isBlocked,
+              'da_kich_hoat': !isBlocked,
+              'trang_thai': isBlocked ? 'tam_khoa' : 'dang_hoat_dong',
+              if (isBlocked && reason != null) 'ly_do_khoa': reason,
+            });
+
+            if (sUid != null || sEmail != null) {
+              if (isBlocked) {
+                await FirebaseAdminAuthService.instance.disableAndRevokeUser(
+                  uid: sUid ?? '',
+                  email: sEmail,
+                );
+              } else {
+                await FirebaseAdminAuthService.instance.enableUser(
+                  uid: sUid ?? '',
+                  email: sEmail,
+                );
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('❌ [NhanVien Sync] Lỗi cập nhật NhanVien/$nvDocId: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ [NhanVien Sync] Lỗi: $e');
+    }
+  }
+
+  /// XÓA HOÀN TOÀN BỆNH VIỆN VÀ TOÀN BỘ TÀI KHOẢN NHÂN VIÊN TRONG 'NhanVien'
+  Future<void> _deleteHospitalAndStaffInNhanVien({
+    required String code,
+    String? maBenhVien,
+    String? hospitalName,
+    String? authUid,
+  }) async {
+    final Set<String> targetDocIds = {};
+    if (code.isNotEmpty) targetDocIds.add(code);
+    if (maBenhVien != null && maBenhVien.isNotEmpty) targetDocIds.add(maBenhVien);
+    if (authUid != null && authUid.isNotEmpty) targetDocIds.add(authUid);
+
+    try {
+      for (final id in targetDocIds.toList()) {
+        try {
+          final nvDoc = await _firestore.collection('NhanVien').doc(id).get();
+          if (nvDoc.exists) {
+            targetDocIds.add(nvDoc.id);
+            final data = nvDoc.data();
+            final mbv = data?['ma_benh_vien']?.toString();
+            if (mbv != null && mbv.isNotEmpty) targetDocIds.add(mbv);
+          }
+        } catch (_) {}
+      }
+
+      for (final key in targetDocIds.toList()) {
+        try {
+          final q1 = await _firestore.collection('NhanVien').where('ma_benh_vien', isEqualTo: key).get();
+          for (final d in q1.docs) targetDocIds.add(d.id);
+        } catch (_) {}
+        try {
+          final q2 = await _firestore.collection('NhanVien').where('benh_vien_id', isEqualTo: key).get();
+          for (final d in q2.docs) targetDocIds.add(d.id);
+        } catch (_) {}
+        try {
+          final q3 = await _firestore.collection('NhanVien').where('id_benh_vien', isEqualTo: key).get();
+          for (final d in q3.docs) targetDocIds.add(d.id);
+        } catch (_) {}
+      }
+
+      if (hospitalName != null && hospitalName.isNotEmpty) {
+        try {
+          final qName = await _firestore.collection('NhanVien').where('ten_benh_vien', isEqualTo: hospitalName).get();
+          for (final d in qName.docs) targetDocIds.add(d.id);
+        } catch (_) {}
+      }
+
+      debugPrint('🏥 [NhanVien Cleanup] Danh sách bệnh viện trong NhanVien cần xóa: $targetDocIds');
+
+      for (final nvDocId in targetDocIds) {
+        try {
+          final nvDocRef = _firestore.collection('NhanVien').doc(nvDocId);
+
+          final danhSachSnap = await nvDocRef.collection('danh_sach').get();
+          debugPrint('👨‍⚕️ [NhanVien Cleanup] Tìm thấy ${danhSachSnap.docs.length} nhân viên trong NhanVien/$nvDocId/danh_sach');
+
+          for (final staffDoc in danhSachSnap.docs) {
+            final sData = staffDoc.data();
+            final sUid = sData['uid']?.toString() ?? sData['auth_uid']?.toString();
+            final sEmail = sData['email']?.toString();
+
+            if (sUid != null || sEmail != null) {
+              try {
+                await FirebaseAdminAuthService.instance.deleteUser(
+                  uid: sUid ?? '',
+                  email: sEmail,
+                );
+                debugPrint('✅ [NhanVien Cleanup] Đã xóa Auth nhân viên: $sUid ($sEmail)');
+              } catch (e) {
+                debugPrint('❌ [NhanVien Cleanup] Lỗi xóa Auth nhân viên: $e');
+              }
+            }
+            await staffDoc.reference.delete();
+          }
+
+          await nvDocRef.delete();
+          debugPrint('✅ [NhanVien Cleanup] Đã xóa hoàn toàn document NhanVien/$nvDocId');
+        } catch (e) {
+          debugPrint('❌ [NhanVien Cleanup] Lỗi khi xử lý NhanVien/$nvDocId: $e');
+        }
+      }
+
+      for (final key in targetDocIds) {
+        try {
+          final group1 = await _firestore.collectionGroup('danh_sach').where('ma_benh_vien', isEqualTo: key).get();
+          for (final d in group1.docs) {
+            final sData = d.data();
+            final sUid = sData['uid']?.toString() ?? sData['auth_uid']?.toString();
+            final sEmail = sData['email']?.toString();
+            if (sUid != null || sEmail != null) {
+              try { await FirebaseAdminAuthService.instance.deleteUser(uid: sUid ?? '', email: sEmail); } catch (_) {}
+            }
+            await d.reference.delete();
+          }
+        } catch (_) {}
+
+        try {
+          final group2 = await _firestore.collectionGroup('danh_sach').where('benh_vien_id', isEqualTo: key).get();
+          for (final d in group2.docs) {
+            final sData = d.data();
+            final sUid = sData['uid']?.toString() ?? sData['auth_uid']?.toString();
+            final sEmail = sData['email']?.toString();
+            if (sUid != null || sEmail != null) {
+              try { await FirebaseAdminAuthService.instance.deleteUser(uid: sUid ?? '', email: sEmail); } catch (_) {}
+            }
+            await d.reference.delete();
+          }
+        } catch (_) {}
+      }
+
+      for (final key in targetDocIds) {
+        try {
+          final qStaff = await _firestore.collection('NhanVien').where('ma_benh_vien', isEqualTo: key).get();
+          for (final doc in qStaff.docs) {
+            final sData = doc.data();
+            final sUid = sData['uid']?.toString() ?? sData['auth_uid']?.toString();
+            final sEmail = sData['email']?.toString();
+            if (sUid != null || sEmail != null) {
+              try { await FirebaseAdminAuthService.instance.deleteUser(uid: sUid ?? '', email: sEmail); } catch (_) {}
+            }
+            await doc.reference.delete();
+          }
+        } catch (_) {}
+      }
+    } catch (e) {
+      debugPrint('❌ [NhanVien Cleanup] Lỗi dọn dẹp NhanVien: $e');
     }
   }
 
@@ -1056,13 +1326,17 @@ class AdminStore extends ChangeNotifier {
       if (code != null && code.isNotEmpty) {
         String? finalEmail = email;
         String targetAuthUid = code;
+        String? maBenhVien = code;
 
-        // 0. Đọc thông tin từ collection BenhVien trước khi xóa tài liệu
         try {
           final bvSnap = await _firestore.collection('BenhVien').doc(code).get();
           if (bvSnap.exists) {
             final data = bvSnap.data();
             if (data != null) {
+              maBenhVien = data['ma_benh_vien']?.toString() ??
+                  data['code']?.toString() ??
+                  data['id']?.toString() ??
+                  maBenhVien;
               if (finalEmail == null || finalEmail.isEmpty) {
                 finalEmail = data['email']?.toString();
               }
@@ -1078,17 +1352,17 @@ class AdminStore extends ChangeNotifier {
           debugPrint('Lỗi đọc dữ liệu BenhVien trước khi xóa: $e');
         }
 
-        // Kiểm tra trong YeuCauHopTac nếu vẫn chưa có email
         if (finalEmail == null || finalEmail.isEmpty) {
           try {
             final ycSnap = await _firestore.collection('YeuCauHopTac').doc(code).get();
             if (ycSnap.exists) {
               finalEmail = ycSnap.data()?['email']?.toString();
+              final mbv = ycSnap.data()?['ma_benh_vien']?.toString();
+              if (mbv != null && mbv.isNotEmpty) maBenhVien = mbv;
             }
           } catch (_) {}
         }
 
-        // 1. XÓA VĨNH VIỄN TÀI KHOẢN KHỎI FIREBASE AUTHENTICATION (BẢNG USERS TRÊN CONSOLE)
         try {
           final deletedAuth = await FirebaseAdminAuthService.instance.deleteUser(
             uid: targetAuthUid,
@@ -1103,24 +1377,45 @@ class AdminStore extends ChangeNotifier {
           debugPrint('❌ Lỗi xóa tài khoản bệnh viện trên Firebase Auth: $e');
         }
 
-        // 2. Xóa trong collection BenhVien
+        await _deleteHospitalAndStaffInNhanVien(
+          code: code,
+          maBenhVien: maBenhVien,
+          hospitalName: name,
+          authUid: targetAuthUid,
+        );
+
         await _firestore.collection('BenhVien').doc(code).delete();
+        if (maBenhVien != null && maBenhVien != code) {
+          try { await _firestore.collection('BenhVien').doc(maBenhVien).delete(); } catch (_) {}
+        }
 
-        // 3. Xóa trong YeuCauHopTac
-        try {
-          await _firestore.collection('YeuCauHopTac').doc(code).delete();
-        } catch (_) {}
+        try { await _firestore.collection('YeuCauHopTac').doc(code).delete(); } catch (_) {}
+        if (maBenhVien != null && maBenhVien != code) {
+          try { await _firestore.collection('YeuCauHopTac').doc(maBenhVien).delete(); } catch (_) {}
+        }
 
-        // 4. Xóa trong NhanVien
-        try {
-          await _firestore.collection('NhanVien').doc(code).delete();
-        } catch (_) {}
+        final relatedCollections = ['PhongKham', 'Khoa', 'PhanCong'];
+        for (final colName in relatedCollections) {
+          for (final key in {code, maBenhVien, targetAuthUid}.whereType<String>().where((s) => s.isNotEmpty)) {
+            try {
+              final snap1 = await _firestore.collection(colName).where('benh_vien_id', isEqualTo: key).get();
+              for (final d in snap1.docs) await d.reference.delete();
+            } catch (_) {}
+            try {
+              final snap2 = await _firestore.collection(colName).where('ma_benh_vien', isEqualTo: key).get();
+              for (final d in snap2.docs) await d.reference.delete();
+            } catch (_) {}
+            try {
+              final snap3 = await _firestore.collection(colName).where('id_benh_vien', isEqualTo: key).get();
+              for (final d in snap3.docs) await d.reference.delete();
+            } catch (_) {}
+          }
+        }
 
-        // 5. Ghi nhật ký thông báo hệ thống
         try {
           await _firestore.collection('ThongBaoHeThong').add({
-            'tieu_de': 'Đã xóa vĩnh viễn bệnh viện',
-            'noi_dung': 'Quản trị viên đã xóa hoàn toàn hồ sơ và tài khoản bệnh viện: $name ($code)',
+            'tieu_de': 'Đã xóa vĩnh viễn bệnh viện và nhân viên',
+            'noi_dung': 'Quản trị viên đã xóa hoàn toàn hồ sơ và tài khoản bệnh viện cùng toàn bộ nhân viên: $name ($code)',
             'loai': 'xoa_tai_khoan_bv',
             'da_doc': false,
             'thoi_gian_hien_thi': 'Vừa xong',
@@ -1128,7 +1423,6 @@ class AdminStore extends ChangeNotifier {
           });
         } catch (_) {}
 
-        // 6. Gửi email thông báo xóa tài khoản bệnh viện
         if (finalEmail != null && finalEmail.isNotEmpty) {
           await EmailService.instance.sendAccountDeletedEmail(
             toEmail: finalEmail,
@@ -1148,13 +1442,7 @@ class AdminStore extends ChangeNotifier {
   }
 
   /// SỬA THÔNG TIN BỆNH VIỆN
-  void updateHospital(
-    Hospital h, {
-    String? name,
-    String? type,
-    String? address,
-    int? doctors,
-  }) async {
+  void updateHospital(Hospital h, {String? name, String? type, String? address, int? doctors}) async {
     if (name != null && name.isNotEmpty) h.name = name;
     if (type != null && type.isNotEmpty) h.type = type;
     if (address != null && address.isNotEmpty) h.address = address;
@@ -1189,17 +1477,11 @@ class AdminStore extends ChangeNotifier {
         time: 'Vừa xong',
       ),
     );
-    resolveReportAndNotify(
-      report,
-      'Quản trị viên đã tiếp nhận và giải quyết thành công sự cố này.',
-    );
+    resolveReportAndNotify(report, 'Quản trị viên đã tiếp nhận và giải quyết thành công sự cố này.');
   }
 
   /// XỬ LÝ SỰ CỐ VÀ GỬI THÔNG BÁO CHO NGƯỜI GỬI
-  Future<void> resolveReportAndNotify(
-    ErrorReport report,
-    String responseMessage,
-  ) async {
+  Future<void> resolveReportAndNotify(ErrorReport report, String responseMessage) async {
     final resolvedItem = ErrorReport(
       id: report.id,
       kind: report.kind,
@@ -1219,7 +1501,6 @@ class AdminStore extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Cập nhật BaoCaoLoi
       await _firestore.collection('BaoCaoLoi').doc(report.id).update({
         'trang_thai_xu_ly': 'DA_GIAI_QUYET',
         'trang_thai': 'da_giai_quyet',
@@ -1229,7 +1510,6 @@ class AdminStore extends ChangeNotifier {
         'ngay_giai_quyet': FieldValue.serverTimestamp(),
       });
 
-      // 2. Gửi thông báo đến ThongBaoHeThong
       await _firestore.collection('ThongBaoHeThong').add({
         'tieu_de': 'Đã xử lý sự cố: ${report.title}',
         'noi_dung': 'Quản trị viên đã xử lý và phản hồi tới ${report.sender}: "$responseMessage"',
@@ -1247,23 +1527,15 @@ class AdminStore extends ChangeNotifier {
 
   /// LỌC BÁO CÁO THEO LOẠI
   List<ErrorReport> filteredReports(int filter) {
-    if (filter == 1) {
-      return reports.where((r) => r.kind == 'booking').toList();
-    }
-    if (filter == 2) {
-      return reports.where((r) => r.kind == 'qr').toList();
-    }
+    if (filter == 1) return reports.where((r) => r.kind == 'booking').toList();
+    if (filter == 2) return reports.where((r) => r.kind == 'qr').toList();
     return List.of(reports);
   }
 
   /// LỌC LỊCH SỬ BÁO CÁO ĐÃ GIẢI QUYẾT
   List<ErrorReport> filteredResolvedReports(int filter) {
-    if (filter == 1) {
-      return resolvedReports.where((r) => r.kind == 'booking').toList();
-    }
-    if (filter == 2) {
-      return resolvedReports.where((r) => r.kind == 'qr').toList();
-    }
+    if (filter == 1) return resolvedReports.where((r) => r.kind == 'booking').toList();
+    if (filter == 2) return resolvedReports.where((r) => r.kind == 'qr').toList();
     return List.of(resolvedReports);
   }
 
@@ -1290,7 +1562,6 @@ class AdminStore extends ChangeNotifier {
         'ngay_khoa': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      // Gửi thông báo hệ thống
       await _firestore.collection('ThongBaoHeThong').add({
         'tieu_de': 'Khóa tài khoản bệnh nhân',
         'noi_dung': 'Quản trị viên đã khóa tài khoản bệnh nhân: ${p.hoTen} (${p.maBenhNhan}). Lý do: $reason',
@@ -1301,17 +1572,15 @@ class AdminStore extends ChangeNotifier {
         'ngay_tao': FieldValue.serverTimestamp(),
       });
 
-      // Vô hiệu hóa tài khoản gốc trên Firebase Auth và thu hồi phiên đăng nhập
       try {
         await FirebaseAdminAuthService.instance.disableAndRevokeUser(
           uid: p.uid,
           email: p.email,
         );
       } catch (e) {
-        debugPrint('Lỗi vô hiệu hóa Firebase Auth: ');
+        debugPrint('Lỗi vô hiệu hóa Firebase Auth: $e');
       }
 
-      // Gửi email thông báo tới email đăng ký của bệnh nhân
       if (p.email != null && p.email!.isNotEmpty) {
         await EmailService.instance.sendAccountBlockedEmail(
           toEmail: p.email!,
@@ -1348,7 +1617,6 @@ class AdminStore extends ChangeNotifier {
         'ngay_mo_khoa': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      // Gửi thông báo hệ thống
       await _firestore.collection('ThongBaoHeThong').add({
         'tieu_de': 'Mở khóa tài khoản bệnh nhân',
         'noi_dung': 'Quản trị viên đã kích hoạt lại tài khoản bệnh nhân: ${p.hoTen} (${p.maBenhNhan})',
@@ -1359,17 +1627,15 @@ class AdminStore extends ChangeNotifier {
         'ngay_tao': FieldValue.serverTimestamp(),
       });
 
-      // Mở khóa tài khoản gốc trên Firebase Auth
       try {
         await FirebaseAdminAuthService.instance.enableUser(
           uid: p.uid,
           email: p.email,
         );
       } catch (e) {
-        debugPrint('Lỗi mở khóa Firebase Auth: ');
+        debugPrint('Lỗi mở khóa Firebase Auth: $e');
       }
 
-      // Gửi email thông báo mở khóa tới bệnh nhân
       if (p.email != null && p.email!.isNotEmpty) {
         await EmailService.instance.sendAccountUnblockedEmail(
           toEmail: p.email!,
@@ -1394,7 +1660,6 @@ class AdminStore extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Xóa vĩnh viễn tài khoản trên Firebase Authentication (Users Table)
       try {
         await FirebaseAdminAuthService.instance.deleteUser(
           uid: p.uid,
@@ -1404,7 +1669,6 @@ class AdminStore extends ChangeNotifier {
         debugPrint('❌ Lỗi xóa tài khoản bệnh nhân trên Firebase Auth: $e');
       }
 
-      // 2. Xóa hồ sơ trong Firestore collection BenhNhan
       await _firestore.collection('BenhNhan').doc(p.uid).delete();
 
       await _firestore.collection('ThongBaoHeThong').add({
@@ -1416,7 +1680,6 @@ class AdminStore extends ChangeNotifier {
         'ngay_tao': FieldValue.serverTimestamp(),
       });
 
-      // Gửi email thông báo xóa tài khoản tới bệnh nhân
       if (email != null && email.isNotEmpty) {
         await EmailService.instance.sendAccountDeletedEmail(
           toEmail: email,
@@ -1451,8 +1714,7 @@ class AdminStore extends ChangeNotifier {
     final joinDate = patient.ngayTao ?? now;
     final totalDaysJoined = (now.difference(joinDate).inDays).clamp(1, 3650);
 
-    // Thời điểm bắt đầu offline
-    final offlineStart = patient.effectiveOfflineTime;
+    final offlineStart = patient.effectiveOfflineTime; // Note: Ensure effectiveOfflineTime is defined in AdminPatient model
     final offlineDuration = now.difference(offlineStart);
 
     String offlineDurationText = 'Đang trực tuyến';
@@ -1481,7 +1743,6 @@ class AdminStore extends ChangeNotifier {
       }
     }
 
-    // Tần suất hoạt động: số lịch hẹn / tháng & / tuần
     final totalAppointments = appointments.length;
     final freqPerMonth = totalDaysJoined >= 30
         ? (totalAppointments / (totalDaysJoined / 30.0))
@@ -1490,7 +1751,6 @@ class AdminStore extends ChangeNotifier {
         ? (totalAppointments / (totalDaysJoined / 7.0))
         : (totalAppointments * (7.0 / totalDaysJoined));
 
-    // Lọc lịch hoàn thành / hủy
     int completedCount = 0;
     int cancelledCount = 0;
     for (final app in appointments) {
@@ -1502,7 +1762,6 @@ class AdminStore extends ChangeNotifier {
       }
     }
 
-    // --- BIỂU ĐỒ THEO NGÀY (7 ngày gần nhất) ---
     final List<Map<String, dynamic>> dailyChart = [];
     for (int i = 6; i >= 0; i--) {
       final day = now.subtract(Duration(days: i));
@@ -1514,25 +1773,15 @@ class AdminStore extends ChangeNotifier {
         } else if (app['ngay_tao'] is Timestamp) {
           appDate = (app['ngay_tao'] as Timestamp).toDate();
         } else if (app['ngay_kham'] != null) {
-          try {
-            appDate = DateTime.parse(app['ngay_kham'].toString());
-          } catch (_) {}
+          try { appDate = DateTime.parse(app['ngay_kham'].toString()); } catch (_) {}
         }
-        if (appDate != null &&
-            appDate.year == day.year &&
-            appDate.month == day.month &&
-            appDate.day == day.day) {
+        if (appDate != null && appDate.year == day.year && appDate.month == day.month && appDate.day == day.day) {
           count++;
         }
       }
-      dailyChart.add({
-        'label': '${day.day}/${day.month}',
-        'count': count,
-        'date': day,
-      });
+      dailyChart.add({'label': '${day.day}/${day.month}', 'count': count, 'date': day});
     }
 
-    // --- BIỂU ĐỒ THEO THÁNG (12 tháng qua) ---
     final List<Map<String, dynamic>> monthlyChart = [];
     for (int i = 11; i >= 0; i--) {
       final targetMonth = DateTime(now.year, now.month - i, 1);
@@ -1544,24 +1793,15 @@ class AdminStore extends ChangeNotifier {
         } else if (app['ngay_tao'] is Timestamp) {
           appDate = (app['ngay_tao'] as Timestamp).toDate();
         } else if (app['ngay_kham'] != null) {
-          try {
-            appDate = DateTime.parse(app['ngay_kham'].toString());
-          } catch (_) {}
+          try { appDate = DateTime.parse(app['ngay_kham'].toString()); } catch (_) {}
         }
-        if (appDate != null &&
-            appDate.year == targetMonth.year &&
-            appDate.month == targetMonth.month) {
+        if (appDate != null && appDate.year == targetMonth.year && appDate.month == targetMonth.month) {
           count++;
         }
       }
-      monthlyChart.add({
-        'label': 'T${targetMonth.month}',
-        'count': count,
-        'year': targetMonth.year,
-      });
+      monthlyChart.add({'label': 'T${targetMonth.month}', 'count': count, 'year': targetMonth.year});
     }
 
-    // --- BIỂU ĐỒ THEO NĂM (Các năm từ khi tham gia đến nay) ---
     final List<Map<String, dynamic>> yearlyChart = [];
     final startYear = (patient.ngayTao?.year ?? now.year).clamp(2022, now.year);
     for (int y = startYear; y <= now.year; y++) {
@@ -1573,18 +1813,13 @@ class AdminStore extends ChangeNotifier {
         } else if (app['ngay_tao'] is Timestamp) {
           appDate = (app['ngay_tao'] as Timestamp).toDate();
         } else if (app['ngay_kham'] != null) {
-          try {
-            appDate = DateTime.parse(app['ngay_kham'].toString());
-          } catch (_) {}
+          try { appDate = DateTime.parse(app['ngay_kham'].toString()); } catch (_) {}
         }
         if (appDate != null && appDate.year == y) {
           count++;
         }
       }
-      yearlyChart.add({
-        'label': '$y',
-        'count': count,
-      });
+      yearlyChart.add({'label': '$y', 'count': count});
     }
 
     return {
@@ -1628,7 +1863,6 @@ class AdminStore extends ChangeNotifier {
       }
     }
 
-    // --- BIỂU ĐỒ HOẠT ĐỘNG CHUNG THEO NGÀY (7 ngày gần nhất) ---
     final List<Map<String, dynamic>> dailyChart = [];
     for (int i = 6; i >= 0; i--) {
       final day = now.subtract(Duration(days: i));
@@ -1640,25 +1874,15 @@ class AdminStore extends ChangeNotifier {
         } else if (app['ngay_tao'] is Timestamp) {
           appDate = (app['ngay_tao'] as Timestamp).toDate();
         } else if (app['ngay_kham'] != null) {
-          try {
-            appDate = DateTime.parse(app['ngay_kham'].toString());
-          } catch (_) {}
+          try { appDate = DateTime.parse(app['ngay_kham'].toString()); } catch (_) {}
         }
-        if (appDate != null &&
-            appDate.year == day.year &&
-            appDate.month == day.month &&
-            appDate.day == day.day) {
+        if (appDate != null && appDate.year == day.year && appDate.month == day.month && appDate.day == day.day) {
           count++;
         }
       }
-      dailyChart.add({
-        'label': '${day.day}/${day.month}',
-        'count': count,
-        'date': day,
-      });
+      dailyChart.add({'label': '${day.day}/${day.month}', 'count': count, 'date': day});
     }
 
-    // --- BIỂU ĐỒ HOẠT ĐỘNG CHUNG THEO THÁNG (12 tháng qua) ---
     final List<Map<String, dynamic>> monthlyChart = [];
     for (int i = 11; i >= 0; i--) {
       final targetMonth = DateTime(now.year, now.month - i, 1);
@@ -1670,24 +1894,15 @@ class AdminStore extends ChangeNotifier {
         } else if (app['ngay_tao'] is Timestamp) {
           appDate = (app['ngay_tao'] as Timestamp).toDate();
         } else if (app['ngay_kham'] != null) {
-          try {
-            appDate = DateTime.parse(app['ngay_kham'].toString());
-          } catch (_) {}
+          try { appDate = DateTime.parse(app['ngay_kham'].toString()); } catch (_) {}
         }
-        if (appDate != null &&
-            appDate.year == targetMonth.year &&
-            appDate.month == targetMonth.month) {
+        if (appDate != null && appDate.year == targetMonth.year && appDate.month == targetMonth.month) {
           count++;
         }
       }
-      monthlyChart.add({
-        'label': 'T${targetMonth.month}',
-        'count': count,
-        'year': targetMonth.year,
-      });
+      monthlyChart.add({'label': 'T${targetMonth.month}', 'count': count, 'year': targetMonth.year});
     }
 
-    // --- BIỂU ĐỒ HOẠT ĐỘNG CHUNG THEO NĂM (từ 3 năm trước đến nay) ---
     final List<Map<String, dynamic>> yearlyChart = [];
     final currentYear = now.year;
     for (int y = currentYear - 3; y <= currentYear; y++) {
@@ -1699,18 +1914,13 @@ class AdminStore extends ChangeNotifier {
         } else if (app['ngay_tao'] is Timestamp) {
           appDate = (app['ngay_tao'] as Timestamp).toDate();
         } else if (app['ngay_kham'] != null) {
-          try {
-            appDate = DateTime.parse(app['ngay_kham'].toString());
-          } catch (_) {}
+          try { appDate = DateTime.parse(app['ngay_kham'].toString()); } catch (_) {}
         }
         if (appDate != null && appDate.year == y) {
           count++;
         }
       }
-      yearlyChart.add({
-        'label': '$y',
-        'count': count,
-      });
+      yearlyChart.add({'label': '$y', 'count': count});
     }
 
     final totalAppointments = allAppointments.length;

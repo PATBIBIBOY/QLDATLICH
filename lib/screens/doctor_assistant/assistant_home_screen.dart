@@ -10,8 +10,13 @@ class AssistantHomeScreen extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Xác nhận đăng xuất', style: TextStyle(fontWeight: FontWeight.w700)),
-        content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi bàn làm việc Hỗ trợ bác sĩ?'),
+        title: const Text(
+          'Xác nhận đăng xuất',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        content: const Text(
+          'Bạn có chắc chắn muốn đăng xuất khỏi bàn làm việc Hỗ trợ bác sĩ?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -33,7 +38,11 @@ class AssistantHomeScreen extends StatelessWidget {
     if (confirm == true && context.mounted) {
       await FirebaseAuth.instance.signOut();
       if (!context.mounted) return;
-      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (route) => false);
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.login,
+        (route) => false,
+      );
     }
   }
 
@@ -119,12 +128,19 @@ class AssistantHomeScreen extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 22),
+                          Icon(
+                            Icons.check_circle_rounded,
+                            color: Color(0xFF10B981),
+                            size: 22,
+                          ),
                           SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               'Tài khoản đã kích hoạt & phân quyền chuẩn',
-                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14.5,
+                              ),
                             ),
                           ),
                         ],
@@ -132,7 +148,11 @@ class AssistantHomeScreen extends StatelessWidget {
                       SizedBox(height: 12),
                       Text(
                         'Luồng cấp mã từ Bệnh viện, kích hoạt đổi mật khẩu và đăng nhập đã hoạt động hoàn toàn tự động. Giao diện điều phối hàng chờ khám đang được đồng bộ từ nhánh PhysicianSupport.',
-                        style: TextStyle(fontSize: 13, color: Color(0xFF64748B), height: 1.5),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF64748B),
+                          height: 1.5,
+                        ),
                       ),
                     ],
                   ),
@@ -146,14 +166,16 @@ class AssistantHomeScreen extends StatelessWidget {
                     foregroundColor: const Color(0xFFEF4444),
                     side: const BorderSide(color: Color(0xFFFCA5A5)),
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
         ),
-      ),
-    );
-  }
-}
+      ), 
+    ); 
+  } 
+} 

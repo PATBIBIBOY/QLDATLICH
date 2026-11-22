@@ -8,6 +8,7 @@ import 'hospital_sync_service.dart';
 class EmailService {
   static final EmailService instance = EmailService._();
   EmailService._();
+
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Cấu hình tài khoản phát thư hệ thống MediConnect (Google SMTP)
@@ -15,6 +16,7 @@ class EmailService {
   static const String _appPassword = 'hqnnghqkdhikwfnm';
 
   // ───────────────────────── ADMIN EMAIL METHODS ─────────────────────────
+
   /// Gửi email thông báo KHÓA TÀI KHOẢN
   Future<void> sendAccountBlockedEmail({
     required String toEmail,
@@ -65,7 +67,7 @@ class EmailService {
     </div>
     <div class="footer">
       <p>Email này được gửi tự động từ Hệ thống Quản trị Y tế MediConnect.</p>
-      <p>© 2026 MediConnect Healthcare System. Mọi quyền được bảo lưu.</p>
+      <p>© 2026 MediConnect Healthcare System. Hotline hỗ trợ: 1900 8888</p>
     </div>
   </div>
 </body>
@@ -178,7 +180,7 @@ class EmailService {
       <p>Toàn bộ thông tin phiên làm việc liên kết đã được thu hồi an toàn. Nếu bạn có bất kỳ thắc mắc hoặc khiếu nại, vui lòng liên hệ <strong>hotro@mediconnect.vn</strong>.</p>
     </div>
     <div class="footer">
-      <p>© 2026 MediConnect Healthcare System.</p>
+      <p>© 2026 MediConnect Healthcare System. Hotline hỗ trợ: 1900 8888</p>
     </div>
   </div>
 </body>
@@ -350,6 +352,8 @@ class EmailService {
       debugPrint('❌ Lỗi khi xếp hàng gửi email trên Firebase: $e');
     }
   }
+
+  // ───────────────────────── SMTP & HỢP TÁC EMAIL METHODS ─────────────────────────
 
   /// Gửi email trực tiếp qua máy chủ Google SMTP (smtp.gmail.com)
   static Future<bool> _guiEmailSmtp({
@@ -628,7 +632,7 @@ Ban Quản Trị Hệ Thống MediConnect
         debugPrint('⚠️ [EmailService] Lỗi khi ghi collection "mail": $e');
       }
 
-      // Ghi vào collection 'EmailLog' (dành cho cấu hình Extension tùy biến hoặc lưu lịch sử)
+      // Ghi vào collection 'EmailLog'
       try {
         await _firestore.collection('EmailLog').add(Map<String, dynamic>.from(emailPayload));
         debugPrint('✅ [EmailService] Đã ghi nhận EmailLog hủy hợp tác tới: $cleanEmail');
@@ -660,9 +664,7 @@ Ban Quản Trị Hệ Thống MediConnect
         });
       } catch (_) {}
 
-      debugPrint(
-        '✅ [EmailService] Kết quả gửi email hủy/từ chối tới $cleanEmail: $smtpResult',
-      );
+      debugPrint('✅ [EmailService] Kết quả gửi email hủy/từ chối tới $cleanEmail: $smtpResult');
       return smtpResult;
     } catch (e) {
       debugPrint('❌ [EmailService] Lỗi khi gửi email thông báo: $e');
@@ -794,7 +796,7 @@ Ban Quản Trị Hệ Thống MediConnect
         'ngay_tao_str': DateTime.now().toIso8601String(),
       };
 
-      // Ghi vào collection 'mail' (chuẩn mặc định của Firebase Extension "Trigger Email")
+      // Ghi vào collection 'mail'
       try {
         await _firestore.collection('mail').add(Map<String, dynamic>.from(emailPayload));
         debugPrint('✅ [EmailService] Đã đẩy email phê duyệt vào collection "mail" cho Firebase Extension');
@@ -802,7 +804,7 @@ Ban Quản Trị Hệ Thống MediConnect
         debugPrint('⚠️ [EmailService] Lỗi khi ghi collection "mail": $e');
       }
 
-      // Ghi vào collection 'EmailLog' (dành cho cấu hình Extension tùy biến hoặc lưu lịch sử)
+      // Ghi vào collection 'EmailLog'
       try {
         await _firestore.collection('EmailLog').add(Map<String, dynamic>.from(emailPayload));
         debugPrint('✅ [EmailService] Đã ghi nhận EmailLog phê duyệt tới: $cleanEmail');
@@ -834,9 +836,7 @@ Ban Quản Trị Hệ Thống MediConnect
         });
       } catch (_) {}
 
-      debugPrint(
-        '✅ [EmailService] Kết quả gửi email phê duyệt tới $cleanEmail: $smtpResult',
-      );
+      debugPrint('✅ [EmailService] Kết quả gửi email phê duyệt tới $cleanEmail: $smtpResult');
       return smtpResult;
     } catch (e) {
       debugPrint('❌ [EmailService] Lỗi khi gửi email thông báo phê duyệt: $e');
@@ -846,7 +846,6 @@ Ban Quản Trị Hệ Thống MediConnect
 
   /// Thực hiện phê duyệt hợp tác:
   /// - Chuyển trang_thai_hop_tac_id sang 10 ở cả BenhVien và YeuCauHopTac
-  /// - Đặt da_gui_don = true, da_xac_thuc = true, da_bi_tu_choi = false
   /// - Gửi email thông báo phê duyệt và lưu EmailLog
   static Future<void> pheDuyetHopTac({
     required String benhVienId,
@@ -884,7 +883,6 @@ Ban Quản Trị Hệ Thống MediConnect
 
   /// Thực hiện từ chối / hủy hợp tác:
   /// - Chuyển trang_thai_hop_tac_id sang 9 ở cả BenhVien và YeuCauHopTac
-  /// - Đặt da_gui_don = false (để màn hình chính quay về phần gửi lại từ đầu)
   /// - Gửi email thông báo và lưu EmailLog
   static Future<void> tuChoiHoacHuyHopTac({
     required String benhVienId,

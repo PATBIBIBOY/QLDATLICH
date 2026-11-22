@@ -75,30 +75,29 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     setState(() => _isLoading = true);
     try {
       User? user = _auth.currentUser;
-
+      
+      // ✅ 1. KIỂM TRA NẾU USER BỊ NULL
       if (user == null) {
-        throw Exception(
-          "Phiên làm việc đã hết hạn. Vui lòng quay lại và đăng ký lại.",
-        );
+        throw Exception("Phiên làm việc đã hết hạn. Vui lòng quay lại và đăng ký lại.");
       }
 
+      // ✅ 2. GỬI LẠI EMAIL
       await user.sendEmailVerification();
-
+      
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Đã gửi lại email xác thực! Vui lòng kiểm tra hộp thư (kể cả Spam).',
-          ),
+          content: Text('Đã gửi lại email xác thực! Vui lòng kiểm tra hộp thư (kể cả Spam).'), 
           backgroundColor: Colors.blue,
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      print('❌ LỖI THỰC SỰ KHI GỬI LẠI EMAIL: $e');
+      // ✅ 3. IN RA LỖI THỰC SỰ ĐỂ BIẾT NGUYÊN NHÂN
+      print('❌ LỖI THỰC SỰ KHI GỬI LẠI EMAIL: $e'); 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Lỗi: ${e.toString().replaceAll("Exception: ", "")}'),
+          content: Text('Lỗi: ${e.toString().replaceAll("Exception: ", "")}'), 
           backgroundColor: Colors.red,
         ),
       );
@@ -107,7 +106,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     }
   }
 
-  /// _cancelAndLogout: hủy thao tác đang thực hiện.
+  /// _cancelAndLogout: Hủy thao tác và đăng xuất.
   Future<void> _cancelAndLogout() async {
     await _auth.signOut();
     if (!mounted) return;
@@ -138,9 +137,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                   color: _primary,
                 ),
               ),
-
               const SizedBox(height: 24),
-
               const Text(
                 'Xác thực Email',
                 style: TextStyle(
@@ -149,14 +146,12 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                   color: Color(0xFF0F172A),
                 ),
               ),
-
               const SizedBox(height: 12),
               Text(
                 'Chúng tôi đã gửi một đường link xác thực đến:',
                 style: TextStyle(fontSize: 15, color: _grey),
                 textAlign: TextAlign.center,
               ),
-
               const SizedBox(height: 8),
               Text(
                 widget.email,
@@ -167,15 +162,12 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 ),
                 textAlign: TextAlign.center,
               ),
-
               const SizedBox(height: 12),
-
               const Text(
                 'Vui lòng mở ứng dụng Email, nhấp vào đường link để kích hoạt tài khoản. Sau đó quay lại đây và bấm "Đã xác thực".',
                 style: TextStyle(fontSize: 14, color: _grey, height: 1.5),
                 textAlign: TextAlign.center,
               ),
-
               const SizedBox(height: 40),
               SizedBox(
                 width: double.infinity,
@@ -208,7 +200,6 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                         ),
                 ),
               ),
-
               const SizedBox(height: 16),
               TextButton(
                 onPressed: _isLoading ? null : _resendVerificationEmail,
@@ -221,7 +212,6 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 24),
               TextButton(
                 onPressed: _isLoading ? null : _cancelAndLogout,

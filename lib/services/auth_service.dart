@@ -11,6 +11,7 @@ class AuthService {
 
   User? get currentUser => _auth.currentUser;
 
+  // Chuẩn hóa số điện thoại về định dạng E.164 (+84...)
   String _toE164(String phone) {
     final cleaned = phone.replaceAll(RegExp(r'\s+'), '');
     if (cleaned.startsWith('0')) {
@@ -50,7 +51,7 @@ class AuthService {
         phoneNumber: _toE164(phone),
         timeout: const Duration(seconds: 60),
         forceResendingToken: resendToken,
-        verificationCompleted: (_) {},
+        verificationCompleted: (_) {}, // Buộc nhập OTP thủ công, không tự động login
         verificationFailed: (e) => onError(_errorMessage(e)),
         codeSent: (id, token) => onCodeSent(id, token),
         codeAutoRetrievalTimeout: (_) {},
@@ -97,6 +98,7 @@ class AuthService {
     await _auth.signOut();
   }
 
+  // ✅ Đăng nhập admin (kiểm tra trong collection admins)
   Future<Map<String, dynamic>?> loginAdmin({
     required String email,
     required String password,
@@ -117,6 +119,7 @@ class AuthService {
     }
   }
 
+  // ✅ Lấy thông tin admin từ Firestore
   Future<Map<String, dynamic>?> getAdminFromFirestore(String uid) async {
     try {
       final doc = await _firestore.collection('admins').doc(uid).get();
@@ -316,7 +319,7 @@ class AuthService {
   }
 
   // ========================================================================
-  // CÁC HÀM NÂNG CẤP TỪ NHÁNH gop_code_tong_hop
+  // CÁC HÀM NÂNG CẤP TỪ NHÁNH gop_code_tong_hop (GIỮ NGUYÊN)
   // ========================================================================
 
   Future<PatientModel?> getPatientFromFirestore(String uid) async {

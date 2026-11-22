@@ -1,7 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../config/app_routes.dart';
 import '../config/app_session.dart';
+import '../config/constants.dart';
 import '../config/staff_session.dart';
 import '../models/hospital_model.dart';
 import '../models/patient_model.dart';
@@ -10,6 +14,7 @@ import '../services/fcm_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _securityWatcherSub;
 
   @override
   void notifyListeners() {
@@ -30,10 +35,14 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void _initAutoRestore() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final cur = _authService.currentUser;
       if (cur != null) {
-        fetchCurrentUser(preferredRole: 'benh_vien');
+        await fetchCurrentUser(preferredRole: 'benh_vien');
+        final reason = _blockReason();
+        if (reason != null) {
+          await forceSignOut(reason: reason);
+        }
       }
     });
   }
@@ -90,6 +99,28 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Trả về lý do nếu tài khoản hiện tại đang bị khóa / ngừng hợp tác, ngược lại trả về null.
+  /// Hồ sơ bệnh viện đang "chờ duyệt" KHÔNG bị coi là bị khóa (vẫn cần đăng nhập để nộp hồ sơ).
+  String? _blockReason() {
+    final u = _user;
+    if (u != null) {
+      final blocked = u.isBlocked ||
+          u.chanDangNhap ||
+          u.trangThaiId == TrangThaiId.khongHoatDong;
+      if (blocked) return u.lyDoKhoa ?? 'Tài khoản bệnh nhân đã bị khóa';
+    }
+    final h = _hospital;
+    if (h != null) {
+      final blocked =
+          h.chanDangNhap || h.trangThaiHopTacId == TrangThaiId.huyHopTac;
+      if (blocked) {
+        return h.lyDoKhoa ??
+            'Cơ sở y tế đã ngừng hợp tác hoặc bị chặn truy cập';
+      }
+    }
+    return null;
+  }
+
   Future<void> fetchCurrentUser({String? preferredRole}) async {
     _isLoading = true;
     notifyListeners();
@@ -110,24 +141,34 @@ class AuthProvider extends ChangeNotifier {
         if (hospital != null) {
           AppSession.benhVienId = hospital.maBenhVien ?? hospital.uid ?? currentUser.uid;
         }
-        return;
-      }
-
-      // ✅ ĐOẠN ĐÃ ĐƯỢC LÀM SẠCH CONFLICT (Giữ logic chuẩn, format gọn gàng)
-      final patientModel = await _authService.getPatientFromFirestore(currentUser.uid);
-      _user = patientModel;
-      
-      if (patientModel == null) {
-        _hospital = await _authService.getHospitalFromFirestore(currentUser.uid);
-        _hospital ??= await _authService.findHospitalByEmail(currentUser.email ?? '');
-        if (_hospital != null) {
-          AppSession.benhVienId = _hospital!.uid ?? currentUser.uid;
-        }
       } else {
-        _hospital = null;
-      }
-      _selectedRole = patientModel?.role ?? _hospital?.role;
+        final patientModel = await _authService.getPatientFromFirestore(currentUser.uid);
+        _user = patientModel;
 
+        if (patientModel == null) {
+          _hospital = await _authService.getHospitalFromFirestore(currentUser.uid);
+          _hospital ??= await _authService.findHospitalByEmail(currentUser.email ?? '');
+          if (_hospital != null) {
+            AppSession.benhVienId = _hospital!.uid ?? currentUser.uid;
+          }
+        } else {
+          _hospital = null;
+        }
+        _selectedRole = patientModel?.role ?? _hospital?.role;
+      }
+
+      // Chỉ bật theo dõi realtime khi tài khoản chưa bị khóa
+      // (nếu đã bị khóa thì nơi gọi sẽ xử lý: login ném lỗi, restore thì đăng xuất)
+      if (_blockReason() == null) {
+        if (_hospital != null) {
+          _startSecurityWatcher(
+            _hospital!.maBenhVien ?? _hospital!.uid ?? currentUser.uid,
+            isHospital: true,
+          );
+        } else if (_user != null) {
+          _startSecurityWatcher(currentUser.uid, isHospital: false);
+        }
+      }
     } catch (e) {
       print('❌ Lỗi khi lấy thông tin user hiện tại: $e');
     } finally {
@@ -152,9 +193,15 @@ class AuthProvider extends ChangeNotifier {
 
     await fetchCurrentUser();
 
+    final reason = _blockReason();
+    if (reason != null) {
+      await forceSignOut(reason: reason);
+      return 'login';
+    }
+
     final hasEmail = (firebaseUser.email ?? '').isNotEmpty;
     final isEmailUnverified = hasEmail && (_user?.daXacThucEmail == false || _hospital?.daXacThucEmail == false);
-    
+
     if (isEmailUnverified) {
       await _authService.signOut();
       _user = null;
@@ -222,7 +269,20 @@ class AuthProvider extends ChangeNotifier {
 
       await fetchCurrentUser(preferredRole: role);
 
-      // 2. Kiểm tra xác thực email
+      // 2. Kiểm tra tài khoản bị khóa / ngừng hợp tác
+      final reason = _blockReason();
+      if (reason != null) {
+        final isPatient = _user != null;
+        await _authService.signOut();
+        _user = null;
+        _hospital = null;
+        notifyListeners();
+        throw Exception(
+          isPatient ? 'ACCOUNT_BLOCKED: $reason' : 'HOSPITAL_BLOCKED: $reason',
+        );
+      }
+
+      // 3. Kiểm tra xác thực email
       final isFirestoreEmailVerified = (_user?.daXacThucEmail ?? false) || (_hospital?.daXacThucEmail ?? false);
       final isVerified = isAuthEmailVerified || isFirestoreEmailVerified;
 
@@ -257,6 +317,10 @@ class AuthProvider extends ChangeNotifier {
         notifyListeners();
         onCodeSent();
       },
+      onAutoVerified: (credential) async {
+        _isLoading = false;
+        notifyListeners();
+      },
       onError: (message) {
         _isLoading = false;
         notifyListeners();
@@ -288,6 +352,14 @@ class AuthProvider extends ChangeNotifier {
           }
         }
         throw Exception('Số điện thoại này chưa đăng ký tài khoản bệnh nhân. Vui lòng đăng ký trước.');
+      }
+
+      final reason = _blockReason();
+      if (reason != null) {
+        await _authService.signOut();
+        _user = null;
+        notifyListeners();
+        throw Exception('ACCOUNT_BLOCKED: $reason');
       }
 
       await FCMService().init();
@@ -383,7 +455,7 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     try {
       if (_verificationId == null) throw Exception('Mã xác thực không hợp lệ');
-      
+
       final credential = await _authService.verifyOtp(
         verificationId: _verificationId!,
         smsCode: smsCode,
@@ -405,7 +477,7 @@ class AuthProvider extends ChangeNotifier {
         soDienThoai: _pendingPhone!,
         role: user.role,
       );
-      
+
       await _authService.saveUserToFirestore(newUser);
       _user = newUser;
       _hospital = null;
@@ -461,14 +533,14 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> _handleExistingHospitalEmail(String email, String password, HospitalModel hospital) async {
     final oldHospital = await _authService.findHospitalByEmail(email);
-    
+
     if (oldHospital == null || oldHospital.daXacThucEmail) {
       throw Exception('Email đã được sử dụng và xác thực. Vui lòng sử dụng tính năng Đăng nhập.');
     }
 
     try {
       await _signInToReplaceUnverifiedAccount(email, password);
-      
+
       final uidToDelete = oldHospital.uid ?? oldHospital.authUid ?? '';
       await _authService.deleteUnverifiedHospital(uidToDelete);
       print('✅ Đã xóa sạch tài khoản BV cũ chưa xác thực.');
@@ -495,7 +567,7 @@ class AuthProvider extends ChangeNotifier {
       _hospital = newHospital;
       _user = null;
       AppSession.benhVienId = nextMaBv;
-      
+
       print('✅ Đã tạo lại tài khoản BV mới thành công cho email: $email');
     } catch (e) {
       print('❌ Lỗi khi xử lý email BV tồn tại: $e');
@@ -519,10 +591,10 @@ class AuthProvider extends ChangeNotifier {
       final user = _authService.currentUser;
       if (user != null) {
         await _authService.updateUserVerificationStatus(user.uid, true);
-        
+
         _user = await _authService.getPatientFromFirestore(user.uid);
         _hospital = _user == null ? await _authService.getHospitalFromFirestore(user.uid) : null;
-        
+
         if (_hospital != null) {
           AppSession.benhVienId = _hospital!.maBenhVien ?? _hospital!.uid ?? user.uid;
         }
@@ -602,6 +674,8 @@ class AuthProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
+      _securityWatcherSub?.cancel();
+      _securityWatcherSub = null;
       await _authService.signOut();
       await StaffSession.clear();
       _user = null;
@@ -617,5 +691,144 @@ class AuthProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  // =========================================================================
+  // BẢO MẬT THỜI GIAN THỰC (REALTIME SECURITY WATCHER)
+  // Tự động kiểm tra và ĐÁ VĂNG (Kick out) người dùng ngay lập tức khi bị Admin khóa
+  // docId: với bệnh nhân là Auth UID, với bệnh viện là mã BV (VD: BV502)
+  // =========================================================================
+  void _startSecurityWatcher(String docId, {required bool isHospital}) {
+    _securityWatcherSub?.cancel();
+    final collection = isHospital
+        ? AppConstants.hospitalsCollection
+        : AppConstants.patientsCollection;
+
+    _securityWatcherSub = FirebaseFirestore.instance
+        .collection(collection)
+        .doc(docId)
+        .snapshots()
+        .listen((snapshot) async {
+      if (!snapshot.exists) {
+        // Chỉ đá bệnh nhân khi hồ sơ bị xóa (hồ sơ bệnh viện có thể lưu theo id khác)
+        if (!isHospital) {
+          await forceSignOut(reason: 'Tài khoản của bạn đã bị xóa khỏi hệ thống.');
+        }
+        return;
+      }
+
+      final data = snapshot.data();
+      if (data == null) return;
+
+      bool shouldKick = false;
+      String kickReason = '';
+
+      if (isHospital) {
+        final statusId = (data['trang_thai_hop_tac_id'] as num?)?.toInt() ?? TrangThaiId.choDuyet;
+        final chanDangNhap = data['chan_dang_nhap'] == true || data['is_blocked'] == true;
+        final isHuy = statusId == TrangThaiId.huyHopTac ||
+            data['trang_thai'] == 'huy_hop_tac' ||
+            data['trangThai'] == 'HUY_HOP_TAC';
+        if (chanDangNhap || isHuy) {
+          shouldKick = true;
+          kickReason = data['ly_do_huy']?.toString() ??
+              data['ly_do_khoa']?.toString() ??
+              'Cơ sở y tế đã bị ngừng hợp tác hoặc khóa truy cập bởi Quản trị viên.';
+        }
+      } else {
+        // Bệnh nhân
+        final rawStatus = data['trang_thai_id'];
+        int statusId = TrangThaiId.hoatDong;
+        if (rawStatus is int) {
+          statusId = rawStatus;
+        } else if (rawStatus is num) {
+          statusId = rawStatus.toInt();
+        } else if (rawStatus is String) {
+          statusId = int.tryParse(rawStatus) ?? TrangThaiId.hoatDong;
+        }
+        final chanDangNhap = data['chan_dang_nhap'] == true || data['is_blocked'] == true;
+        final trangThaiStr = data['trang_thai']?.toString().toLowerCase() ?? '';
+        final isKhoa = statusId == TrangThaiId.khongHoatDong ||
+            trangThaiStr == 'khoa' ||
+            trangThaiStr == 'chan_dang_nhap';
+        if (chanDangNhap || isKhoa) {
+          shouldKick = true;
+          kickReason = data['ly_do_khoa']?.toString() ??
+              data['ly_do_chan']?.toString() ??
+              'Tài khoản của bạn đã bị quản trị viên khóa.';
+        }
+      }
+
+      if (shouldKick) {
+        await forceSignOut(reason: kickReason);
+      }
+    });
+  }
+
+  /// Buộc đăng xuất ngay lập tức, chuyển về màn hình đăng nhập và cảnh báo
+  Future<void> forceSignOut({String? reason}) async {
+    _securityWatcherSub?.cancel();
+    _securityWatcherSub = null;
+    try {
+      await _authService.signOut();
+    } catch (_) {}
+    try {
+      await StaffSession.clear();
+    } catch (_) {}
+
+    _user = null;
+    _hospital = null;
+    _admin = null;
+    _selectedRole = null;
+    notifyListeners();
+
+    // Chuyển hướng người dùng về màn hình đăng nhập
+    final nav = AppRoutes.navigatorKey.currentState;
+    if (nav != null) {
+      nav.pushNamedAndRemoveUntil(AppRoutes.login, (r) => false);
+    }
+
+    // Hiển thị hộp thoại cảnh báo tài khoản bị khóa
+    final ctx = AppRoutes.navigatorKey.currentContext;
+    if (ctx != null) {
+      showDialog(
+        context: ctx,
+        barrierDismissible: false,
+        builder: (dialogCtx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.lock_person_rounded, color: Colors.red, size: 28),
+              SizedBox(width: 8),
+              Text(
+                'Tài khoản bị khóa',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ],
+          ),
+          content: Text(
+            reason ?? 'Tài khoản của bạn đã bị khóa hoặc ngừng hợp tác bởi Quản trị viên. Phiên làm việc đã bị kết thúc.',
+            style: const TextStyle(fontSize: 14),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: const Text('Đã hiểu'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _securityWatcherSub?.cancel();
+    super.dispose();
   }
 }

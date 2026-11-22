@@ -145,7 +145,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           color: Color(0xFF0F172A),
                         ),
                       ),
-
                       const SizedBox(height: 12),
                       Text(
                         _emailSent
@@ -161,7 +160,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 40),
 
                 // Email Input
@@ -174,7 +172,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       color: Color(0xFF0F172A),
                     ),
                   ),
-
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _emailCtrl,
@@ -208,7 +205,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       return null;
                     },
                   ),
-
                   const SizedBox(height: 32),
 
                   // Send Button
@@ -286,7 +282,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 24),
 
                   // Resend Button
@@ -321,7 +316,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     ),
                   ),
                 ],
-
                 const SizedBox(height: 20),
 
                 // Back to Login
@@ -369,7 +363,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ),
           ),
         ),
-
         const SizedBox(width: 12),
         Expanded(
           child: Text(

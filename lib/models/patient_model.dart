@@ -2,6 +2,7 @@ import '../config/constants.dart';
 
 class PatientModel {
   final String uid;
+  final String? maBenhNhan;
   final String? hoTen;
   final String? email;
   final String? soDienThoai;
@@ -15,9 +16,13 @@ class PatientModel {
   final bool daXacThucEmail;
   final String? cccd;
   final String? soBhyt;
+  final bool isBlocked;
+  final bool chanDangNhap;
+  final String? lyDoKhoa;
 
   PatientModel({
     required this.uid,
+    this.maBenhNhan,
     this.hoTen,
     this.email,
     this.soDienThoai,
@@ -31,11 +36,15 @@ class PatientModel {
     this.daXacThucEmail = false,
     this.cccd,
     this.soBhyt,
+    this.isBlocked = false,
+    this.chanDangNhap = false,
+    this.lyDoKhoa,
   }) : ngayTao = ngayTao ?? DateTime.now();
 
   Map<String, dynamic> toMap() {
     return {
       'uid': uid,
+      'ma_benh_nhan': maBenhNhan,
       'ho_ten': hoTen,
       'email': email,
       'so_dien_thoai': soDienThoai,
@@ -49,12 +58,23 @@ class PatientModel {
       'da_xac_thuc_email': daXacThucEmail,
       'cccd': cccd,
       'so_bhyt': soBhyt,
+      'is_blocked': isBlocked,
+      'chan_dang_nhap': chanDangNhap,
+      'ly_do_khoa': lyDoKhoa,
     };
   }
 
   factory PatientModel.fromMap(Map<String, dynamic> map) {
+    final statusId = map['trang_thai_id'] as int?;
+    final chan = map['chan_dang_nhap'] == true;
+    final blocked = map['is_blocked'] == true ||
+        chan ||
+        statusId == TrangThaiId.khongHoatDong ||
+        map['trang_thai'] == 'khoa';
+
     return PatientModel(
       uid: map['uid'] ?? '',
+      maBenhNhan: map['ma_benh_nhan'],
       hoTen: map['ho_ten'],
       email: map['email'],
       soDienThoai: map['so_dien_thoai'],
@@ -64,19 +84,23 @@ class PatientModel {
           : null,
       gioiTinh: map['gioi_tinh'],
       diaChi: map['dia_chi'],
-      trangThaiId: (map['trang_thai_id'] ?? TrangThaiId.hoatDong) == 0
+      trangThaiId: (statusId ?? TrangThaiId.hoatDong) == 0
           ? TrangThaiId.hoatDong
-          : map['trang_thai_id'],
+          : (statusId ?? TrangThaiId.hoatDong),
       ngayTao: map['ngay_tao'] != null ? DateTime.parse(map['ngay_tao']) : null,
       role: map['role'] ?? 'benh_nhan',
       daXacThucEmail: map['da_xac_thuc_email'] ?? false,
       cccd: map['cccd'],
       soBhyt: map['so_bhyt'],
+      isBlocked: blocked,
+      chanDangNhap: chan,
+      lyDoKhoa: map['ly_do_khoa']?.toString() ?? map['ly_do_chan']?.toString(),
     );
   }
 
   PatientModel copyWith({
     String? uid,
+    String? maBenhNhan,
     String? hoTen,
     String? email,
     String? soDienThoai,
@@ -90,9 +114,13 @@ class PatientModel {
     bool? daXacThucEmail,
     String? cccd,
     String? soBhyt,
+    bool? isBlocked,
+    bool? chanDangNhap,
+    String? lyDoKhoa,
   }) {
     return PatientModel(
       uid: uid ?? this.uid,
+      maBenhNhan: maBenhNhan ?? this.maBenhNhan,
       hoTen: hoTen ?? this.hoTen,
       email: email ?? this.email,
       soDienThoai: soDienThoai ?? this.soDienThoai,
@@ -106,6 +134,9 @@ class PatientModel {
       daXacThucEmail: daXacThucEmail ?? this.daXacThucEmail,
       cccd: cccd ?? this.cccd,
       soBhyt: soBhyt ?? this.soBhyt,
+      isBlocked: isBlocked ?? this.isBlocked,
+      chanDangNhap: chanDangNhap ?? this.chanDangNhap,
+      lyDoKhoa: lyDoKhoa ?? this.lyDoKhoa,
     );
   }
 

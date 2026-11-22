@@ -71,6 +71,8 @@ class TrangThaiHelper {
     TrangThaiId.phongTamDung: 'Tạm dừng',
     TrangThaiId.phongDangKham: 'Đang khám',
     TrangThaiId.phongDong: 'Đóng',
+    TrangThaiId.nhanVienCho: 'Chờ',
+    TrangThaiId.nhanVienDaPhanCong: 'Đã phân công',
   };
 
   // Map từ ID sang mã màu (ARGB)
@@ -85,6 +87,12 @@ class TrangThaiHelper {
     TrangThaiId.khongHoatDong: 0xFFEF5350, // Đỏ - Không hoạt động
     TrangThaiId.huyHopTac: 0xFFEF4444, // Đỏ - Hủy hợp tác
     TrangThaiId.hopTac: 0xFF16A34A, // Xanh lá - Hợp tác
+    TrangThaiId.phongSanSang: 0xFF66BB6A, // Xanh lá - Phòng sẵn sàng
+    TrangThaiId.phongTamDung: 0xFFFFA726, // Cam - Phòng tạm dừng
+    TrangThaiId.phongDangKham: 0xFF42A5F5, // Xanh dương - Phòng đang khám
+    TrangThaiId.phongDong: 0xFFBDBDBD, // Xám - Phòng đóng
+    TrangThaiId.nhanVienCho: 0xFFFFA726, // Cam - Nhân viên chờ
+    TrangThaiId.nhanVienDaPhanCong: 0xFF66BB6A, // Xanh lá - Đã phân công
   };
 
   // Map từ ID sang tên icon (Material Icons)
@@ -99,6 +107,12 @@ class TrangThaiHelper {
     TrangThaiId.khongHoatDong: 'block',
     TrangThaiId.huyHopTac: 'cancel_outlined',
     TrangThaiId.hopTac: 'handshake',
+    TrangThaiId.phongSanSang: 'check_circle',
+    TrangThaiId.phongTamDung: 'pause_circle',
+    TrangThaiId.phongDangKham: 'medical_services',
+    TrangThaiId.phongDong: 'lock',
+    TrangThaiId.nhanVienCho: 'hourglass_empty',
+    TrangThaiId.nhanVienDaPhanCong: 'assignment_turned_in',
   };
 
   // Lấy tên trạng thái từ ID

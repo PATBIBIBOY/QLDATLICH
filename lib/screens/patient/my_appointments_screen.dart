@@ -310,6 +310,7 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
     );
   }
 }
+<<<<<<< HEAD
 
 // ═════════════ Widget con ═════════════
 
@@ -1158,3 +1159,5 @@ class _SkeletonCardState extends State<_SkeletonCard>
     );
   }
 }
+=======
+>>>>>>> origin/Admin
