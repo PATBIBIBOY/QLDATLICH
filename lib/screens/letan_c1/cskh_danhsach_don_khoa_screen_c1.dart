@@ -73,12 +73,11 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
     final docPath = don['docPath'];
 
     // Optimistic UI: Phản hồi ngay lập tức để người dùng không phải chờ đợi mạng
-    final sttTam = don['so_thu_tu'] ?? don['stt'] ?? '...';
     AppDesignSystemC1.showCustomSnackBar(
       context,
-      message: '✓ Đang xác nhận đơn của ${don['hoTen']} - Cấp STT: #$sttTam',
+      message: '✓ Đang phê duyệt đơn khám của ${don['hoTen']}...',
       isSuccess: true,
-      icon: Icons.check_circle_rounded,
+      icon: Icons.hourglass_top_rounded,
     );
 
     int? soThuTuMoi;

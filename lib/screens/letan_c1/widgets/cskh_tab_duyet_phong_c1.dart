@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../models/letan_c1/letan_design_system_c1.dart';
 import '../../../models/letan_c1/letan_profile_model_c1.dart';
 import '../../../services/letan_c1/letan_firebase_service_c1.dart';
-import '../cskh_danhsach_don_khoa_screen_c1.dart';
 import 'cskh_department_selector_card_c1.dart';
 
 /// Tab duyệt đơn theo phòng khám của khoa đang chọn
@@ -41,90 +40,100 @@ class CskhTabDuyetPhongC1 extends StatelessWidget {
           ),
           const SizedBox(height: 14),
 
-          // 2. Thanh chọn Ngày duyệt đơn & Lịch sử
+          // 2. Thanh chọn Ngày duyệt đơn & Lịch sử (Dùng Flexible + FittedBox chống tràn pixel)
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'NGÀY DUYỆT ĐƠN',
-                style: TextStyle(
-                  color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF475569),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.4,
+              Expanded(
+                child: Text(
+                  'NGÀY DUYỆT ĐƠN',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: isDark ? AppDesignSystemC1.darkTextSecondary : const Color(0xFF475569),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                  ),
                 ),
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (onOpenLichSu != null) ...[
-                    InkWell(
-                      onTap: onOpenLichSu,
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7),
+              const SizedBox(width: 6),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (onOpenLichSu != null) ...[
+                        InkWell(
+                          onTap: onOpenLichSu,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: isDark ? 0.6 : 0.4)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Icon(Icons.history_rounded, size: 14, color: Color(0xFFD97706)),
-                            SizedBox(width: 4),
-                            Text(
-                              'Lịch sử duyệt',
-                              style: TextStyle(
-                                color: Color(0xFFB45309),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                              ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: isDark ? 0.6 : 0.4)),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  InkWell(
-                    onTap: onSelectDate,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: const Color(0xFF0284C7).withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.calendar_today_rounded, size: 14, color: Color(0xFF0284C7)),
-                          const SizedBox(width: 6),
-                          Text(
-                            '${ngayChon.day.toString().padLeft(2, '0')}/${ngayChon.month.toString().padLeft(2, '0')}/${ngayChon.year}',
-                            style: const TextStyle(
-                              color: Color(0xFF0284C7),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Icon(Icons.history_rounded, size: 13, color: Color(0xFFD97706)),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Lịch sử',
+                                  style: TextStyle(
+                                    color: Color(0xFFB45309),
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          const Icon(Icons.arrow_drop_down, size: 16, color: Color(0xFF0284C7)),
-                        ],
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      InkWell(
+                        onTap: onSelectDate,
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: const Color(0xFF0284C7).withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.calendar_today_rounded, size: 13, color: Color(0xFF0284C7)),
+                              const SizedBox(width: 5),
+                              Text(
+                                '${ngayChon.day.toString().padLeft(2, '0')}/${ngayChon.month.toString().padLeft(2, '0')}/${ngayChon.year}',
+                                style: const TextStyle(
+                                  color: Color(0xFF0284C7),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(width: 2),
+                              const Icon(Icons.arrow_drop_down, size: 16, color: Color(0xFF0284C7)),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
 
-          // 3. Tiêu đề danh sách phòng khám & Nút vào duyệt toàn viện
+          // 3. Tiêu đề danh sách phòng khám (Đã bỏ nút Duyệt toàn bộ khoa theo yêu cầu)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -135,37 +144,6 @@ class CskhTabDuyetPhongC1 extends StatelessWidget {
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.4,
-                ),
-              ),
-              InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => CskhDanhsachDonKhoaScreenC1(
-                        tenKhoa: tenKhoaHienTai,
-                        phongKham: 'Toàn khoa',
-                        caKham: 'Tất cả các ca',
-                        tongDon: 0,
-                      ),
-                    ),
-                  );
-                },
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF0C2444) : const Color(0xFFE0F2FE),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text(
-                    'Duyệt toàn bộ khoa',
-                    style: TextStyle(
-                      color: Color(0xFF0284C7),
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
                 ),
               ),
             ],

@@ -931,37 +931,89 @@ class FirebaseServiceC1 {
 
     try {
       void processDocData(Map<String, dynamic> data, String docPath) {
-        // Lọc theo ngày
-        final docNgayHen = data['ngay_hen']?.toString() ?? '';
-        final docNgayDat = data['ngay_dat']?.toString() ?? '';
-        final docNgayKham = (data['ngay_kham'] ?? '').toString();
-        final docNgayHienThi = (data['ngay_hien_thi'] ?? '').toString();
-        bool khopNgay = docPath.contains(targetDateStr) ||
-            docNgayHen.contains(targetDateStr) ||
-            docNgayDat.contains(targetDateStr) ||
-            docNgayKham.contains(targetDateStr) ||
-            docNgayHienThi.contains(targetDateStr) ||
-            docNgayHienThi.contains(targetDisplay);
-        if (!khopNgay && data['ngay_hen'] is Timestamp) {
-          final dt = (data['ngay_hen'] as Timestamp).toDate();
-          if (dt.year == targetDate.year && dt.month == targetDate.month && dt.day == targetDate.day) khopNgay = true;
-        }
-        if (!khopNgay && data['ngay_dat'] is Timestamp) {
-          final dt = (data['ngay_dat'] as Timestamp).toDate().toLocal();
-          if (dt.year == targetDate.year && dt.month == targetDate.month && dt.day == targetDate.day) khopNgay = true;
-        }
-        if (!khopNgay) return;
-
-        // LỌC RIÊNG THEO KHOA: Mỗi khoa có một dãy số thứ tự độc lập từ 1 trở đi
-        if (khoaId != null && khoaId.isNotEmpty && !laCheDoTong(khoaId)) {
-          final docKhoa = (data['khoa_id'] ?? data['khoaId'] ?? data['ten_khoa'] ?? data['tenKhoa'] ?? data['khoa'] ?? '').toString();
-          if (!laCungKhoa(docKhoa, khoaId)) {
+        // 0. Bệnh viện: nếu document có chứa mã bv thì kiểm tra, nếu không có thì không loại bỏ oan
+        final docBv = (data['benh_vien_id'] ?? data['benhVienId'] ?? data['ma_benh_vien'] ?? '').toString();
+        if (docBv.isNotEmpty && benhVienId.isNotEmpty) {
+          if (!docBv.toLowerCase().contains(benhVienId.toLowerCase()) && !benhVienId.toLowerCase().contains(docBv.toLowerCase())) {
             return;
           }
         }
 
-        // Chỉ tính số thứ tự của các đơn ĐANG HOẠT ĐỘNG (Đã duyệt / Đã khám / Tiếp nhận)
-        // Nếu đơn đã bị hủy / từ chối (trang_thai_id == '4' hoặc 'huy'/'tu_choi') hoặc chưa duyệt ('1') thì số đó coi như trống
+        // 1. Lọc theo ngày - trích xuất linh hoạt dạng Timestamp, YYYY-MM-DD, DD/MM/YYYY
+        bool khopNgay = false;
+        if (docPath.contains(targetDateStr) || docPath.contains(targetDisplay)) {
+          khopNgay = true;
+        }
+
+        if (!khopNgay) {
+          DateTime? extractedDate;
+          if (data['ngay_hen'] is Timestamp) {
+            final dt = (data['ngay_hen'] as Timestamp).toDate();
+            extractedDate = DateTime(dt.year, dt.month, dt.day);
+          } else if (data['ngay_kham'] is Timestamp) {
+            final dt = (data['ngay_kham'] as Timestamp).toDate();
+            extractedDate = DateTime(dt.year, dt.month, dt.day);
+          } else if (data['ngay_dat'] is Timestamp) {
+            final dt = (data['ngay_dat'] as Timestamp).toDate().toLocal();
+            extractedDate = DateTime(dt.year, dt.month, dt.day);
+          } else {
+            final s = (data['ngay_hen'] ?? data['ngay_kham'] ?? data['ngay_dat'] ?? data['ngay_hien_thi'] ?? '').toString().trim();
+            final ymdMatch = RegExp(r'(\d{4})-(\d{1,2})-(\d{1,2})').firstMatch(s);
+            if (ymdMatch != null) {
+              extractedDate = DateTime(
+                int.parse(ymdMatch.group(1)!),
+                int.parse(ymdMatch.group(2)!),
+                int.parse(ymdMatch.group(3)!),
+              );
+            } else {
+              final dmyMatch = RegExp(r'(\d{1,2})/(\d{1,2})/(\d{4})').firstMatch(s);
+              if (dmyMatch != null) {
+                extractedDate = DateTime(
+                  int.parse(dmyMatch.group(3)!),
+                  int.parse(dmyMatch.group(2)!),
+                  int.parse(dmyMatch.group(1)!),
+                );
+              }
+            }
+          }
+
+          if (extractedDate != null) {
+            if (extractedDate.year == targetDate.year &&
+                extractedDate.month == targetDate.month &&
+                extractedDate.day == targetDate.day) {
+              khopNgay = true;
+            }
+          } else {
+            // Fallback so khớp chứa chuỗi ngày
+            final docNgayHen = (data['ngay_hen'] ?? '').toString();
+            final docNgayDat = (data['ngay_dat'] ?? '').toString();
+            final docNgayKham = (data['ngay_kham'] ?? '').toString();
+            final docNgayHienThi = (data['ngay_hien_thi'] ?? '').toString();
+            if (docNgayHen.contains(targetDateStr) ||
+                docNgayHen.contains(targetDisplay) ||
+                docNgayDat.contains(targetDateStr) ||
+                docNgayDat.contains(targetDisplay) ||
+                docNgayKham.contains(targetDateStr) ||
+                docNgayKham.contains(targetDisplay) ||
+                docNgayHienThi.contains(targetDateStr) ||
+                docNgayHienThi.contains(targetDisplay)) {
+              khopNgay = true;
+            }
+          }
+        }
+
+        if (!khopNgay) return;
+
+        // 2. LỌC RIÊNG THEO KHOA: Mỗi khoa có một dãy số thứ tự độc lập từ 1 trở đi
+        if (khoaId != null && khoaId.isNotEmpty && !laCheDoTong(khoaId)) {
+          final rawKhoaId = (data['khoa_id'] ?? data['khoaId'] ?? '').toString();
+          final docKhoa = (data['ten_khoa'] ?? data['tenKhoa'] ?? data['khoa'] ?? rawKhoaId).toString();
+          if (!laCungKhoa(docKhoa, khoaId) && !laCungKhoa(rawKhoaId, khoaId)) {
+            return;
+          }
+        }
+
+        // 3. Chỉ tính số thứ tự của các đơn ĐANG HOẠT ĐỘNG (Đã duyệt / Đã khám / Tiếp nhận)
         final docStatusId = (data['trang_thai_id'] ?? data['trangThaiId'] ?? '').toString();
         final docStatusStr = (data['trang_thai'] ?? data['trangThai'] ?? '').toString().toLowerCase();
         final bool laBiHuy = docStatusId == '4' || docStatusStr.contains('tu_choi') || docStatusStr.contains('huy') || docStatusStr.contains('cancel');
@@ -990,28 +1042,20 @@ class FirebaseServiceC1 {
         }
       }
 
-      // 1. Quét trong collection LichHen cấp 1 theo benh_vien_id
-      Query<Map<String, dynamic>> topQuery = _firestore.collection('LichHen');
-      if (benhVienId.isNotEmpty) {
-        topQuery = topQuery.where('benh_vien_id', isEqualTo: benhVienId);
-      }
-      final topSnap = await topQuery.get();
+      // Quét trong collection LichHen cấp 1
+      final topSnap = await _firestore.collection('LichHen').get();
       for (var d in topSnap.docs) {
         processDocData(d.data(), d.reference.path);
       }
 
-      // 2. Quét thêm trong collectionGroup('lich_hen')
-      Query<Map<String, dynamic>> groupQuery = _firestore.collectionGroup('lich_hen');
-      if (benhVienId.isNotEmpty) {
-        groupQuery = groupQuery.where('benh_vien_id', isEqualTo: benhVienId);
-      }
-      final groupSnap = await groupQuery.get();
+      // Quét thêm trong collectionGroup('lich_hen')
+      final groupSnap = await _firestore.collectionGroup('lich_hen').get();
       for (var d in groupSnap.docs) {
         processDocData(d.data(), d.reference.path);
       }
     } catch (_) {}
 
-    // Tìm số nhỏ nhất từ 1 trở đi chưa có trong usedNumbers để lấp đầy khoảng trống (ví dụ: mất số 1 thì chèn vào số 1)
+    // Tìm số nhỏ nhất từ 1 trở đi chưa có trong usedNumbers để lấp đầy khoảng trống (ví dụ: đang có 1, 3 -> cấp 2)
     int candidate = 1;
     while (usedNumbers.contains(candidate)) {
       candidate++;
@@ -1021,7 +1065,7 @@ class FirebaseServiceC1 {
 
   /// Cập nhật trạng thái lịch hẹn trên Firestore (hỗ trợ cả collection LichHen cấp 1 và subcollection)
   /// - Khi duyệt (trang_thai_id: "2" - Đã xác nhận trong TrangThai số 2)
-  /// - Gán số thứ tự (so_thu_tu) tự động tăng dần bắt đầu từ 1
+  /// - Gán số thứ tự (so_thu_tu) tự động tăng dần bắt đầu từ 1, lấp các vị trí trống (nếu có đơn bị hủy trước đó)
   /// - Chỉ sử dụng `trang_thai_id`, không lưu redundant `trang_thai`, `trangThai`, `ten_trang_thai`.
   /// - Khi duyệt thì xóa `ly_do_tu_choi`, khi hủy (`trang_thai_id: "4"`) mới lưu `ly_do_tu_choi`.
   static Future<int?> capNhatTrangThaiLichHen({
@@ -1076,20 +1120,34 @@ class FirebaseServiceC1 {
       } else if (alreadyApproved && existingStt is String && int.tryParse(existingStt) != null && int.parse(existingStt) > 0) {
         capNhatStt = int.parse(existingStt);
       } else {
-        // Áp dụng Transaction khóa an toàn khi cấp STT để tránh xung đột nhiều máy
-        final bvid = benhVienId ?? DuLieuProfileMauC1.thongTinHienTai.benhVienId;
-        final targetKhoaId = khoaId ??
-            (existingData['khoa_id'] ?? existingData['khoaId'] ?? existingData['ten_khoa'] ?? existingData['tenKhoa'] ?? existingData['khoa'] ?? '')
-                .toString();
-        capNhatStt = await _firestore.runTransaction<int>((transaction) async {
-          return await laySoThuTuTiepTheo(
-            benhVienId: bvid,
-            khoaId: targetKhoaId.isNotEmpty ? targetKhoaId : null,
-            phongKhamId: phongKhamId,
-            caId: caId,
-            ngayChon: ngayChon,
-          );
-        });
+        // Lấy đúng mã bệnh viện từ chính document của đơn (ví dụ BV514), fallback về profile
+        final docBvid = (existingData['benh_vien_id'] ?? existingData['benhVienId'] ?? '').toString();
+        final bvid = docBvid.isNotEmpty
+            ? docBvid
+            : (benhVienId != null && benhVienId.isNotEmpty ? benhVienId : DuLieuProfileMauC1.thongTinHienTai.benhVienId);
+
+        // Lấy đúng khoaId từ document hoặc param
+        final targetKhoaId = (existingData['khoa_id'] ?? existingData['khoaId'] ?? khoaId ?? existingData['ten_khoa'] ?? existingData['tenKhoa'] ?? '').toString();
+
+        // Lấy ngày hẹn thực tế của đơn để tính STT đúng ngày đó
+        DateTime? docDate = ngayChon;
+        if (docDate == null) {
+          final rawNgay = existingData['ngay_dat'] ?? existingData['ngay_hen'] ?? existingData['ngay_kham'];
+          if (rawNgay is Timestamp) {
+            docDate = rawNgay.toDate().toLocal();
+          } else if (rawNgay is String) {
+            docDate = DateTime.tryParse(rawNgay);
+          }
+        }
+
+        // Gọi trực tiếp (KHÔNG bọc trong runTransaction vì Firestore không cho phép collection queries bên trong transaction)
+        capNhatStt = await laySoThuTuTiepTheo(
+          benhVienId: bvid,
+          khoaId: targetKhoaId.isNotEmpty ? targetKhoaId : null,
+          phongKhamId: phongKhamId ?? existingData['phong_kham_id']?.toString(),
+          caId: caId ?? existingData['ca_id']?.toString(),
+          ngayChon: docDate,
+        );
       }
     }
 
@@ -1131,6 +1189,7 @@ class FirebaseServiceC1 {
 
   /// Duyệt toàn bộ danh sách đơn đang chờ:
   /// - Sắp xếp theo thời gian đặt (ai đặt sớm thì cấp số thứ tự trước, tăng dần từ số hiện tại)
+  /// - Tự động cấp số thứ tự tịnh tiến (1, 2, 3...) theo từng khoa trong bộ nhớ để tránh trễ mạng Firestore
   /// - Cập nhật đồng loạt lên Firestore với trang_thai_id = "2" ("Đã xác nhận") và so_thu_tu
   static Future<void> duyetTatCaLichHen({
     required List<Map<String, dynamic>> danhSachDon,
@@ -1172,18 +1231,38 @@ class FirebaseServiceC1 {
         (danhSachChoDuyet.first['khoa_id'] ?? danhSachChoDuyet.first['tenKhoa'] ?? danhSachChoDuyet.first['khoa'] ?? '')
             .toString();
 
-    // 4. Cập nhật tuần tự từng đơn: capNhatTrangThaiLichHen tự động tính STT và lấp đúng các lỗ trống cho từng khoa
+    // 4. Theo dõi số thứ tự tiếp theo cho từng khoa trong bộ nhớ để tăng dần (tránh độ trễ Firestore làm trùng số 1)
+    final Map<String, int> nextSttTheoKhoa = {};
+
     for (var don in danhSachChoDuyet) {
       final id = don['id']?.toString();
       final docPath = don['docPath']?.toString();
       final donKhoaId = (don['khoa_id'] ?? don['tenKhoa'] ?? defaultKhoaId).toString();
+      final targetKhoa = donKhoaId.isNotEmpty ? donKhoaId : defaultKhoaId;
+
       if (id != null && id.isNotEmpty) {
+        // Lấy STT ban đầu từ Firestore cho khoa này nếu chưa có trong map
+        if (!nextSttTheoKhoa.containsKey(targetKhoa)) {
+          final startStt = await laySoThuTuTiepTheo(
+            benhVienId: bvid,
+            khoaId: targetKhoa,
+            phongKhamId: phongKhamId,
+            ngayChon: ngayChon,
+          );
+          nextSttTheoKhoa[targetKhoa] = startStt;
+        }
+
+        final currentSttToAssign = nextSttTheoKhoa[targetKhoa]!;
+        // Tăng STT cho người kế tiếp trong cùng khoa
+        nextSttTheoKhoa[targetKhoa] = currentSttToAssign + 1;
+
         await capNhatTrangThaiLichHen(
           appointmentId: id,
           docPath: docPath,
           trangThaiMoi: 'da_duyet',
+          soThuTuChiDinh: currentSttToAssign,
           benhVienId: bvid,
-          khoaId: donKhoaId.isNotEmpty ? donKhoaId : defaultKhoaId,
+          khoaId: targetKhoa,
           phongKhamId: phongKhamId,
           ngayChon: ngayChon,
         );
