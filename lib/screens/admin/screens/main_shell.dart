@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../config/app_routes.dart';
+import '../../../providers/auth_provider.dart';
 import '../core/theme.dart';
 import '../data/admin_store.dart';
 import '../widgets/shared_widgets.dart';
@@ -21,6 +24,8 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
+    // Bắt đầu lại các listener nếu store đã được làm sạch khi đăng xuất.
+    AdminStore.instance.startRealtimeSync();
     // Lắng nghe AdminStore để rebuild bottom bar khi badge count thay đổi
     AdminStore.instance.addListener(_onStoreChanged);
   }
@@ -71,14 +76,41 @@ class _MainShellState extends State<MainShell> {
                 elevation: 0,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              onPressed: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                Navigator.of(context).pop();
+                messenger.showSnackBar(
                   const SnackBar(
-                    content: Text('Đã đăng xuất khỏi tài khoản Quản trị viên'),
+                    content: Text('Đang đăng xuất...'),
                     backgroundColor: kSlate900,
                   ),
                 );
+
+                try {
+                  // Đăng xuất Firebase, xóa trạng thái provider và cache admin.
+                  await context.read<AuthProvider>().logout();
+                  await AdminStore.instance.clearForLogout();
+
+                  if (!mounted) return;
+                  Navigator.of(context).pushNamedAndRemoveUntil(
+                    AppRoutes.login,
+                    (route) => false,
+                  );
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Đã đăng xuất khỏi tài khoản Quản trị viên'),
+                      backgroundColor: kSlate900,
+                    ),
+                  );
+                } catch (error) {
+                  if (!mounted) return;
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text('Không thể đăng xuất: $error'),
+                      backgroundColor: kRed,
+                    ),
+                  );
+                }
               },
               child: const Text('Đăng xuất'),
             ),
