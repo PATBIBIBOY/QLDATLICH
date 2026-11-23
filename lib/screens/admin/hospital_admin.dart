@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../config/app_routes.dart';
 
 // ===================================================
 // FILE GỐC: core/theme.dart
@@ -930,10 +932,13 @@ class _MainShellState extends State<MainShell> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                   backgroundColor: kRed, foregroundColor: Colors.white),
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Đã đăng xuất (demo)')));
+                try {
+                  await FirebaseAuth.instance.signOut();
+                } catch (_) {}
+                AppRoutes.navigatorKey.currentState
+                    ?.pushNamedAndRemoveUntil(AppRoutes.login, (r) => false);
               },
               child: const Text('Đăng xuất'),
             ),

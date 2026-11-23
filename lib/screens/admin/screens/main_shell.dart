@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../../config/app_routes.dart';
 import '../core/theme.dart';
 import '../data/admin_store.dart';
 import '../widgets/shared_widgets.dart';
@@ -71,14 +73,15 @@ class _MainShellState extends State<MainShell> {
                 elevation: 0,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Đã đăng xuất khỏi tài khoản Quản trị viên'),
-                    backgroundColor: kSlate900,
-                  ),
-                );
+                // Đăng xuất Firebase Auth
+                try {
+                  await FirebaseAuth.instance.signOut();
+                } catch (_) {}
+                // Điều hướng về trang đăng nhập chung, xóa toàn bộ stack
+                AppRoutes.navigatorKey.currentState
+                    ?.pushNamedAndRemoveUntil(AppRoutes.login, (r) => false);
               },
               child: const Text('Đăng xuất'),
             ),
