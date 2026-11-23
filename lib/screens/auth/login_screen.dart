@@ -1,10 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:provider/provider.dart';
 
 import '../../config/app_routes.dart';
-import '../../database_seeder.dart';
 import '../../config/app_session.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/validators.dart';
@@ -13,7 +11,6 @@ import '../letan_c1/letan_thietlap_thongtin_screen_c1.dart';
 import '../letan_c1/letan_trangchu_screen_c1.dart';
 import '../../support_doctor/clinic_firestore_service.dart';
 import '../../models/letan_c1/letan_profile_model_c1.dart';
-import '../../config/staff_session.dart';
 import 'otp_screen.dart';
 import '../../services/letan_c1/letan_firebase_service_c1.dart';
 
@@ -31,19 +28,6 @@ class _LoginScreenState extends State<LoginScreen> {
   static const _primary = Color(0xFF1E78E0);
   static const _danger = Color(0xFFE53935);
   static const _grey = Color(0xFF64748B);
-
-  // ✅ 2. ĐỊNH NGHĨA CÁC DANH SÁCH ROLE CÒN THIẾU
-  static const List<String> _roleLeTan = ['receptionist', 'le_tan'];
-  static const List<String> _roleCskh = [
-    'customerSupport',
-    'cskh',
-    'cham_soc_khach_hang'
-  ];
-  static const List<String> _roleBacSi = [
-    'doctorAssistant',
-    'ho_tro_bac_si',
-    'bac_si'
-  ];
 
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
@@ -77,11 +61,6 @@ class _LoginScreenState extends State<LoginScreen> {
     final value = _isPhoneInput(_emailCtrl.text.trim());
     if (value != _isPhone) setState(() => _isPhone = value);
   }
-
-  bool _isStaffRole(String role) =>
-      _roleLeTan.contains(role) ||
-      _roleCskh.contains(role) ||
-      _roleBacSi.contains(role);
 
   void _showError(String message) {
     if (!mounted) return;
@@ -322,174 +301,6 @@ class _LoginScreenState extends State<LoginScreen> {
       },
       onError: _showError,
     );
-  }
-
-  Future<bool> _loginByStaffCode(String input, String password) async {
-    final firestore = FirebaseFirestore.instance;
-
-    DocumentSnapshot<Map<String, dynamic>> nhanVienDoc =
-        await firestore.collection('NhanVien').doc(input).get();
-
-    if (!nhanVienDoc.exists) {
-      final q = await firestore
-          .collection('NhanVien')
-          .where('ma_tai_khoan', isEqualTo: input)
-          .limit(1)
-          .get();
-      if (q.docs.isNotEmpty) nhanVienDoc = q.docs.first;
-    }
-
-    final upper = input.toUpperCase();
-    if (!nhanVienDoc.exists && (upper == 'LT_TM_01' || upper == 'CSKH_01')) {
-      if (password != '123456') {
-        throw Exception('Mật khẩu cấp ban đầu không chính xác! (Mặc định: 123456)');
-      }
-      final isCskh = upper.contains('CSKH');
-      await firestore.collection('NhanVien').doc(upper).set({
-        'ma_tai_khoan': upper,
-        'ma_nhan_vien': upper,
-        'mat_khau': '123456',
-        'ho_ten': isCskh ? 'Nhân Viên CSKH' : 'Đinh Hoàng Cước',
-        'role': isCskh ? 'customerSupport' : 'receptionist',
-        'khoa': 'KHOA TIM',
-        'da_kich_hoat': false,
-        'ngay_tao': FieldValue.serverTimestamp(),
-      });
-      nhanVienDoc = await firestore.collection('NhanVien').doc(upper).get();
-    }
-
-    if (!nhanVienDoc.exists) return false;
-
-    final nvData = nhanVienDoc.data()!;
-    if (nvData['mat_khau'] != null && nvData['mat_khau'] != password) {
-      throw Exception('Mật khẩu không chính xác!');
-    }
-
-    return _enterStaffHome(
-      data: nvData,
-      defaultRole: 'receptionist',
-      fallbackId: input,
-      setupId: upper,
-      requireStaffRole: false,
-    );
-  }
-
-  Future<bool> _loginStaffByAccount(String currentUid, String email) async {
-    final firestore = FirebaseFirestore.instance;
-
-    DocumentSnapshot<Map<String, dynamic>> userDoc =
-        await firestore.collection('NhanVien').doc(currentUid).get();
-
-    if (userDoc.exists) {
-      final maNvGoc =
-          userDoc.data()?['ma_nhan_vien'] ?? userDoc.data()?['ma_tai_khoan'];
-      if (maNvGoc != null &&
-          maNvGoc.toString().isNotEmpty &&
-          maNvGoc.toString() != currentUid) {
-        final docGoc =
-            await firestore.collection('NhanVien').doc(maNvGoc.toString()).get();
-        if (docGoc.exists) userDoc = docGoc;
-      }
-    }
-
-    if (!userDoc.exists || userDoc.data()?['role'] == null) {
-      final qUid = await firestore
-          .collection('NhanVien')
-          .where('uid', isEqualTo: currentUid)
-          .limit(1)
-          .get();
-      if (qUid.docs.isNotEmpty) userDoc = qUid.docs.first;
-    }
-
-    if (!userDoc.exists) {
-      final q = await firestore
-          .collection('NhanVien')
-          .where('email', isEqualTo: email)
-          .limit(1)
-          .get();
-      if (q.docs.isNotEmpty) userDoc = q.docs.first;
-    }
-
-    var fromUsers = false;
-    if (!userDoc.exists) {
-      userDoc = await firestore.collection('users').doc(currentUid).get();
-      fromUsers = true;
-    }
-
-    if (!userDoc.exists) return false;
-
-    final data = userDoc.data() ?? <String, dynamic>{};
-
-    return _enterStaffHome(
-      data: data,
-      defaultRole: 'patient',
-      fallbackId: currentUid,
-      fallbackEmail: email,
-      requireStaffRole: fromUsers,
-    );
-  }
-
-  Future<bool> _enterStaffHome({
-    required Map<String, dynamic> data,
-    required String defaultRole,
-    required String fallbackId,
-    required bool requireStaffRole,
-    String? setupId,
-    String fallbackEmail = '',
-  }) async {
-    final role = (data['role'] ?? defaultRole).toString();
-
-    if (requireStaffRole && !_isStaffRole(role)) return false;
-    if (!mounted) return false;
-
-    final maNvThucTe =
-        (data['ma_nhan_vien'] ?? data['ma_tai_khoan'] ?? fallbackId).toString();
-
-    if (data['da_kich_hoat'] != true) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => LetanThietlapThongtinScreenC1(
-            maNhanVienMacDinh: setupId ?? maNvThucTe,
-          ),
-        ),
-      );
-      return true;
-    }
-
-    await StaffSession.save(maNvThucTe);
-
-    final isLeTan = _roleLeTan.contains(role);
-    DuLieuProfileMauC1.thongTinHienTai = DuLieuProfileMauC1.thongTinHienTai
-        .copyWith(
-      maNhanVien: maNvThucTe,
-      hoTen: (data['ho_ten'] ?? 'Nhân viên').toString(),
-      chucVu: (data['chuc_vu'] ??
-              (isLeTan ? 'Lễ tân tiếp đón' : 'Chăm sóc khách hàng'))
-          .toString(),
-      khoa: (data['khoa'] ?? 'Khoa Khám Bệnh').toString(),
-      email: (data['email'] ?? fallbackEmail).toString(),
-    );
-
-    // ✅ 4. SỬA TÊN CLASS ĐÚNG VỚI IMPORT
-    final Widget? screen = isLeTan
-        ? const LeTanHomeScreenC1()
-        : _roleCskh.contains(role)
-            ? const CskhDuyetdonKhoaScreenC1()
-            : _roleBacSi.contains(role)
-                ? FirestoreClinicRoomPickerScreen(
-                    hospitalId: (data['benh_vien_id'] ?? 'BV502').toString(),
-                    hospitalName: (data['ten_benh_vien'] ?? 'Bệnh viện').toString(),
-                  )
-                : null;
-
-    if (screen == null) return false;
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => screen),
-    );
-    return true;
   }
 
   String _loginErrorMessage(Object error) {

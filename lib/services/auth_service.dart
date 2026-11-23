@@ -256,7 +256,7 @@ class AuthService {
   Future<void> saveUserToFirestore(PatientModel user) async {
     final Map<String, dynamic> userData = user.toMap();
 
-    if (user.role?.trim() == 'benh_nhan' && (user.uid == null || user.uid!.isEmpty)) {
+    if (user.role?.trim() == 'benh_nhan' && user.uid.isEmpty) {
       try {
         final generatedId = await _generatePatientId();
         userData['uid'] = generatedId;

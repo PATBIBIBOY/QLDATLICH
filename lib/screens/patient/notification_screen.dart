@@ -69,7 +69,6 @@ class NotificationScreen extends StatefulWidget {
 class _NotificationScreenState extends State<NotificationScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
-  int _initialTabIndex = 1;
 
   @override
   void initState() {
@@ -116,9 +115,6 @@ class _NotificationScreenState extends State<NotificationScreen>
     const tabsHeight = 60.0;
     const overlap = 30.0;
     final headerHeight = topInset + headerBody;
-
-    final args = ModalRoute.of(context)?.settings.arguments;
-    _initialTabIndex = (args is int) ? args : 1;
 
     return Scaffold(
       backgroundColor: _C.bg,

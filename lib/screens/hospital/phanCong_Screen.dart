@@ -157,22 +157,6 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
         vaiTroLower.contains('le tan') ||
         vaiTroLower.contains('reception')) {
       prefix = 'LT';
-    } else if (maNvUpper.contains('_BS_') ||
-        vaiTroLower.contains('bác sĩ') ||
-        vaiTroLower.contains('bac si') ||
-        vaiTroLower.contains('doctor') ||
-        vaiTroLower.contains('support')) {
-      prefix = 'BS';
-    } else if (maNvUpper.contains('_DD_') ||
-        vaiTroLower.contains('điều dưỡng') ||
-        vaiTroLower.contains('dieu duong') ||
-        vaiTroLower.contains('nurse')) {
-      prefix = 'DD';
-    } else if (maNvUpper.contains('_DS_') ||
-        vaiTroLower.contains('dược sĩ') ||
-        vaiTroLower.contains('duoc si') ||
-        vaiTroLower.contains('pharmacist')) {
-      prefix = 'DS';
     } else if (maNvUpper.contains('_CSKH_') ||
         vaiTroLower.contains('cskh') ||
         vaiTroLower.contains('chăm sóc')) {
@@ -1163,27 +1147,36 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
           children: [
-            Icon(Icons.warning_amber_rounded,
-                color: Color(0xFFDC2626), size: 24),
+            Icon(
+              Icons.warning_amber_rounded,
+              color: Color(0xFFDC2626),
+              size: 24,
+            ),
             SizedBox(width: 8),
-            Text('Hủy phân công',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            Text(
+              'Hủy phân công',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
           ],
         ),
         content: Text(
-            'Bạn có chắc muốn hủy phân công $tenNv$vaiTroText trực tại ${phong.tenPhong}?'),
+          'Bạn có chắc muốn hủy phân công $tenNv$vaiTroText trực tại ${phong.tenPhong}?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child:
-                const Text('Không', style: TextStyle(color: Color(0xFF64748B))),
+            child: const Text(
+              'Không',
+              style: TextStyle(color: Color(0xFF64748B)),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFDC2626),
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Xác nhận xóa'),
@@ -1195,12 +1188,13 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
     if (xacNhan != true) return;
 
     try {
-      final docId = (pcData['_docId'] ??
-              pcData['id'] ??
-              '${_ngayStr}_${phong.tenPhong}_${pcData['vai_tro_code']}')
+      final docId =
+          (pcData['_docId'] ??
+                  pcData['id'] ??
+                  '${_ngayStr}_${phong.tenPhong}_${pcData['vai_tro_code']}')
+              .toString();
+      final maNv = (pcData['nhan_vien_id'] ?? pcData['ma_nhan_vien'] ?? '')
           .toString();
-      final maNv =
-          (pcData['nhan_vien_id'] ?? pcData['ma_nhan_vien'] ?? '').toString();
 
       final batch = FirebaseFirestore.instance.batch();
 
@@ -1254,8 +1248,9 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
         }, SetOptions(merge: true));
 
         final pkDocId = '${_bvid}_${khoaId}_${phong.tenPhong}';
-        final rootPkRef =
-            FirebaseFirestore.instance.collection('PhongKham').doc(pkDocId);
+        final rootPkRef = FirebaseFirestore.instance
+            .collection('PhongKham')
+            .doc(pkDocId);
         batch.set(rootPkRef, {
           'nhan_vien_id': null,
           'nhanVienId': null,
@@ -1295,9 +1290,7 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: const Color(0xFFCBD5E1),
-          ),
+          border: Border.all(color: const Color(0xFFCBD5E1)),
           boxShadow: const [
             BoxShadow(
               color: Color(0x06000000),
@@ -1337,10 +1330,7 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                   SizedBox(height: 2),
                   Text(
                     'Xem lại các ca trực đã phân công theo ngày',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: Color(0xFF64748B),
-                    ),
+                    style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
                   ),
                 ],
               ),
@@ -1393,8 +1383,10 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
 
                   // Tiêu đề
                   Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 8,
+                    ),
                     child: Row(
                       children: [
                         Container(
@@ -1435,8 +1427,10 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(ctx),
-                          icon: const Icon(Icons.close_rounded,
-                              color: Color(0xFF94A3B8)),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: Color(0xFF94A3B8),
+                          ),
                         ),
                       ],
                     ),
@@ -1447,8 +1441,10 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                   // THANH ĐIỀU HƯỚNG CHỌN NGÀY ĐỂ XEM
                   Container(
                     margin: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(14),
@@ -1467,8 +1463,9 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                         IconButton(
                           onPressed: () {
                             setSheetState(() {
-                              ngayXemLichSu = ngayXemLichSu
-                                  .subtract(const Duration(days: 1));
+                              ngayXemLichSu = ngayXemLichSu.subtract(
+                                const Duration(days: 1),
+                              );
                             });
                           },
                           icon: const Icon(
@@ -1494,7 +1491,9 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                           borderRadius: BorderRadius.circular(8),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 6),
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -1519,8 +1518,9 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                         IconButton(
                           onPressed: () {
                             setSheetState(() {
-                              ngayXemLichSu =
-                                  ngayXemLichSu.add(const Duration(days: 1));
+                              ngayXemLichSu = ngayXemLichSu.add(
+                                const Duration(days: 1),
+                              );
                             });
                           },
                           icon: const Icon(
@@ -1535,8 +1535,10 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
 
                   // Thanh trạng thái ngày đang xem & nút chọn hôm nay
                   Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 4,
+                    ),
                     child: Row(
                       children: [
                         Text(
@@ -1557,7 +1559,9 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                           borderRadius: BorderRadius.circular(6),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFEFF6FF),
                               borderRadius: BorderRadius.circular(6),
@@ -1643,27 +1647,26 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
 
                         return ListView.builder(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 6),
+                            horizontal: 16,
+                            vertical: 6,
+                          ),
                           itemCount: docs.length,
                           itemBuilder: (ctx, idx) {
                             final item = docs[idx].data();
-                            final tenPhong = (item['ten_phong'] ??
-                                    item['phong_id'] ??
-                                    '')
+                            final tenPhong =
+                                (item['ten_phong'] ?? item['phong_id'] ?? '')
+                                    .toString();
+                            final tenKhoa = (item['ten_khoa'] ?? '').toString();
+                            final tenNv = (item['ten_nhan_vien'] ?? 'Nhân viên')
                                 .toString();
-                            final tenKhoa =
-                                (item['ten_khoa'] ?? '').toString();
-                            final tenNv = (item['ten_nhan_vien'] ??
-                                    'Nhân viên')
+                            final vaiTro = (item['vai_tro'] ?? '').toString();
+                            final maNv =
+                                (item['ma_nhan_vien'] ??
+                                        item['nhan_vien_id'] ??
+                                        '')
+                                    .toString();
+                            final roleCode = (item['vai_tro_code'] ?? '')
                                 .toString();
-                            final vaiTro =
-                                (item['vai_tro'] ?? '').toString();
-                            final maNv = (item['ma_nhan_vien'] ??
-                                    item['nhan_vien_id'] ??
-                                    '')
-                                .toString();
-                            final roleCode =
-                                (item['vai_tro_code'] ?? '').toString();
 
                             return Container(
                               margin: const EdgeInsets.only(bottom: 8),
@@ -1672,7 +1675,8 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
-                                    color: const Color(0xFFE2E8F0)),
+                                  color: const Color(0xFFE2E8F0),
+                                ),
                                 boxShadow: const [
                                   BoxShadow(
                                     color: Color(0x04000000),
@@ -1688,8 +1692,7 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                                     height: 36,
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFDCFCE7),
-                                      borderRadius:
-                                          BorderRadius.circular(10),
+                                      borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: const Center(
                                       child: Icon(
@@ -1741,14 +1744,15 @@ class _PhanCongScreenState extends State<PhanCongScreen> {
                                   if (roleCode.isNotEmpty)
                                     Container(
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 3),
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: const Color(0xFFEFF6FF),
-                                        borderRadius:
-                                            BorderRadius.circular(6),
+                                        borderRadius: BorderRadius.circular(6),
                                         border: Border.all(
-                                            color:
-                                                const Color(0xFFBFDBFE)),
+                                          color: const Color(0xFFBFDBFE),
+                                        ),
                                       ),
                                       child: Text(
                                         roleCode,
@@ -2088,8 +2092,6 @@ class _ChonNhanVienModalState extends State<_ChonNhanVienModal> {
       );
     }
   }
-
-
 
   /// Hủy phân công toàn bộ vai trò phòng này (chuyển trạng thái nhân viên về 15 "chờ")
   Future<void> _huyToanBoPhanCongPhong() async {

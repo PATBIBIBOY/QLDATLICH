@@ -40,6 +40,10 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
   String _tabBoLocHienTai = 'Tất cả'; // 'Tất cả', 'Chờ duyệt', 'Đã duyệt', 'Đã hủy'
   final List<String> _danhSachTabs = ['Tất cả', 'Chờ duyệt', 'Đã duyệt', 'Đã hủy'];
 
+  // Bộ nhớ đệm giữ chỗ STT theo thời gian thực (Local Memory Lock) chống trễ mạng
+  // Map: id lịch hẹn -> STT vừa cấp trong phiên
+  final Map<String, int> _sttVuaCapTrongPhien = {};
+
   @override
   void initState() {
     super.initState();
@@ -62,23 +66,70 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
       confirmText: 'CHỌN',
     );
     if (picked != null && picked != _ngayChon) {
-      setState(() => _ngayChon = picked);
+      setState(() {
+        _ngayChon = picked;
+        _sttVuaCapTrongPhien.clear();
+      });
     }
   }
 
   // Duyệt 1 đơn khám với Optimistic UI update
-  void _duyetDon(Map<String, dynamic> don) async {
+  void _duyetDon(Map<String, dynamic> don, [List<Map<String, dynamic>>? danhSachHienCo]) async {
     AppDesignSystemC1.hapticLight();
     final appointmentId = don['id'];
     final docPath = don['docPath'];
 
+    // 1. Quét kết hợp giữa danh sách trên màn hình VÀ bộ nhớ đệm giữ chỗ (_sttVuaCapTrongPhien):
+    // Đảm bảo dù bạn có bấm duyệt 10 người liên tục trong 1 giây cũng KHÔNG BAO GIỜ bị trùng số!
+    final Set<int> usedNumbers = {};
+
+    // Gom các số từ danh sách snapshot
+    if (danhSachHienCo != null && danhSachHienCo.isNotEmpty) {
+      for (var item in danhSachHienCo) {
+        if (item['id'] == appointmentId) continue;
+
+        final rawId = (item['trangThaiId'] ?? '').toString();
+        final rawStr = (item['rawTrangThai'] ?? '').toString().toLowerCase();
+        final tt = (item['trangThai'] ?? '').toString();
+
+        final bool daDuyet = rawId == '2' || rawId == '5' || rawStr.contains('duyet') || rawStr.contains('xac_nhan') || tt == 'Đã duyệt' || tt == 'Đã khám';
+        if (!daDuyet) continue;
+
+        final sttVal = item['so_thu_tu'] ?? item['stt'];
+        if (sttVal != null) {
+          final p = int.tryParse(sttVal.toString());
+          if (p != null && p > 0) {
+            usedNumbers.add(p);
+          }
+        }
+      }
+    }
+
+    // Gom thêm các số vừa mới cấp trong phiên (chưa kịp snapshot từ Firestore)
+    _sttVuaCapTrongPhien.forEach((id, stt) {
+      if (id != appointmentId && stt > 0) {
+        usedNumbers.add(stt);
+      }
+    });
+
+    // Tìm số nhỏ nhất từ 1 trở đi chưa có trong usedNumbers để lấp lỗ trống
+    int candidate = 1;
+    while (usedNumbers.contains(candidate)) {
+      candidate++;
+    }
+    final int sttChiDinh = candidate;
+
+    // Khóa ngay lập tức số này trong bộ nhớ để đơn kế tiếp không lấy trùng
+    if (appointmentId != null) {
+      _sttVuaCapTrongPhien[appointmentId.toString()] = sttChiDinh;
+    }
+
     // Optimistic UI: Phản hồi ngay lập tức để người dùng không phải chờ đợi mạng
-    final sttTam = don['so_thu_tu'] ?? don['stt'] ?? '...';
     AppDesignSystemC1.showCustomSnackBar(
       context,
-      message: '✓ Đang xác nhận đơn của ${don['hoTen']} - Cấp STT: #$sttTam',
+      message: '✓ Đang phê duyệt đơn của ${don['hoTen']} - Cấp STT: #$sttChiDinh...',
       isSuccess: true,
-      icon: Icons.check_circle_rounded,
+      icon: Icons.hourglass_top_rounded,
     );
 
     int? soThuTuMoi;
@@ -88,6 +139,7 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
           appointmentId: appointmentId,
           docPath: docPath,
           trangThaiMoi: 'da_duyet',
+          soThuTuChiDinh: sttChiDinh,
           khoaId: widget.tenKhoa,
           phongKhamId: don['phong_kham_id'] ?? _phongHienTai,
           ngayChon: _ngayChon,
@@ -103,6 +155,9 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
         );
       }
     } catch (e) {
+      if (appointmentId != null) {
+        _sttVuaCapTrongPhien.remove(appointmentId.toString());
+      }
       AppDesignSystemC1.hapticError();
       if (mounted) {
         AppDesignSystemC1.showCustomSnackBar(
@@ -117,9 +172,16 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
 
   // Mở Popup chọn lý do từ chối đơn khám
   void _moPopupTuChoiDon(Map<String, dynamic> don) {
+    final appointmentId = don['id']?.toString();
     CskhRejectReasonBottomSheetC1.show(
       context: context,
       don: don,
+      onRejected: () {
+        // Khi hủy đơn: giải phóng số thứ tự khỏi bộ nhớ đệm phiên
+        if (appointmentId != null) {
+          _sttVuaCapTrongPhien.remove(appointmentId);
+        }
+      },
     );
   }
 
@@ -474,7 +536,7 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
                                 final item = danhSachHienThi[index];
                                 return CskhAppointmentCardC1(
                                   item: item,
-                                  onApprove: () => _duyetDon(item),
+                                  onApprove: () => _duyetDon(item, danhSach),
                                   onReject: () => _moPopupTuChoiDon(item),
                                 );
                               },

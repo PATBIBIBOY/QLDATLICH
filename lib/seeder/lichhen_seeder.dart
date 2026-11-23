@@ -354,6 +354,7 @@ class LichHenSeeder {
         'ngay_dat': Timestamp.fromDate(targetDate),
         'ca_id': 'ca_chieu',
         'ten_ca': 'Ca chiều',
+        'gio_du_kien': gioDuKien,
         'so_thu_tu': stt,
         'trang_thai_id': 2,
         'ma_qr': 'QR_$lichHenId',

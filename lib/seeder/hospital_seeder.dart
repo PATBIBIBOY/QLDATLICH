@@ -13,6 +13,7 @@ class HospitalSeeder {
   // 1. DANH SÁCH 40 BỆNH VIỆN (ĐÃ CẬP NHẬT ID VÀ LOẠI BỎ da_xoa)
   // ==========================================
 
+  // ignore: unused_field
   static final List<Map<String, dynamic>> _hospitals = [
     {
       'ma_benh_vien': 'BV001',
@@ -11777,7 +11778,6 @@ class HospitalSeeder {
         int reviews = 100 + random.nextInt(201);
 
         final maBenhVien = 'BV${(i + 1).toString().padLeft(3, '0')}';
-        final trangThaiId = '10';
 
         // =====================================================================
         // ✅ SỬA ĐÚNG: TẠO NGẪU NHIÊN 3-6 CHUYÊN KHOA CHO BỆNH VIỆN NÀY

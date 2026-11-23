@@ -204,8 +204,8 @@ class HospitalService {
 
             if (lat is num && lon is num) {
               final distance = _locationService.calculateDistanceInKm(
-                currentUserLocation!.latitude,
-                currentUserLocation!.longitude,
+                currentUserLocation.latitude,
+                currentUserLocation.longitude,
                 lat.toDouble(),
                 lon.toDouble(),
               );

@@ -5,7 +5,7 @@ import 'package:qldatlich/services/admin_service.dart';
 import 'package:qldatlich/services/admin_provider.dart';
 
 class ManageHospitalsScreen extends StatefulWidget {
-  const ManageHospitalsScreen({Key? key}) : super(key: key);
+  const ManageHospitalsScreen({super.key});
 
   @override
   State<ManageHospitalsScreen> createState() => _ManageHospitalsScreenState();

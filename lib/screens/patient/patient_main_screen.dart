@@ -58,6 +58,7 @@ class _PatientMainScreenState extends State<PatientMainScreen> {
       body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: MedicalBottomNavBar(
         currentIndex: _currentIndex,
+        notificationCount: unread,
         onTap: (index) => setState(() => _currentIndex = index),
       ),
     );

@@ -26,7 +26,6 @@ class StaffAccountStore {
   }
 }
 
-
 class DanhSachTaiKhoanDaTaoScreen extends StatefulWidget {
   final String? benhVienId;
   final String? tenKhoa;
@@ -166,7 +165,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
         setRoles.add(item.vaiTro.trim());
       }
     }
-    const defaultRoles = ['Bác sĩ', 'Điều dưỡng', 'Dược sĩ', 'Lễ tân', 'CSKH'];
+    const defaultRoles = ['Lễ tân', 'CSKH'];
     for (final r in defaultRoles) {
       if (!setRoles.contains(r)) {
         setRoles.add(r);
@@ -189,18 +188,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
         final r = item.vaiTro.toLowerCase();
         final filter = roleFilter.toLowerCase();
         if (r == filter) return true;
-        if (filter == 'bác sĩ' &&
-            (r.contains('bác sĩ') || item.role == 'doctor')) {
-          return true;
-        }
-        if (filter == 'điều dưỡng' &&
-            (r.contains('điều dưỡng') || item.role == 'nurse')) {
-          return true;
-        }
-        if (filter == 'dược sĩ' &&
-            (r.contains('dược') || item.role == 'pharmacist')) {
-          return true;
-        }
+
         if (filter == 'lễ tân' &&
             (r.contains('lễ tân') || item.role == 'receptionist')) {
           return true;
