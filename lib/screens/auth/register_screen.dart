@@ -244,6 +244,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   InputDecoration _decoration(IconData icon, String hint, {Widget? suffix}) =>
       InputDecoration(
         hintText: hint,
+        hintMaxLines: 1,
+        hintStyle: const TextStyle(overflow: TextOverflow.ellipsis),
         prefixIcon: Icon(icon, color: _grey),
         suffixIcon: suffix,
         filled: true,
@@ -282,6 +284,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
     ),
   );
+
+  /// _buildRegisterButtonContent: nội dung nút đăng ký, tự thu nhỏ chữ để không bị tràn trên màn hình hẹp.
+  Widget _buildRegisterButtonContent({
+    required bool isLoading,
+    required bool isPatientPhone,
+    required String roleLabel,
+  }) {
+    if (isLoading) {
+      return const SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(
+          strokeWidth: 2.5,
+          color: Colors.white,
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              isPatientPhone ? 'Gửi mã OTP' : 'Đăng Ký Tài Khoản $roleLabel',
+              maxLines: 1,
+              softWrap: false,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        const Icon(Icons.arrow_forward, size: 22),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -353,6 +393,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       Text(
                         'Đăng ký tài khoản $roleLabel',
+                        textAlign: TextAlign.center,
                         style: const TextStyle(fontSize: 15, color: _grey),
                       ),
                     ],
@@ -377,12 +418,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             duration: const Duration(milliseconds: 200),
                             height: 44,
                             alignment: Alignment.center,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
                             decoration: BoxDecoration(
                               color: active ? _primary : Colors.transparent,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
                               _roles[i]['ten_vai_tro'] ?? 'Vai trò',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
                                 fontSize: 15,
@@ -621,37 +665,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       backgroundColor: _primary,
                       foregroundColor: Colors.white,
                       elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(18),
                       ),
                     ),
-                    child: isLoading
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                isPatientPhone
-                                    ? 'Gửi mã OTP'
-                                    : 'Đăng Ký Tài Khoản $roleLabel',
-                                style: const TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-
-                              const SizedBox(width: 8),
-
-                              const Icon(Icons.arrow_forward, size: 22),
-                            ],
-                          ),
+                    child: _buildRegisterButtonContent(
+                      isLoading: isLoading,
+                      isPatientPhone: isPatientPhone,
+                      roleLabel: roleLabel,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
