@@ -1722,47 +1722,52 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   itemCount: filtered.isEmpty ? 2 : filtered.length + 1,
                   itemBuilder: (context, i) {
-                    if (i == 0) {
+                    if (filtered.isEmpty) {
+                      if (i == 0) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 36),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: const BoxDecoration(
+                                    color: kSlate100,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.people_outline_rounded, size: 36, color: kSlate400),
+                                ),
+                                const SizedBox(height: 12),
+                                const Text(
+                                  'Không tìm thấy bệnh nhân nào',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    color: kSlate700,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc',
+                                  style: TextStyle(fontSize: 12.5, color: kSlate500),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
                       return _buildGlobalActivityOverview(store);
                     }
 
-                    if (filtered.isEmpty) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 36),
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: const BoxDecoration(
-                                  color: kSlate100,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.people_outline_rounded, size: 36, color: kSlate400),
-                              ),
-                              const SizedBox(height: 12),
-                              const Text(
-                                'Không tìm thấy bệnh nhân nào',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w800,
-                                  color: kSlate700,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc',
-                                style: TextStyle(fontSize: 12.5, color: kSlate500),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
+                    // ƯU TIÊN HIỂN THỊ TOÀN BỘ DANH SÁCH TÀI KHOẢN BỆNH NHÂN TRƯỚC TIÊN
+                    if (i < filtered.length) {
+                      final patient = filtered[i];
+                      return _buildPatientCard(patient);
                     }
 
-                    final patient = filtered[i - 1];
-                    return _buildPatientCard(patient);
+                    // Khối biểu đồ & tần suất tổng quan đặt ở cuối danh sách
+                    return _buildGlobalActivityOverview(store);
                   },
                 ),
               ),
