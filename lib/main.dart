@@ -1,8 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'services/database_migration_service.dart';
 
 import 'config/app_routes.dart';
 import 'config/app_theme.dart';
@@ -15,14 +13,7 @@ import 'providers/review_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/khoa_provider.dart';
 import 'services/admin_provider.dart';
-import 'screens/auth/login_screen.dart';
 import 'screens/auth/splash_screen.dart';
-import 'seeder/hospital_seeder.dart';
-import 'seeder/specialty_seeder.dart';
-import 'seeder/phong_kham_seeder.dart';
-import 'seeder/lichhen_seeder.dart';
-import 'seeder/danh_gia_seeder.dart';
-import 'seeder/thong_bao_seeder.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

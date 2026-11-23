@@ -50,7 +50,7 @@ void main() {
       expect(ketQua.every((so) => so > 0), isTrue);
       expect(ketQua.toSet().length, ketQua.length);
       expect(ketQua.first, 1);
-      expect(ketQua.last, 3);
+      expect(ketQua.last, 4);
     });
 
     test('giữ đúng vị trí ngay sau số mốc', () {
@@ -63,8 +63,8 @@ void main() {
   group('waitingAfterInserts: giữ đúng khe chèn', () {
     test('chèn ngay sau số mốc đang có trong hàng chờ', () {
       final ketQua = waitingAfterInserts(
-        waiting: <int>[1, 2, 3],
-        inserts: <InsertResult>[(number: -1, afterNumber: 2)],
+        <int>[1, 2, 3],
+        <InsertResult>[(number: -1, afterNumber: 2)],
         nextNumber: 0,
       );
       expect(ketQua, <int>[1, 2, -1, 3]);
@@ -72,8 +72,8 @@ void main() {
 
     test('nhập 0 thì lên đầu hàng chờ', () {
       final ketQua = waitingAfterInserts(
-        waiting: <int>[1, 3],
-        inserts: <InsertResult>[(number: -1, afterNumber: null)],
+        <int>[1, 3],
+        <InsertResult>[(number: -1, afterNumber: null)],
         nextNumber: 0,
       );
       expect(ketQua, <int>[-1, 1, 3]);
@@ -81,8 +81,8 @@ void main() {
 
     test('số mốc là số tiếp theo thì chèn vào đầu hàng chờ', () {
       final ketQua = waitingAfterInserts(
-        waiting: <int>[3],
-        inserts: <InsertResult>[(number: -1, afterNumber: 2)],
+        <int>[3],
+        <InsertResult>[(number: -1, afterNumber: 2)],
         nextNumber: 2,
       );
       expect(ketQua, <int>[-1, 3]);

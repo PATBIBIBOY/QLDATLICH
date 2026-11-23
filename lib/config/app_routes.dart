@@ -31,7 +31,6 @@ import '../screens/patient/add_edit_family_profile_screen.dart';
 import '../screens/receptionist/receptionist_home_screen.dart';
 import '../screens/receptionist/check_in_screen.dart';
 import '../screens/receptionist/appointment_list_screen.dart';
-import '../screens/letan_c1/letan_trangchu_screen_c1.dart'; // Giữ lại nếu cần dùng màn C1
 
 // Doctor Assistant Screens
 import '../screens/doctor_assistant/assistant_home_screen.dart';
@@ -50,7 +49,6 @@ import '../screens/hospital/guiYeuCauHopTac_Screen.dart';
 import '../screens/hospital/guiDonThanhCong_Screen.dart';
 import '../screens/hospital/statistics_screen.dart';
 import '../screens/hospital/staff_management_screen.dart';
-import '../screens/hospital/nhanSu_Screen.dart';
 import '../screens/admin/admin_dashboard.dart';
 
 // ⚠️ LƯU Ý: Nếu ThemKhoaScreen báo lỗi không tìm thấy, hãy thêm import đúng đường dẫn của nó, ví dụ:

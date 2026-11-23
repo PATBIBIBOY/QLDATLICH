@@ -5,7 +5,7 @@ import 'package:qldatlich/services/admin_service.dart';
 import 'package:qldatlich/services/admin_provider.dart';
 
 class BugReportsScreen extends StatelessWidget {
-  const BugReportsScreen({Key? key}) : super(key: key);
+  const BugReportsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

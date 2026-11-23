@@ -77,7 +77,10 @@ class HospitalDashboardTab extends StatelessWidget {
                         },
                         borderRadius: BorderRadius.circular(18),
                         child: Container(
-                          padding: const EdgeInsets.all(14),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 14,
+                          ),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
                               begin: Alignment.topLeft,
@@ -90,19 +93,22 @@ class HospitalDashboardTab extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text(
-                                    'Bệnh nhân hôm nay',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
+                                  const Expanded(
+                                    child: Text(
+                                      'Bệnh nhân hôm nay',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
+                                  const SizedBox(width: 4),
                                   Container(
-                                    padding: const EdgeInsets.all(3.5),
+                                    padding: const EdgeInsets.all(3),
                                     decoration: BoxDecoration(
                                       color: Colors.white.withValues(alpha: 0.2),
                                       shape: BoxShape.circle,
