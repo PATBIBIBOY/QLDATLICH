@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'pending_hospital_detail_screen.dart';
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../data/mock_data.dart';
@@ -16,11 +20,120 @@ class HospitalDetailScreen extends StatefulWidget {
 }
 
 class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
+  Future<Map<String, dynamic>?>? _hospitalDocsFuture;
+
   @override
   void initState() {
     super.initState();
+    _loadHospitalDocs();
     AdminStore.instance.addListener(_refresh);
   }
+
+  void _loadHospitalDocs() {
+    _hospitalDocsFuture = _fetchHospitalDocs();
+  }
+
+  Future<Map<String, dynamic>?> _fetchHospitalDocs() async {
+    final code = widget.hospital.code;
+    if (code == null || code.isEmpty) return null;
+    try {
+      // 1. Tim trong BenhVien
+      final bvSnap = await FirebaseFirestore.instance.collection('BenhVien').doc(code).get();
+      if (bvSnap.exists && bvSnap.data() != null) {
+        final data = bvSnap.data()!;
+        if (data.containsKey('cccd_mat_truoc_base64') ||
+            data.containsKey('cccd_mat_truoc_url') ||
+            data.containsKey('file_giay_phep') ||
+            data.containsKey('file_giay_phep_url') ||
+            data.containsKey('ma_co_so_byt')) {
+          return data;
+        }
+      }
+      // 2. Tim trong YeuCauHopTac
+      final ycSnap = await FirebaseFirestore.instance.collection('YeuCauHopTac').doc(code).get();
+      if (ycSnap.exists && ycSnap.data() != null) {
+        return ycSnap.data()!;
+      }
+      // 3. Neu van chua co, tra ve du lieu tu bvSnap neu co
+      if (bvSnap.exists) return bvSnap.data();
+    } catch (e) {
+      debugPrint('Loi doc ho so giay to benh vien: ');
+    }
+    return null;
+  }
+
+  Uint8List? _decodeBase64(String? raw) {
+    if (raw == null) return null;
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+    try {
+      String clean = trimmed;
+      if (clean.contains(',')) clean = clean.split(',').last;
+      clean = clean.replaceAll(RegExp(r'\s+'), '');
+      return base64Decode(clean);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _showImageDialog(BuildContext context, String title, {Uint8List? bytes, String? imageUrl}) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.badge_rounded, color: Colors.white, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.white, size: 22),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.65, minHeight: 220),
+                padding: const EdgeInsets.all(12),
+                child: Center(
+                  child: InteractiveViewer(
+                    minScale: 0.8,
+                    maxScale: 5.0,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: bytes != null
+                          ? Image.memory(bytes, fit: BoxFit.contain)
+                          : (imageUrl != null && imageUrl.isNotEmpty)
+                              ? Image.network(imageUrl, fit: BoxFit.contain)
+                              : const Icon(Icons.broken_image_rounded, color: Colors.white54, size: 40),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
 
   @override
   void dispose() {
@@ -445,6 +558,199 @@ class _HospitalDetailScreenState extends State<HospitalDetailScreen> {
                     ),
                     const SizedBox(height: 16),
 
+                    // ============ HỒ SƠ & GIẤY TỜ THỎA THUẬN HỢP TÁC ============
+                    const SizedBox(height: 14),
+                    const Divider(height: 1, color: kBorder),
+                    const SizedBox(height: 14),
+                    FutureBuilder<Map<String, dynamic>?>(
+                      future: _hospitalDocsFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: kPrimary),
+                            ),
+                          );
+                        }
+
+                        final docsData = snapshot.data ?? {};
+                        final maByt = docsData['ma_co_so_byt']?.toString() ?? docsData['ma_byt']?.toString() ?? widget.hospital.code ?? '';
+                        final maThue = docsData['ma_so_thue']?.toString() ?? '';
+                        final soGp = docsData['so_giay_phep']?.toString() ?? '';
+                        final cccdTruoc = docsData['cccd_mat_truoc_base64']?.toString() ?? docsData['cccd_truoc_base64']?.toString() ?? '';
+                        final cccdTruocUrl = docsData['cccd_mat_truoc_url']?.toString() ?? '';
+                        final cccdSau = docsData['cccd_mat_sau_base64']?.toString() ?? docsData['cccd_sau_base64']?.toString() ?? '';
+                        final cccdSauUrl = docsData['cccd_mat_sau_url']?.toString() ?? '';
+                        final fileGp = docsData['file_giay_phep']?.toString() ?? 'giay_phep_byt.pdf';
+                        final fileGpUrl = docsData['file_giay_phep_url']?.toString() ?? docsData['file_url']?.toString() ?? '';
+                        final dungLuong = docsData['dung_luong_file']?.toString() ?? '';
+                        final nguoiDaiDien = docsData['nguoi_dai_dien']?.toString() ?? '';
+
+                        final cccdTruocBytes = _decodeBase64(cccdTruoc);
+                        final cccdSauBytes = _decodeBase64(cccdSau);
+                        final bool hasCccd = cccdTruocBytes != null || cccdTruocUrl.isNotEmpty || cccdSauBytes != null || cccdSauUrl.isNotEmpty;
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'HỒ SƠ PHÁP LÝ & ĐỐI SOÁT HỢP TÁC',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: kSlate700, letterSpacing: 0.5),
+                            ),
+                            const SizedBox(height: 10),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: kBorder),
+                              ),
+                              child: Column(
+                                children: [
+                                  _buildInfoRow(Icons.pin_outlined, 'Mã cơ sở (BYT)', maByt.isNotEmpty ? maByt : 'Chưa cập nhật'),
+                                  if (maThue.isNotEmpty) _buildInfoRow(Icons.receipt_long_outlined, 'Mã số thuế', maThue),
+                                  if (soGp.isNotEmpty) _buildInfoRow(Icons.badge_outlined, 'Số giấy phép', soGp),
+                                  if (nguoiDaiDien.isNotEmpty) _buildInfoRow(Icons.person_outline_rounded, 'Người đại diện', nguoiDaiDien),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+
+                            // Ảnh CCCD 2 mặt của người đại diện
+                            const Text(
+                              'Ảnh CCCD người đại diện cơ sở:',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kSlate800),
+                            ),
+                            const SizedBox(height: 8),
+                            if (hasCccd)
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: GestureDetector(
+                                      onTap: () => _showImageDialog(
+                                        context,
+                                        'Mặt trước CCCD',
+                                        bytes: cccdTruocBytes,
+                                        imageUrl: cccdTruocUrl,
+                                      ),
+                                      child: Container(
+                                        height: 110,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF1F5F9),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: kBorder),
+                                        ),
+                                        clipBehavior: Clip.antiAlias,
+                                        child: cccdTruocBytes != null
+                                            ? Image.memory(cccdTruocBytes, fit: BoxFit.cover)
+                                            : (cccdTruocUrl.isNotEmpty
+                                                ? Image.network(cccdTruocUrl, fit: BoxFit.cover)
+                                                : const Center(child: Text('Mặt trước', style: TextStyle(fontSize: 11, color: kSlate400)))),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: GestureDetector(
+                                      onTap: () => _showImageDialog(
+                                        context,
+                                        'Mặt sau CCCD',
+                                        bytes: cccdSauBytes,
+                                        imageUrl: cccdSauUrl,
+                                      ),
+                                      child: Container(
+                                        height: 110,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF1F5F9),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: kBorder),
+                                        ),
+                                        clipBehavior: Clip.antiAlias,
+                                        child: cccdSauBytes != null
+                                            ? Image.memory(cccdSauBytes, fit: BoxFit.cover)
+                                            : (cccdSauUrl.isNotEmpty
+                                                ? Image.network(cccdSauUrl, fit: BoxFit.cover)
+                                                : const Center(child: Text('Mặt sau', style: TextStyle(fontSize: 11, color: kSlate400)))),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            else
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: kBorder),
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Icon(Icons.badge_outlined, size: 18, color: kSlate400),
+                                    SizedBox(width: 8),
+                                    Text('Cơ sở y tế này chưa cập nhật ảnh CCCD người đại diện.', style: TextStyle(fontSize: 12, color: kSlate500)),
+                                  ],
+                                ),
+                              ),
+                            const SizedBox(height: 14),
+
+                            // Giấy phép hoạt động y tế
+                            const Text(
+                              'Giấy phép hoạt động y tế cơ sở:',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kSlate800),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: kBorder),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEFF6FF),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(Icons.picture_as_pdf_rounded, color: Color(0xFFDC2626), size: 22),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          fileGp,
+                                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: kSlate900),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        Text(
+                                          dungLuong.isNotEmpty ? dungLuong : 'Tài liệu thẩm định cơ sở y tế',
+                                          style: const TextStyle(fontSize: 11, color: kSlate400),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Bản nhúng xem trực tiếp tài liệu
+                            EmbeddedDocumentViewer(
+                              fileUrl: fileGpUrl.isNotEmpty ? fileGpUrl : fileGp,
+                              docName: fileGp,
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 18),
                     // NÚT: HỦY HOẶC KHÔI PHỤC HỢP TÁC
                     if (hospital.isUnpartnered)
                       SizedBox(

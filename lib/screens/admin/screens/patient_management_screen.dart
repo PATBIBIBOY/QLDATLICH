@@ -19,7 +19,7 @@ class _PatientManagementScreenState extends State<PatientManagementScreen> {
 
   int _globalChartMode = 0; // 0: Theo Ngày, 1: Theo Tháng, 2: Theo Năm
   int? _selectedGlobalBarIndex;
-  bool _isGlobalStatsExpanded = true;
+  bool _isGlobalStatsExpanded = false;
   Future<Map<String, dynamic>>? _globalStatsFuture;
 
   @override

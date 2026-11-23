@@ -1,3 +1,4 @@
+import 'package:webview_flutter/webview_flutter.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -775,10 +776,15 @@ class PendingHospitalDetailScreen extends StatelessWidget {
                                 fileUrl.isNotEmpty ? fileUrl : docFile,
                                 docFile,
                               ),
-                              child: const Text('Xem tệp', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                              child: const Text('Xem toàn màn hình', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                             ),
                           ],
                         ),
+                      ),
+                      // Bản nhúng xem trực tiếp tài liệu
+                      EmbeddedDocumentViewer(
+                        fileUrl: fileUrl.isNotEmpty ? fileUrl : docFile,
+                        docName: docFile.isNotEmpty ? docFile : 'Giấy phép hoạt động y tế',
                       ),
                     ],
                   ),
@@ -1102,6 +1108,201 @@ class PendingHospitalDetailScreen extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Widget nhung xem tai lieu (PDF / Web / Anh) truc tiep ngay tai trang ma khong can chuyen man
+class EmbeddedDocumentViewer extends StatefulWidget {
+  final String fileUrl;
+  final String docName;
+
+  const EmbeddedDocumentViewer({
+    super.key,
+    required this.fileUrl,
+    required this.docName,
+  });
+
+  @override
+  State<EmbeddedDocumentViewer> createState() => _EmbeddedDocumentViewerState();
+}
+
+class _EmbeddedDocumentViewerState extends State<EmbeddedDocumentViewer> {
+  WebViewController? _webController;
+  int _loadingProgress = 0;
+  bool _hasError = false;
+
+  String get _viewUrl {
+    final lower = widget.fileUrl.toLowerCase();
+    final isOfficeOrPdf = lower.contains('.docx') ||
+        lower.contains('.doc') ||
+        lower.contains('.pdf') ||
+        lower.contains('.xlsx') ||
+        lower.contains('.xls') ||
+        lower.contains('alt=media');
+
+    if (isOfficeOrPdf) {
+      return 'https://docs.google.com/viewer?url=' + Uri.encodeComponent(widget.fileUrl) + '&embedded=true';
+    }
+    return widget.fileUrl;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.fileUrl.startsWith('http://') || widget.fileUrl.startsWith('https://')) {
+      _webController = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(Colors.white)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onProgress: (p) {
+              if (mounted) setState(() => _loadingProgress = p);
+            },
+            onPageStarted: (_) {
+              if (mounted) setState(() { _loadingProgress = 10; _hasError = false; });
+            },
+            onPageFinished: (_) {
+              if (mounted) setState(() => _loadingProgress = 100);
+            },
+            onWebResourceError: (_) {
+              if (mounted) setState(() => _hasError = true);
+            },
+          ),
+        )
+        ..loadRequest(Uri.parse(_viewUrl));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isHttp = widget.fileUrl.startsWith('http://') || widget.fileUrl.startsWith('https://');
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            color: const Color(0xFFF8FAFC),
+            child: Row(
+              children: [
+                const Icon(Icons.preview_rounded, size: 16, color: kPrimary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Ban xem truc tiep tai lieu: ' + widget.docName,
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kSlate800),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (_loadingProgress < 100 && isHttp && !_hasError)
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      value: _loadingProgress > 0 ? _loadingProgress / 100 : null,
+                      strokeWidth: 2,
+                      color: kPrimary,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: kBorder),
+          SizedBox(
+            height: 380,
+            child: isHttp
+                ? Stack(
+                    children: [
+                      if (_webController != null)
+                        WebViewWidget(controller: _webController!),
+                      if (_loadingProgress < 100 && !_hasError)
+                        Container(
+                          color: Colors.white,
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const CircularProgressIndicator(color: kPrimary),
+                                const SizedBox(height: 10),
+                                Text(
+                                  'Dang tai tai lieu (' + _loadingProgress.toString() + '%)...',
+                                  style: const TextStyle(fontSize: 12, color: kSlate500),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      if (_hasError)
+                        Container(
+                          color: const Color(0xFFF8FAFC),
+                          padding: const EdgeInsets.all(20),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.info_outline_rounded, color: kSlate400, size: 36),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Khong the nhung xem tai lieu nay truc tiep.',
+                                  style: TextStyle(fontSize: 12.5, color: kSlate600, fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(height: 6),
+                                OutlinedButton.icon(
+                                  icon: const Icon(Icons.open_in_browser_rounded, size: 15),
+                                  label: const Text('Mo toan man hinh', style: TextStyle(fontSize: 12)),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => DocumentViewerScreen(
+                                          title: widget.docName,
+                                          url: widget.fileUrl,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  )
+                : Container(
+                    color: const Color(0xFFF8FAFC),
+                    padding: const EdgeInsets.all(20),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.description_outlined, color: kPrimary, size: 40),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Tep: ' + (widget.docName.isNotEmpty ? widget.docName : 'giay_phep_byt.pdf'),
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kSlate800),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Ho so noi bo / tep dinh kem cuc bo',
+                            style: TextStyle(fontSize: 12, color: kSlate500),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
