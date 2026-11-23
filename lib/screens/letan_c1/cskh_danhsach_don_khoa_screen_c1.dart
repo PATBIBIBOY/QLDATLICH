@@ -67,10 +67,44 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
   }
 
   // Duyệt 1 đơn khám với Optimistic UI update
-  void _duyetDon(Map<String, dynamic> don) async {
+  void _duyetDon(Map<String, dynamic> don, [List<Map<String, dynamic>>? danhSachHienCo]) async {
     AppDesignSystemC1.hapticLight();
     final appointmentId = don['id'];
     final docPath = don['docPath'];
+
+    // 1. Quét ngay trong danh sách đơn đang hiển thị trên màn hình:
+    // Lấy tất cả số thứ tự đã được duyệt của các đơn khác trong cùng khoa/ngày
+    int? sttChiDinh;
+    if (danhSachHienCo != null && danhSachHienCo.isNotEmpty) {
+      final Set<int> usedNumbers = {};
+      for (var item in danhSachHienCo) {
+        // Bỏ qua chính đơn đang duyệt
+        if (item['id'] == appointmentId) continue;
+
+        final rawId = (item['trangThaiId'] ?? '').toString();
+        final rawStr = (item['rawTrangThai'] ?? '').toString().toLowerCase();
+        final tt = (item['trangThai'] ?? '').toString();
+
+        // Chỉ tính các đơn đã duyệt / đang khám / tiếp nhận
+        final bool daDuyet = rawId == '2' || rawId == '5' || rawStr.contains('duyet') || rawStr.contains('xac_nhan') || tt == 'Đã duyệt' || tt == 'Đã khám';
+        if (!daDuyet) continue;
+
+        final sttVal = item['so_thu_tu'] ?? item['stt'];
+        if (sttVal != null) {
+          final p = int.tryParse(sttVal.toString());
+          if (p != null && p > 0) {
+            usedNumbers.add(p);
+          }
+        }
+      }
+
+      // Tìm số nguyên dương nhỏ nhất từ 1 trở đi chưa có trong usedNumbers để lấp lỗ trống
+      int candidate = 1;
+      while (usedNumbers.contains(candidate)) {
+        candidate++;
+      }
+      sttChiDinh = candidate;
+    }
 
     // Optimistic UI: Phản hồi ngay lập tức để người dùng không phải chờ đợi mạng
     AppDesignSystemC1.showCustomSnackBar(
@@ -87,6 +121,7 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
           appointmentId: appointmentId,
           docPath: docPath,
           trangThaiMoi: 'da_duyet',
+          soThuTuChiDinh: sttChiDinh,
           khoaId: widget.tenKhoa,
           phongKhamId: don['phong_kham_id'] ?? _phongHienTai,
           ngayChon: _ngayChon,
@@ -473,7 +508,7 @@ class _CskhDanhsachDonKhoaScreenC1State extends State<CskhDanhsachDonKhoaScreenC
                                 final item = danhSachHienThi[index];
                                 return CskhAppointmentCardC1(
                                   item: item,
-                                  onApprove: () => _duyetDon(item),
+                                  onApprove: () => _duyetDon(item, danhSach),
                                   onReject: () => _moPopupTuChoiDon(item),
                                 );
                               },
