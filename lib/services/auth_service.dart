@@ -492,16 +492,20 @@ class AuthService {
 
   /// _findRefByAuthUid: tìm document có field auth_uid trùng UID của Firebase Auth.
 Future<DocumentReference<Map<String, dynamic>>?> _findRefByAuthUid(
-  String collection,
-  String authUid,
-) async {
-  final snap = await _firestore
-      .collection(collection)
-      .where('auth_uid', isEqualTo: authUid)
-      .limit(1)
-      .get();
-  return snap.docs.isEmpty ? null : snap.docs.first.reference;
-}
+    String collection,
+    String authUid,
+  ) async {
+    final col = _firestore.collection(collection);
+
+    final byId = col.doc(authUid);
+    if ((await byId.get()).exists) return byId;
+
+    for (final field in const ['auth_uid', 'uid']) {
+      final snap = await col.where(field, isEqualTo: authUid).limit(1).get();
+      if (snap.docs.isNotEmpty) return snap.docs.first.reference;
+    }
+    return null;
+  }
 
 Future<void> updateUserVerificationStatus(String authUid, bool isVerified) async {
   final patientRef =
