@@ -89,40 +89,34 @@ class HospitalDashboardTab extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              const Text(
+                                'Bệnh nhân hôm nay',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
                               Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
+                                crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
-                                  const Text(
-                                    'Bệnh nhân hôm nay',
-                                    style: TextStyle(
+                                  Text(
+                                    _soCoDauPhay(tong),
+                                    style: const TextStyle(
                                       color: Colors.white,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w800,
                                     ),
                                   ),
-                                  Container(
-                                    padding: const EdgeInsets.all(3.5),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.2),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.arrow_forward_ios_rounded,
-                                      color: Colors.white,
-                                      size: 10,
-                                    ),
+                                  const Icon(
+                                    Icons.arrow_forward_ios_rounded,
+                                    color: Colors.white70,
+                                    size: 13,
                                   ),
                                 ],
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                _soCoDauPhay(tong),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w800,
-                                ),
                               ),
                               const SizedBox(height: 4),
                               Text(
