@@ -490,26 +490,40 @@ class AuthService {
     }
   }
 
-  Future<void> updateUserVerificationStatus(String uid, bool isVerified) async {
-    final patientRef = _firestore.collection(AppConstants.patientsCollection).doc(uid);
-    final patient = await patientRef.get();
-    if (patient.exists) {
-      await patientRef.update({
-        'da_xac_thuc_email': isVerified,
-        'trang_thai_id': isVerified ? TrangThaiId.hoatDong : TrangThaiId.khongHoatDong,
-      });
-      return;
-    }
+  /// _findRefByAuthUid: tìm document có field auth_uid trùng UID của Firebase Auth.
+Future<DocumentReference<Map<String, dynamic>>?> _findRefByAuthUid(
+  String collection,
+  String authUid,
+) async {
+  final snap = await _firestore
+      .collection(collection)
+      .where('auth_uid', isEqualTo: authUid)
+      .limit(1)
+      .get();
+  return snap.docs.isEmpty ? null : snap.docs.first.reference;
+}
 
-    final hospitalRef = _firestore.collection(AppConstants.hospitalsCollection).doc(uid);
-    final hospital = await hospitalRef.get();
-    if (hospital.exists) {
-      await hospitalRef.update({'da_xac_thuc_email': isVerified});
-      return;
-    }
-
-    throw StateError('Không tìm thấy hồ sơ bệnh nhân hoặc bệnh viện: $uid');
+Future<void> updateUserVerificationStatus(String authUid, bool isVerified) async {
+  final patientRef =
+      await _findRefByAuthUid(AppConstants.patientsCollection, authUid);
+  if (patientRef != null) {
+    await patientRef.update({
+      'da_xac_thuc_email': isVerified,
+      'trang_thai_id':
+          isVerified ? TrangThaiId.hoatDong : TrangThaiId.khongHoatDong,
+    });
+    return;
   }
+
+  final hospitalRef =
+      await _findRefByAuthUid(AppConstants.hospitalsCollection, authUid);
+  if (hospitalRef != null) {
+    await hospitalRef.update({'da_xac_thuc_email': isVerified});
+    return;
+  }
+
+  throw StateError('Không tìm thấy hồ sơ bệnh nhân hoặc bệnh viện: $authUid');
+}
 
   Future<void> deleteUnverifiedPatient(String uid) async {
     await _deleteUnverifiedAccount(uid, AppConstants.patientsCollection);
