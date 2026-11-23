@@ -4,6 +4,7 @@ class TrangThaiService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Lấy tất cả trạng thái từ Firebase
+  /// getAllTrangThai: lấy dữ liệu.
   Future<List<Map<String, dynamic>>> getAllTrangThai() async {
     try {
       final snapshot = await _firestore.collection('TrangThai').get();
@@ -19,9 +20,13 @@ class TrangThaiService {
   }
 
   // Lấy trạng thái theo ID
+  /// getTrangThaiById: lấy dữ liệu.
   Future<Map<String, dynamic>?> getTrangThaiById(int id) async {
     try {
-      final doc = await _firestore.collection('TrangThai').doc(id.toString()).get();
+      final doc = await _firestore
+          .collection('TrangThai')
+          .doc(id.toString())
+          .get();
       if (doc.exists) {
         final data = doc.data()!;
         data['id'] = id;
@@ -35,6 +40,7 @@ class TrangThaiService {
   }
 
   // Thêm trạng thái mới
+  /// addTrangThai: thêm dữ liệu vào danh sách hoặc state.
   Future<void> addTrangThai({
     required int id,
     required String tenTrangThai,
@@ -54,6 +60,7 @@ class TrangThaiService {
   }
 
   // Cập nhật trạng thái
+  /// updateTrangThai: cập nhật dữ liệu.
   Future<void> updateTrangThai({
     required int id,
     required String tenTrangThai,
@@ -72,6 +79,7 @@ class TrangThaiService {
   }
 
   // Xóa trạng thái
+  /// deleteTrangThai: xóa dữ liệu.
   Future<void> deleteTrangThai(int id) async {
     try {
       await _firestore.collection('TrangThai').doc(id.toString()).delete();

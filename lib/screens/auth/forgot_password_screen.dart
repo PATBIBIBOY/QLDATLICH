@@ -36,6 +36,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     super.dispose();
   }
 
+  /// _sendResetEmail: gửi dữ liệu hoặc yêu cầu.
   Future<void> _sendResetEmail() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -133,7 +134,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           color: _emailSent ? _success : _primary,
                         ),
                       ),
+
                       const SizedBox(height: 20),
+
                       const Text(
                         'Quên mật khẩu?',
                         style: TextStyle(
@@ -142,6 +145,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           color: Color(0xFF0F172A),
                         ),
                       ),
+
                       const SizedBox(height: 12),
                       Text(
                         _emailSent
@@ -157,6 +161,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     ],
                   ),
                 ),
+
                 const SizedBox(height: 40),
 
                 // Email Input
@@ -169,6 +174,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       color: Color(0xFF0F172A),
                     ),
                   ),
+
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _emailCtrl,
@@ -202,6 +208,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       return null;
                     },
                   ),
+
                   const SizedBox(height: 32),
 
                   // Send Button
@@ -251,7 +258,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         Row(
                           children: [
                             Icon(Icons.info_outline, color: _success, size: 22),
+
                             const SizedBox(width: 10),
+
                             const Text(
                               'Các bước tiếp theo',
                               style: TextStyle(
@@ -262,17 +271,22 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             ),
                           ],
                         ),
+
                         const SizedBox(height: 12),
                         _buildStep('1', 'Mở hộp thư email của bạn'),
+
                         const SizedBox(height: 8),
                         _buildStep('2', 'Tìm email từ MEDICONNECT'),
+
                         const SizedBox(height: 8),
                         _buildStep('3', 'Nhấn vào link để đặt mật khẩu mới'),
+
                         const SizedBox(height: 8),
                         _buildStep('4', 'Quay lại đây và đăng nhập'),
                       ],
                     ),
                   ),
+
                   const SizedBox(height: 24),
 
                   // Resend Button
@@ -307,6 +321,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     ),
                   ),
                 ],
+
                 const SizedBox(height: 20),
 
                 // Back to Login
@@ -354,6 +369,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ),
           ),
         ),
+
         const SizedBox(width: 12),
         Expanded(
           child: Text(

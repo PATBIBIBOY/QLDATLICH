@@ -1734,6 +1734,18 @@ class FirebaseServiceC1 {
         if (qMa.docs.isNotEmpty) {
           return qMa.docs.first.data();
         }
+
+        // Tìm trong subcollection danh_sach
+        try {
+          final cg = await _firestore
+              .collectionGroup('danh_sach')
+              .where('ma_nhan_vien', isEqualTo: maNhanVien)
+              .limit(1)
+              .get();
+          if (cg.docs.isNotEmpty && cg.docs.first.data().isNotEmpty) {
+            return cg.docs.first.data();
+          }
+        } catch (_) {}
       }
 
       // 3. Fallback tìm theo Email nếu có currentUser
@@ -1742,6 +1754,17 @@ class FirebaseServiceC1 {
         if (qEmail.docs.isNotEmpty) {
           return qEmail.docs.first.data();
         }
+
+        try {
+          final cgEmail = await _firestore
+              .collectionGroup('danh_sach')
+              .where('email', isEqualTo: currentAuth.email)
+              .limit(1)
+              .get();
+          if (cgEmail.docs.isNotEmpty && cgEmail.docs.first.data().isNotEmpty) {
+            return cgEmail.docs.first.data();
+          }
+        } catch (_) {}
       }
 
       return null;
@@ -1860,6 +1883,28 @@ class FirebaseServiceC1 {
       'ma_benh_vien': maBv,
       'ten_benh_vien': tenBv,
     }, SetOptions(merge: true));
+
+    // 4. Đồng bộ cập nhật vào subcollection danh_sach nếu có
+    try {
+      final cg = await _firestore
+          .collectionGroup('danh_sach')
+          .where('ma_nhan_vien', isEqualTo: maNhanVien)
+          .get();
+      for (final doc in cg.docs) {
+        await doc.reference.set({
+          'uid': authUid,
+          'ho_ten': hoTen,
+          'email': email.trim(),
+          'ngay_sinh': ngaySinh,
+          'gioi_tinh': gioiTinh,
+          'mat_khau': matKhauMoi.trim(),
+          'da_kich_hoat': true,
+          'trang_thai': 'dang_hoat_dong',
+          'ngay_kich_hoat': FieldValue.serverTimestamp(),
+          'ngay_cap_nhat': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+    } catch (_) {}
   }
 
   /// Đổi mật khẩu cho nhân viên (đồng bộ cả Firebase Authentication và Firestore chuẩn: /NhanVien/{bvid}/danh_sach/{maNv})

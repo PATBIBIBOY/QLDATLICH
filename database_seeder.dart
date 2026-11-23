@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'config/constants.dart';
+import 'lib/config/constants.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class DatabaseSeeder {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
-   static Future<void> seedAdminAccounts() async {
+  static Future<void> seedAdminAccounts() async {
     // Danh sách admin mẫu - BẠN CÓ THỂ SỬA EMAIL/MẬT KHẨU TẠI ĐÂY
     final List<Map<String, dynamic>> adminAccounts = [
       {
@@ -35,7 +35,7 @@ class DatabaseSeeder {
       try {
         // 1. Kiểm tra xem email đã tồn tại trong Auth chưa
         final methods = await _auth.fetchSignInMethodsForEmail(email);
-        
+
         if (methods.isEmpty) {
           // 2. Tạo tài khoản trong Firebase Auth
           final credential = await _auth.createUserWithEmailAndPassword(
@@ -75,7 +75,7 @@ class DatabaseSeeder {
     try {
       await seedAdminAccounts();
       print('✅ Hoàn tất seeding tất cả dữ liệu mẫu!');
-    } 
+    }
     // ✅ SỬA LỖI: Xóa đoạn Firebase Rules bị dính vào đây, viết lại catch chuẩn
     catch (error) {
       print('❌ Seeder Firestore thất bại: $error');

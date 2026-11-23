@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-
 class ConversationModel {
   final String id; // CONV_{benhVienId}_{benhNhanId}
   final String benhNhanId;
@@ -34,6 +33,7 @@ class ConversationModel {
   });
 
   static DateTime? _date(dynamic v) => v is Timestamp ? v.toDate() : null;
+
   static int _int(dynamic v) =>
       v is num ? v.toInt() : int.tryParse(v?.toString() ?? '') ?? 0;
 

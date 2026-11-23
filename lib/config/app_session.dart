@@ -23,4 +23,9 @@ class AppSession {
   }
 
   static String? benhVienPath;
+
+  static void clear() {
+    _benhVienId = '';
+    benhVienPath = null;
+  }
 }
