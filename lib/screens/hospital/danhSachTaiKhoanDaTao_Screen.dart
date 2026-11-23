@@ -1750,7 +1750,7 @@ class _DanhSachTaiKhoanDaTaoScreenState
               onPressed: () {
                 Navigator.pushNamedAndRemoveUntil(
                   context,
-                  AppRoutes.NhanSuScreen,
+                  AppRoutes.nhanSuScreen,
                   (route) => false,
                 );
               },

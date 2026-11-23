@@ -96,7 +96,9 @@ class AppRoutes {
   static const String addClinic = '/add-clinic';
   static const String staffManagement = '/staff-management';
   static const String nhanSuScreen = '/hospital-nhan-su';
+  static const String NhanSuScreen = nhanSuScreen; // Alias dự phòng
   static const String phanCongScreen = '/hospital-phan-cong';
+  static const String PhanCongScreen = phanCongScreen; // Alias dự phòng
   static const String statistics = '/statistics';
   static const String adminDashboard = '/admin-dashboard';
 
