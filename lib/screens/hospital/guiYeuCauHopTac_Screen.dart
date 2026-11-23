@@ -11,7 +11,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -285,9 +284,7 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
       context: context,
       barrierDismissible: true,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
         contentPadding: const EdgeInsets.symmetric(horizontal: 20),
         actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -404,7 +401,9 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Quyền định vị bị từ chối. Bạn có thể tự ghim trên bản đồ.'),
+            content: Text(
+              'Quyền định vị bị từ chối. Bạn có thể tự ghim trên bản đồ.',
+            ),
             backgroundColor: Color(0xFFD97706),
             behavior: SnackBarBehavior.floating,
           ),
@@ -653,8 +652,8 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
                     _diaChiMap?.isNotEmpty == true
                         ? _diaChiMap!
                         : (_diaChiCtrl.text.isNotEmpty
-                            ? _diaChiCtrl.text
-                            : 'Vị trí cơ sở y tế đã được ghim trên bản đồ'),
+                              ? _diaChiCtrl.text
+                              : 'Vị trí cơ sở y tế đã được ghim trên bản đồ'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -800,8 +799,6 @@ class _GuiYeuCauHopTacScreenState extends State<GuiYeuCauHopTacScreen> {
     }
   }
 
-
-
   String _formatFileSize(int bytes) {
     if (bytes <= 0) return '0 B';
     if (bytes < 1024) return '$bytes B';
@@ -919,7 +916,15 @@ startxref
       try {
         files = await FilePicker.pickFiles(
           type: FileType.custom,
-          allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'doc', 'docx'],
+          allowedExtensions: [
+            'pdf',
+            'png',
+            'jpg',
+            'jpeg',
+            'webp',
+            'doc',
+            'docx',
+          ],
         );
       } catch (err) {
         debugPrint('⚠️ Không thể mở custom type, fallback sang any: $err');
@@ -942,7 +947,8 @@ startxref
             }
           }
 
-          final sizeBytes = file.lengthSync() ?? (await file.length()) ?? bytes?.length ?? 0;
+          final sizeBytes =
+              file.lengthSync() ?? (await file.length()) ?? bytes?.length ?? 0;
           final sizeText = _formatFileSize(sizeBytes);
 
           newItems.add(
@@ -960,7 +966,9 @@ startxref
         if (newItems.isNotEmpty) {
           setState(() {
             for (final newItem in newItems) {
-              _danhSachTepDinhKem.removeWhere((item) => item.tenFile == newItem.tenFile);
+              _danhSachTepDinhKem.removeWhere(
+                (item) => item.tenFile == newItem.tenFile,
+              );
               _danhSachTepDinhKem.add(newItem);
             }
           });
@@ -1040,7 +1048,9 @@ startxref
                     Container(
                       padding: const EdgeInsets.all(7),
                       decoration: BoxDecoration(
-                        color: _getFileColor(item.tenFile).withValues(alpha: 0.12),
+                        color: _getFileColor(
+                          item.tenFile,
+                        ).withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
@@ -1077,7 +1087,10 @@ startxref
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: Color(0xFF64748B),
+                      ),
                       onPressed: () => Navigator.of(ctx).pop(),
                       tooltip: 'Đóng',
                     ),
@@ -1095,10 +1108,15 @@ startxref
 
               // Chân hộp thoại hành động
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: const BoxDecoration(
                   color: Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+                  borderRadius: BorderRadius.vertical(
+                    bottom: Radius.circular(20),
+                  ),
                   border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
                 ),
                 child: Row(
@@ -1110,10 +1128,18 @@ startxref
                           Navigator.of(ctx).pop();
                           _xoaTep(item);
                         },
-                        icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFEF4444)),
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 18,
+                          color: Color(0xFFEF4444),
+                        ),
                         label: const Text(
                           'Xóa tệp này',
-                          style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.w600, fontSize: 13),
+                          style: TextStyle(
+                            color: Color(0xFFEF4444),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
                         ),
                       )
                     else
@@ -1123,11 +1149,19 @@ startxref
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF0284C7),
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                         elevation: 0,
                       ),
-                      child: const Text('Đóng xem trước', style: TextStyle(fontWeight: FontWeight.w700)),
+                      child: const Text(
+                        'Đóng xem trước',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
                     ),
                   ],
                 ),
@@ -1142,7 +1176,8 @@ startxref
   /// Khung hiển thị nội dung chi tiết theo định dạng tệp (Ảnh, PDF, Văn bản)
   Widget _buildPreviewContent(TepDinhKemItem item) {
     final lower = item.tenFile.toLowerCase();
-    final isImage = lower.endsWith('.jpg') ||
+    final isImage =
+        lower.endsWith('.jpg') ||
         lower.endsWith('.jpeg') ||
         lower.endsWith('.png') ||
         lower.endsWith('.webp');
@@ -1156,10 +1191,7 @@ startxref
               borderRadius: BorderRadius.circular(12),
               child: InteractiveViewer(
                 maxScale: 4.0,
-                child: Image.memory(
-                  item.bytes!,
-                  fit: BoxFit.contain,
-                ),
+                child: Image.memory(item.bytes!, fit: BoxFit.contain),
               ),
             ),
             const SizedBox(height: 10),
@@ -1172,7 +1204,11 @@ startxref
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.zoom_in_rounded, size: 14, color: Color(0xFF64748B)),
+                  Icon(
+                    Icons.zoom_in_rounded,
+                    size: 14,
+                    color: Color(0xFF64748B),
+                  ),
                   SizedBox(width: 4),
                   Text(
                     'Dùng cử chỉ chạm hoặc chuột để phóng to / thu nhỏ ảnh',
@@ -1314,11 +1350,17 @@ startxref
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFF1F2),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFF43F5E), width: 1.5),
+                  border: Border.all(
+                    color: const Color(0xFFF43F5E),
+                    width: 1.5,
+                  ),
                 ),
                 child: const Column(
                   children: [
@@ -1389,7 +1431,9 @@ startxref
 
   void _xoaTep(TepDinhKemItem item) {
     setState(() {
-      _danhSachTepDinhKem.removeWhere((f) => f.id == item.id || f.tenFile == item.tenFile);
+      _danhSachTepDinhKem.removeWhere(
+        (f) => f.id == item.id || f.tenFile == item.tenFile,
+      );
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1407,7 +1451,9 @@ startxref
     if (_danhSachTepDinhKem.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Vui lòng đính kèm ít nhất một tệp giấy phép hoạt động y tế trước khi gửi đơn.'),
+          content: Text(
+            'Vui lòng đính kèm ít nhất một tệp giấy phép hoạt động y tế trước khi gửi đơn.',
+          ),
           backgroundColor: Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating,
         ),
@@ -1507,7 +1553,9 @@ startxref
             _submittingStatus =
                 'Đang tải tệp ${i + 1}/${_danhSachTepDinhKem.length}: $fileName...';
           });
-          debugPrint('📤 [STORAGE] Tải tệp lên Firebase Storage ($storagePath)...');
+          debugPrint(
+            '📤 [STORAGE] Tải tệp lên Firebase Storage ($storagePath)...',
+          );
 
           UploadTask uploadTask;
           if (fileItem.path != null &&
@@ -1521,8 +1569,8 @@ startxref
 
           uploadTask.snapshotEvents.listen((TaskSnapshot snap) {
             if (snap.totalBytes > 0 && mounted) {
-              final progress =
-                  (snap.bytesTransferred / snap.totalBytes * 100).toInt();
+              final progress = (snap.bytesTransferred / snap.totalBytes * 100)
+                  .toInt();
               setState(() {
                 _submittingStatus =
                     'Đang tải tệp ${i + 1}/${_danhSachTepDinhKem.length}: $progress% (${_formatFileSize(snap.bytesTransferred)}/${_formatFileSize(snap.totalBytes)})';
@@ -1534,7 +1582,9 @@ startxref
             60,
             (fileData.length / (1024 * 1024) * 8).toInt(),
           );
-          final snapshot = await uploadTask.timeout(Duration(seconds: timeoutSec));
+          final snapshot = await uploadTask.timeout(
+            Duration(seconds: timeoutSec),
+          );
           thisFileUrl = await snapshot.ref.getDownloadURL().timeout(
             const Duration(seconds: 30),
           );
@@ -1572,8 +1622,9 @@ startxref
               : 'jpg';
           final cccdTruocPath =
               'YeuCauHopTac/$hospitalBvId/cccd/mat_truoc_${DateTime.now().millisecondsSinceEpoch}.$cccdTruocExt';
-          final cccdTruocRef =
-              FirebaseStorage.instance.ref().child(cccdTruocPath);
+          final cccdTruocRef = FirebaseStorage.instance.ref().child(
+            cccdTruocPath,
+          );
           final snapTruoc = await cccdTruocRef.putData(
             _cccdTruocBytes!,
             SettableMetadata(contentType: 'image/$cccdTruocExt'),
@@ -1596,16 +1647,13 @@ startxref
               : 'jpg';
           final cccdSauPath =
               'YeuCauHopTac/$hospitalBvId/cccd/mat_sau_${DateTime.now().millisecondsSinceEpoch}.$cccdSauExt';
-          final cccdSauRef =
-              FirebaseStorage.instance.ref().child(cccdSauPath);
+          final cccdSauRef = FirebaseStorage.instance.ref().child(cccdSauPath);
           final snapSau = await cccdSauRef.putData(
             _cccdSauBytes!,
             SettableMetadata(contentType: 'image/$cccdSauExt'),
           );
           cccdMatSauUrl = await snapSau.ref.getDownloadURL();
-          debugPrint(
-            '✅ [STORAGE] Tải CCCD mặt sau thành công: $cccdMatSauUrl',
-          );
+          debugPrint('✅ [STORAGE] Tải CCCD mặt sau thành công: $cccdMatSauUrl');
         } catch (e) {
           debugPrint('⚠️ [STORAGE] Lỗi tải CCCD mặt sau: $e');
         }
@@ -1656,8 +1704,9 @@ startxref
         'loai_file': primaryContentType,
         'storage_path': primaryStoragePath,
         'danh_sach_file': uploadedFilesData,
-        'danh_sach_ten_file':
-            _danhSachTepDinhKem.map((f) => f.tenFile).toList(),
+        'danh_sach_ten_file': _danhSachTepDinhKem
+            .map((f) => f.tenFile)
+            .toList(),
         'so_luong_file': _danhSachTepDinhKem.length,
         'ngay_tai_file': FieldValue.serverTimestamp(),
         'ma_ho_so': maHoSo,
@@ -1679,8 +1728,9 @@ startxref
           _danhSachTepDinhKem.first.bytes!.length < 350 * 1024) {
         // Lưu dự phòng chuỗi Base64 trực tiếp vào Firestore
         try {
-          dataToSave['file_giay_phep_base64'] =
-              base64Encode(_danhSachTepDinhKem.first.bytes!);
+          dataToSave['file_giay_phep_base64'] = base64Encode(
+            _danhSachTepDinhKem.first.bytes!,
+          );
         } catch (_) {}
       }
       if (_cccdTruocBytes != null && _cccdTruocBytes!.length < 250 * 1024) {
@@ -1998,20 +2048,21 @@ startxref
                               fontWeight: FontWeight.w600,
                               color: Color(0xFF0F172A),
                             ),
-                            decoration: _inputDecoration(
-                              hintText:
-                                  'Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/TP',
-                            ).copyWith(
-                              suffixIcon: IconButton(
-                                icon: const Icon(
-                                  Icons.location_on_rounded,
-                                  color: Color(0xFF0284C7),
-                                  size: 22,
+                            decoration:
+                                _inputDecoration(
+                                  hintText:
+                                      'Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/TP',
+                                ).copyWith(
+                                  suffixIcon: IconButton(
+                                    icon: const Icon(
+                                      Icons.location_on_rounded,
+                                      color: Color(0xFF0284C7),
+                                      size: 22,
+                                    ),
+                                    tooltip: 'Chọn trên Bản đồ',
+                                    onPressed: _moChonDiaChiMap,
+                                  ),
                                 ),
-                                tooltip: 'Chọn trên Bản đồ',
-                                onPressed: _moChonDiaChiMap,
-                              ),
-                            ),
                             validator: (v) {
                               if (v == null || v.trim().isEmpty) {
                                 return 'Vui lòng nhập địa chỉ bệnh viện';
@@ -2333,8 +2384,6 @@ startxref
     );
   }
 
-
-
   /// Thẻ tải và hiển thị ảnh CCCD (Mặt trước / Mặt sau)
   Widget _buildCccdCard({required bool isMatTruoc}) {
     final bytes = isMatTruoc ? _cccdTruocBytes : _cccdSauBytes;
@@ -2370,10 +2419,7 @@ startxref
               ? Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.memory(
-                      bytes,
-                      fit: BoxFit.cover,
-                    ),
+                    Image.memory(bytes, fit: BoxFit.cover),
                     Positioned(
                       top: 0,
                       left: 0,
@@ -2578,7 +2624,10 @@ startxref
                   if (_danhSachTepDinhKem.isNotEmpty) ...[
                     const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFE0F2FE),
                         borderRadius: BorderRadius.circular(10),
@@ -2605,7 +2654,11 @@ startxref
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.add_rounded, size: 16, color: Color(0xFF0284C7)),
+                      Icon(
+                        Icons.add_rounded,
+                        size: 16,
+                        color: Color(0xFF0284C7),
+                      ),
                       SizedBox(width: 2),
                       Text(
                         'Thêm tệp',
@@ -2633,10 +2686,7 @@ startxref
               decoration: BoxDecoration(
                 color: const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: const Color(0xFFBAE6FD),
-                  width: 1.3,
-                ),
+                border: Border.all(color: const Color(0xFFBAE6FD), width: 1.3),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -2665,10 +2715,7 @@ startxref
                   const SizedBox(height: 4),
                   const Text(
                     'Chạm để chọn tệp từ máy (PDF, Word, Ảnh JPG/PNG)',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: Color(0xFF64748B),
-                    ),
+                    style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
                   ),
                 ],
               ),
@@ -2685,10 +2732,7 @@ startxref
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: const Color(0xFFBAE6FD),
-                  width: 1.2,
-                ),
+                border: Border.all(color: const Color(0xFFBAE6FD), width: 1.2),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.03),
@@ -2700,7 +2744,10 @@ startxref
               child: Material(
                 color: Colors.transparent,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
                       Container(
@@ -2779,7 +2826,10 @@ startxref
                         tooltip: 'Xóa tệp này',
                         onPressed: () => _xoaTep(fileItem),
                         padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                        constraints: const BoxConstraints(
+                          minWidth: 28,
+                          minHeight: 28,
+                        ),
                       ),
                     ],
                   ),

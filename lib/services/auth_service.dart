@@ -159,12 +159,59 @@ class AuthService {
     try {
       final snapshot = await _firestore
           .collection(AppConstants.patientsCollection)
-          .where('email', isEqualTo: email)
+          .where('email', isEqualTo: email.trim().toLowerCase())
           .limit(1)
           .get();
-      return snapshot.docs.isNotEmpty ? PatientModel.fromMap(snapshot.docs.first.data()) : null;
+      if (snapshot.docs.isNotEmpty) {
+        final data = snapshot.docs.first.data();
+        data['uid'] = (data['uid']?.toString().isNotEmpty == true) ? data['uid'] : snapshot.docs.first.id;
+        return PatientModel.fromMap(data);
+      }
+      // Thử query không lowercase nếu chưa tìm thấy
+      final snapshotRaw = await _firestore
+          .collection(AppConstants.patientsCollection)
+          .where('email', isEqualTo: email.trim())
+          .limit(1)
+          .get();
+      if (snapshotRaw.docs.isNotEmpty) {
+        final data = snapshotRaw.docs.first.data();
+        data['uid'] = (data['uid']?.toString().isNotEmpty == true) ? data['uid'] : snapshotRaw.docs.first.id;
+        return PatientModel.fromMap(data);
+      }
+      return null;
     } catch (e) {
       print('❌ Lỗi khi tìm user theo email: $e');
+      return null;
+    }
+  }
+
+  Future<PatientModel?> findPatientByPhone(String phone) async {
+    try {
+      final cleaned = phone.replaceAll(RegExp(r'\s+'), '');
+      var snap = await _firestore
+          .collection(AppConstants.patientsCollection)
+          .where('so_dien_thoai', isEqualTo: cleaned)
+          .limit(1)
+          .get();
+      if (snap.docs.isNotEmpty) {
+        final data = snap.docs.first.data();
+        data['uid'] = (data['uid']?.toString().isNotEmpty == true) ? data['uid'] : snap.docs.first.id;
+        return PatientModel.fromMap(data);
+      }
+      final e164 = _toE164(cleaned);
+      snap = await _firestore
+          .collection(AppConstants.patientsCollection)
+          .where('so_dien_thoai', isEqualTo: e164)
+          .limit(1)
+          .get();
+      if (snap.docs.isNotEmpty) {
+        final data = snap.docs.first.data();
+        data['uid'] = (data['uid']?.toString().isNotEmpty == true) ? data['uid'] : snap.docs.first.id;
+        return PatientModel.fromMap(data);
+      }
+      return null;
+    } catch (e) {
+      print('❌ Lỗi khi tìm user theo SĐT: $e');
       return null;
     }
   }
@@ -255,26 +302,35 @@ class AuthService {
 
   Future<void> saveUserToFirestore(PatientModel user) async {
     final Map<String, dynamic> userData = user.toMap();
+    String docId = user.uid;
 
-    if (user.role?.trim() == 'benh_nhan' && user.uid.isEmpty) {
-      try {
-        final generatedId = await _generatePatientId();
-        userData['uid'] = generatedId;
-        print('✅ [DEBUG] Đã sinh mã bệnh nhân thành công: $generatedId');
-      } catch (e) {
-        print('❌ [DEBUG] Lỗi khi sinh mã bệnh nhân: $e');
-        rethrow;
+    if (user.role?.trim() == 'benh_nhan') {
+      if (userData['ma_benh_nhan'] == null || (userData['ma_benh_nhan'] as String).isEmpty) {
+        try {
+          final generatedId = await _generatePatientId();
+          userData['ma_benh_nhan'] = generatedId;
+          print('✅ [DEBUG] Đã sinh mã bệnh nhân thành công: $generatedId');
+        } catch (e) {
+          print('❌ [DEBUG] Lỗi khi sinh mã bệnh nhân: $e');
+        }
       }
-    } else {
-      print('⚠️ [DEBUG] Bỏ qua sinh mã. Role hiện tại: "${user.role}", uid: "${user.uid}"');
     }
 
-    await _firestore.collection(AppConstants.patientsCollection).doc(user.uid).set({
+    if (docId.isEmpty) {
+      docId = _auth.currentUser?.uid ?? userData['ma_benh_nhan'] ?? '';
+      userData['uid'] = docId;
+    }
+
+    if (docId.isEmpty) {
+      throw ArgumentError('Patient UID cannot be empty when saving to Firestore');
+    }
+
+    await _firestore.collection(AppConstants.patientsCollection).doc(docId).set({
       ...userData,
       'mat_khau': FieldValue.delete(),
     }, SetOptions(merge: true));
 
-    print('✅ [DEBUG] Đã lưu user vào Firestore với UID: ${user.uid}');
+    print('✅ [DEBUG] Đã lưu user vào Firestore với UID: $docId');
   }
 
   Future<void> saveHospitalToFirestore(HospitalModel hospital) async {
@@ -310,10 +366,17 @@ class AuthService {
   Future<void> _donDepDocumentTuSinhBenhVien() async {
     try {
       final snap = await _firestore.collection(AppConstants.hospitalsCollection).get();
+      final standardDocs = snap.docs.where((d) => d.id.startsWith('BV')).toList();
       for (final doc in snap.docs) {
         if (!doc.id.startsWith('BV')) {
-          print('🧹 [AuthService] Đang xóa document ID tự sinh trong BenhVien: ${doc.id}');
-          await doc.reference.delete();
+          final authUid = doc.data()['auth_uid']?.toString() ?? doc.id;
+          final hasStandard = standardDocs.any((s) =>
+              (s.data()['auth_uid']?.toString() == authUid) ||
+              (s.data()['email'] != null && s.data()['email'] == doc.data()['email']));
+          if (hasStandard) {
+            print('🧹 [AuthService] Đang xóa document ID tự sinh dư thừa trong BenhVien: ${doc.id}');
+            await doc.reference.delete();
+          }
         }
       }
     } catch (_) {}
@@ -325,8 +388,56 @@ class AuthService {
 
   Future<PatientModel?> getPatientFromFirestore(String uid) async {
     try {
+      if (uid.isEmpty) return null;
+
+      // 1. Tìm trực tiếp theo Document ID
       final doc = await _firestore.collection(AppConstants.patientsCollection).doc(uid).get();
-      return doc.exists ? PatientModel.fromMap(doc.data()!) : null;
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        data['uid'] = (data['uid']?.toString().isNotEmpty == true) ? data['uid'] : doc.id;
+        return PatientModel.fromMap(data);
+      }
+
+      // 2. Tìm theo field uid
+      final uidQuery = await _firestore
+          .collection(AppConstants.patientsCollection)
+          .where('uid', isEqualTo: uid)
+          .limit(1)
+          .get();
+      if (uidQuery.docs.isNotEmpty) {
+        final d = uidQuery.docs.first;
+        final data = d.data();
+        data['uid'] = (data['uid']?.toString().isNotEmpty == true) ? data['uid'] : d.id;
+        return PatientModel.fromMap(data);
+      }
+
+      // 3. Tìm theo field auth_uid
+      final authQuery = await _firestore
+          .collection(AppConstants.patientsCollection)
+          .where('auth_uid', isEqualTo: uid)
+          .limit(1)
+          .get();
+      if (authQuery.docs.isNotEmpty) {
+        final d = authQuery.docs.first;
+        final data = d.data();
+        data['uid'] = (data['uid']?.toString().isNotEmpty == true) ? data['uid'] : d.id;
+        return PatientModel.fromMap(data);
+      }
+
+      // 4. Tìm theo ma_benh_nhan
+      final maQuery = await _firestore
+          .collection(AppConstants.patientsCollection)
+          .where('ma_benh_nhan', isEqualTo: uid)
+          .limit(1)
+          .get();
+      if (maQuery.docs.isNotEmpty) {
+        final d = maQuery.docs.first;
+        final data = d.data();
+        data['uid'] = (data['uid']?.toString().isNotEmpty == true) ? data['uid'] : d.id;
+        return PatientModel.fromMap(data);
+      }
+
+      return null;
     } catch (e) {
       print('Lỗi khi lấy thông tin user từ Firestore: $e');
       return null;
@@ -490,8 +601,8 @@ class AuthService {
     }
   }
 
-  /// _findRefByAuthUid: tìm document có field auth_uid trùng UID của Firebase Auth.
-Future<DocumentReference<Map<String, dynamic>>?> _findRefByAuthUid(
+  /// _findRefByAuthUid: tìm document có field auth_uid hoặc uid trùng UID của Firebase Auth.
+  Future<DocumentReference<Map<String, dynamic>>?> _findRefByAuthUid(
     String collection,
     String authUid,
   ) async {
@@ -500,34 +611,113 @@ Future<DocumentReference<Map<String, dynamic>>?> _findRefByAuthUid(
     final byId = col.doc(authUid);
     if ((await byId.get()).exists) return byId;
 
-    for (final field in const ['auth_uid', 'uid']) {
+    for (final field in const ['auth_uid', 'uid', 'ma_benh_vien']) {
       final snap = await col.where(field, isEqualTo: authUid).limit(1).get();
       if (snap.docs.isNotEmpty) return snap.docs.first.reference;
     }
     return null;
   }
 
-Future<void> updateUserVerificationStatus(String authUid, bool isVerified) async {
-  final patientRef =
-      await _findRefByAuthUid(AppConstants.patientsCollection, authUid);
-  if (patientRef != null) {
-    await patientRef.update({
-      'da_xac_thuc_email': isVerified,
-      'trang_thai_id':
-          isVerified ? TrangThaiId.hoatDong : TrangThaiId.khongHoatDong,
-    });
-    return;
-  }
+  Future<void> updateUserVerificationStatus(String uid, bool isVerified, {String? email}) async {
+    try {
+      final userEmail = email ?? _auth.currentUser?.email;
 
-  final hospitalRef =
-      await _findRefByAuthUid(AppConstants.hospitalsCollection, authUid);
-  if (hospitalRef != null) {
-    await hospitalRef.update({'da_xac_thuc_email': isVerified});
-    return;
-  }
+      // 1. Thử cập nhật Bệnh nhân theo Document ID
+      final patientRef = _firestore.collection(AppConstants.patientsCollection).doc(uid);
+      final patientDoc = await patientRef.get();
+      if (patientDoc.exists) {
+        await patientRef.update({
+          'da_xac_thuc_email': isVerified,
+          'trang_thai_id': isVerified ? TrangThaiId.hoatDong : TrangThaiId.khongHoatDong,
+        });
+        print('✅ [AuthService] Đã cập nhật da_xac_thuc_email cho Bệnh nhân (doc: $uid)');
+        return;
+      }
 
-  throw StateError('Không tìm thấy hồ sơ bệnh nhân hoặc bệnh viện: $authUid');
-}
+      // 2. Thử tìm Bệnh nhân theo auth_uid hoặc uid field
+      final pQuery = await _firestore
+          .collection(AppConstants.patientsCollection)
+          .where('auth_uid', isEqualTo: uid)
+          .limit(1)
+          .get();
+      if (pQuery.docs.isNotEmpty) {
+        await pQuery.docs.first.reference.update({
+          'da_xac_thuc_email': isVerified,
+          'trang_thai_id': isVerified ? TrangThaiId.hoatDong : TrangThaiId.khongHoatDong,
+        });
+        print('✅ [AuthService] Đã cập nhật da_xac_thuc_email cho Bệnh nhân theo auth_uid');
+        return;
+      }
+
+      // 3. Thử tìm Bệnh nhân theo email
+      if (userEmail != null && userEmail.isNotEmpty) {
+        final pEmailQuery = await _firestore
+            .collection(AppConstants.patientsCollection)
+            .where('email', isEqualTo: userEmail)
+            .limit(1)
+            .get();
+        if (pEmailQuery.docs.isNotEmpty) {
+          await pEmailQuery.docs.first.reference.update({
+            'da_xac_thuc_email': isVerified,
+            'trang_thai_id': isVerified ? TrangThaiId.hoatDong : TrangThaiId.khongHoatDong,
+          });
+          print('✅ [AuthService] Đã cập nhật da_xac_thuc_email cho Bệnh nhân theo email');
+          return;
+        }
+      }
+
+      // 4. Thử cập nhật Bệnh viện theo Document ID
+      final hospitalRef = _firestore.collection(AppConstants.hospitalsCollection).doc(uid);
+      final hospitalDoc = await hospitalRef.get();
+      if (hospitalDoc.exists) {
+        await hospitalRef.update({'da_xac_thuc_email': isVerified});
+        print('✅ [AuthService] Đã cập nhật da_xac_thuc_email cho Bệnh viện (doc: $uid)');
+        return;
+      }
+
+      // 5. Thử tìm Bệnh viện theo auth_uid
+      final hAuthQuery = await _firestore
+          .collection(AppConstants.hospitalsCollection)
+          .where('auth_uid', isEqualTo: uid)
+          .limit(1)
+          .get();
+      if (hAuthQuery.docs.isNotEmpty) {
+        await hAuthQuery.docs.first.reference.update({'da_xac_thuc_email': isVerified});
+        print('✅ [AuthService] Đã cập nhật da_xac_thuc_email cho Bệnh viện theo auth_uid');
+        return;
+      }
+
+      // 6. Thử tìm Bệnh viện theo ma_benh_vien
+      final hMaQuery = await _firestore
+          .collection(AppConstants.hospitalsCollection)
+          .where('ma_benh_vien', isEqualTo: uid)
+          .limit(1)
+          .get();
+      if (hMaQuery.docs.isNotEmpty) {
+        await hMaQuery.docs.first.reference.update({'da_xac_thuc_email': isVerified});
+        print('✅ [AuthService] Đã cập nhật da_xac_thuc_email cho Bệnh viện theo ma_benh_vien');
+        return;
+      }
+
+      // 7. Thử tìm Bệnh viện theo email
+      if (userEmail != null && userEmail.isNotEmpty) {
+        final hEmailQuery = await _firestore
+            .collection(AppConstants.hospitalsCollection)
+            .where('email', isEqualTo: userEmail)
+            .limit(1)
+            .get();
+        if (hEmailQuery.docs.isNotEmpty) {
+          await hEmailQuery.docs.first.reference.update({'da_xac_thuc_email': isVerified});
+          print('✅ [AuthService] Đã cập nhật da_xac_thuc_email cho Bệnh viện theo email');
+          return;
+        }
+      }
+
+      print('⚠️ [AuthService] Không tìm thấy hồ sơ để cập nhật email verified: $uid');
+    } catch (e) {
+      print('⚠️ [AuthService] Lỗi khi cập nhật trạng thái xác thực: $e');
+    }
+  }
 
   Future<void> deleteUnverifiedPatient(String uid) async {
     await _deleteUnverifiedAccount(uid, AppConstants.patientsCollection);

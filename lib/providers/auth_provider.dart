@@ -38,7 +38,7 @@ class AuthProvider extends ChangeNotifier {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final cur = _authService.currentUser;
       if (cur != null) {
-        await fetchCurrentUser(preferredRole: 'benh_vien');
+        await fetchCurrentUser();
         final reason = _blockReason();
         if (reason != null) {
           await forceSignOut(reason: reason);
@@ -128,37 +128,100 @@ class AuthProvider extends ChangeNotifier {
       final currentUser = _authService.currentUser;
       if (currentUser == null) return;
 
-      if (preferredRole == 'benh_vien') {
-        var hospital = await _authService.getHospitalFromFirestore(currentUser.uid);
-        hospital ??= await _authService.findHospitalByEmail(currentUser.email ?? '');
-
-        final patient = await _authService.getPatientFromFirestore(currentUser.uid);
-        if (patient != null) hospital = null;
-
-        _hospital = hospital;
+      // 0. Kiểm tra nếu là Admin
+      final adminData = await _authService.getAdminFromFirestore(currentUser.uid);
+      if (adminData != null) {
+        _admin = adminData;
         _user = null;
-        _selectedRole = hospital != null ? 'benh_vien' : null;
+        _hospital = null;
+        _selectedRole = 'admin';
+        return;
+      }
+
+      // Helper tìm hồ sơ Bệnh nhân
+      Future<PatientModel?> findPatientProfile() async {
+        var p = await _authService.getPatientFromFirestore(currentUser.uid);
+        if (p == null && (currentUser.email ?? '').isNotEmpty) {
+          p = await _authService.findPatientByEmail(currentUser.email!);
+        }
+        if (p == null && (currentUser.phoneNumber ?? '').isNotEmpty) {
+          p = await _authService.findPatientByPhone(currentUser.phoneNumber!);
+        }
+        return p;
+      }
+
+      // Helper tìm hồ sơ Bệnh viện
+      Future<HospitalModel?> findHospitalProfile() async {
+        var h = await _authService.getHospitalFromFirestore(currentUser.uid);
+        if (h == null && (currentUser.email ?? '').isNotEmpty) {
+          h = await _authService.findHospitalByEmail(currentUser.email!);
+        }
+        return h;
+      }
+
+      if (preferredRole == 'benh_vien') {
+        var hospital = await findHospitalProfile();
         if (hospital != null) {
+          _hospital = hospital;
+          _user = null;
+          _selectedRole = 'benh_vien';
           AppSession.benhVienId = hospital.maBenhVien ?? hospital.uid ?? currentUser.uid;
+        } else {
+          // Fallback sang Bệnh nhân nếu tài khoản thực chất là Bệnh nhân
+          final patient = await findPatientProfile();
+          if (patient != null) {
+            _user = patient;
+            _hospital = null;
+            _selectedRole = patient.role ?? 'benh_nhan';
+          } else {
+            _hospital = null;
+            _user = null;
+            _selectedRole = null;
+          }
+        }
+      } else if (preferredRole == 'benh_nhan') {
+        var patient = await findPatientProfile();
+        if (patient != null) {
+          _user = patient;
+          _hospital = null;
+          _selectedRole = patient.role ?? 'benh_nhan';
+        } else {
+          // Fallback sang Bệnh viện nếu tài khoản thực chất là Bệnh viện
+          final hospital = await findHospitalProfile();
+          if (hospital != null) {
+            _hospital = hospital;
+            _user = null;
+            _selectedRole = 'benh_vien';
+            AppSession.benhVienId = hospital.maBenhVien ?? hospital.uid ?? currentUser.uid;
+          } else {
+            _user = null;
+            _hospital = null;
+            _selectedRole = null;
+          }
         }
       } else {
-        final patientModel = await _authService.getPatientFromFirestore(currentUser.uid);
-        _user = patientModel;
-
-        if (patientModel == null) {
-          _hospital = await _authService.getHospitalFromFirestore(currentUser.uid);
-          _hospital ??= await _authService.findHospitalByEmail(currentUser.email ?? '');
-          if (_hospital != null) {
-            AppSession.benhVienId = _hospital!.uid ?? currentUser.uid;
-          }
-        } else {
+        // Tự động nhận diện hồ sơ
+        var patient = await findPatientProfile();
+        if (patient != null) {
+          _user = patient;
           _hospital = null;
+          _selectedRole = patient.role ?? 'benh_nhan';
+        } else {
+          var hospital = await findHospitalProfile();
+          if (hospital != null) {
+            _hospital = hospital;
+            _user = null;
+            _selectedRole = 'benh_vien';
+            AppSession.benhVienId = hospital.maBenhVien ?? hospital.uid ?? currentUser.uid;
+          } else {
+            _user = null;
+            _hospital = null;
+            _selectedRole = null;
+          }
         }
-        _selectedRole = patientModel?.role ?? _hospital?.role;
       }
 
       // Chỉ bật theo dõi realtime khi tài khoản chưa bị khóa
-      // (nếu đã bị khóa thì nơi gọi sẽ xử lý: login ném lỗi, restore thì đăng xuất)
       if (_blockReason() == null) {
         if (_hospital != null) {
           _startSecurityWatcher(
@@ -166,7 +229,10 @@ class AuthProvider extends ChangeNotifier {
             isHospital: true,
           );
         } else if (_user != null) {
-          _startSecurityWatcher(currentUser.uid, isHospital: false);
+          _startSecurityWatcher(
+            _user!.uid.isNotEmpty ? _user!.uid : currentUser.uid,
+            isHospital: false,
+          );
         }
       }
     } catch (e) {
@@ -191,6 +257,22 @@ class AuthProvider extends ChangeNotifier {
       return 'admin';
     }
 
+    try {
+      await firebaseUser.reload();
+    } catch (_) {}
+    final freshUser = _authService.currentUser;
+    final isAuthVerified = freshUser?.emailVerified ?? false;
+
+    if (isAuthVerified) {
+      try {
+        await _authService.updateUserVerificationStatus(
+          freshUser!.uid,
+          true,
+          email: freshUser.email,
+        );
+      } catch (_) {}
+    }
+
     await fetchCurrentUser();
 
     final reason = _blockReason();
@@ -200,7 +282,8 @@ class AuthProvider extends ChangeNotifier {
     }
 
     final hasEmail = (firebaseUser.email ?? '').isNotEmpty;
-    final isEmailUnverified = hasEmail && (_user?.daXacThucEmail == false || _hospital?.daXacThucEmail == false);
+    final isFirestoreEmailVerified = (_user?.daXacThucEmail ?? false) || (_hospital?.daXacThucEmail ?? false);
+    final isEmailUnverified = hasEmail && !isAuthVerified && !isFirestoreEmailVerified;
 
     if (isEmailUnverified) {
       await _authService.signOut();
@@ -263,7 +346,11 @@ class AuthProvider extends ChangeNotifier {
 
       if (freshFbUser != null && isAuthEmailVerified) {
         try {
-          await _authService.updateUserVerificationStatus(freshFbUser.uid, true);
+          await _authService.updateUserVerificationStatus(
+            freshFbUser.uid,
+            true,
+            email: freshFbUser.email,
+          );
         } catch (_) {}
       }
 
@@ -336,17 +423,8 @@ class AuthProvider extends ChangeNotifier {
       await fetchCurrentUser(preferredRole: 'benh_nhan');
 
       if (_user == null) {
-        final hasAnyProfile = _hospital != null;
         _hospital = null;
-        if (hasAnyProfile) {
-          await _authService.signOut();
-        } else {
-          try {
-            await _authService.currentUser?.delete();
-          } catch (_) {
-            await _authService.signOut();
-          }
-        }
+        await _authService.signOut();
         throw Exception('Số điện thoại này chưa đăng ký tài khoản bệnh nhân. Vui lòng đăng ký trước.');
       }
 
@@ -586,14 +664,13 @@ class AuthProvider extends ChangeNotifier {
     try {
       final user = _authService.currentUser;
       if (user != null) {
-        await _authService.updateUserVerificationStatus(user.uid, true);
+        await _authService.updateUserVerificationStatus(
+          user.uid,
+          true,
+          email: user.email,
+        );
 
-        _user = await _authService.getPatientFromFirestore(user.uid);
-        _hospital = _user == null ? await _authService.getHospitalFromFirestore(user.uid) : null;
-
-        if (_hospital != null) {
-          AppSession.benhVienId = _hospital!.maBenhVien ?? _hospital!.uid ?? user.uid;
-        }
+        await fetchCurrentUser();
         notifyListeners();
       }
     } catch (e) {
@@ -696,6 +773,8 @@ class AuthProvider extends ChangeNotifier {
   // =========================================================================
   void _startSecurityWatcher(String docId, {required bool isHospital}) {
     _securityWatcherSub?.cancel();
+    if (docId.isEmpty) return;
+
     final collection = isHospital
         ? AppConstants.hospitalsCollection
         : AppConstants.patientsCollection;
@@ -705,11 +784,12 @@ class AuthProvider extends ChangeNotifier {
         .doc(docId)
         .snapshots()
         .listen((snapshot) async {
+      // Nếu đã đăng xuất khỏi phiên, ngừng xử lý
+      if (_authService.currentUser == null || (_user == null && _hospital == null)) {
+        return;
+      }
+
       if (!snapshot.exists) {
-        // Chỉ đá bệnh nhân khi hồ sơ bị xóa (hồ sơ bệnh viện có thể lưu theo id khác)
-        if (!isHospital) {
-          await forceSignOut(reason: 'Tài khoản của bạn đã bị xóa khỏi hệ thống.');
-        }
         return;
       }
 

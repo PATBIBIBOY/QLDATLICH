@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../config/app_routes.dart';
 import '../../config/app_session.dart';
@@ -45,6 +46,24 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     _emailCtrl.addListener(_onInputChanged);
+    _loadSavedAccount();
+  }
+
+  Future<void> _loadSavedAccount() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedAccount = prefs.getString('last_login_account');
+      final savedRole = prefs.getString('last_login_role');
+      if (savedAccount != null && savedAccount.isNotEmpty && mounted) {
+        _emailCtrl.text = savedAccount;
+        if (savedRole != null) {
+          final idx = _roles.indexWhere((r) => r['code'] == savedRole);
+          if (idx != -1) {
+            setState(() => _selectedRoleIndex = idx);
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -159,6 +178,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
           await FirebaseServiceC1.luuPhienDangNhap(
               taiKhoan: email, matKhau: password);
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('last_login_account', email);
+          } catch (_) {}
           if (!mounted) return;
 
           if (!daKichHoat) {
@@ -198,53 +221,69 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
-      // 4. Nếu KHÔNG PHẢI nhân viên -> Đăng nhập theo vai trò chuẩn
+      // 4. Nếu KHÔNG PHẢI nhân viên -> Đăng nhập theo vai trò chuẩn và tự động nhận diện
       if (selectedRoleCode == 'admin') {
-        await auth.loginAdmin(email: email, password: password);
+        try {
+          await auth.loginAdmin(email: email, password: password);
+        } catch (e) {
+          // Thử fallback login thông thường nếu không phải admin
+          await auth.login(email: email, password: password, role: selectedRoleCode);
+        }
       } else {
-        await auth.login(email: email, password: password, role: selectedRoleCode);
+        try {
+          await auth.login(email: email, password: password, role: selectedRoleCode);
+        } catch (e) {
+          final errStr = e.toString();
+          if (errStr.contains('EMAIL_NOT_VERIFIED') ||
+              errStr.contains('ACCOUNT_BLOCKED') ||
+              errStr.contains('HOSPITAL_BLOCKED')) {
+            rethrow;
+          }
+          // Thử kiểm tra nếu là tài khoản Admin
+          try {
+            await auth.loginAdmin(email: email, password: password);
+          } catch (_) {
+            rethrow;
+          }
+        }
       }
 
       if (!mounted) return;
 
-      // 5. Xử lý chuyển hướng sau khi đăng nhập chuẩn thành công
-      if (selectedRoleCode == 'admin' && auth.admin != null) {
+      // Lưu lại thông tin tài khoản đăng nhập thành công
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('last_login_account', email);
+        final String savedRole = auth.admin != null
+            ? 'admin'
+            : (auth.hospital != null ? 'benh_vien' : 'benh_nhan');
+        await prefs.setString('last_login_role', savedRole);
+      } catch (_) {}
+
+      // 5. Tự động nhận diện vai trò và điều hướng chuẩn xác 100%
+      if (auth.admin != null) {
         Navigator.pushNamedAndRemoveUntil(
             context, AppRoutes.adminDashboard, (route) => false);
         return;
       }
 
-      if (selectedRoleCode == 'benh_vien') {
-        if (auth.hospital != null) {
-          AppSession.benhVienId =
-              auth.hospital?.uid ?? FirebaseAuth.instance.currentUser?.uid ?? '';
-          Navigator.pushNamedAndRemoveUntil(
-              context, AppRoutes.hospitalDashboard, (route) => false);
-          return;
-        } else {
-          await auth.logout();
-          throw Exception(
-            'Tài khoản này chưa đăng ký là bệnh viện. '
-            'Vui lòng đăng nhập ở tab Bệnh nhân hoặc đăng ký tài khoản bệnh viện.',
-          );
-        }
+      if (auth.hospital != null) {
+        AppSession.benhVienId =
+            auth.hospital?.uid ?? FirebaseAuth.instance.currentUser?.uid ?? '';
+        Navigator.pushNamedAndRemoveUntil(
+            context, AppRoutes.hospitalDashboard, (route) => false);
+        return;
       }
 
-      // 6. Xử lý trường hợp Bệnh nhân
       if (auth.user != null) {
         Navigator.pushNamedAndRemoveUntil(
             context, AppRoutes.patientMain, (route) => false, arguments: 0);
         return;
       }
 
-      // 7. Fallback
+      // 6. Fallback nếu hoàn toàn không tìm thấy hồ sơ
       await auth.logout();
-      final isHospital = auth.hospital != null;
-      throw Exception(
-        isHospital
-            ? 'Đây là tài khoản bệnh viện. Vui lòng chọn tab Bệnh viện để đăng nhập.'
-            : 'Không tìm thấy thông tin tài khoản phù hợp với vai trò đã chọn.',
-      );
+      throw Exception('Không tìm thấy thông tin hồ sơ phù hợp với tài khoản này. Vui lòng đăng ký tài khoản mới.');
     } catch (e) {
       if (!mounted) return;
 

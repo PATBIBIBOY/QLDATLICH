@@ -162,10 +162,33 @@ class _DanhSachTaiKhoanDaTaoScreenState
     final setRoles = <String>{};
     for (final item in sourceList) {
       if (item.vaiTro.isNotEmpty) {
-        setRoles.add(item.vaiTro.trim());
+        String r = item.vaiTro.trim();
+        final lower = r.toLowerCase();
+        if (lower == 'doctorassistant' ||
+            lower == 'support' ||
+            lower.contains('hỗ trợ') ||
+            lower.contains('bác sĩ')) {
+          r = 'Support';
+        } else if (lower == 'receptionist' || lower == 'lễ tân') {
+          r = 'Lễ tân';
+        } else if (lower == 'customersupport' ||
+            lower == 'cskh' ||
+            lower.contains('chăm sóc')) {
+          r = 'CSKH';
+        }
+        setRoles.add(r);
+      } else if (item.role.isNotEmpty) {
+        final rCode = item.role.trim().toLowerCase();
+        if (rCode == 'doctorassistant' || rCode == 'support' || rCode == 'bac_si') {
+          setRoles.add('Support');
+        } else if (rCode == 'receptionist' || rCode == 'le_tan') {
+          setRoles.add('Lễ tân');
+        } else if (rCode == 'customersupport' || rCode == 'cskh') {
+          setRoles.add('CSKH');
+        }
       }
     }
-    const defaultRoles = ['Lễ tân', 'CSKH'];
+    const defaultRoles = ['Lễ tân', 'CSKH', 'Support'];
     for (final r in defaultRoles) {
       if (!setRoles.contains(r)) {
         setRoles.add(r);
@@ -186,15 +209,25 @@ class _DanhSachTaiKhoanDaTaoScreenState
     if (roleFilter != 'Tất cả') {
       filtered = filtered.where((item) {
         final r = item.vaiTro.toLowerCase();
+        final roleCode = item.role.toLowerCase();
         final filter = roleFilter.toLowerCase();
         if (r == filter) return true;
 
         if (filter == 'lễ tân' &&
-            (r.contains('lễ tân') || item.role == 'receptionist')) {
+            (r.contains('lễ tân') || roleCode == 'receptionist' || roleCode == 'le_tan')) {
           return true;
         }
         if (filter == 'cskh' &&
-            (r.contains('cskh') || item.role == 'customerSupport')) {
+            (r.contains('cskh') || roleCode == 'customersupport' || roleCode == 'cham_soc_khach_hang')) {
+          return true;
+        }
+        if ((filter == 'support' || filter == 'hỗ trợ' || filter == 'bác sĩ') &&
+            (r.contains('support') ||
+             r.contains('hỗ trợ') ||
+             r.contains('bác sĩ') ||
+             roleCode == 'doctorassistant' ||
+             roleCode == 'support' ||
+             roleCode == 'bac_si')) {
           return true;
         }
 
