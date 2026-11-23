@@ -46,6 +46,7 @@ class AdminStore extends ChangeNotifier {
   StreamSubscription? _patientsSub;
 
   bool isSyncing = false;
+  bool _firebaseSyncStarted = false;
   bool isConnected = true;
   DateTime lastSync = DateTime.now();
 
@@ -89,6 +90,46 @@ class AdminStore extends ChangeNotifier {
 
   AdminStore._() {
     _initFirebaseSync();
+  }
+
+  /// Start realtime listeners when the admin dashboard is opened. This can be
+  /// called again after clearForLogout without disposing the singleton.
+  void startRealtimeSync() => _initFirebaseSync();
+
+  /// Stop subscriptions and remove admin data without disposing this singleton.
+  /// The store can safely be reused on the next admin login.
+  Future<void> clearForLogout() async {
+    for (final subscription in <StreamSubscription?>[
+      _hospitalsSub,
+      _pendingSub,
+      _reportsSub,
+      _patientsSub,
+    ]) {
+      try {
+        await subscription?.cancel();
+      } catch (error) {
+        debugPrint('Không thể hủy listener AdminStore: $error');
+      }
+    }
+    _hospitalsSub = null;
+    _pendingSub = null;
+    _reportsSub = null;
+    _patientsSub = null;
+    _hospitalsSnap = null;
+    _pendingSnap = null;
+    _firebaseSyncStarted = false;
+
+    hospitals.clear();
+    pending.clear();
+    violations.clear();
+    reports.clear();
+    resolvedReports.clear();
+    patients.clear();
+    cancelledHospitals.clear();
+    pendingTotal = 0;
+    errorTotal = 0;
+    isSyncing = false;
+    notifyListeners();
   }
 
   static String getInitials(String name) {
@@ -664,6 +705,8 @@ class AdminStore extends ChangeNotifier {
   }
 
   void _initFirebaseSync() {
+    if (_firebaseSyncStarted) return;
+    _firebaseSyncStarted = true;
     try {
       _hospitalsSub = _firestore.collection('BenhVien').snapshots().listen(
         (snapshot) {
@@ -711,6 +754,7 @@ class AdminStore extends ChangeNotifier {
         },
       );
     } catch (e) {
+      _firebaseSyncStarted = false;
       debugPrint('Không thể khởi tạo listener Firestore: $e');
       isConnected = false;
       notifyListeners();
@@ -1114,22 +1158,30 @@ class AdminStore extends ChangeNotifier {
       for (final key in targetDocIds.toList()) {
         try {
           final q1 = await _firestore.collection('NhanVien').where('ma_benh_vien', isEqualTo: key).get();
-          for (final d in q1.docs) targetDocIds.add(d.id);
+          for (final d in q1.docs) {
+            targetDocIds.add(d.id);
+          }
         } catch (_) {}
         try {
           final q2 = await _firestore.collection('NhanVien').where('benh_vien_id', isEqualTo: key).get();
-          for (final d in q2.docs) targetDocIds.add(d.id);
+          for (final d in q2.docs) {
+            targetDocIds.add(d.id);
+          }
         } catch (_) {}
         try {
           final q3 = await _firestore.collection('NhanVien').where('id_benh_vien', isEqualTo: key).get();
-          for (final d in q3.docs) targetDocIds.add(d.id);
+          for (final d in q3.docs) {
+            targetDocIds.add(d.id);
+          }
         } catch (_) {}
       }
 
       if (hospitalName != null && hospitalName.isNotEmpty) {
         try {
           final qName = await _firestore.collection('NhanVien').where('ten_benh_vien', isEqualTo: hospitalName).get();
-          for (final d in qName.docs) targetDocIds.add(d.id);
+          for (final d in qName.docs) {
+            targetDocIds.add(d.id);
+          }
         } catch (_) {}
       }
 
@@ -1211,22 +1263,30 @@ class AdminStore extends ChangeNotifier {
       for (final key in targetDocIds.toList()) {
         try {
           final q1 = await _firestore.collection('NhanVien').where('ma_benh_vien', isEqualTo: key).get();
-          for (final d in q1.docs) targetDocIds.add(d.id);
+          for (final d in q1.docs) {
+            targetDocIds.add(d.id);
+          }
         } catch (_) {}
         try {
           final q2 = await _firestore.collection('NhanVien').where('benh_vien_id', isEqualTo: key).get();
-          for (final d in q2.docs) targetDocIds.add(d.id);
+          for (final d in q2.docs) {
+            targetDocIds.add(d.id);
+          }
         } catch (_) {}
         try {
           final q3 = await _firestore.collection('NhanVien').where('id_benh_vien', isEqualTo: key).get();
-          for (final d in q3.docs) targetDocIds.add(d.id);
+          for (final d in q3.docs) {
+            targetDocIds.add(d.id);
+          }
         } catch (_) {}
       }
 
       if (hospitalName != null && hospitalName.isNotEmpty) {
         try {
           final qName = await _firestore.collection('NhanVien').where('ten_benh_vien', isEqualTo: hospitalName).get();
-          for (final d in qName.docs) targetDocIds.add(d.id);
+          for (final d in qName.docs) {
+            targetDocIds.add(d.id);
+          }
         } catch (_) {}
       }
 
@@ -1399,15 +1459,21 @@ class AdminStore extends ChangeNotifier {
           for (final key in {code, maBenhVien, targetAuthUid}.whereType<String>().where((s) => s.isNotEmpty)) {
             try {
               final snap1 = await _firestore.collection(colName).where('benh_vien_id', isEqualTo: key).get();
-              for (final d in snap1.docs) await d.reference.delete();
+              for (final d in snap1.docs) {
+                await d.reference.delete();
+              }
             } catch (_) {}
             try {
               final snap2 = await _firestore.collection(colName).where('ma_benh_vien', isEqualTo: key).get();
-              for (final d in snap2.docs) await d.reference.delete();
+              for (final d in snap2.docs) {
+                await d.reference.delete();
+              }
             } catch (_) {}
             try {
               final snap3 = await _firestore.collection(colName).where('id_benh_vien', isEqualTo: key).get();
-              for (final d in snap3.docs) await d.reference.delete();
+              for (final d in snap3.docs) {
+                await d.reference.delete();
+              }
             } catch (_) {}
           }
         }
@@ -1955,6 +2021,18 @@ class AdminStore extends ChangeNotifier {
     _pendingSub?.cancel();
     _reportsSub?.cancel();
     _patientsSub?.cancel();
+    
+    // Xóa dữ liệu cache trong store khi đăng xuất
+    hospitals.clear();
+    pending.clear();
+    violations.clear();
+    reports.clear();
+    resolvedReports.clear();
+    patients.clear();
+    cancelledHospitals.clear();
+    pendingTotal = 0;
+    errorTotal = 0;
+    
     super.dispose();
   }
 }
