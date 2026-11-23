@@ -677,7 +677,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// _buildPatientIdChip: chip "Mã BN: ..." bấm để sao chép.
+  /// _buildPatientIdChip: chip "Mã BN: ..." bấm để sao chép, tự cắt ngắn nếu mã quá dài.
   Widget _buildPatientIdChip(String id) {
     return GestureDetector(
       onTap: () => _copyId(id),
@@ -693,12 +693,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             const Icon(Icons.badge_outlined, size: 15, color: Colors.white),
             const SizedBox(width: 7),
-            Text(
-              'Mã BN: $id',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
+            Flexible(
+              child: Text(
+                'Mã BN: $id',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -878,12 +882,16 @@ class _SectionCard extends StatelessWidget {
               const SizedBox(width: 10),
               Icon(icon, size: 18, color: color),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF0F172A),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                  ),
                 ),
               ),
             ],
