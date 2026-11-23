@@ -1231,9 +1231,25 @@ class FirebaseServiceC1 {
         (danhSachChoDuyet.first['khoa_id'] ?? danhSachChoDuyet.first['tenKhoa'] ?? danhSachChoDuyet.first['khoa'] ?? '')
             .toString();
 
-    // 4. Theo dõi số thứ tự tiếp theo cho từng khoa trong bộ nhớ để tăng dần (tránh độ trễ Firestore làm trùng số 1)
-    final Map<String, int> nextSttTheoKhoa = {};
+    // 4. Tìm các số thứ tự ĐÃ ĐƯỢC DUYỆT có sẵn trong danh sách hiển thị
+    final Set<int> usedNumbersFromList = {};
+    for (var don in danhSachDon) {
+      final rawId = (don['trangThaiId'] ?? don['trang_thai_id'] ?? '').toString();
+      final rawStr = (don['rawTrangThai'] ?? don['trangThai'] ?? '').toString().toLowerCase();
+      final bool daDuyet = rawId == '2' || rawId == '5' || rawStr.contains('duyet') || rawStr.contains('xac_nhan');
+      if (daDuyet) {
+        final sttVal = don['so_thu_tu'] ?? don['stt'];
+        if (sttVal != null) {
+          final p = int.tryParse(sttVal.toString());
+          if (p != null && p > 0) {
+            usedNumbersFromList.add(p);
+          }
+        }
+      }
+    }
 
+    // 5. Cấp STT tịnh tiến cho từng đơn chờ duyệt (tự động lấp các vị trí trống 1, 2, 3...)
+    int candidate = 1;
     for (var don in danhSachChoDuyet) {
       final id = don['id']?.toString();
       final docPath = don['docPath']?.toString();
@@ -1241,20 +1257,13 @@ class FirebaseServiceC1 {
       final targetKhoa = donKhoaId.isNotEmpty ? donKhoaId : defaultKhoaId;
 
       if (id != null && id.isNotEmpty) {
-        // Lấy STT ban đầu từ Firestore cho khoa này nếu chưa có trong map
-        if (!nextSttTheoKhoa.containsKey(targetKhoa)) {
-          final startStt = await laySoThuTuTiepTheo(
-            benhVienId: bvid,
-            khoaId: targetKhoa,
-            phongKhamId: phongKhamId,
-            ngayChon: ngayChon,
-          );
-          nextSttTheoKhoa[targetKhoa] = startStt;
+        // Tìm số nhỏ nhất chưa dùng (kết hợp cả các đơn đã duyệt có sẵn và các đơn vừa cấp)
+        while (usedNumbersFromList.contains(candidate)) {
+          candidate++;
         }
-
-        final currentSttToAssign = nextSttTheoKhoa[targetKhoa]!;
-        // Tăng STT cho người kế tiếp trong cùng khoa
-        nextSttTheoKhoa[targetKhoa] = currentSttToAssign + 1;
+        final currentSttToAssign = candidate;
+        // Đánh dấu số này đã được dùng cho đơn hiện tại
+        usedNumbersFromList.add(currentSttToAssign);
 
         await capNhatTrangThaiLichHen(
           appointmentId: id,
